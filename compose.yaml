@@ -1,0 +1,52 @@
+services:
+  database:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: directus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-directus}
+      POSTGRES_USER: directus
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U directus -d directus]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - database_data:/var/lib/postgresql
+
+  directus:
+    image: directus/directus:12.3.1
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:-change-me}
+      ADMIN_TOKEN: ${DIRECTUS_ADMIN_TOKEN:-change-this-local-token}
+      DB_CLIENT: pg
+      DB_DATABASE: directus
+      DB_HOST: database
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-directus}
+      DB_PORT: 5432
+      DB_USER: directus
+      HOST: 0.0.0.0
+      MAX_PAYLOAD_SIZE: 10mb
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      SECRET: ${DIRECTUS_SECRET:-replace-this-local-secret-with-32-bytes}
+      STORAGE_LOCAL_DRIVER: local
+      STORAGE_LOCAL_ROOT: ./uploads
+      STORAGE_LOCATIONS: local,publish
+      STORAGE_PUBLISH_BUCKET: ${STORAGE_PUBLISH_BUCKET:-}
+      STORAGE_PUBLISH_ENDPOINT: ${STORAGE_PUBLISH_ENDPOINT:-}
+      STORAGE_PUBLISH_FORCE_PATH_STYLE: ${STORAGE_PUBLISH_FORCE_PATH_STYLE:-false}
+      STORAGE_PUBLISH_KEY: ${STORAGE_PUBLISH_KEY:-}
+      STORAGE_PUBLISH_REGION: ${STORAGE_PUBLISH_REGION:-auto}
+      STORAGE_PUBLISH_SECRET: ${STORAGE_PUBLISH_SECRET:-}
+      STORAGE_PUBLISH_DRIVER: s3
+      TELEMETRY: false
+    ports:
+      - 127.0.0.1:${DIRECTUS_PORT:-8055}:8055
+    volumes:
+      - ./directus/extensions:/directus/extensions:ro
+
+volumes:
+  database_data:

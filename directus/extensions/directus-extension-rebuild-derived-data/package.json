@@ -1,0 +1,18 @@
+{
+  "name": "directus-extension-rebuild-derived-data",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "directus:extension": {
+    "type": "operation",
+    "path": {
+      "app": "app.js",
+      "api": "api.js"
+    },
+    "source": {
+      "app": "app.js",
+      "api": "api.js"
+    },
+    "host": "^12.0.0"
+  }
+}

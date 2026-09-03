@@ -1,0 +1,5 @@
+.env
+.eslintcache
+docs/
+finki-hub.xlsx
+node_modules/

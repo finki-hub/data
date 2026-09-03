@@ -1,0 +1,32 @@
+{
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "eslint": "^10.9.1",
+    "eslint-config-imperium": "^4.1.4",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  },
+  "license": "MIT",
+  "name": "finki-hub-data-migration",
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "private": true,
+  "scripts": {
+    "check": "tsc --noEmit",
+    "format": "eslint . --cache --fix",
+    "import": "node --env-file-if-exists=.env --import tsx src/cli.ts",
+    "import:dry-run": "node --env-file-if-exists=.env --import tsx src/cli.ts --dry-run",
+    "lint": "eslint . --cache",
+    "test": "vitest run"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}
