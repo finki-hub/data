@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   deriveCourses,
+  DerivedDataError,
   deriveStudentCouncil,
 } from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 
@@ -186,5 +187,106 @@ describe('derived Directus data', () => {
       { id: 1, name: 'Student One' },
       { id: 2, name: null },
     ]);
+  });
+});
+
+describe('enrollment history matching', () => {
+  test('counts LF and CRLF separated histories with the default name-year pattern', async () => {
+    const [result] = await deriveCourses({
+      courseEnrollmentPatterns: [],
+      courseEquivalencies: [],
+      courses: [
+        {
+          id: 1,
+          name: courseOne,
+          name_2023: courseOne,
+          professors_override: null,
+        },
+      ],
+      curriculum2018: [],
+      curriculum2023: [],
+      moodleUsers: [
+        { Courses: `Other Course-2025/2026\n${courseOne}-2025/2026` },
+        { Courses: `Other Course-2025/2026\r\n${courseOne}-2025/2026` },
+        { Courses: `${courseOne}-2024/2025\r\n` },
+      ],
+      teachingAssignments: [],
+    });
+
+    expect(result).toMatchObject({
+      enrollment_2024_2025: 1,
+      enrollment_2025_2026: 2,
+    });
+  });
+
+  test('counts a user once when the history repeats a matching entry', async () => {
+    const [result] = await deriveCourses({
+      courseEnrollmentPatterns: [],
+      courseEquivalencies: [],
+      courses: [
+        {
+          id: 1,
+          name: courseOne,
+          name_2023: courseOne,
+          professors_override: null,
+        },
+      ],
+      curriculum2018: [],
+      curriculum2023: [],
+      moodleUsers: [
+        { Courses: `${courseOne}-2025/2026\n${courseOne}-2025/2026` },
+      ],
+      teachingAssignments: [],
+    });
+
+    expect(result?.['enrollment_2025_2026']).toBe(1);
+  });
+
+  test('applies a pattern override only to its own academic year', async () => {
+    const [result] = await deriveCourses({
+      courseEnrollmentPatterns: [
+        {
+          academic_year: '2025/2026',
+          course_name: courseOne,
+          pattern: `${courseOne} Honors-2025/2026`,
+        },
+      ],
+      courseEquivalencies: [],
+      courses: [
+        {
+          id: 1,
+          name: courseOne,
+          name_2023: courseOne,
+          professors_override: null,
+        },
+      ],
+      curriculum2018: [],
+      curriculum2023: [],
+      moodleUsers: [
+        { Courses: `${courseOne}-2025/2026\n${courseOne}-2024/2025` },
+      ],
+      teachingAssignments: [],
+    });
+
+    expect(result).toMatchObject({
+      enrollment_2024_2025: 1,
+      enrollment_2025_2026: 0,
+    });
+  });
+
+  test('rejects a course name that is not a valid regular expression', async () => {
+    await expect(
+      deriveCourses({
+        courseEnrollmentPatterns: [],
+        courseEquivalencies: [],
+        courses: [
+          { id: 1, name: 'C++', name_2023: null, professors_override: null },
+        ],
+        curriculum2018: [],
+        curriculum2023: [],
+        moodleUsers: [],
+        teachingAssignments: [],
+      }),
+    ).rejects.toThrow(DerivedDataError);
   });
 });

@@ -1,0 +1,959 @@
+import type {
+  CourseSources,
+  StudentCouncilSources,
+} from '../../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
+import type { CollectionKey, MigrationItem } from '../../src/schema.js';
+
+/**
+ * Deterministic, fully invented dataset covering every migration collection.
+ *
+ * Every value is synthetic: names are Greek-letter placeholders, addresses use
+ * `.example` domains only, and private-only columns carry sentinel strings so
+ * tests can prove those values never reach a public output. Course rows carry
+ * the derived columns exactly as the current rebuild produces them, so the
+ * dataset doubles as the serializer input and as the derivation oracle.
+ */
+
+export type SyntheticRow = MigrationItem & { readonly id: number };
+
+export type SyntheticDataset = Readonly<
+  Record<CollectionKey, readonly SyntheticRow[]>
+>;
+
+export type SerializerInput = {
+  readonly read_courses: readonly SyntheticRow[];
+  readonly read_rooms: readonly SyntheticRow[];
+  readonly read_staff: readonly SyntheticRow[];
+  readonly read_students: readonly SyntheticRow[];
+};
+
+export const sentinelPrivateId = 'SENTINEL_PRIVATE_ID';
+export const sentinelPrivateMail = 'SENTINEL_PRIVATE_MAIL';
+export const sentinelPrivateSourceGroup = 'SENTINEL_PRIVATE_SOURCE_GROUP';
+
+export const privateSentinels = [
+  sentinelPrivateId,
+  sentinelPrivateMail,
+  sentinelPrivateSourceGroup,
+] as const;
+
+export const courseNames = {
+  alpha: 'Alpha Course',
+  beta: 'Beta Course',
+  delta: 'Delta Course',
+  epsilon: 'Epsilon Course',
+  gamma: 'Gamma Course',
+  iota: 'Iota 2.0 Course',
+  theta: 'Theta Course',
+  zeta: 'Zeta Course',
+} as const;
+
+/** A name whose `+` makes the unescaped default enrollment pattern invalid. */
+export const metacharacterCourseName = 'C++ Course';
+
+export const academicYears = [
+  '2025/2026',
+  '2024/2025',
+  '2023/2024',
+  '2022/2023',
+  '2021/2022',
+  '2020/2021',
+  '2019/2020',
+  '2018/2019',
+  '2017/2018',
+  '2016/2017',
+  '2015/2016',
+  '2014/2015',
+  '2013/2014',
+  '2012/2013',
+  '2011/2012',
+] as const;
+
+type AcademicYear = (typeof academicYears)[number];
+
+const enrollment = (
+  counts: Partial<Record<AcademicYear, number>>,
+): Record<string, number> =>
+  Object.fromEntries(
+    academicYears.map((year) => [
+      `enrollment_${year.replace('/', '_')}`,
+      counts[year] ?? 0,
+    ]),
+  );
+
+const makeCourse = (
+  id: number,
+  name: string,
+  values: MigrationItem,
+): SyntheticRow => ({
+  id,
+  name,
+  professors_override: null,
+  professors: null,
+  ...enrollment({}),
+  available_2023: null,
+  available_2018: null,
+  channel: false,
+  tags: null,
+  assistants: null,
+  name_2023: null,
+  code_2023: null,
+  level_2023: null,
+  semester_2023: null,
+  channel_2023: null,
+  prerequisite_2023: null,
+  state_kn_2023: null,
+  state_siis_2023: null,
+  state_pit_2023: null,
+  state_imb_2023: null,
+  state_ki_2023: null,
+  state_ie_2023: null,
+  state_ssp_2023: null,
+  state_seis_2023: null,
+  credits_2023: null,
+  name_2018_override: null,
+  name_2018: null,
+  code_2018: null,
+  level_2018: null,
+  semester_2018: null,
+  channel_2018: null,
+  prerequisite_2018: null,
+  credits_2018: null,
+  state_kn_2018: null,
+  state_siis_2018: null,
+  state_pit_2018: null,
+  state_imb_2018: null,
+  state_ki_2018: null,
+  state_ke_2018: null,
+  state_seis_2018: null,
+  ...values,
+});
+
+const makeCurriculum2023 = (
+  id: number,
+  name: string,
+  values: MigrationItem,
+): SyntheticRow => ({
+  id,
+  catalog_order: id,
+  name,
+  url: `https://curriculum.example/2023/${id}`,
+  code: null,
+  level: null,
+  semester: null,
+  prerequisites: null,
+  state_kn: null,
+  state_siis: null,
+  state_pit: null,
+  state_imb: null,
+  state_ki: null,
+  state_ie: null,
+  state_ssp: null,
+  state_seis: null,
+  channel: false,
+  ...values,
+});
+
+const makeCurriculum2018 = (
+  id: number,
+  name: string,
+  values: MigrationItem,
+): SyntheticRow => ({
+  id,
+  catalog_order: id,
+  name,
+  url: `https://curriculum.example/2018/${id}`,
+  code: null,
+  level: null,
+  semester: null,
+  prerequisites: null,
+  state_kn: null,
+  state_siis: null,
+  state_pit: null,
+  state_imb: null,
+  state_ki: null,
+  state_ke: null,
+  state_seis: null,
+  channel: false,
+  ...values,
+});
+
+const makeMoodleUser = (
+  id: number,
+  courses: null | string,
+  coursesCount: null | number,
+): SyntheticRow => {
+  const label = String(id).padStart(3, '0');
+
+  return {
+    id,
+    ID_old: 1_000 + id,
+    ID_new: 2_000 + id,
+    Name: `Synthetic Moodle User ${label}`,
+    Mail: `${sentinelPrivateMail}.${label}@moodle-users.example`,
+    Courses: courses,
+    'Courses Count': coursesCount,
+    Profile_old: `https://moodle-old.example/user/profile.php?id=${sentinelPrivateId}-old-${label}`,
+    Profile_new: `https://moodle.example/user/profile.php?id=${sentinelPrivateId}-new-${label}`,
+    AIM_new: `synthetic-aim-new-${label}`,
+    AIM_old: `synthetic-aim-old-${label}`,
+    Avatar_new: `https://moodle.example/avatars/synthetic-new-${label}.png`,
+    Avatar_old: `https://moodle-old.example/avatars/synthetic-old-${label}.png`,
+    City_new: 'Synthetic City (new)',
+    City_old: 'Synthetic City (old)',
+    Country_new: 'Synthetic Country (new)',
+    Country_old: 'Synthetic Country (old)',
+    Description_new: `Synthetic description (new) ${label}`,
+    Description_old: `Synthetic description (old) ${label}`,
+    ICQ_new: `synthetic-icq-new-${label}`,
+    ICQ_old: `synthetic-icq-old-${label}`,
+    Images_new: `https://moodle.example/images/synthetic-new-${label}.png`,
+    Images_old: `https://moodle-old.example/images/synthetic-old-${label}.png`,
+    Interests_new: 'synthetic interests (new)',
+    Interests_old: 'synthetic interests (old)',
+    'Last Access_new': '2026-01-01 00:00',
+    'Last Access_old': '2020-01-01 00:00',
+    MSN_new: `synthetic-msn-new-${label}`,
+    MSN_old: `synthetic-msn-old-${label}`,
+    MoodleNet_new: `synthetic-moodlenet-new-${label}`,
+    MoodleNet_old: `synthetic-moodlenet-old-${label}`,
+    Skype_new: `synthetic-skype-new-${label}`,
+    Skype_old: `synthetic-skype-old-${label}`,
+    Timezone_new: 'Etc/UTC',
+    Timezone_old: 'Etc/UTC',
+    Web_new: `https://synthetic-web.example/new/${label}`,
+    Web_old: `https://synthetic-web.example/old/${label}`,
+    Yahoo_new: `synthetic-yahoo-new-${label}`,
+    Yahoo_old: `synthetic-yahoo-old-${label}`,
+  };
+};
+
+/**
+ * Cross-newline override for Theta 2021/2022: only histories listing the lab
+ * directly after the lecture (LF or CRLF) count, so per-entry matching is not
+ * equivalent to this whole-text expression.
+ */
+export const thetaCrossNewlinePattern = String.raw`Theta Course-2021/2022\r?\nTheta Lab-2021/2022`;
+
+const makeCourses = (): readonly SyntheticRow[] => [
+  makeCourse(1, courseNames.alpha, {
+    professors: 'Prof. Zed Alpha, Prof. Abe Alpha',
+    ...enrollment({ '2025/2026': 2, '2024/2025': 2, '2023/2024': 1 }),
+    available_2023: true,
+    available_2018: false,
+    channel: true,
+    tags: 'synthetic;alpha',
+    assistants: 'Asst. Alpha One; Asst. Alpha Two',
+    name_2023: 'Alpha Course (2023)',
+    code_2023: 'SYN23-001',
+    level_2023: 1,
+    semester_2023: 1,
+    channel_2023: true,
+    state_kn_2023: 'mandatory',
+    state_siis_2023: 'elective',
+    state_ki_2023: 'elective',
+    state_ie_2023: 'mandatory',
+    state_ssp_2023: 'elective',
+    state_seis_2023: 'mandatory',
+    credits_2023: 6,
+    name_2018: 'Alpha Legacy',
+    code_2018: 'SYN18-001',
+    level_2018: 1,
+    semester_2018: 2,
+    channel_2018: false,
+    credits_2018: 6,
+    state_kn_2018: 'mandatory',
+    state_pit_2018: 'elective',
+    state_ke_2018: 'elective',
+  }),
+  makeCourse(2, courseNames.beta, {
+    professors_override: 'Prof. Beta Override',
+    professors: 'Prof. Beta Override',
+    ...enrollment({ '2024/2025': 2 }),
+    available_2023: true,
+    available_2018: true,
+    channel: true,
+    tags: '',
+    assistants: 'Asst. Beta Assigned',
+    name_2023: 'Beta Course',
+    code_2023: 'SYN23-002',
+    level_2023: 2,
+    semester_2023: 3,
+    channel_2023: false,
+    prerequisite_2023: 'SYN23-001',
+    state_kn_2023: 'elective',
+    state_siis_2023: 'mandatory',
+    credits_2023: 6,
+    name_2018_override: 'Beta Legacy Manual',
+    name_2018: 'Beta Legacy Manual',
+    code_2018: 'SYN18-002-MANUAL',
+    level_2018: 2,
+    semester_2018: 4,
+    channel_2018: true,
+    prerequisite_2018: 'SYN18-001',
+    credits_2018: 0,
+    state_kn_2018: 'elective',
+  }),
+  makeCourse(3, courseNames.gamma, {
+    professors_override: 'Prof. Gamma Override',
+    professors: 'Prof. Gamma Override',
+    available_2023: true,
+    available_2018: false,
+    channel: false,
+    tags: 'synthetic;gamma',
+    name_2023: 'Gamma Course',
+    code_2023: 'SYN23-003',
+    level_2023: 1,
+    semester_2023: 2,
+    channel_2023: false,
+    state_pit_2023: 'mandatory',
+    credits_2023: 6,
+  }),
+  makeCourse(4, courseNames.delta, {
+    ...enrollment({ '2021/2022': 1 }),
+    channel: false,
+    name_2023: '',
+  }),
+  makeCourse(5, courseNames.epsilon, {
+    professors: 'Prof. Epsilon',
+    ...enrollment({ '2023/2024': 1 }),
+    available_2023: true,
+    available_2018: true,
+    channel: true,
+    tags: 'synthetic;epsilon',
+    name_2023: 'Epsilon Course',
+    code_2023: 'SYN23-005',
+    level_2023: 3,
+    semester_2023: 5,
+    channel_2023: true,
+    prerequisite_2023: 'SYN23-002',
+    state_kn_2023: 'kn-state',
+    state_siis_2023: 'siis-state',
+    state_pit_2023: 'pit-state',
+    state_imb_2023: 'imb-state',
+    state_ki_2023: 'ki-state',
+    state_ie_2023: 'ie-state',
+    state_ssp_2023: 'ssp-state',
+    state_seis_2023: 'seis-state',
+    credits_2023: 6,
+    name_2018_override: '',
+    name_2018: 'Epsilon Legacy',
+    code_2018: 'SYN18-005',
+    level_2018: 3,
+    semester_2018: 6,
+    channel_2018: true,
+    prerequisite_2018: 'SYN18-002-MANUAL',
+    credits_2018: 6,
+    state_kn_2018: 'kn-legacy',
+    state_siis_2018: 'siis-legacy',
+    state_pit_2018: 'pit-legacy',
+    state_imb_2018: 'imb-legacy',
+    state_ki_2018: 'ki-legacy',
+    state_ke_2018: 'ke-legacy',
+    state_seis_2018: 'seis-legacy',
+  }),
+  makeCourse(6, courseNames.zeta, {
+    available_2023: false,
+    available_2018: false,
+    channel: false,
+    assistants: 'Asst. Zeta',
+    name_2023: 'Zeta Course',
+    semester_2023: 6,
+    credits_2023: 0,
+    name_2018: 'Zeta Legacy',
+    code_2018: 'SYN18-006',
+    level_2018: 1,
+    semester_2018: 1,
+    channel_2018: false,
+  }),
+  makeCourse(7, courseNames.theta, {
+    professors_override: '',
+    professors: 'Prof. Theta',
+    ...enrollment({ '2021/2022': 2 }),
+    available_2023: true,
+    available_2018: true,
+    channel: true,
+    assistants: 'Asst. Theta',
+    name_2023: 'Theta Course',
+    code_2023: 'SYN23-007',
+    level_2023: 2,
+    semester_2023: 4,
+    channel_2023: true,
+    state_ki_2023: 'mandatory',
+    credits_2023: 6,
+    name_2018: 'Theta Legacy',
+    code_2018: 'SYN18-007',
+    level_2018: 2,
+    semester_2018: 3,
+    channel_2018: false,
+    credits_2018: 6,
+    state_ke_2018: 'mandatory',
+  }),
+  makeCourse(8, courseNames.iota, {
+    professors: 'Prof. Iota',
+    ...enrollment({ '2022/2023': 1 }),
+    available_2023: true,
+    channel: false,
+    assistants: 'Asst. Iota',
+    name_2023: 'Iota 2.0 Course',
+    code_2023: 'SYN23-008',
+    level_2023: 1,
+    semester_2023: 1,
+    channel_2023: false,
+    credits_2023: 6,
+  }),
+];
+
+const makeCurriculum2023Rows = (): readonly SyntheticRow[] => [
+  makeCurriculum2023(1, 'Alpha Course (2023)', {
+    code: 'SYN23-001',
+    level: 1,
+    semester: 1,
+    state_kn: 'mandatory',
+    state_siis: 'elective',
+    state_imb: '',
+    state_ki: 'elective',
+    state_ie: 'mandatory',
+    state_ssp: 'elective',
+    state_seis: 'mandatory',
+    channel: true,
+  }),
+  makeCurriculum2023(2, 'Alpha Course (2023)', {
+    code: 'SYN23-001-DUP',
+    level: 9,
+    semester: 9,
+    state_kn: 'duplicate-must-lose',
+    channel: false,
+  }),
+  makeCurriculum2023(3, courseNames.alpha, {
+    code: 'SYN23-DECOY',
+    level: 8,
+    semester: 8,
+    state_kn: 'decoy-must-lose',
+    channel: false,
+  }),
+  makeCurriculum2023(4, courseNames.beta, {
+    code: 'SYN23-002',
+    level: 2,
+    semester: 3,
+    prerequisites: 'SYN23-001',
+    state_kn: 'elective',
+    state_siis: 'mandatory',
+    channel: false,
+  }),
+  makeCurriculum2023(5, courseNames.gamma, {
+    code: 'SYN23-003',
+    level: 1,
+    semester: 2,
+    state_pit: 'mandatory',
+    channel: false,
+  }),
+  makeCurriculum2023(6, courseNames.epsilon, {
+    code: 'SYN23-005',
+    level: 3,
+    semester: 5,
+    prerequisites: 'SYN23-002',
+    state_kn: 'kn-state',
+    state_siis: 'siis-state',
+    state_pit: 'pit-state',
+    state_imb: 'imb-state',
+    state_ki: 'ki-state',
+    state_ie: 'ie-state',
+    state_ssp: 'ssp-state',
+    state_seis: 'seis-state',
+    channel: true,
+  }),
+  makeCurriculum2023(7, courseNames.zeta, {
+    code: '',
+    semester: 6,
+    prerequisites: '',
+    state_kn: '',
+    channel: null,
+  }),
+  makeCurriculum2023(8, courseNames.theta, {
+    code: 'SYN23-007',
+    level: 2,
+    semester: 4,
+    state_ki: 'mandatory',
+    channel: true,
+  }),
+  makeCurriculum2023(9, courseNames.iota, {
+    code: 'SYN23-008',
+    level: 1,
+    semester: 1,
+    channel: false,
+  }),
+  makeCurriculum2023(10, 'Orphan Current Course', {
+    code: 'SYN23-ORPHAN',
+    level: 1,
+    semester: 1,
+    channel: true,
+  }),
+];
+
+const makeCurriculum2018Rows = (): readonly SyntheticRow[] => [
+  makeCurriculum2018(1, 'Alpha Legacy', {
+    code: 'SYN18-001',
+    level: 1,
+    semester: 2,
+    state_kn: 'mandatory',
+    state_pit: 'elective',
+    state_ke: 'elective',
+    channel: false,
+  }),
+  makeCurriculum2018(2, 'Alpha Legacy Duplicate', {
+    code: 'SYN18-001-DUP',
+    level: 9,
+    semester: 9,
+    channel: true,
+  }),
+  makeCurriculum2018(3, 'Beta Legacy Manual', {
+    code: 'SYN18-002-MANUAL',
+    level: 2,
+    semester: 4,
+    prerequisites: 'SYN18-001',
+    state_kn: 'elective',
+    channel: true,
+  }),
+  makeCurriculum2018(4, 'Beta Legacy Equivalent', {
+    code: 'SYN18-002-EQUIV',
+    level: 7,
+    semester: 7,
+    state_kn: 'equivalent-must-lose',
+    channel: false,
+  }),
+  makeCurriculum2018(5, 'Epsilon Legacy', {
+    code: 'SYN18-005',
+    level: 3,
+    semester: 6,
+    prerequisites: 'SYN18-002-MANUAL',
+    state_kn: 'kn-legacy',
+    state_siis: 'siis-legacy',
+    state_pit: 'pit-legacy',
+    state_imb: 'imb-legacy',
+    state_ki: 'ki-legacy',
+    state_ke: 'ke-legacy',
+    state_seis: 'seis-legacy',
+    channel: true,
+  }),
+  makeCurriculum2018(6, 'Zeta Legacy', {
+    code: 'SYN18-006',
+    level: 1,
+    semester: 1,
+    channel: false,
+  }),
+  makeCurriculum2018(7, 'Theta Legacy', {
+    code: 'SYN18-007',
+    level: 2,
+    semester: 3,
+    state_ke: 'mandatory',
+    channel: false,
+  }),
+  makeCurriculum2018(8, 'Orphan Legacy Course', {
+    code: 'SYN18-ORPHAN',
+    level: 1,
+    semester: 1,
+    channel: true,
+  }),
+  makeCurriculum2018(9, 'Alpha Legacy', {
+    code: 'SYN18-001-LATER',
+    level: 9,
+    semester: 9,
+    state_kn: 'later-duplicate-must-lose',
+    channel: true,
+  }),
+  makeCurriculum2018(10, courseNames.alpha, {
+    code: 'SYN18-DECOY',
+    level: 8,
+    semester: 8,
+    state_kn: 'decoy-must-lose',
+    channel: true,
+  }),
+];
+
+const makeCourseEquivalencies = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    course_2023: courseNames.alpha,
+    course_2018: 'Alpha Legacy',
+    course_2013: 'Alpha Ancient',
+  },
+  {
+    id: 2,
+    course_2023: courseNames.alpha,
+    course_2018: 'Alpha Legacy Duplicate',
+    course_2013: null,
+  },
+  {
+    id: 3,
+    course_2023: 'Alpha Course (2023)',
+    course_2018: 'Alpha Legacy Decoy',
+    course_2013: null,
+  },
+  {
+    id: 4,
+    course_2023: courseNames.beta,
+    course_2018: 'Beta Legacy Equivalent',
+    course_2013: 'Beta Ancient',
+  },
+  {
+    id: 5,
+    course_2023: courseNames.gamma,
+    course_2018: null,
+    course_2013: 'Gamma Ancient',
+  },
+  {
+    id: 6,
+    course_2023: courseNames.epsilon,
+    course_2018: 'Epsilon Legacy',
+    course_2013: null,
+  },
+  {
+    id: 7,
+    course_2023: courseNames.zeta,
+    course_2018: 'Zeta Legacy',
+    course_2013: null,
+  },
+  {
+    id: 8,
+    course_2023: courseNames.theta,
+    course_2018: 'Theta Legacy',
+    course_2013: 'Theta Ancient',
+  },
+  {
+    id: 9,
+    course_2023: 'Orphan Equivalent Course',
+    course_2018: 'Orphan Legacy Course',
+    course_2013: 'Orphan Ancient',
+  },
+  { id: 10, course_2023: null, course_2018: null, course_2013: 'Ancient Only' },
+];
+
+const makeTeachingAssignments = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    course_name: courseNames.alpha,
+    professors: 'Prof. Zed Alpha, Prof. Abe Alpha',
+    assistants: 'Asst. Alpha One; Asst. Alpha Two',
+  },
+  {
+    id: 2,
+    course_name: courseNames.alpha,
+    professors: 'Prof. Later Alpha',
+    assistants: 'Asst. Later Alpha',
+  },
+  {
+    id: 3,
+    course_name: courseNames.beta,
+    professors: 'Prof. Beta Assigned',
+    assistants: 'Asst. Beta Assigned',
+  },
+  {
+    id: 4,
+    course_name: courseNames.epsilon,
+    professors: 'Prof. Epsilon',
+    assistants: null,
+  },
+  {
+    id: 5,
+    course_name: courseNames.zeta,
+    professors: '',
+    assistants: 'Asst. Zeta',
+  },
+  {
+    id: 6,
+    course_name: 'Orphan Assignment Course',
+    professors: 'Prof. Orphan',
+    assistants: 'Asst. Orphan',
+  },
+  {
+    id: 7,
+    course_name: courseNames.theta,
+    professors: 'Prof. Theta',
+    assistants: 'Asst. Theta',
+  },
+  {
+    id: 8,
+    course_name: courseNames.iota,
+    professors: 'Prof. Iota',
+    assistants: 'Asst. Iota',
+  },
+];
+
+const makeCourseEnrollmentPatterns = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    course_name: courseNames.alpha,
+    academic_year: '2025/2026',
+    pattern: 'Alpha Course-2025/2026',
+  },
+  {
+    id: 2,
+    course_name: courseNames.alpha,
+    academic_year: '2025/2026',
+    pattern: 'Alpha Honors-2025/2026',
+  },
+  {
+    id: 3,
+    course_name: courseNames.theta,
+    academic_year: '2021/2022',
+    pattern: thetaCrossNewlinePattern,
+  },
+  {
+    id: 4,
+    course_name: 'Omega Orphan Course',
+    academic_year: '2020/2021',
+    pattern: 'Omega Orphan Course-2020/2021',
+  },
+];
+
+const makeMoodleUsers = (): readonly SyntheticRow[] => [
+  makeMoodleUser(
+    1,
+    'Alpha Course-2025/2026\nAlpha Course-2024/2025\nBeta Course-2024/2025',
+    3,
+  ),
+  makeMoodleUser(
+    2,
+    'Alpha Honors-2025/2026\r\nBeta Course-2024/2025\r\nEpsilon Course-2023/2024',
+    3,
+  ),
+  makeMoodleUser(
+    3,
+    'Alpha Course-2024/2025\nAlpha Course-2024/2025\nAlpha Honors-2025/2026',
+    42,
+  ),
+  makeMoodleUser(4, 'Theta Course-2021/2022\nTheta Lab-2021/2022', 2),
+  makeMoodleUser(5, 'Theta Course-2021/2022\r\nTheta Lab-2021/2022', 2),
+  makeMoodleUser(
+    6,
+    'Theta Course-2021/2022\nDelta Course-2021/2022\nTheta Lab-2021/2022',
+    3,
+  ),
+  makeMoodleUser(7, null, null),
+  makeMoodleUser(
+    8,
+    'Advanced Alpha Course-2023/2024\nIota 2X0 Course-2022/2023',
+    2,
+  ),
+  makeMoodleUser(9, '', 0),
+];
+
+const makeStaff = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    name: 'Synthetic Staff Active',
+    active: true,
+    title: 'Prof.',
+    position: 'Professor',
+    email: 'active.staff@staff.example',
+    cabinet: 'A-101',
+    profile: 'https://staff.example/profiles/active',
+    courses: 'Alpha Course, Beta Course, Course Missing From Courses Table',
+    consultations: 'Mondays 10:00-12:00',
+  },
+  {
+    id: 2,
+    name: 'Synthetic Staff Inactive',
+    active: false,
+    title: null,
+    position: 'Assistant',
+    email: '',
+    cabinet: null,
+    profile: '',
+    courses: 'Free text; not linked to any course row',
+    consultations: null,
+  },
+  {
+    id: 3,
+    name: 'Synthetic Staff Minimal',
+    active: true,
+    title: null,
+    position: null,
+    email: null,
+    cabinet: null,
+    profile: null,
+    courses: null,
+    consultations: null,
+  },
+];
+
+const makeRooms = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    name: 'Synthetic Room 101',
+    type: 'lab',
+    location: 'Synthetic Building A',
+    description: 'Ground floor laboratory',
+    floor: 0,
+    capacity: 24,
+    mrbs: 'https://mrbs.example/rooms/101',
+  },
+  {
+    id: 2,
+    name: 'Synthetic Hall 2',
+    type: '',
+    location: 'Synthetic Building B',
+    description: null,
+    floor: 2,
+    capacity: 0,
+    mrbs: null,
+  },
+  {
+    id: 3,
+    name: 'Synthetic Storage',
+    type: 'storage',
+    location: 'Synthetic Building A',
+    description: '',
+    floor: -1,
+    capacity: null,
+    mrbs: '',
+  },
+];
+
+const makeStudents = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    index_number: 'SYN-0001',
+    name: 'Synthetic Student One',
+    source_group: `${sentinelPrivateSourceGroup}:year-list`,
+  },
+  {
+    id: 2,
+    index_number: 'SYN-0001',
+    name: 'Synthetic Student One (Other List)',
+    source_group: `${sentinelPrivateSourceGroup}:other-list`,
+  },
+  {
+    id: 3,
+    index_number: 'SYN-0002',
+    name: 'Synthetic Student Two',
+    source_group: `${sentinelPrivateSourceGroup}:year-list`,
+  },
+  {
+    id: 4,
+    index_number: 'SYN-0003',
+    name: '',
+    source_group: `${sentinelPrivateSourceGroup}:other-list`,
+  },
+];
+
+const makeDiscordChannels = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    semester: 1,
+    channel: 'gamma-and-delta',
+    course_names: 'Gamma Course\nDelta Course',
+  },
+  { id: 2, semester: 6, channel: 'zeta', course_names: 'Zeta Course' },
+];
+
+const makeStudentCouncil = (): readonly SyntheticRow[] => [
+  {
+    id: 1,
+    year: 2_024,
+    index_number: 'SYN-0001',
+    name: null,
+    position: 'President',
+  },
+  {
+    id: 2,
+    year: 2_024,
+    index_number: 'SYN-9999',
+    name: null,
+    position: 'Member',
+  },
+  {
+    id: 3,
+    year: 2_023,
+    index_number: 'SYN-0002',
+    name: 'Stale Council Name',
+    position: 'Member',
+  },
+  {
+    id: 4,
+    year: 2_023,
+    index_number: 'SYN-0003',
+    name: null,
+    position: 'Member',
+  },
+];
+
+const makeDeansOffice = (): readonly SyntheticRow[] => [
+  { id: 1, year: 2_024, name: 'Synthetic Dean', position: 'Dean' },
+  { id: 2, year: 2_024, name: 'Synthetic Vice Dean', position: 'Vice Dean' },
+];
+
+export const makeSyntheticDataset = (): SyntheticDataset => ({
+  courses: makeCourses(),
+  staff: makeStaff(),
+  rooms: makeRooms(),
+  students: makeStudents(),
+  curriculum_2023: makeCurriculum2023Rows(),
+  curriculum_2018: makeCurriculum2018Rows(),
+  course_equivalencies: makeCourseEquivalencies(),
+  teaching_assignments: makeTeachingAssignments(),
+  course_enrollment_patterns: makeCourseEnrollmentPatterns(),
+  discord_channels: makeDiscordChannels(),
+  student_council: makeStudentCouncil(),
+  deans_office: makeDeansOffice(),
+  moodle_users: makeMoodleUsers(),
+});
+
+// Appends a course whose name is not a valid regular expression.
+export const withMetacharacterCourse = (
+  dataset: SyntheticDataset,
+): SyntheticDataset => ({
+  ...dataset,
+  courses: [
+    ...dataset.courses,
+    makeCourse(99, metacharacterCourseName, { name_2023: null }),
+  ],
+});
+
+// Shapes the dataset the way the Publish public assets Flow feeds the serializer.
+export const toSerializerInput = (
+  dataset: SyntheticDataset,
+): SerializerInput => ({
+  read_courses: dataset.courses,
+  read_rooms: dataset.rooms,
+  read_staff: dataset.staff,
+  read_students: dataset.students,
+});
+
+// Shapes the dataset the way the Rebuild derived data operation calls deriveCourses.
+export const toCourseSources = (dataset: SyntheticDataset): CourseSources => ({
+  courseEnrollmentPatterns: dataset.course_enrollment_patterns,
+  courseEquivalencies: dataset.course_equivalencies,
+  courses: dataset.courses,
+  curriculum2018: dataset.curriculum_2018,
+  curriculum2023: dataset.curriculum_2023,
+  moodleUsers: dataset.moodle_users,
+  teachingAssignments: dataset.teaching_assignments,
+});
+
+export const toCouncilSources = (
+  dataset: SyntheticDataset,
+): StudentCouncilSources => ({
+  members: dataset.student_council,
+  students: dataset.students,
+});
+
+/** Private-looking columns that a `fields: ['*']` read could hand to the serializer. */
+export const forbiddenPrivateFields: MigrationItem = {
+  Mail: `${sentinelPrivateMail}@injected.example`,
+  Profile_new: `https://moodle.example/user/profile.php?id=${sentinelPrivateId}`,
+  source_group: sentinelPrivateSourceGroup,
+  internal_note: sentinelPrivateId,
+};
+
+// Adds the given columns to every row of every serializer read result.
+export const injectFields = (
+  input: SerializerInput,
+  fields: MigrationItem,
+): SerializerInput => ({
+  read_courses: input.read_courses.map((row) => ({ ...row, ...fields })),
+  read_rooms: input.read_rooms.map((row) => ({ ...row, ...fields })),
+  read_staff: input.read_staff.map((row) => ({ ...row, ...fields })),
+  read_students: input.read_students.map((row) => ({ ...row, ...fields })),
+});
