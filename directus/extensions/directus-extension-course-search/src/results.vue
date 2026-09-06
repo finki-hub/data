@@ -7,8 +7,9 @@ defineProps<{ people: Person[]; included: string[]; sort: SearchController['sort
 const emit = defineEmits<{ 'update:sort': [sort: SearchController['sort']] }>();
 const expanded = ref(new Set<string | number>());
 function toggle(id: string | number, event: Event) {
-  if (!(event.target instanceof HTMLDetailsElement)) return;
-  if (event.target.open) expanded.value.add(id);
+  const target = event.target;
+  if (!(target instanceof HTMLDetailsElement)) return;
+  if (target.open) expanded.value.add(id);
   else expanded.value.delete(id);
 }
 </script>

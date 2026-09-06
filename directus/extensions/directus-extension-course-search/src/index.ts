@@ -1,5 +1,12 @@
 import { defineLayout, useApi } from '@directus/extensions-sdk';
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import { z } from 'zod';
 
 import CourseSearch from './search.vue';
@@ -13,7 +20,10 @@ const personSchema = z.object({
   Courses: z.string().nullish(),
   'Courses Count': z.number().nullish(),
 });
-const resultsSchema = z.object({ data: z.array(personSchema), total: z.number().int().min(0) });
+const resultsSchema = z.object({
+  data: z.array(personSchema),
+  total: z.number().int().min(0),
+});
 const optionsSchema = z.object({ data: z.array(z.string()) });
 
 export type Person = z.infer<typeof personSchema>;
@@ -37,7 +47,7 @@ export type SearchController = {
   readonly reset: () => void;
   readonly loadCourses: () => Promise<void>;
   readonly search: () => Promise<void>;
-  readonly refresh: () => Promise<void[]>;
+  readonly refresh: () => Promise<void>;
 };
 
 const layout = defineLayout({
@@ -63,7 +73,7 @@ const layout = defineLayout({
     let resultsRequest: AbortController | undefined;
     let optionsRequest: AbortController | undefined;
 
-    async function loadCourses() {
+    const loadCourses = async (): Promise<void> => {
       if (!supported.value) return;
       optionsRequest?.abort();
       const request = new AbortController();
@@ -71,19 +81,24 @@ const layout = defineLayout({
       loadingCourses.value = true;
       coursesError.value = null;
       try {
-        const response = await api.get<unknown>('/finki-hub-course-history/options', { signal: request.signal });
-        if (!request.signal.aborted) courses.value = optionsSchema.parse(response.data).data;
-      } catch (cause) {
+        const response = await api.get<unknown>(
+          '/finki-hub-course-history/options',
+          { signal: request.signal },
+        );
+        if (!request.signal.aborted)
+          courses.value = optionsSchema.parse(response.data).data;
+      } catch (error_) {
         if (request.signal.aborted) return;
-        coursesError.value = cause instanceof Error
-          ? 'Could not load course choices. Check your access to Moodle Users and try again.'
-          : 'Course choices are unavailable. Try again.';
+        coursesError.value =
+          error_ instanceof Error
+            ? 'Could not load course choices. Check your access to Moodle Users and try again.'
+            : 'Course choices are unavailable. Try again.';
       } finally {
         if (!request.signal.aborted) loadingCourses.value = false;
       }
-    }
+    };
 
-    async function search() {
+    const search = async (): Promise<void> => {
       if (!supported.value) return;
       resultsRequest?.abort();
       const request = new AbortController();
@@ -91,53 +106,90 @@ const layout = defineLayout({
       loading.value = true;
       error.value = null;
       try {
-        const response = await api.post<unknown>('/finki-hub-course-history/search', {
-          include: include.value,
-          exclude: exclude.value,
-          page: page.value,
-          sort: sort.value,
-          search: props.search,
-          filter: props.filter,
-        }, { signal: request.signal });
+        const response = await api.post<unknown>(
+          '/finki-hub-course-history/search',
+          {
+            include: include.value,
+            exclude: exclude.value,
+            page: page.value,
+            sort: sort.value,
+            search: props.search,
+            filter: props.filter,
+          },
+          { signal: request.signal },
+        );
         if (request.signal.aborted) return;
         const result = resultsSchema.parse(response.data);
         people.value = result.data;
         total.value = result.total;
-      } catch (cause) {
+      } catch (error_) {
         if (request.signal.aborted) return;
         people.value = [];
         total.value = 0;
-        error.value = cause instanceof Error
-          ? 'Could not load matching people. Check your access to Moodle Users and try again.'
-          : 'Search is unavailable. Try again.';
+        error.value =
+          error_ instanceof Error
+            ? 'Could not load matching people. Check your access to Moodle Users and try again.'
+            : 'Search is unavailable. Try again.';
       } finally {
         if (!request.signal.aborted) loading.value = false;
       }
-    }
+    };
 
-    function reset() {
+    const reset = (): void => {
       include.value = [];
       exclude.value = [];
       page.value = 1;
-    }
+    };
 
-    function refresh() {
-      return Promise.all([loadCourses(), search()]);
-    }
+    const refresh = async (): Promise<void> => {
+      await Promise.all([loadCourses(), search()]);
+    };
 
-    watch([include, exclude, sort, () => props.filter, () => props.search], () => { page.value = 1; }, { deep: true });
-    watch([include, exclude, page, sort, () => props.filter, () => props.search], search, { deep: true, immediate: true });
+    watch(
+      [include, exclude, sort, () => props.filter, () => props.search],
+      () => {
+        page.value = 1;
+      },
+      { deep: true },
+    );
+    watch(
+      [include, exclude, page, sort, () => props.filter, () => props.search],
+      search,
+      { deep: true, immediate: true },
+    );
     onMounted(loadCourses);
-    onBeforeUnmount(() => { resultsRequest?.abort(); optionsRequest?.abort(); });
+    onBeforeUnmount(() => {
+      resultsRequest?.abort();
+      optionsRequest?.abort();
+    });
 
     return {
       refresh,
       controller: reactive({
-        include, exclude, courses, people, page, sort, total, loading, loadingCourses,
-        error, coursesError, supported, loadCourses, search, reset, refresh,
+        include,
+        exclude,
+        courses,
+        people,
+        page,
+        sort,
+        total,
+        loading,
+        loadingCourses,
+        error,
+        coursesError,
+        supported,
+        loadCourses,
+        search,
+        reset,
+        refresh,
         pages: computed(() => Math.max(1, Math.ceil(total.value / 50))),
-        hasCriteria: computed(() => include.value.length + exclude.value.length > 0),
-        hasNativeFilters: computed(() => Boolean(props.search || props.filter && Object.keys(props.filter).length)),
+        hasCriteria: computed(
+          () => include.value.length + exclude.value.length > 0,
+        ),
+        hasNativeFilters: computed(
+          () =>
+            Boolean(props.search) || Object.keys(props.filter ?? {}).length > 0,
+        ),
       }),
     };
   },

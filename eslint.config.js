@@ -33,6 +33,31 @@ const config = [
     },
   },
   {
+    files: ['directus/extensions/directus-extension-course-search/src/**/*.ts'],
+    rules: {
+      camelcase: 'off',
+    },
+  },
+  {
+    files: [
+      'directus/extensions/directus-extension-course-search/src/index.ts',
+    ],
+    rules: {
+      'perfectionist/sort-object-types': 'off',
+      'perfectionist/sort-objects': 'off',
+      'perfectionist/sort-union-types': 'off',
+    },
+  },
+  {
+    files: [
+      'directus/extensions/directus-extension-course-search/src/endpoint.ts',
+    ],
+    rules: {
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      'n/callback-return': 'off',
+    },
+  },
+  {
     files: [
       'directus/extensions/directus-extension-rebuild-derived-data/derive.js',
       'src/workbook-enrollment-reader.ts',

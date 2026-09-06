@@ -124,7 +124,7 @@ function add(value: unknown) {
       <p v-if="!matches.length" class="empty-options" role="status">No matching courses</p>
       <div ref="scrollElement" class="course-options-scroll">
         <v-list :id="`${id}-options`" role="listbox" :aria-labelledby="`${id}-label`" class="course-options" :style="{ height: `${totalSize}px` }">
-          <li v-for="row in virtualRows" :key="row.key" :ref="measureRow" :data-index="row.index"
+          <li v-for="row in virtualRows" :key="String(row.key)" :ref="measureRow" :data-index="row.index"
             class="course-option" role="presentation" :style="{ transform: `translateY(${row.start}px)` }">
             <v-list-item :id="`${id}-option-${row.index}`" role="option"
               :aria-selected="row.index === activeIndex" :active="row.index === activeIndex"
@@ -143,9 +143,10 @@ function add(value: unknown) {
 .course-picker { min-inline-size: 0; }
 h3 { margin-block-end: 8px; font-weight: 600; font-size: 16px; color: var(--theme--foreground-accent); }
 .course-field { block-size: auto; }
-.course-field :deep(.input) { flex-wrap: wrap; gap: 8px; block-size: auto; min-block-size: var(--theme--form--field--input--height); padding-block: 8px; }
+.course-field :deep(.input) { position: relative; flex-wrap: wrap; gap: 8px; block-size: auto; min-block-size: var(--theme--form--field--input--height); padding-block: 8px; }
 .course-field :deep(.prepend) { display: contents; }
-.course-field :deep(input) { flex-basis: 12rem; min-inline-size: 0; block-size: 32px; padding-block: 0; }
+.course-field :deep(input) { flex: 1 1 12rem; min-inline-size: 0; block-size: 32px; padding-block: 0; padding-inline-end: 32px; }
+.course-field :deep(.append) { position: absolute; inset-inline-end: var(--theme--form--field--input--padding); inset-block-end: 12px; margin: 0; }
 .selected-courses { display: contents; list-style: none; }
 .selected-courses li { display: flex; min-inline-size: 0; max-inline-size: 100%; }
 .selected-courses .v-chip { block-size: auto; min-block-size: 32px; max-inline-size: 100%; }

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": [
+    "directus/extensions/directus-extension-course-search/src/**/*.ts",
+    "directus/extensions/directus-extension-course-search/src/**/*.vue"
+  ]
+}

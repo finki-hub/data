@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { MigrationData } from '../src/schema.js';
 
 import { DirectusClient } from '../src/directus.js';
+import { collectionSpecs } from '../src/model.js';
 import {
   config,
   emptyData,
@@ -203,34 +204,38 @@ describe('derived data Flow', () => {
 
 describe('DirectusClient', () => {
   test('creates a native Studio preset for every private collection', async () => {
-    const requestedPaths: string[] = [];
-    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-      const url = toUrl(input);
-      requestedPaths.push(url.pathname);
-
-      if (url.pathname === '/collections' && init?.method === undefined) {
-        return Response.json({ data: [] });
-      }
-
-      if (init?.method === 'POST' || init?.method === 'PATCH') {
-        return Response.json({ data: [] });
-      }
-
-      return Response.json(
-        { errors: [{ message: 'forbidden' }] },
-        { status: 403 },
-      );
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const requests = recordRequests();
 
     await expect(
       new DirectusClient(config).import(emptyData),
     ).resolves.toBeUndefined();
-    expect(requestedPaths[0]).toBe('/collections');
-    expect(requestedPaths.filter((path) => path === '/presets')).toHaveLength(
-      13,
+    expect(requests[0]?.pathname).toBe('/collections');
+
+    const presets = requests.filter(({ pathname }) => pathname === '/presets');
+    const tabularPreset = z
+      .looseObject({ collection: z.string(), layout: z.literal('tabular') })
+      .refine((preset) => preset['bookmark'] === undefined);
+    const collectionPresets = presets.flatMap(({ body }) => {
+      const parsed = tabularPreset.safeParse(body);
+      return parsed.success ? [parsed.data.collection] : [];
+    });
+    const searchBookmarks = presets.filter(
+      ({ body }) =>
+        z
+          .object({
+            bookmark: z.literal('Search'),
+            collection: z.literal('moodle_users'),
+            layout: z.literal('finki-hub-course-search'),
+          })
+          .safeParse(body).success,
     );
-    expect(requestedPaths).not.toContain('/permissions');
+
+    expect(collectionPresets).toEqual(collectionSpecs.map(({ key }) => key));
+    expect(searchBookmarks).toHaveLength(1);
+    expect(presets).toHaveLength(14);
+    expect(requests.map(({ pathname }) => pathname)).not.toContain(
+      '/permissions',
+    );
   });
 
   test('batches large private imports below the request payload limit', async () => {

@@ -13,7 +13,8 @@
     "tsx": "^4.23.13",
     "typescript": "~6.0.3",
     "vitest": "^4.1.11",
-    "vue": "3.5.24"
+    "vue": "3.5.24",
+    "vue-tsc": "^3.2.2"
   },
   "license": "MIT",
   "name": "finki-hub-data-migration",
@@ -26,13 +27,15 @@
   "scripts": {
     "brand": "node --env-file-if-exists=.env --import tsx src/branding-cli.ts",
     "build:search": "npm --prefix directus/extensions/directus-extension-course-search run build",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && npm run check:sfc",
+    "check:sfc": "vue-tsc --noEmit --project tsconfig.sfc.json",
     "format": "eslint . --cache --fix",
     "import": "node --env-file-if-exists=.env --import tsx src/cli.ts",
     "import:dry-run": "node --env-file-if-exists=.env --import tsx src/cli.ts --dry-run",
     "lint": "eslint . --cache",
     "test": "vitest run",
-    "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs"
+    "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs",
+    "test:search": "node --test test/search.integration.mjs"
   },
   "type": "module",
   "version": "0.0.0"

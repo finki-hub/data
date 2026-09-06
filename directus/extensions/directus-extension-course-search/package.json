@@ -6,6 +6,13 @@
   "scripts": {
     "build": "directus-extension build"
   },
+  "dependencies": {
+    "@directus/extensions-sdk": "^18.0.4",
+    "@directus/types": "16.2.0",
+    "@tanstack/vue-virtual": "^3.13.36",
+    "vue": "3.5.24",
+    "zod": "^4.5.4"
+  },
   "directus:extension": {
     "type": "bundle",
     "path": { "app": "dist/app.js", "api": "dist/api.js" },
