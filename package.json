@@ -20,6 +20,7 @@
   },
   "private": true,
   "scripts": {
+    "brand": "node --env-file-if-exists=.env --import tsx src/branding-cli.ts",
     "check": "tsc --noEmit",
     "format": "eslint . --cache --fix",
     "import": "node --env-file-if-exists=.env --import tsx src/cli.ts",

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { DirectusConfig } from './config.js';
 import type { CollectionSpec, MigrationData, MigrationItem } from './schema.js';
 
+import { applyBranding } from './branding.js';
 import { createDerivedDataFlow } from './derived-data-flow.js';
 import { collectionSpecs } from './model.js';
 import { createPublicAssetsFlow } from './public-assets-flow.js';
@@ -74,6 +75,10 @@ export class DirectusClient {
 
   public constructor(config: DirectusConfig) {
     this.#config = config;
+  }
+
+  public async applyBranding(): Promise<void> {
+    await applyBranding((pathname, init) => this.#request(pathname, init));
   }
 
   public async import(data: MigrationData): Promise<void> {
@@ -167,7 +172,9 @@ export class DirectusClient {
     const url = new URL(pathname, this.#config.url);
     const headers = new Headers(init?.headers);
     headers.set('Authorization', `Bearer ${this.#config.token}`);
-    headers.set('Content-Type', 'application/json');
+    if (!(init?.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
     const response = await fetch(url, {
       ...init,
       headers,

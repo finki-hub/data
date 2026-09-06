@@ -36,7 +36,13 @@ Requirements: Docker with Compose, Node.js 22 or newer, and npm.
    npm run import
    ```
 
-5. Open <http://localhost:8055> and sign in with `DIRECTUS_ADMIN_EMAIL` and `DIRECTUS_ADMIN_PASSWORD` from `.env`.
+5. Apply the FINKI Hub appearance:
+
+   ```sh
+   npm run brand
+   ```
+
+6. Open <http://localhost:8055> and sign in with `DIRECTUS_ADMIN_EMAIL` and `DIRECTUS_ADMIN_PASSWORD` from `.env`.
 
 The importer creates 13 collections through the Directus API, adds a useful default table layout for each one, and inserts only source data from the workbook in bounded batches. It then runs the derived-data rebuild once. It deliberately refuses to run when any target collection already exists. There is no update, merge, reconciliation, or ongoing Google Sheets synchronization mode. After import, Directus is the source of truth.
 
@@ -89,6 +95,36 @@ The current approach uses Directus's built-in CSV import and does not require ch
 Directus imports CSV headers as field keys and does not provide a column-mapping step. This prototype therefore follows the scraper's current 38-column output contract exactly, including `Courses Count` and `Last Access_new`. If the scraper changes that contract, update the Directus schema before importing the new format.
 
 After importing a new snapshot, run **Rebuild derived data** from the Flows action in any affected source collection. This refreshes course enrollment counts and the other derived fields. Publishing to R2 remains a separate explicit action.
+
+## Branding
+
+`npm run brand` applies the shared FINKI Hub logo, favicon, login artwork,
+project name, and light/dark palettes through Directus's native Files and
+Settings APIs. It works on a fresh or already imported project without
+reading the workbook or changing any collection data, permissions, or Flow.
+Run it again to restore the repository's appearance after manual changes;
+existing branding file IDs are reused. It requires the administrator token
+configured in `.env` and a running Directus instance.
+Once applied, branding survives container restarts and recreation; the command
+does not need to run on startup.
+
+Edit `directus/branding/settings.json` for theme tokens, or use **Settings →
+Appearance** in Studio for local adjustments. Inter is bundled with Directus;
+no external fonts are required. A
+small native Custom CSS override keeps informational notification text readable
+on the dark theme's green background. Reapplying branding replaces that setting
+too. Theme defaults follow the system preference; individual user theme overrides
+still take precedence. Review the notification CSS selectors when upgrading Directus.
+
+The unmodified logo comes from `finki-hub/courses-listing/public/logo.png`
+(also shared by the timetables and diplomas projects). Branding files use the
+private `local` storage location, persisted in the Compose `uploads_data`
+volume. Directus serves the configured logo and public-page images to the
+login screen without making collections public. They are **not** added to the
+four production S3 exports. Keep both `database_data` and `uploads_data` when
+moving or backing up this setup. As with the database, `down -v` deletes the
+uploads volume; the repository-owned branding assets can be reapplied with
+`npm run brand`.
 
 ## Native previews in Directus
 

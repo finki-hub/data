@@ -49,6 +49,8 @@ services:
       - 127.0.0.1:${DIRECTUS_PORT:-8055}:8055
     volumes:
       - ./directus/extensions:/directus/extensions:ro
+      - uploads_data:/directus/uploads
 
 volumes:
   database_data:
+  uploads_data:

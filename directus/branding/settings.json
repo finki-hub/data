@@ -1,0 +1,74 @@
+{
+  "project_name": "FINKI Hub",
+  "project_descriptor": "Data Studio",
+  "project_color": "#0a0a0a",
+  "custom_css": "#app .notification-item.info { color: var(--foreground-inverted); }\n#app .notification-item.info .text { color: inherit; }",
+  "default_appearance": "auto",
+  "default_theme_light": "Directus Default",
+  "default_theme_dark": "Directus Default",
+  "theme_light_overrides": {
+    "primary": "#15803d",
+    "primaryAccent": "#166534",
+    "background": "#ffffff",
+    "backgroundSubdued": "#fcfcfc",
+    "backgroundNormal": "#f0f0f0",
+    "backgroundAccent": "#e5e5e5",
+    "foreground": "#171717",
+    "foregroundAccent": "#0d0d0d",
+    "foregroundSubdued": "#666666",
+    "borderColor": "#e0e0e0",
+    "borderColorAccent": "#a3a3a3",
+    "borderColorSubdued": "#ededed",
+    "fonts": {
+      "display": { "fontFamily": "\"Inter\", system-ui", "fontWeight": "700" },
+      "title": { "fontFamily": "\"Inter\", system-ui", "fontWeight": "600" },
+      "sans": { "fontFamily": "\"Inter\", system-ui", "fontWeight": "500" }
+    },
+    "navigation": {
+      "modules": {
+        "background": "#0a0a0a",
+        "button": {
+          "foreground": "#a3a3a3",
+          "foregroundHover": "#ffffff",
+          "foregroundActive": "var(--theme--primary)"
+        }
+      },
+      "list": { "backgroundActive": "var(--theme--primary-background)" }
+    },
+    "popover": { "menu": { "background": "var(--theme--background-subdued)" } },
+    "banner": { "background": "#0a0a0a" }
+  },
+  "theme_dark_overrides": {
+    "primary": "hsl(142 70% 45%)",
+    "primaryAccent": "#4ade80",
+    "background": "#0a0a0a",
+    "backgroundSubdued": "#121212",
+    "backgroundNormal": "#1f1f1f",
+    "backgroundAccent": "#262626",
+    "foreground": "#e5e5e5",
+    "foregroundAccent": "#f2f2f2",
+    "foregroundSubdued": "#a3a3a3",
+    "borderColor": "#383838",
+    "borderColorAccent": "#737373",
+    "borderColorSubdued": "#262626",
+    "fonts": {
+      "display": { "fontFamily": "\"Inter\", system-ui", "fontWeight": "700" },
+      "title": { "fontFamily": "\"Inter\", system-ui", "fontWeight": "600" },
+      "sans": { "fontFamily": "\"Inter\", system-ui", "fontWeight": "500" }
+    },
+    "shell": { "backgroundAccent": "var(--theme--background-accent)" },
+    "navigation": {
+      "modules": {
+        "background": "#0a0a0a",
+        "button": {
+          "foreground": "#a3a3a3",
+          "foregroundHover": "#ffffff",
+          "foregroundActive": "var(--theme--primary)"
+        }
+      },
+      "list": { "backgroundActive": "var(--theme--primary-background)" }
+    },
+    "popover": { "menu": { "background": "var(--theme--background-subdued)" } },
+    "banner": { "background": "#0a0a0a" }
+  }
+}
