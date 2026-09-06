@@ -26,7 +26,7 @@ Requirements: Docker with Compose, Node.js 22 or newer, and npm.
 3. Start Directus and PostgreSQL:
 
    ```sh
-   docker compose up -d
+   docker compose up -d --build
    curl --fail http://localhost:8055/server/ping
    ```
 
@@ -39,6 +39,8 @@ Requirements: Docker with Compose, Node.js 22 or newer, and npm.
 5. Open <http://localhost:8055> and sign in with `DIRECTUS_ADMIN_EMAIL` and `DIRECTUS_ADMIN_PASSWORD` from `.env`.
 
 The importer creates 13 collections through the Directus API, adds a useful default table layout for each one, and inserts only source data from the workbook in bounded batches. It then runs the derived-data rebuild once. It deliberately refuses to run when any target collection already exists. There is no update, merge, reconciliation, or ongoing Google Sheets synchronization mode. After import, Directus is the source of truth.
+
+Compose builds a local image from official Directus 12.3.1 with a one-line UTF-8 CSV decoding fix. The stock importer can corrupt multibyte characters that cross file read boundaries; the patch decodes the stream before it reaches the CSV parser. No image registry or publishing step is needed. When deliberately upgrading the base version in `directus/Dockerfile` (and the local image tag in Compose), review whether the patch is still necessary. The build stops if the expected patch target has changed, rather than silently leaving the fix unapplied.
 
 If an import fails in a disposable local environment, inspect the error and recreate the local database before retrying. `docker compose down -v` deletes the prototype database permanently and must not be used against a deployment containing data.
 
@@ -81,8 +83,8 @@ The current approach uses Directus's built-in CSV import and does not require ch
 
 1. Run `courses-scraper` normally to produce `profiles.csv`.
 2. In Directus Studio, open **Content** and then **Moodle Users**.
-3. For a full replacement, select all existing items and delete them before importing. `profiles.csv` does not contain Directus's generated `id`, so importing it over existing rows would append duplicates rather than match them.
-4. Open the collection's **Import / Export** sidebar, select `profiles.csv`, and choose **Import Data**.
+3. For a full replacement, delete all existing items before importing and verify the collection is empty. Studio's header checkbox selects the current page, not necessarily the entire collection. If deleting through the API with a query, specify `limit: -1` to avoid the default deletion limit. `profiles.csv` does not contain Directus's generated `id`, so importing it over existing rows would append duplicates rather than match them.
+4. Open the collection's **Import / Export** sidebar, select `profiles.csv`, and choose **Start Import**.
 
 Directus imports CSV headers as field keys and does not provide a column-mapping step. This prototype therefore follows the scraper's current 38-column output contract exactly, including `Courses Count` and `Last Access_new`. If the scraper changes that contract, update the Directus schema before importing the new format.
 
@@ -131,3 +133,11 @@ npm test
 npm run check
 npm run lint
 ```
+
+With the local Directus stack running and an administrator token configured in `.env`, also run:
+
+```sh
+npm run test:csv
+```
+
+This integration check creates a uniquely named temporary collection, imports generated Cyrillic, CJK, and emoji text across CSV read boundaries, verifies exact field values, and deletes that test collection in cleanup. It does not read or modify the migrated collections and contains no spreadsheet or scraper data.

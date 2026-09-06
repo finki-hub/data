@@ -14,7 +14,9 @@ services:
       - database_data:/var/lib/postgresql
 
   directus:
-    image: directus/directus:12.3.1
+    build: ./directus
+    image: finki-hub-directus:12.3.1-utf8
+    pull_policy: build
     depends_on:
       database:
         condition: service_healthy

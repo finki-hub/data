@@ -18,7 +18,7 @@ const config = [
   perfectionist,
   vitest,
   {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts', 'test/**/*.mjs'],
     rules: {
       camelcase: 'off',
       'perfectionist/sort-classes': 'off',
