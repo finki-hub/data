@@ -9,7 +9,7 @@ import {
 
 const config = [
   {
-    ignores: ['coverage/', 'dist/'],
+    ignores: ['coverage/', '**/dist/'],
   },
   ...base,
   node,

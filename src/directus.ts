@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { DirectusConfig } from './config.js';
 import type { CollectionSpec, MigrationData, MigrationItem } from './schema.js';
 
+import courseSearch from '../directus/presets/course-search.json' with { type: 'json' };
 import { applyBranding } from './branding.js';
 import { createDerivedDataFlow } from './derived-data-flow.js';
 import { collectionSpecs } from './model.js';
@@ -94,6 +95,11 @@ export class DirectusClient {
       await this.#createPreset(spec);
       await this.#createItems(spec.key, data[spec.key]);
     }
+
+    await this.#request('/presets', {
+      body: JSON.stringify(courseSearch),
+      method: 'POST',
+    });
 
     const request = (pathname: string, init?: Parameters<typeof fetch>[1]) =>
       this.#request(pathname, init);

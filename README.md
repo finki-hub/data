@@ -132,12 +132,41 @@ Directus Studio's collection table is the native replacement for the spreadsheet
 
 | Spreadsheet helper | Directus replacement |
 | --- | --- |
-| `Пребарување` | Search/filter `moodle_users` by `Name`, `Mail`, either profile or Moodle ID field, `Courses Count`, or text contained/not contained in `Courses`. |
+| `Пребарување` | **Search** view on `moodle_users`, with include/exclude course pickers and matching users. |
 | `Слушатели` | Browse/filter `courses`; recent and historical `enrollment_*` fields are available as table columns. Edit exceptional matching rules in `course_enrollment_patterns`. |
 | `Индекси` / `Индекси (Export)` | Search/filter the canonical `students` collection, including `source_group`. |
 | `Предмети (Export)` | Browse the canonical `courses` collection. |
 
 These are normal private Studio views, not separately stored copies. You can change visible columns, sorting, and filters in Studio and save additional presets/bookmarks for yourself or the team.
+
+### Course-history search
+
+Open **Content → Moodle Users → Search** to use the course-history search
+layout. The main **Moodle Users** view keeps the native table for regular data
+management. Initial imports create this shared bookmark from
+`directus/presets/course-search.json`; both views use the same collection.
+
+- **Has all these courses:** search for and select every required course.
+- **Has none of these courses:** select any courses that should exclude a person.
+- Remove individual selections or clear both groups. Results update automatically,
+  with a matching count, 50 people per page, profile links, and expandable histories.
+- Click **Course history** to toggle between most and fewest courses first across
+  all matching users. Changing the sort returns to the first page.
+- The page header's native search and filters still apply. Course selections are
+  temporary and reset when the layout is reopened; they are not saved bookmarks.
+
+Choices come from the current imported Moodle histories. Matching is case-sensitive
+against complete newline-separated entries, including year/semester, not substrings
+or regex. The scraper's CSV format is unchanged. Up to 20 selections are supported
+per group. Use **Refresh data** after importing a new snapshot to reload choices
+and results. Both private endpoints use the caller's Directus permissions; no
+collection data is duplicated or published to S3.
+
+The layout and its companion endpoint are one bundle in
+`directus/extensions/directus-extension-course-search`. Compiled files are included
+for Compose. After changing its TypeScript or Vue sources, run `npm run build:search`,
+restart Directus, and refresh Studio. Use the main **Moodle Users** view for the
+standard collection editing/import/export workflow.
 
 ## Rebuild derived data
 

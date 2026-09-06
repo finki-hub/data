@@ -1,0 +1,12 @@
+{
+  "bookmark": "Search",
+  "collection": "moodle_users",
+  "icon": "person_search",
+  "user": null,
+  "role": null,
+  "search": null,
+  "filter": null,
+  "layout": "finki-hub-course-search",
+  "layout_options": {},
+  "layout_query": {}
+}
