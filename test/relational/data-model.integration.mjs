@@ -28,7 +28,9 @@ const missingUrlPattern = /DIRECTUS_SEARCH_TEST_URL/u;
 const loopbackPattern = /loopback-only/u;
 const migrationsPath = '/finki-hub-data-operations/migrations';
 const courseLinkPath = '/relations/course_curricula/course';
-const expectedStatements = 12;
+// Keys, indexes and generation guards (12) plus the membership write guard
+// (its function and its statement trigger).
+const expectedStatements = 14;
 const longLabel = `Synthetic history entry ${'x'.repeat(300)}`;
 
 const relationState = (body) => ({

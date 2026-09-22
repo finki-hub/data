@@ -19,6 +19,7 @@ import {
   excludedTables,
   optionalSourceTables,
   pageSize,
+  sourceTableDeletionDomains,
   sourceTableDomains,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
@@ -120,6 +121,7 @@ describe('option contract', () => {
       'claim',
       'plan_pages',
       'stage_page',
+      'index_page',
       'complete',
       'fail',
       'heartbeat',
@@ -292,6 +294,26 @@ describe('source-invalidation migration', () => {
 
       expect(guarded).toMatch(doBlockPattern);
       expect(guarded).toContain(`to_regclass('"${table}"') IS NOT NULL`);
+    }
+  });
+
+  test('marks the history index when a history entry is deleted, never when it is reviewed', () => {
+    const functionStatement = statements[2];
+
+    expect(Object.keys(sourceTableDeletionDomains)).toEqual([
+      'moodle_course_entries',
+    ]);
+
+    for (const [table, domains] of Object.entries(sourceTableDeletionDomains)) {
+      const list = domains.map((domain) => `'${domain}'`).join(', ');
+
+      for (const domain of domains) {
+        expect(sourceTableDomains[table]).not.toContain(domain);
+      }
+
+      expect(functionStatement).toContain(
+        `  IF TG_TABLE_NAME = '${table}' AND TG_OP IN ('DELETE', 'TRUNCATE') THEN\n    affected := affected || ARRAY[${list}];\n  END IF;`,
+      );
     }
   });
 

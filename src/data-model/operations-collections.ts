@@ -170,7 +170,7 @@ export const operationsCollections: readonly ModelCollection[] = [
         readOnly: true,
       }),
       scalar('claim_pages', 'json', {
-        note: 'Page tokens planned under the current claim.',
+        note: 'Pages planned under the current claim: token, first and last source id, row count.',
         readOnly: true,
       }),
       scalar('claim_staged', 'json', {

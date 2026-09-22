@@ -54,11 +54,34 @@ const defaultView = (
   user: null,
 });
 
+// The shared "Needs mapping" bookmark: every history entry the index run
+// created that nobody has mapped or ignored yet.
+export const needsMappingBookmark: PresetDefinition = {
+  bookmark: 'Needs mapping',
+  collection: 'moodle_course_entries',
+  filter: { review_state: { _eq: 'needs_mapping' } },
+  icon: 'alt_route',
+  layout: 'tabular',
+  layout_options: { tabular: { spacing: 'comfortable' } },
+  layout_query: {
+    tabular: {
+      fields: ['label', 'review_reason'],
+      limit: 50,
+      page: 1,
+      sort: ['label'],
+    },
+  },
+  role: null,
+  search: null,
+  user: null,
+};
+
 // Default table views for the relational collections and for the checkpoint
 // collections that gained relations. A populated deployment keeps the views
 // its importer created; these only fill the gaps.
 export const presetDefinitions: readonly PresetDefinition[] = [
   ...curriculumBookmarks,
+  needsMappingBookmark,
   defaultView(
     'courses',
     [

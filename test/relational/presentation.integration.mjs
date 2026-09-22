@@ -165,6 +165,13 @@ const installsStudioMetadata = async (target) => {
       role: null,
       user: null,
     },
+    {
+      bookmark: 'Needs mapping',
+      collection: 'moodle_course_entries',
+      filter: { review_state: { _eq: 'needs_mapping' } },
+      role: null,
+      user: null,
+    },
   ]);
 };
 

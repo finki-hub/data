@@ -80,6 +80,7 @@ describe('status row mapping', () => {
       heartbeatAt: '',
       owner: '',
       pages: null,
+      ranges: [],
       revision: -1,
       staged: [],
       startedAt: '',
@@ -112,6 +113,25 @@ describe('status row mapping', () => {
       revision: 3,
     });
     expect(abandonedClaim(live, claimStaleAfterMs)).toBeNull();
+
+    // A plan keeps each page's id range; a bare token from a plan stored
+    // before the ranges still counts for the stage decisions.
+    const planned = toState(
+      stateRow.parse(
+        statusRow({
+          claim_domain: history,
+          claim_owner: processA,
+          claim_pages: [{ from: 3, rows: 2, to: 9, token: 'p0001' }, 'p0002'],
+          claim_revision: 3,
+          claim_token: uuid,
+        }),
+      ),
+    );
+
+    expect(planned.claim?.pages).toEqual(['p0001', 'p0002']);
+    expect(planned.claim?.ranges).toEqual([
+      { from: 3, rows: 2, to: 9, token: 'p0001' },
+    ]);
     expect(decideClaim(live, request)).toEqual({
       claim: live.claim,
       kind: 'busy',

@@ -1,19 +1,25 @@
 import { z } from 'zod';
 
+import { historyRowProblem } from '../history-contract.js';
 import { pageTokenPattern } from '../page-state.js';
 import { coordinationError } from './errors.js';
 import {
   coordinationDomains,
   maxRowsPerPage,
+  pageSize,
   pageSources,
   publishedFiles,
 } from './state.js';
 
-// Studio stores an untouched option as null or an empty string, and a
-// template such as {{ $trigger.body.token }} yields null for an absent
-// key; all of these mean "not given".
+// Studio stores an untouched option as null or an empty string, a template
+// such as {{ $trigger.body.token }} yields null for a null key and the
+// literal text "undefined" for a key that is absent altogether (Directus
+// renders an unresolved exact template explicitly); all of these mean
+// "not given".
+const absent: ReadonlySet<unknown> = new Set(['', null, 'undefined']);
+
 const blank = (value: unknown): unknown =>
-  value === null || value === '' ? undefined : value;
+  absent.has(value) ? undefined : value;
 
 const maxJsonLength = 2_000_000;
 
@@ -51,6 +57,26 @@ export const countRowSchema = z.object({
   course: z.number().int().positive(),
 });
 
+// One Moodle user of an index page with the distinct entries of its raw
+// history, each exactly as the splitter emits it. A row that cannot be
+// indexed is refused with its user id, so the operator knows whose raw
+// history to fix; the text never quotes a label.
+export const historyRowSchema = z
+  .object({
+    entries: z.array(z.string()),
+    id: z.number().int().positive(),
+  })
+  .superRefine((row, context) => {
+    const problem = historyRowProblem(row.entries);
+    if (problem !== null) {
+      context.addIssue({
+        code: 'custom',
+        message: `Moodle user ${row.id}: ${problem}`,
+        path: ['entries'],
+      });
+    }
+  });
+
 const filesSchema = z.object(
   Object.fromEntries(
     publishedFiles.map((file) => [file, outcome.nullable().optional()]),
@@ -84,6 +110,12 @@ export const coordinatorInputSchema = z.discriminatedUnion('action', [
     token,
   }),
   z.object({
+    action: z.literal('index_page'),
+    page: z.preprocess(blank, z.string().regex(pageTokenPattern)),
+    rows: z.preprocess(jsonish, z.array(historyRowSchema).max(pageSize)),
+    token,
+  }),
+  z.object({
     action: z.literal('complete'),
     files: z.preprocess(jsonish, filesSchema.optional()),
     token,
@@ -105,6 +137,28 @@ export const coordinatorActions = coordinatorInputSchema.options.map(
   (option) => option.shape.action.value,
 );
 
+// A refusal names at most this many issues, each cut to a bounded length,
+// however many rows or labels of a page are invalid.
+const shownIssues = 5;
+const issueLength = 240;
+
+const describeIssues = (issues: readonly z.core.$ZodIssue[]): string => {
+  const shown = issues
+    .slice(0, shownIssues)
+    .map((issue) =>
+      `${issue.path.join('.') || 'options'}: ${issue.message}`.slice(
+        0,
+        issueLength,
+      ),
+    );
+  const more = issues.length - shown.length;
+  if (more === 0) {
+    return shown.join('; ');
+  }
+  const noun = more === 1 ? 'issue' : 'issues';
+  return `${shown.join('; ')}; and ${more} more ${noun}`;
+};
+
 // Validates the template-resolved options of one operation run. Nothing
 // here names a collection or carries SQL: domains, sources and actions are
 // enumerations, tokens and pages are the coordinator's own identifiers.
@@ -113,9 +167,7 @@ export const parseCoordinatorInput = (options: unknown): CoordinatorInput => {
   if (parsed.success) {
     return parsed.data;
   }
-  const issues = parsed.error.issues
-    .map((issue) => `${issue.path.join('.') || 'options'}: ${issue.message}`)
-    .join('; ');
+  const issues = describeIssues(parsed.error.issues);
   throw coordinationError(
     'INVALID_OPTIONS',
     `Invalid coordination options (${issues}). Actions: ${coordinatorActions.join(', ')}.`,

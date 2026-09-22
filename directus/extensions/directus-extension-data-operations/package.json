@@ -17,7 +17,8 @@
     "entries": [
       { "type": "endpoint", "name": "finki-hub-data-operations", "source": "src/index.ts" },
       { "type": "operation", "name": "finki-hub-data-coordinate", "source": { "app": "src/app.ts", "api": "src/coordinate.ts" } },
-      { "type": "hook", "name": "finki-hub-data-recovery", "source": "src/recovery.ts" }
+      { "type": "hook", "name": "finki-hub-data-recovery", "source": "src/recovery.ts" },
+      { "type": "hook", "name": "finki-hub-history-guard", "source": "src/history-guard.ts" }
     ],
     "host": "^12.0.0"
   }

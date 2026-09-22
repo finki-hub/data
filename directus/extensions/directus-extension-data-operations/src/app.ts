@@ -14,6 +14,7 @@ const actions = [
   'claim',
   'plan_pages',
   'stage_page',
+  'index_page',
   'complete',
   'fail',
   'heartbeat',
@@ -98,7 +99,7 @@ export default defineOperationApp({
       field: 'page',
       meta: {
         interface: 'input',
-        note: 'stage_page: the page token from plan_pages, for example {{ $trigger.token }}.',
+        note: 'stage_page, index_page: the page token from plan_pages, for example {{ $trigger.token }}.',
         width: 'half',
       },
       name: 'Page token',
@@ -108,11 +109,11 @@ export default defineOperationApp({
       field: 'rows',
       meta: {
         interface: 'input-code',
-        note: 'stage_page: [{ "course": 1, "academic_year": 1, "count": 3 }] for this page only.',
+        note: 'stage_page: [{ "course": 1, "academic_year": 1, "count": 3 }]; index_page: [{ "id": 7, "entries": ["exact history line", "..."] }] for this page only (at most 250 users).',
         options: { language: 'json' },
         width: 'full',
       },
-      name: 'Count rows',
+      name: 'Page rows',
       type: 'json',
     },
     {

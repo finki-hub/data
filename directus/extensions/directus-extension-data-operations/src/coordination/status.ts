@@ -1,4 +1,5 @@
 import type { ActionContext } from './action-support.js';
+import type { HistorySummary } from './history-port.js';
 import type { OperationsState } from './state.js';
 
 import { isClaimStale, pendingDomains } from './decisions.js';
@@ -7,6 +8,7 @@ type StatusInput = {
   readonly candidates: number;
   readonly context: ActionContext;
   readonly fingerprint: string;
+  readonly historyIndex: HistorySummary;
   readonly state: OperationsState;
 };
 
@@ -14,6 +16,7 @@ const statusOf = ({
   candidates,
   context,
   fingerprint,
+  historyIndex,
   state,
 }: StatusInput) => ({
   candidates,
@@ -38,6 +41,10 @@ const statusOf = ({
     current: fingerprint,
     publication: state.publicationFingerprint,
   },
+  // The derived index against the raw snapshot: users whose distinct
+  // indexed entries differ from the scraper's `Courses Count` are counted,
+  // never listed, and the scraper field is never rewritten.
+  historyIndex,
   importState: state.importState,
   lastError:
     state.lastError === null
@@ -70,5 +77,6 @@ export const statusAction = (context: ActionContext): Promise<StatusReport> =>
     const fingerprint = await port.currentFingerprint();
     const candidates =
       state.claim === null ? 0 : await port.candidateCount(state.claim.token);
-    return statusOf({ candidates, context, fingerprint, state });
+    const historyIndex = await port.history.summary();
+    return statusOf({ candidates, context, fingerprint, historyIndex, state });
   });

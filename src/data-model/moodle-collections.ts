@@ -29,8 +29,9 @@ export const moodleCollections: readonly ModelCollection[] = [
     displayTemplate: historyEntryTemplate,
     fields: [
       scalar('label', 'text', {
-        note: 'Exact history entry text of any length; no trimming, case folding or transliteration.',
+        note: 'Exact history entry text of at most 2048 bytes (the unique index bound); no trimming, case folding or transliteration. Written by the history index run only.',
         nullable: false,
+        readOnly: true,
         unique: true,
       }),
       enumField('review_state', reviewStates, {

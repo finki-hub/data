@@ -4,6 +4,7 @@ import type { CoordinatorInput } from './options.js';
 import type { CoordinationPort } from './port.js';
 import type { Domain } from './state.js';
 
+import { indexPageAction } from '../history-index.js';
 import {
   type ActionContext,
   recoverInside,
@@ -118,6 +119,8 @@ export const runAction = (
       return failAction(input, context);
     case 'heartbeat':
       return heartbeatAction(input.token, context);
+    case 'index_page':
+      return indexPageAction(input, context);
     case 'mark':
       return markAction(input.domains, context);
     case 'plan_pages':

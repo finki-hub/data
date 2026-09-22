@@ -71,6 +71,18 @@ const optionalNumber = z.number().nullable();
 const optionalInt = z.number().int().nullable();
 const stringList = z.array(z.string()).nullable();
 
+// A planned page as plan_pages stores it; a bare token is a plan stored
+// before the ranges were kept, which serves the stage decisions only.
+const plannedPage = z.union([
+  z.string(),
+  z.object({
+    from: z.number().int(),
+    rows: z.number().int().nonnegative(),
+    to: z.number().int(),
+    token: z.string(),
+  }),
+]);
+
 export const stateRow = z.object({
   calculation_fingerprint: optionalString,
   claim_domain: optionalString,
@@ -78,7 +90,7 @@ export const stateRow = z.object({
   claim_heartbeat_age_ms: optionalNumber,
   claim_heartbeat_iso: optionalString,
   claim_owner: optionalString,
-  claim_pages: stringList,
+  claim_pages: z.array(plannedPage).nullable(),
   claim_revision: optionalInt,
   claim_staged: stringList,
   claim_started_iso: optionalString,
@@ -119,7 +131,13 @@ const claimOf = (row: StateRow): OperationsState['claim'] =>
         heartbeatAgeMs: row.claim_heartbeat_age_ms ?? Infinity,
         heartbeatAt: row.claim_heartbeat_iso ?? '',
         owner: row.claim_owner ?? '',
-        pages: row.claim_pages,
+        pages:
+          row.claim_pages?.map((page) =>
+            typeof page === 'string' ? page : page.token,
+          ) ?? null,
+        ranges: (row.claim_pages ?? []).filter(
+          (page) => typeof page !== 'string',
+        ),
         revision: row.claim_revision ?? -1,
         staged: row.claim_staged ?? [],
         startedAt: row.claim_started_iso ?? '',

@@ -44,6 +44,11 @@ BEGIN
     WHEN 'academic_years' THEN ARRAY['enrollments', 'publication']
     ELSE ARRAY['publication']
   END;
+  -- Deleting a history entry cascades its memberships away: the derived
+  -- index no longer matches the raw histories until it is rebuilt.
+  IF TG_TABLE_NAME = 'moodle_course_entries' AND TG_OP IN ('DELETE', 'TRUNCATE') THEN
+    affected := affected || ARRAY['history_index'];
+  END IF;
   UPDATE "data_operations" SET
     "source_revision" = "source_revision" + 1,
     "requested_revision" = "source_revision" + 1,

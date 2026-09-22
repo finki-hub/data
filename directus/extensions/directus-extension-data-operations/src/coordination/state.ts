@@ -1,3 +1,5 @@
+import type { PageRange } from '../page-state.js';
+
 // The enumerated work domains, in dependency order: the history index feeds
 // the enrollment counts, and publication reads everything.
 export const coordinationDomains = [
@@ -74,6 +76,16 @@ export const sourceTableDomains: Readonly<Record<string, readonly Domain[]>> = {
   teaching_assignments: ['publication'],
 };
 
+// Domains a DELETE or TRUNCATE on a source table marks on top of its usual
+// ones. Deleting a history entry cascades its memberships away, so the
+// derived index no longer matches the raw histories until it is rebuilt.
+// Mirrors the IF block after the CASE in the trigger function.
+export const sourceTableDeletionDomains: Readonly<
+  Record<string, readonly Domain[]>
+> = {
+  moodle_course_entries: ['history_index'],
+};
+
 // Checkpoint tables a later task may remove; their triggers are installed
 // only while the table exists.
 export const optionalSourceTables: readonly string[] = [
@@ -103,6 +115,9 @@ export type Claim = {
   readonly heartbeatAt: string;
   readonly owner: string;
   readonly pages: null | readonly string[];
+  // The id range and row count of every planned page, as the plan read
+  // them at the claimed revision; empty for a plan stored without them.
+  readonly ranges: readonly PageRange[];
   readonly revision: number;
   readonly staged: readonly string[];
   readonly startedAt: string;

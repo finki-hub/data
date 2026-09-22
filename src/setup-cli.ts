@@ -5,6 +5,7 @@ import {
 import { installDataModel, SchemaRefusalError } from './data-model/install.js';
 import { installPresentation } from './data-model/presentation.js';
 import { createDirectusRequest } from './directus-request.js';
+import { installHistoryIndexFlows } from './flows/index-histories.js';
 import { loadSetupConfig } from './setup-config.js';
 
 const main = async (): Promise<void> => {
@@ -13,9 +14,10 @@ const main = async (): Promise<void> => {
   const constraints = await applySchemaConstraints(request);
   const invalidation = await applySourceInvalidation(request);
   const presentation = await installPresentation(request);
+  const flows = await installHistoryIndexFlows(request);
   process.stdout.write(
     `${JSON.stringify(
-      { ...summary, constraints, invalidation, presentation },
+      { ...summary, constraints, flows, invalidation, presentation },
       null,
       2,
     )}\n`,

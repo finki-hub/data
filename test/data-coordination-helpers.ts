@@ -9,12 +9,19 @@ import {
   type OperationsState,
   type PageSource,
   type PublishedFile,
+  sourceTableDeletionDomains,
   sourceTableDomains,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
   type CountRow,
+  type PageRange,
   stagedWith,
 } from '../directus/extensions/directus-extension-data-operations/src/page-state.js';
+import {
+  type FakeHistory,
+  fakeHistoryPort,
+  freshHistory,
+} from './history-index-helpers.js';
 
 type FakeClaim = {
   domain: Domain;
@@ -22,6 +29,7 @@ type FakeClaim = {
   heartbeatAtMs: number;
   owner: string;
   pages: null | string[];
+  ranges: PageRange[];
   revision: number;
   staged: string[];
   startedAtMs: number;
@@ -44,6 +52,7 @@ export type FakeData = {
   dirtyDomains: Domain[];
   enrollments: FakeEnrollment[];
   finishedAtMs: null | number;
+  history: FakeHistory;
   lastError: OperationsState['lastError'];
   publicationFingerprint: null | string;
   publicationState: string;
@@ -61,6 +70,7 @@ const freshData = (): FakeData => ({
   dirtyDomains: [],
   enrollments: [],
   finishedAtMs: null,
+  history: freshHistory(),
   lastError: null,
   publicationFingerprint: null,
   publicationState: 'idle',
@@ -101,9 +111,18 @@ export class FakeCoordination {
     this.#now += ms;
   }
 
-  // What the statement-level trigger does inside a source transaction.
-  public sourceWrite(table: string): void {
-    const domains = sourceTableDomains[table] ?? [];
+  // What the statement-level trigger does inside a source transaction; a
+  // DELETE or TRUNCATE marks the deletion domains of the table as well.
+  public sourceWrite(
+    table: string,
+    operation: 'delete' | 'insert' | 'update' = 'insert',
+  ): void {
+    const domains = [
+      ...(sourceTableDomains[table] ?? []),
+      ...(operation === 'delete'
+        ? (sourceTableDeletionDomains[table] ?? [])
+        : []),
+    ];
     this.#data.sourceRevision += 1;
     this.#data.requestedRevision = this.#data.sourceRevision;
     this.#data.dirtyDomains = normaliseDomains([
@@ -146,6 +165,7 @@ export class FakeCoordination {
               heartbeatAt: stamp(claim.heartbeatAtMs) ?? '',
               owner: claim.owner,
               pages: claim.pages,
+              ranges: claim.ranges,
               revision: claim.revision,
               staged: claim.staged,
               startedAt: stamp(claim.startedAtMs) ?? '',
@@ -184,6 +204,14 @@ export class FakeCoordination {
   #port(): CoordinationPort {
     const data = () => this.#data;
     return {
+      adoptOwnRevision: async (token, owner) => {
+        const claim = this.#liveClaim(token, owner, false);
+        if (claim === null) {
+          return false;
+        }
+        claim.revision = data().sourceRevision;
+        return true;
+      },
       candidateCount: async (token) =>
         data().candidates.filter((row) => row.token === token).length,
       currentFingerprint: async () => this.fingerprint,
@@ -232,6 +260,13 @@ export class FakeCoordination {
         claim.heartbeatAtMs = this.#now;
         return true;
       },
+      history: fakeHistoryPort(
+        () => data().history,
+        () => {
+          this.sourceWrite('moodle_course_entries');
+        },
+        () => this.sourceIds.history,
+      ),
       insertCandidates: async (input) => {
         for (const row of input.rows) {
           const clash = data().candidates.some(
@@ -321,6 +356,7 @@ export class FakeCoordination {
           return false;
         }
         claim.pages = pages.map((page) => page.token);
+        claim.ranges = [...pages];
         claim.staged = [];
         claim.heartbeatAtMs = this.#now;
         return true;
@@ -338,6 +374,7 @@ export class FakeCoordination {
           heartbeatAtMs: this.#now,
           owner: input.owner,
           pages: null,
+          ranges: [],
           revision: input.sourceRevision,
           staged: [],
           startedAtMs: this.#now,

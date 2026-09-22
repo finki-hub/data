@@ -133,7 +133,7 @@ export const completeAction = (
       throw coordinationError(
         'PAGES_MISSING',
         decision.kind === 'unplanned'
-          ? 'An enrollment run must plan its pages before it can complete.'
+          ? 'A history index or enrollment run must plan its pages (plan_pages) before it can complete.'
           : `Pages not staged yet: ${decision.missing.join(', ')}.`,
         {
           details: {

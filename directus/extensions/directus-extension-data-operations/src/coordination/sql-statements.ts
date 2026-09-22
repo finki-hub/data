@@ -55,7 +55,8 @@ export const stagedSql = `UPDATE "data_operations" SET "claim_heartbeat_at" = cl
   ) AS staged
 ) WHERE "claim_token" = ? AND "claim_owner" = ? AND "source_revision" = "claim_revision"`;
 
-// Bindings: pages JSON, token, owner.
+// Bindings: planned pages JSON ({ token, from, to, rows } each), token,
+// owner.
 export const planSql = `UPDATE "data_operations" SET "claim_pages" = ?::json, "claim_staged" = '[]'::json, "claim_heartbeat_at" = clock_timestamp()
 WHERE "claim_token" = ? AND "claim_owner" = ? AND "source_revision" = "claim_revision"`;
 

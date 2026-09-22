@@ -11,6 +11,7 @@ import type {
 } from './port.js';
 
 import { fingerprintOfGraph } from './fingerprint.js';
+import { historySqlPort } from './history-sql.js';
 import { stateRow, toState } from './sql-state.js';
 import {
   claimSql,
@@ -108,6 +109,12 @@ const first = async (
 const json = (value: unknown): string => JSON.stringify(value);
 
 const sqlPort = (client: SqlClient): CoordinationPort => ({
+  adoptOwnRevision: (token, owner) =>
+    matched(
+      client,
+      'UPDATE "data_operations" SET "claim_revision" = "source_revision" WHERE "claim_token" = ? AND "claim_owner" = ?',
+      [token, owner],
+    ),
   candidateCount: async (token) => {
     const row = await first(
       client,
@@ -147,6 +154,7 @@ const sqlPort = (client: SqlClient): CoordinationPort => ({
       'UPDATE "data_operations" SET "claim_heartbeat_at" = clock_timestamp() WHERE "claim_token" = ? AND "claim_owner" = ?',
       [token, owner],
     ),
+  history: historySqlPort(client),
   insertCandidates: (input: StagedRows) =>
     affected(client, insertSql, [
       input.token,
@@ -185,11 +193,7 @@ const sqlPort = (client: SqlClient): CoordinationPort => ({
     return idRows.parse(result.rows).map(({ id }) => id);
   },
   storePlan: (token, owner, pages: readonly PageRange[]) =>
-    matched(client, planSql, [
-      json(pages.map(({ token: page }) => page)),
-      token,
-      owner,
-    ]),
+    matched(client, planSql, [json(pages), token, owner]),
   takeClaim: (input: ClaimInsert) =>
     matched(client, claimSql, [
       input.token,

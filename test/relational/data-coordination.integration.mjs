@@ -363,6 +363,36 @@ const claimsOnce = async (target, state) => {
     await act(target, { action: 'heartbeat', token: winner.token }),
     { heartbeat: true },
   );
+  // A history run completes only after it planned and indexed its pages;
+  // the one synthetic user has no raw history, so nothing is written.
+  await refused(
+    target,
+    { action: 'complete', token: winner.token },
+    'COORDINATION_PAGES_MISSING',
+  );
+  const plan = await act(target, {
+    action: 'plan_pages',
+    source: 'history',
+    token: winner.token,
+  });
+  assert.deepEqual(plan.pages, [
+    { from: state.userId, rows: 1, to: state.userId, token: 'p0001' },
+  ]);
+  assert.deepEqual(
+    await act(target, {
+      action: 'index_page',
+      page: 'p0001',
+      rows: [{ entries: [], id: state.userId }],
+      token: winner.token,
+    }),
+    {
+      entriesCreated: 0,
+      membershipsRemoved: 0,
+      membershipsWritten: 0,
+      page: 'p0001',
+      users: 1,
+    },
+  );
   assert.deepEqual(
     await act(target, { action: 'complete', token: winner.token }),
     { completed: true, domain: 'history_index', installed: 0, revision: 10 },

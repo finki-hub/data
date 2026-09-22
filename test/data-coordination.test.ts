@@ -111,9 +111,27 @@ const stage = (fake: FakeCoordination, input: StageInput) =>
     context(fake, input.owner),
   );
 
-// Finishes the history index so the enrollment domain becomes claimable.
+const planHistory = (fake: FakeCoordination, token: string, owner?: string) =>
+  runAction(
+    { action: 'plan_pages', source: 'history', token },
+    context(fake, owner),
+  );
+
+// Finishes the history index so the enrollment domain becomes claimable:
+// plans the Moodle users of the fake, indexes every page with empty
+// histories and completes.
 const settleHistory = async (fake: FakeCoordination): Promise<void> => {
   const token = await claimToken(fake, history);
+  const plan = planned.parse(await planHistory(fake, token));
+  for (const page of plan.pages) {
+    const rows = fake.sourceIds.history
+      .filter((id) => id >= page.from && id <= page.to)
+      .map((id) => ({ entries: [], id }));
+    await runAction(
+      { action: 'index_page', page: page.token, rows, token },
+      context(fake),
+    );
+  }
   await complete(fake, token);
 };
 
@@ -154,6 +172,7 @@ const liveClaim = (
   heartbeatAt: 't+1',
   owner: processA,
   pages: [firstPage, secondPage],
+  ranges: [],
   revision: 3,
   staged: [firstPage, secondPage],
   startedAt: 't+0',
@@ -354,6 +373,14 @@ describe('page and completion decisions', () => {
         }),
         check,
       ),
+    ).toEqual({ kind: 'unplanned' });
+    expect(
+      decideCompletion(
+        baseState({
+          claim: liveClaim({ domain: history, pages: [], staged: [] }),
+        }),
+        check,
+      ),
     ).toEqual({ kind: 'ok' });
     expect(
       decideCompletion(baseState({ claim: liveClaim() }), {
@@ -438,6 +465,14 @@ describe('claims over the persistence port', () => {
       runAction({ action: 'fail', code: 'X', token: otherUuid }, context(fake)),
     ).resolves.toEqual({ failed: false, reason: 'claim_mismatch' });
     expect(fake.data.claim?.token).toBe(token);
+    await expect(complete(fake, token)).rejects.toMatchObject({
+      code: pagesMissing,
+      status: 409,
+    });
+    expect(fake.data.claim?.token).toBe(token);
+
+    await planHistory(fake, token);
+
     await expect(complete(fake, token)).resolves.toMatchObject({
       completed: true,
       domain: history,
@@ -841,6 +876,9 @@ describe('failures and recovery over the persistence port', () => {
     await expect(complete(fake, token, oldProcess)).rejects.toMatchObject({
       code: claimMismatch,
     });
+
+    await planHistory(fake, fresh.token, newProcess);
+
     await expect(
       complete(fake, fresh.token, newProcess),
     ).resolves.toMatchObject({

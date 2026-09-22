@@ -48,6 +48,24 @@ BEGIN
 END
 $$`;
 
+// moodle_history_memberships is the derived history index: only the index
+// writer, which opens the guard for its own transaction with the
+// transaction-local setting below, may write it. A foreign key cascade
+// from a deleted Moodle user or entry runs inside the cascade trigger
+// (depth 2) and passes. Studio, REST, Flows and raw SQL are refused.
+const membershipGuardFunction = `
+CREATE OR REPLACE FUNCTION "finki_hub_history_membership_guard"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF pg_trigger_depth() < 2 AND current_setting('finki_hub.history_writer', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'moodle_history_memberships is the derived Moodle history index; only the history index run writes it'
+      USING ERRCODE = 'insufficient_privilege', TABLE = 'moodle_history_memberships',
+        HINT = 'Edit the raw Courses history of the Moodle user, then run the "Data / Rebuild Moodle history index" Flow.';
+  END IF;
+  RETURN NULL;
+END
+$$`;
+
 // Composite domain keys, join indexes and the generation guard that the
 // Directus schema API cannot express. Every statement is idempotent and is
 // executed on its own inside one transaction; statements carry no bindings.
@@ -72,6 +90,8 @@ $$`,
     'CREATE OR REPLACE TRIGGER "course_curricula_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_curricula" FOR EACH ROW EXECUTE FUNCTION "finki_hub_course_curricula_generation_guard"()',
     entryGenerationGuardFunction,
     'CREATE OR REPLACE TRIGGER "curriculum_entries_generation_guard" BEFORE UPDATE OF "generation" ON "curriculum_entries" FOR EACH ROW EXECUTE FUNCTION "finki_hub_curriculum_entries_generation_guard"()',
+    membershipGuardFunction,
+    'CREATE OR REPLACE TRIGGER "moodle_history_memberships_write_guard" BEFORE INSERT OR UPDATE OR DELETE ON "moodle_history_memberships" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_history_membership_guard"()',
   ],
 };
 

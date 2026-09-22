@@ -173,8 +173,10 @@ export type CompletionDecision =
   | { readonly kind: Exclude<ClaimVerdict, 'ok'> };
 
 // Output is accepted only when the source revision and the graph
-// fingerprint still match the claim, and an enrollment run staged every
-// page it planned; a partial batch is never labelled current.
+// fingerprint still match the claim and a calculation run (history index
+// or enrollments) planned its pages and staged every one of them; a
+// partial batch, or a run that never planned, is never labelled current.
+// A source without rows plans no page and completes.
 export const decideCompletion = (
   state: OperationsState,
   check: ClaimCheck & { readonly currentFingerprint: string },
@@ -186,7 +188,7 @@ export const decideCompletion = (
   if (state.claim.fingerprint !== check.currentFingerprint) {
     return { kind: 'fingerprint_changed' };
   }
-  if (state.claim.domain !== 'enrollments') {
+  if (state.claim.domain === 'publication') {
     return { kind: 'ok' };
   }
   if (state.claim.pages === null) {

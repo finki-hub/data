@@ -99,10 +99,10 @@ describe('schema constraints', () => {
 
     const result = await applySchemaConstraints(async (pathname, init) => {
       calls.push({ init, pathname });
-      return { applied: 'schema-constraints', statements: 12 };
+      return { applied: 'schema-constraints', statements: 14 };
     });
 
-    expect(result).toEqual({ applied: 'schema-constraints', statements: 12 });
+    expect(result).toEqual({ applied: 'schema-constraints', statements: 14 });
     expect(calls).toEqual([
       {
         init: { method: 'POST' },
@@ -189,6 +189,17 @@ describe('schema constraints', () => {
 
     expect(count).toBe(schemaConstraints.statements.length);
     expect(executed).toEqual([...schemaConstraints.statements]);
-    expect(count).toBe(12);
+    // Twelve keys, indexes and generation guards, then the membership
+    // write guard (its function and its statement trigger).
+    expect(count).toBe(14);
+    expect(executed.slice(12)).toEqual([
+      expect.stringContaining(
+        'CREATE OR REPLACE FUNCTION "finki_hub_history_membership_guard"()',
+      ),
+      'CREATE OR REPLACE TRIGGER "moodle_history_memberships_write_guard" BEFORE INSERT OR UPDATE OR DELETE ON "moodle_history_memberships" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_history_membership_guard"()',
+    ]);
+    expect(executed[12]).toContain(
+      "pg_trigger_depth() < 2 AND current_setting('finki_hub.history_writer', true) IS DISTINCT FROM 'on'",
+    );
   });
 });

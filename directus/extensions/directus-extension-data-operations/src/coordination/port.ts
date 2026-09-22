@@ -1,4 +1,5 @@
 import type { CountRow, PageRange } from '../page-state.js';
+import type { HistoryIndexPort } from './history-port.js';
 import type {
   Domain,
   OperationsState,
@@ -19,6 +20,12 @@ export type ClaimInsert = {
 // Every writer returns whether its guard matched: a false means the claim
 // is no longer the one the caller holds, and the caller must not proceed.
 export type CoordinationPort = {
+  // Guard: claim token and owner. Makes the claim's revision the current
+  // source revision. Sound only under the singleton lock, right after a
+  // statement of this run on a source table: nothing else can have moved
+  // the revision in between, and the run's own rows cannot change its
+  // output.
+  readonly adoptOwnRevision: (token: string, owner: string) => Promise<boolean>;
   readonly candidateCount: (token: string) => Promise<number>;
   readonly currentFingerprint: () => Promise<string>;
   readonly discardCandidates: (token: string, page?: string) => Promise<number>;
@@ -27,6 +34,8 @@ export type CoordinationPort = {
   readonly finish: (input: FinishInput) => Promise<boolean>;
   // Guard: claim token and owner.
   readonly heartbeat: (token: string, owner: string) => Promise<boolean>;
+  // The history index writes of the same transaction.
+  readonly history: HistoryIndexPort;
   readonly insertCandidates: (input: StagedRows) => Promise<number>;
   // Replaces every course_enrollments row with the aggregated candidates
   // of the claim and returns how many rows were installed.

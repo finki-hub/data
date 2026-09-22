@@ -5,6 +5,7 @@ import { dataModelCollections, findModelCollection } from '../collections.js';
 import { toAliasPayload, toFieldPayload } from '../field-payloads.js';
 import { type AliasDeclaration, aliasesFor } from '../relations.js';
 import { fieldGroups } from './groups.js';
+import { moodleFieldPresentations } from './moodle-fields.js';
 
 // Meta columns Directus reports when an installer payload leaves them unset.
 const metaDefaults: Readonly<Record<string, unknown>> = {
@@ -159,6 +160,7 @@ export const fieldPresentations: readonly FieldPresentation[] = [
     mapped: 'Mapped',
     needs_mapping: 'Needs mapping',
   }),
+  ...moodleFieldPresentations,
   labelled('course_enrollment_rules', 'mode', {
     legacy_regex: 'Legacy regex',
     mapped_entries: 'Mapped entries',
