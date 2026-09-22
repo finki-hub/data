@@ -10,6 +10,13 @@ export const coordinationDomains = [
 
 export type Domain = (typeof coordinationDomains)[number];
 
+// What a claim may run: a work domain, or the promotion of a staged Moodle
+// snapshot. A snapshot claim is never pending, never dirty and never
+// completed through `complete`; the promotion takes and clears it itself.
+export const claimDomains = [...coordinationDomains, 'snapshot'] as const;
+
+export type ClaimDomain = (typeof claimDomains)[number];
+
 export const calculationDomains: readonly Domain[] = [
   'history_index',
   'enrollments',
@@ -109,7 +116,7 @@ export type Claim = {
   // Null only for a status row whose token survived while its other claim
   // columns did not; such a claim serves no action and is released as
   // abandoned.
-  readonly domain: Domain | null;
+  readonly domain: ClaimDomain | null;
   readonly fingerprint: string;
   readonly heartbeatAgeMs: number;
   readonly heartbeatAt: string;
@@ -127,7 +134,7 @@ export type Claim = {
 export type LastError = {
   readonly at: null | string;
   readonly code: string;
-  readonly domain: Domain | null;
+  readonly domain: ClaimDomain | null;
   readonly fingerprint: null | string;
   readonly revision: null | number;
 };
@@ -152,6 +159,10 @@ export type OperationsState = {
 export const isDomain = (value: unknown): value is Domain =>
   typeof value === 'string' &&
   (coordinationDomains as readonly string[]).includes(value);
+
+export const isClaimDomain = (value: unknown): value is ClaimDomain =>
+  typeof value === 'string' &&
+  (claimDomains as readonly string[]).includes(value);
 
 // Keeps only known domains, once each, in dependency order.
 export const normaliseDomains = (values: readonly unknown[]): Domain[] =>

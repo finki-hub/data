@@ -4,6 +4,7 @@ import type {
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/port.js';
 
 import {
+  type ClaimDomain,
   type Domain,
   normaliseDomains,
   type OperationsState,
@@ -24,7 +25,7 @@ import {
 } from './history-index-helpers.js';
 
 type FakeClaim = {
-  domain: Domain;
+  domain: ClaimDomain;
   fingerprint: string;
   heartbeatAtMs: number;
   owner: string;
@@ -111,6 +112,27 @@ export class FakeCoordination {
     this.#now += ms;
   }
 
+  // What another connection does while a transaction of this process is
+  // open (the fake serialises its transactions, the database does not): a
+  // heartbeat of the claim, and the recovery of a stale claim.
+  public heartbeatOutside(token: string, owner: string): boolean {
+    const claim = this.#liveClaim(token, owner, false);
+    if (claim === null) {
+      return false;
+    }
+    claim.heartbeatAtMs = this.#now;
+    return true;
+  }
+
+  public recoverOutside(staleAfterMs: number): boolean {
+    const claim = this.#data.claim;
+    if (claim === null || this.#now - claim.heartbeatAtMs <= staleAfterMs) {
+      return false;
+    }
+    this.#release(claim, { code: 'CLAIM_ABANDONED', failed: true });
+    return true;
+  }
+
   // What the statement-level trigger does inside a source transaction; a
   // DELETE or TRUNCATE marks the deletion domains of the table as well.
   public sourceWrite(
@@ -183,6 +205,27 @@ export class FakeCoordination {
       sourceRevision: data.sourceRevision,
       startedAt: stamp(data.startedAtMs),
     };
+  }
+
+  // releaseSql: the failure columns keep a work domain's failure when a
+  // snapshot promotion's claim is released.
+  #release(
+    claim: FakeClaim,
+    input: { readonly code: string; readonly failed: boolean },
+  ): void {
+    if (claim.domain !== 'snapshot') {
+      this.#data.lastError = {
+        at: stamp(this.#now),
+        code: input.code,
+        domain: claim.domain,
+        fingerprint: claim.fingerprint,
+        revision: claim.revision,
+      };
+    }
+    if (claim.domain === 'publication') {
+      this.#data.publicationState = input.failed ? 'failed' : 'idle';
+    }
+    this.#data.claim = null;
   }
 
   // The guard every writer of a live claim applies.
@@ -336,17 +379,7 @@ export class FakeCoordination {
         if (claim?.token !== input.token) {
           return false;
         }
-        data().lastError = {
-          at: stamp(this.#now),
-          code: input.code,
-          domain: claim.domain,
-          fingerprint: claim.fingerprint,
-          revision: claim.revision,
-        };
-        if (claim.domain === 'publication') {
-          data().publicationState = input.failed ? 'failed' : 'idle';
-        }
-        data().claim = null;
+        this.#release(claim, input);
         return true;
       },
       sourceIds: async (source) => this.sourceIds[source],

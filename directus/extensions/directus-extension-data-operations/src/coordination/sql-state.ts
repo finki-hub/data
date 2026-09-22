@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import {
   coordinationDomains,
-  isDomain,
+  isClaimDomain,
   normaliseDomains,
   type OperationsState,
   publishedFiles,
@@ -126,7 +126,7 @@ const claimOf = (row: StateRow): OperationsState['claim'] =>
   row.claim_token === null
     ? null
     : {
-        domain: isDomain(row.claim_domain) ? row.claim_domain : null,
+        domain: isClaimDomain(row.claim_domain) ? row.claim_domain : null,
         fingerprint: row.claim_fingerprint ?? '',
         heartbeatAgeMs: row.claim_heartbeat_age_ms ?? Infinity,
         heartbeatAt: row.claim_heartbeat_iso ?? '',
@@ -157,7 +157,7 @@ export const toState = (row: StateRow): OperationsState => ({
       : {
           at: row.last_error_iso,
           code: row.last_error_code,
-          domain: isDomain(row.last_failed_domain)
+          domain: isClaimDomain(row.last_failed_domain)
             ? row.last_failed_domain
             : null,
           fingerprint: row.last_failed_fingerprint,

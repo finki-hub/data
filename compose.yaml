@@ -31,6 +31,7 @@ services:
       DB_PORT: 5432
       DB_USER: directus
       HOST: 0.0.0.0
+      IMPORT_TIMEOUT: ${DIRECTUS_IMPORT_TIMEOUT:-15m}
       MAX_PAYLOAD_SIZE: 10mb
       PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
       SECRET: ${DIRECTUS_SECRET:-replace-this-local-secret-with-32-bytes}

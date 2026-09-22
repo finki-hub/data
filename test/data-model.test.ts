@@ -222,6 +222,20 @@ describe('target collections', () => {
       'last_failed_fingerprint',
       'calculation_fingerprint',
       'publication_fingerprint',
+      'import_file',
+      'import_token',
+      'import_rows',
+      'import_fingerprint',
+      'import_warnings',
+      'import_error',
+      'import_started_at',
+      'import_finished_at',
+      'import_backup_file',
+      'import_backup_rows',
+      'import_backup_fingerprint',
+      'import_promoted_rows',
+      'import_promoted_fingerprint',
+      'import_promoted_at',
     ]);
     expect(findCollection('data_operation_results').hidden).toBeTruthy();
     expect(findCollection('moodle_history_memberships').hidden).toBeTruthy();

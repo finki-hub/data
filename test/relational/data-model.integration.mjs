@@ -29,8 +29,9 @@ const loopbackPattern = /loopback-only/u;
 const migrationsPath = '/finki-hub-data-operations/migrations';
 const courseLinkPath = '/relations/course_curricula/course';
 // Keys, indexes and generation guards (12) plus the membership write guard
-// (its function and its statement trigger).
-const expectedStatements = 14;
+// and the snapshot staging write guard (each a function and its statement
+// trigger).
+const expectedStatements = 16;
 const longLabel = `Synthetic history entry ${'x'.repeat(300)}`;
 
 const relationState = (body) => ({

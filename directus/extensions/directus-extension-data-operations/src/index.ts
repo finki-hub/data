@@ -1,8 +1,10 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
-import { coordinationStatus } from './coordinate.js';
+import { coordinationStatus, sqlDatabase } from './coordinate.js';
 import { findMigration, type Migration, migrations } from './migrations.js';
+import { snapshotReport } from './snapshot/report.js';
+import { snapshotStore } from './snapshot/sql-port.js';
 
 export type SqlRunner = {
   readonly raw: (sql: string) => PromiseLike<unknown>;
@@ -82,6 +84,19 @@ export default defineEndpoint((router, { database }) => {
   router.get('/status', async (_request, response, next) => {
     try {
       response.json({ data: await coordinationStatus(database) });
+    } catch (error) {
+      forwardError(next, error);
+    }
+  });
+
+  // The Moodle snapshot import and promotion status: counts and
+  // fingerprints of the staged, the active and the last promoted
+  // snapshot, the backup, the last error; no row data.
+  router.get('/snapshot', async (_request, response, next) => {
+    try {
+      response.json({
+        data: await snapshotReport(snapshotStore(sqlDatabase(database))),
+      });
     } catch (error) {
       forwardError(next, error);
     }

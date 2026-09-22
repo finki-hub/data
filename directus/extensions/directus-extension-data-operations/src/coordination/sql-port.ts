@@ -108,7 +108,7 @@ const first = async (
 
 const json = (value: unknown): string => JSON.stringify(value);
 
-const sqlPort = (client: SqlClient): CoordinationPort => ({
+export const sqlPort = (client: SqlClient): CoordinationPort => ({
   adoptOwnRevision: (token, owner) =>
     matched(
       client,

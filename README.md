@@ -18,7 +18,7 @@ branding files, and it does read `.env` (see [Branding](#branding)).
 
 | Situation | Command | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark and the Moodle history index Flow templates. Writes no records. |
+| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)** and the **Data / Import Moodle snapshot** Flow template. Writes no records. |
 | New project, first data from the spreadsheet | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (below). |
 | Project that already holds data | `npm run migrate -- --dry-run --report <private path>`, then `-- --apply` | Upgrades it in place to the relational model through the migration ledger. Never reads the workbook. |
 
@@ -242,16 +242,54 @@ It and every other collection remain private in Directus because the importer do
 
 ## Import a new Courses snapshot
 
-The current approach uses Directus's built-in CSV import and does not require changes to `courses-scraper`:
+A whole Moodle snapshot replaces the active one through the controlled
+import, which administrators run from Studio. The native **Import / Export**
+sidebar of **Moodle Users** is not supported for snapshots: it upserts rows
+by the generated `id`, drops empty cells, parses JSON-looking text, accepts
+structurally malformed rows and replaces nothing atomically.
 
-1. Run `courses-scraper` normally to produce `profiles.csv`.
-2. In Directus Studio, open **Content** and then **Moodle Users**.
-3. For a full replacement, delete all existing items before importing and verify the collection is empty. Studio's header checkbox selects the current page, not necessarily the entire collection. If deleting through the API with a query, specify `limit: -1` to avoid the default deletion limit. `profiles.csv` does not contain Directus's generated `id`, so importing it over existing rows would append duplicates rather than match them.
-4. Open the collection's **Import / Export** sidebar, select `profiles.csv`, and choose **Start Import**.
+1. Run `courses-scraper` normally to produce `profiles.csv`: the 38 headers
+   of the scraper contract, in any order, and no `id` column.
+2. Upload `profiles.csv` into the **File Library** folder **Moodle snapshots
+   (private)**, which `npm run setup` creates. It stays a private file in the
+   local storage location. The import refuses a CSV outside that folder, so
+   one permission filter on the folder keeps every snapshot file and backup
+   away from any role that may read files. Copy the file's id from its
+   address.
+3. Open the hidden **Data Operations** singleton (Content → Operations with
+   hidden collections shown, or `/admin/content/data_operations`) and run
+   the Flow **Data / Import Moodle snapshot** from its sidebar. Paste the file id and switch on **Replace the whole active
+   Moodle snapshot**. Switch on **Allow an empty snapshot** only to remove
+   every Moodle user on purpose.
 
-Directus imports CSV headers as field keys and does not provide a column-mapping step. This prototype therefore follows the scraper's current 38-column output contract exactly, including `Courses Count` and `Last Access_new`. If the scraper changes that contract, update the Directus schema before importing the new format.
+The Flow first stages the file into the hidden staging collection in one
+transaction and answers only once it committed. The file must be strict CSV
+with exactly the 38 field names; an empty line between rows is refused,
+empty lines at the end are ignored. Every value is kept exactly as written,
+`Name` is required, and a populated `ID_old` or `ID_new` must be a positive
+id that is unique within its own column. A history line longer than 2,048
+bytes is staged unchanged and reported, because the history index will
+refuse that user until the line is shortened. The Flow then writes a private
+backup CSV of the current Moodle users (`moodle-users-backup-<time>.csv` in
+the same private folder) and verifies it. Finally it replaces the active users in
+one database transaction under the coordinator's exclusive claim. A refused
+file or a failed step changes no active row. Course mappings, history
+entries and every other collection are never touched. The history
+memberships are cleared, and the history index, the enrollment counts and
+publication become pending: run **Data / Rebuild Moodle history index**
+next. To restore the previous snapshot, run the same Flow with the backup
+file. Deleting old backups is a manual File Library task.
 
-After importing a new snapshot, run **Rebuild derived data** from the Flows action in any affected source collection. This refreshes course enrollment counts and the other derived fields. Publishing to R2 remains a separate explicit action.
+The import is bounded by `IMPORT_TIMEOUT` (15 minutes in `compose.yaml`) and
+by `FINKI_HUB_SNAPSHOT_MAX_BYTES` (256 MiB unless set). For administrators,
+`GET /finki-hub-data-operations/snapshot` reports the import state, the
+staged and active row counts with their fingerprints, the backup, the last
+error, the snapshot the last promotion made active, and whether the active
+rows still equal it (`activeMatchesPromotion`, false after an edit outside
+this workflow, whatever later imports did). A failed run logs its code and
+the database object involved, never a value, to the Directus log.
+
+After promoting a new snapshot, also run **Rebuild derived data** from the Flows action in any affected source collection. This refreshes course enrollment counts and the other derived fields. Publishing to R2 remains a separate explicit action.
 
 ## Branding
 

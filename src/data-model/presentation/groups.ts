@@ -183,6 +183,31 @@ export const fieldGroups: readonly FieldGroup[] = [
     sort: 4,
     start: 'closed',
   },
+  {
+    collection: 'data_operations',
+    field: 'snapshot',
+    headerIcon: 'upload_file',
+    members: [
+      'import_file',
+      'import_rows',
+      'import_fingerprint',
+      'import_warnings',
+      'import_error',
+      'import_started_at',
+      'import_finished_at',
+      'import_backup_file',
+      'import_backup_rows',
+      'import_backup_fingerprint',
+      'import_promoted_rows',
+      'import_promoted_fingerprint',
+      'import_promoted_at',
+      'import_token',
+    ],
+    note: 'The controlled Moodle snapshot import: upload the CSV to the File Library, then run "Data / Import Moodle snapshot". Written by the import and promotion only.',
+    readOnly: true,
+    sort: 5,
+    start: 'closed',
+  },
 ];
 
 export const findFieldGroup = (

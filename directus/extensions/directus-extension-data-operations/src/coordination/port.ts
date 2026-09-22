@@ -1,6 +1,7 @@
 import type { CountRow, PageRange } from '../page-state.js';
 import type { HistoryIndexPort } from './history-port.js';
 import type {
+  ClaimDomain,
   Domain,
   OperationsState,
   PageSource,
@@ -9,7 +10,7 @@ import type {
 
 export type ClaimInsert = {
   readonly dirtyDomains: readonly Domain[];
-  readonly domain: Domain;
+  readonly domain: ClaimDomain;
   readonly fingerprint: string;
   readonly owner: string;
   readonly sourceRevision: number;

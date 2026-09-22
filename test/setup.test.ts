@@ -201,13 +201,18 @@ describe('schema constraints', () => {
     expect(count).toBe(schemaConstraints.statements.length);
     expect(executed).toEqual([...schemaConstraints.statements]);
     // Twelve keys, indexes and generation guards, then the membership
-    // write guard (its function and its statement trigger).
-    expect(count).toBe(14);
+    // write guard and the snapshot staging write guard (each a function
+    // and its statement trigger).
+    expect(count).toBe(16);
     expect(executed.slice(12)).toEqual([
       expect.stringContaining(
         'CREATE OR REPLACE FUNCTION "finki_hub_history_membership_guard"()',
       ),
       'CREATE OR REPLACE TRIGGER "moodle_history_memberships_write_guard" BEFORE INSERT OR UPDATE OR DELETE ON "moodle_history_memberships" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_history_membership_guard"()',
+      expect.stringContaining(
+        'CREATE OR REPLACE FUNCTION "finki_hub_snapshot_staging_guard"()',
+      ),
+      'CREATE OR REPLACE TRIGGER "moodle_import_rows_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_import_rows" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_snapshot_staging_guard"()',
     ]);
     expect(executed[12]).toContain(
       "pg_trigger_depth() < 2 AND current_setting('finki_hub.history_writer', true) IS DISTINCT FROM 'on'",

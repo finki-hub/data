@@ -23,9 +23,17 @@ export const claimSql = `UPDATE "data_operations" SET "claim_token" = ?, "claim_
   "publication_state" = CASE WHEN ? = 'publication' THEN 'running' ELSE "publication_state" END
 WHERE "claim_token" IS NULL AND "source_revision" = ?`;
 
+// A failure column set by a release, except for a snapshot promotion's
+// claim: the promotion records its own failure in import_state and
+// import_error, and must never replace the failure of a work domain, whose
+// explicit retry decideClaim demands at the same revision.
+const failureColumn = (column: string, value: string): string =>
+  `"${column}" = CASE WHEN "claim_domain" = 'snapshot' THEN "${column}" ELSE ${value} END`;
+
 // Bindings: error code, publication state, token.
-export const releaseSql = `UPDATE "data_operations" SET "last_error_code" = ?, "last_error_at" = clock_timestamp(),
-  "last_failed_revision" = "claim_revision", "last_failed_domain" = "claim_domain", "last_failed_fingerprint" = "claim_fingerprint",
+export const releaseSql = `UPDATE "data_operations" SET ${failureColumn('last_error_code', '?')},
+  ${failureColumn('last_error_at', 'clock_timestamp()')}, ${failureColumn('last_failed_revision', '"claim_revision"')},
+  ${failureColumn('last_failed_domain', '"claim_domain"')}, ${failureColumn('last_failed_fingerprint', '"claim_fingerprint"')},
   "publication_state" = CASE WHEN "claim_domain" = 'publication' THEN ? ELSE "publication_state" END, ${claimClear}
 WHERE "claim_token" = ?`;
 

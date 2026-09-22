@@ -73,8 +73,12 @@ const config = [
   },
   {
     // The restart-recovery scenario restarts the isolated fixture container
-    // through Docker when the operator names it in the environment.
-    files: ['test/relational/data-coordination.integration.mjs'],
+    // through Docker when the operator names it in the environment; the
+    // scenario runner starts `node --test` on the selected suites.
+    files: [
+      'test/relational/data-coordination.integration.mjs',
+      'test/relational/run-scenarios.mjs',
+    ],
     rules: {
       'security/detect-child-process': 'off',
     },
@@ -89,6 +93,9 @@ const config = [
       'test/relational/lifecycle.integration.mjs',
       'test/relational/migration-preflight.integration.mjs',
       'test/relational/relational-migration.integration.mjs',
+      'test/relational/run-scenarios.mjs',
+      'test/relational/snapshot-import-helpers.mjs',
+      'test/relational/snapshot-import.integration.mjs',
     ],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',

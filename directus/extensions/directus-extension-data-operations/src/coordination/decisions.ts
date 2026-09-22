@@ -1,6 +1,7 @@
 import {
   calculationDomains,
   type Claim,
+  type ClaimDomain,
   coordinationDomains,
   type Domain,
   type LastError,
@@ -203,5 +204,5 @@ export const decideCompletion = (
 
 export const dirtyAfterCompletion = (
   state: OperationsState,
-  domain: Domain | null,
+  domain: ClaimDomain | null,
 ): Domain[] => state.dirtyDomains.filter((dirty) => dirty !== domain);

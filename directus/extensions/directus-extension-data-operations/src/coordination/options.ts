@@ -18,7 +18,7 @@ import {
 // "not given".
 const absent: ReadonlySet<unknown> = new Set(['', null, 'undefined']);
 
-const blank = (value: unknown): unknown =>
+export const blank = (value: unknown): unknown =>
   absent.has(value) ? undefined : value;
 
 const maxJsonLength = 2_000_000;
@@ -37,7 +37,7 @@ const jsonish = (value: unknown): unknown => {
   }
 };
 
-const flag = (value: unknown): unknown => {
+export const flag = (value: unknown): unknown => {
   if (value === 'true') {
     return true;
   }

@@ -6,11 +6,14 @@ const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 
 // A deterministic UUID: two hex digits name the Flow family, the suffix one
 // Flow or operation inside it.
-const familyId = (family: string, suffix: string): string =>
+export const familyId = (family: string, suffix: string): string =>
   `${idPrefix}${family}${suffix}`;
 
 // A deterministic UUID of the history index Flow family.
 export const historyId = (suffix: string): string => familyId('09', suffix);
+
+// A deterministic UUID of the Moodle snapshot import Flow family.
+export const snapshotId = (suffix: string): string => familyId('10', suffix);
 
 // A deterministic UUID of the checkpoint Flows the workbook import installs
 // (Rebuild derived data, Publish public assets).
@@ -48,6 +51,9 @@ export type OperationEdges = {
 
 export type OperationSpec = {
   readonly edges?: OperationEdges;
+  // The two hex digits of the Flow family; the history index family 09
+  // when absent.
+  readonly family?: string;
   readonly key: string;
   readonly name: string;
   readonly options: Readonly<Record<string, unknown>>;
@@ -57,7 +63,7 @@ export type OperationSpec = {
 };
 
 export const operation = (spec: OperationSpec): OperationTemplate => ({
-  id: historyId(spec.suffix),
+  id: familyId(spec.family ?? '09', spec.suffix),
   key: spec.key,
   name: spec.name,
   options: spec.options,
@@ -88,7 +94,8 @@ export const raise = ({
   readonly error: {
     readonly code: string;
     readonly message: string;
-    readonly status: number;
+    // A number, or an exact template that resolves to one.
+    readonly status: number | string;
   };
 }): OperationTemplate =>
   operation({ ...spec, options: error, type: 'throw-error' });

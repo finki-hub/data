@@ -3,6 +3,7 @@ import type { ModelCollection } from '../schema.js';
 import { courseTemplate, provenanceFields } from './checkpoint-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
 import { enumField, m2o, scalar } from './fields.js';
+import { snapshotImportFields } from './snapshot-fields.js';
 
 export const enrollmentRuleModes = ['mapped_entries', 'legacy_regex'] as const;
 
@@ -36,6 +37,9 @@ export const coordinationDomains = [
   'enrollments',
   'publication',
 ] as const;
+
+// What a claim may run: a work domain or a snapshot promotion.
+export const claimDomains = [...coordinationDomains, 'snapshot'] as const;
 
 export const operationsCollections: readonly ModelCollection[] = [
   {
@@ -161,7 +165,7 @@ export const operationsCollections: readonly ModelCollection[] = [
         nullable: false,
         readOnly: true,
       }),
-      enumField('claim_domain', coordinationDomains, { readOnly: true }),
+      enumField('claim_domain', claimDomains, { readOnly: true }),
       scalar('claim_revision', 'integer', { readOnly: true }),
       scalar('claim_fingerprint', 'string', { readOnly: true }),
       scalar('claim_started_at', 'timestamp', { readOnly: true }),
@@ -179,7 +183,7 @@ export const operationsCollections: readonly ModelCollection[] = [
       }),
       scalar('last_error_at', 'timestamp', { readOnly: true }),
       scalar('last_failed_revision', 'integer', { readOnly: true }),
-      enumField('last_failed_domain', coordinationDomains, { readOnly: true }),
+      enumField('last_failed_domain', claimDomains, { readOnly: true }),
       scalar('last_failed_fingerprint', 'string', { readOnly: true }),
       scalar('calculation_fingerprint', 'string', {
         note: 'Flow-graph fingerprint of the last accepted calculation.',
@@ -189,6 +193,7 @@ export const operationsCollections: readonly ModelCollection[] = [
         note: 'Flow-graph fingerprint of the last accepted publication.',
         readOnly: true,
       }),
+      ...snapshotImportFields,
     ],
     hidden: true,
     icon: 'settings_suggest',

@@ -14,6 +14,7 @@ import { derivedDataFlowId } from '../../src/derived-data-flow.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { toApiField } from '../../src/directus.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { snapshotImportFlows } from '../../src/flows/snapshot-import.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
 import { exitCodes } from '../../src/lifecycle.js';
@@ -51,9 +52,10 @@ const stepNames = [
   'equivalencies',
 ];
 const checkpointFlowIds = [derivedDataFlowId, publicAssetsFlowId];
+const setupFlows = [...historyIndexFlows, ...snapshotImportFlows];
 const templateFlowIds = new Set([
   ...checkpointFlowIds,
-  ...historyIndexFlows.map(({ id }) => id),
+  ...setupFlows.map(({ id }) => id),
 ]);
 const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
 const nothingSentPattern = /Nothing was sent to Directus\.$/u;
@@ -498,7 +500,7 @@ const setupPreservesStudioEdits = async (target, directus) => {
   const summary = await runSetup(recorder.request);
   assert.deepEqual(summary.flows, {
     created: [],
-    skipped: historyIndexFlows.map(({ name }) => name),
+    skipped: setupFlows.map(({ name }) => name),
   });
   assert.deepEqual(summary.presets, { created: 0, skipped: 14 });
   assert.ok(
