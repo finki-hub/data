@@ -101,3 +101,91 @@ export const schemaField = (
 export const assertNever = (value: never): never => {
   throw new TypeError(`Unexpected collection source: ${String(value)}`);
 };
+
+export const relationalCollectionKeys = [
+  'academic_years',
+  'curriculum_entries',
+  'course_curricula',
+  'moodle_import_rows',
+  'moodle_course_entries',
+  'moodle_history_memberships',
+  'moodle_course_mappings',
+  'course_enrollment_rules',
+  'course_enrollments',
+  'data_operations',
+  'data_operation_results',
+] as const;
+
+export type RelationalCollectionKey = (typeof relationalCollectionKeys)[number];
+
+export type ModelCollectionKey = CollectionKey | RelationalCollectionKey;
+
+export type ModelScalarKind = 'json' | 'timestamp' | FieldKind;
+
+export type ModelFieldBase = {
+  readonly field: string;
+  readonly note?: string;
+  readonly nullable: boolean;
+  readonly readOnly?: true;
+};
+
+export type ModelScalarField = ModelFieldBase & {
+  readonly defaultValue?: Scalar;
+  readonly indexed?: true;
+  readonly kind: ModelScalarKind;
+  readonly minimum?: number;
+  readonly unique?: true;
+};
+
+export type ModelEnumField = ModelFieldBase & {
+  readonly choices: readonly string[];
+  readonly defaultValue?: string;
+  readonly kind: 'enum';
+};
+
+export type ModelRelationAlias = {
+  readonly field: string;
+  readonly fields: readonly string[];
+  readonly readOnly?: true;
+  readonly template: string;
+};
+
+export type ModelRelationField = ModelFieldBase & {
+  readonly alias?: ModelRelationAlias;
+  readonly kind: 'm2o';
+  readonly onDelete: 'CASCADE' | 'SET NULL';
+  readonly related: ModelCollectionKey;
+  readonly sortField?: string;
+  readonly template: string;
+};
+
+export type ModelField = ModelEnumField | ModelRelationField | ModelScalarField;
+
+export type ModelCollection = {
+  readonly collection: ModelCollectionKey;
+  readonly displayTemplate: string;
+  readonly fields: readonly ModelField[];
+  readonly hidden: boolean;
+  readonly icon: string;
+  readonly note: string;
+  readonly origin: 'checkpoint' | 'relational';
+  readonly singleton: boolean;
+  readonly sort: number;
+};
+
+export type ModelRelation = {
+  readonly alias: ModelRelationAlias | null;
+  readonly collection: ModelCollectionKey;
+  readonly field: string;
+  readonly nullable: boolean;
+  readonly onDelete: 'CASCADE' | 'SET NULL';
+  readonly related: ModelCollectionKey;
+  readonly sortField: null | string;
+};
+
+export type CompositeKey = {
+  readonly collection: ModelCollectionKey;
+  readonly columns: readonly string[];
+  readonly kind: 'index' | 'unique';
+  readonly name: string;
+};

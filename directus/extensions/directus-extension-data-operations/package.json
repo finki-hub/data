@@ -1,0 +1,22 @@
+{
+  "name": "directus-extension-data-operations",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "directus-extension build"
+  },
+  "dependencies": {
+    "@directus/extensions-sdk": "^18.0.4",
+    "@directus/types": "16.2.0",
+    "zod": "^4.5.4"
+  },
+  "directus:extension": {
+    "type": "bundle",
+    "path": { "app": "dist/app.js", "api": "dist/api.js" },
+    "entries": [
+      { "type": "endpoint", "name": "finki-hub-data-operations", "source": "src/index.ts" }
+    ],
+    "host": "^12.0.0"
+  }
+}

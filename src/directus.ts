@@ -6,10 +6,10 @@ import type { CollectionSpec, MigrationData, MigrationItem } from './schema.js';
 import courseSearch from '../directus/presets/course-search.json' with { type: 'json' };
 import { applyBranding } from './branding.js';
 import { createDerivedDataFlow } from './derived-data-flow.js';
+import { createDirectusRequest } from './directus-request.js';
 import { collectionSpecs } from './model.js';
 import { createPublicAssetsFlow } from './public-assets-flow.js';
 
-const responseSchema = z.object({ data: z.unknown() });
 const collectionsSchema = z.array(z.object({ collection: z.string() }));
 const itemBatchSize = 250;
 
@@ -25,14 +25,6 @@ type ApiField = {
   readonly schema: { readonly is_nullable: boolean };
   readonly type: string;
 };
-
-export class DirectusRequestError extends Error {
-  public override readonly name = 'DirectusRequestError';
-
-  public constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-  }
-}
 
 export class ExistingCollectionError extends Error {
   public override readonly name = 'ExistingCollectionError';
@@ -72,10 +64,10 @@ const toApiField = (
 };
 
 export class DirectusClient {
-  readonly #config: DirectusConfig;
+  readonly #request: ReturnType<typeof createDirectusRequest>;
 
   public constructor(config: DirectusConfig) {
-    this.#config = config;
+    this.#request = createDirectusRequest(config);
   }
 
   public async applyBranding(): Promise<void> {
@@ -168,37 +160,5 @@ export class DirectusClient {
         method: 'POST',
       });
     }
-  }
-
-  async #request(
-    pathname: string,
-    init?: Parameters<typeof fetch>[1],
-    responseMode: 'data' | 'raw' = 'data',
-  ): Promise<unknown> {
-    const url = new URL(pathname, this.#config.url);
-    const headers = new Headers(init?.headers);
-    headers.set('Authorization', `Bearer ${this.#config.token}`);
-    if (!(init?.body instanceof FormData)) {
-      headers.set('Content-Type', 'application/json');
-    }
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      signal: AbortSignal.timeout(120_000),
-    });
-
-    if (!response.ok) {
-      const responseText = await response.text();
-      throw new DirectusRequestError(
-        `${init?.method ?? 'GET'} ${url.pathname} returned ${response.status}: ${responseText}`,
-      );
-    }
-
-    if (response.status === 204) {
-      return null;
-    }
-
-    const body: unknown = await response.json();
-    return responseMode === 'raw' ? body : responseSchema.parse(body).data;
   }
 }

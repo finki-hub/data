@@ -1,0 +1,199 @@
+import type {
+  ModelEnumField,
+  ModelField,
+  ModelRelationAlias,
+  ModelRelationField,
+  ModelScalarField,
+  ModelScalarKind,
+  Scalar,
+} from '../schema.js';
+
+export type FieldSchemaPayload = {
+  readonly default_value?: Scalar;
+  readonly is_indexed?: true;
+  readonly is_nullable: boolean;
+  readonly is_unique?: true;
+  readonly max_length?: number;
+};
+
+export type FieldMetaPayload = {
+  readonly display?: string;
+  readonly display_options?: Readonly<Record<string, unknown>>;
+  readonly interface: string;
+  readonly note?: string;
+  readonly options?: Readonly<Record<string, unknown>>;
+  readonly readonly: boolean;
+  readonly required: boolean;
+  readonly sort: number;
+  readonly special?: readonly string[];
+  readonly validation?: Readonly<Record<string, unknown>>;
+  readonly width: 'full' | 'half';
+};
+
+export type FieldPayload = {
+  readonly field: string;
+  readonly meta: FieldMetaPayload;
+  readonly schema?: FieldSchemaPayload;
+  readonly type: string;
+};
+
+export const enumMaxLength = 64;
+
+const interfaces: Readonly<Record<ModelScalarKind, string>> = {
+  boolean: 'boolean',
+  integer: 'input',
+  json: 'input-code',
+  string: 'input',
+  text: 'input-multiline',
+  timestamp: 'datetime',
+};
+
+const displays: Readonly<Partial<Record<ModelScalarKind, string>>> = {
+  boolean: 'boolean',
+  json: 'raw',
+  timestamp: 'datetime',
+};
+
+// A server-enforced rule that also admits null when the field is nullable.
+const validationRule = (
+  field: ModelField,
+  rule: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> => {
+  const membership = { [field.field]: rule };
+  return field.nullable
+    ? { _or: [{ [field.field]: { _null: true } }, membership] }
+    : membership;
+};
+
+const choiceLabels = (choices: readonly string[]) =>
+  choices.map((value) => ({ text: value, value }));
+
+const baseMeta = (
+  field: ModelField,
+  sort: number,
+  width: 'full' | 'half',
+): Pick<
+  FieldMetaPayload,
+  'note' | 'readonly' | 'required' | 'sort' | 'width'
+> => ({
+  ...(field.note !== undefined && { note: field.note }),
+  readonly: field.readOnly === true,
+  required: !field.nullable,
+  sort,
+  width,
+});
+
+const scalarPayload = (field: ModelScalarField, sort: number): FieldPayload => {
+  const display = displays[field.kind];
+  return {
+    field: field.field,
+    meta: {
+      ...baseMeta(field, sort, field.kind === 'text' ? 'full' : 'half'),
+      ...(display !== undefined && { display }),
+      interface: interfaces[field.kind],
+      ...(field.kind === 'json' && { options: { language: 'json' } }),
+      ...(field.minimum !== undefined && {
+        validation: validationRule(field, { _gte: field.minimum }),
+      }),
+    },
+    schema: {
+      ...(field.defaultValue !== undefined && {
+        default_value: field.defaultValue,
+      }),
+      ...(field.indexed === true && { is_indexed: true }),
+      is_nullable: field.nullable,
+      ...(field.unique === true && { is_unique: true }),
+    },
+    type: field.kind,
+  };
+};
+
+const enumPayload = (field: ModelEnumField, sort: number): FieldPayload => ({
+  field: field.field,
+  meta: {
+    ...baseMeta(field, sort, 'half'),
+    display: 'labels',
+    display_options: { choices: choiceLabels(field.choices) },
+    interface: 'select-dropdown',
+    options: {
+      allowNone: field.nullable,
+      allowOther: false,
+      choices: choiceLabels(field.choices),
+    },
+    validation: validationRule(field, { _in: field.choices }),
+  },
+  schema: {
+    ...(field.defaultValue !== undefined && {
+      default_value: field.defaultValue,
+    }),
+    is_nullable: field.nullable,
+    max_length: enumMaxLength,
+  },
+  type: 'string',
+});
+
+const relationPayload = (
+  field: ModelRelationField,
+  sort: number,
+): FieldPayload => ({
+  field: field.field,
+  meta: {
+    ...baseMeta(field, sort, 'half'),
+    display: 'related-values',
+    display_options: { template: field.template },
+    interface: 'select-dropdown-m2o',
+    options: {
+      enableCreate: false,
+      enableLink: true,
+      enableSelect: true,
+      template: field.template,
+    },
+    special: ['m2o'],
+  },
+  schema: { is_indexed: true, is_nullable: field.nullable },
+  type: 'integer',
+});
+
+export const toFieldPayload = (
+  field: ModelField,
+  sort: number,
+): FieldPayload => {
+  if (field.kind === 'enum') {
+    return enumPayload(field, sort);
+  }
+  if (field.kind === 'm2o') {
+    return relationPayload(field, sort);
+  }
+  return scalarPayload(field, sort);
+};
+
+// The O2M reverse alias. Aliases onto derived collections are read-only so
+// Studio cannot create, link or reorder rows that only the Flows may write.
+export const toAliasPayload = (
+  alias: ModelRelationAlias,
+  sort: number,
+): FieldPayload => {
+  const editable = alias.readOnly !== true;
+  return {
+    field: alias.field,
+    meta: {
+      display: 'related-values',
+      display_options: { template: alias.template },
+      interface: 'list-o2m',
+      options: {
+        enableCreate: editable,
+        enableLink: true,
+        enableSelect: editable,
+        fields: alias.fields,
+        layout: 'table',
+        template: alias.template,
+      },
+      readonly: !editable,
+      required: false,
+      sort,
+      special: ['o2m'],
+      width: 'full',
+    },
+    type: 'alias',
+  };
+};

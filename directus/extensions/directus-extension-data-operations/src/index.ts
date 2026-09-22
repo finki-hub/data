@@ -1,0 +1,78 @@
+import { defineEndpoint } from '@directus/extensions-sdk';
+import { z } from 'zod';
+
+import { findMigration, type Migration, migrations } from './migrations.js';
+
+export type SqlRunner = {
+  readonly raw: (sql: string) => PromiseLike<unknown>;
+};
+
+const adminAccountability = z.object({ admin: z.literal(true) });
+
+// True only for a request whose resolved accountability is an administrator.
+export const isAdminRequest = (request: object): boolean =>
+  'accountability' in request &&
+  adminAccountability.safeParse(request.accountability).success;
+
+// Runs every statement of the migration in order and returns how many ran.
+export const executeMigration = async (
+  runner: SqlRunner,
+  migration: Migration,
+): Promise<number> => {
+  let executed = 0;
+  for (const statement of migration.statements) {
+    await runner.raw(statement);
+    executed += 1;
+  }
+  return executed;
+};
+
+const errorBody = (code: string, message: string) => ({
+  errors: [{ extensions: { code }, message }],
+});
+
+export const unknownMigrationMessage = `Unknown migration. Bundled migrations: ${migrations
+  .map(({ name }) => name)
+  .join(', ')}.`;
+
+// Express 4 does not forward rejected async handlers, so failures reach the
+// Directus error handler through next(error) explicitly.
+const forwardError = (next: (error: unknown) => void, error: unknown): void => {
+  next(error);
+};
+
+export default defineEndpoint((router, { database }) => {
+  router.use((request, response, next) => {
+    response.setHeader('Cache-Control', 'no-store');
+    if (!isAdminRequest(request)) {
+      response
+        .status(403)
+        .json(
+          errorBody(
+            'FORBIDDEN',
+            'Only administrators may run data operations.',
+          ),
+        );
+      return;
+    }
+    next();
+  });
+
+  router.post('/migrations/:name', async (request, response, next) => {
+    try {
+      const migration = findMigration(request.params.name);
+      if (migration === undefined) {
+        response
+          .status(400)
+          .json(errorBody('INVALID_PAYLOAD', unknownMigrationMessage));
+        return;
+      }
+      const statements = await database.transaction((trx) =>
+        executeMigration(trx, migration),
+      );
+      response.json({ data: { applied: migration.name, statements } });
+    } catch (error) {
+      forwardError(next, error);
+    }
+  });
+});
