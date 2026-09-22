@@ -70,7 +70,14 @@ const receiptPattern = /--backup-receipt/u;
 const receiptWordsPattern = /backup receipt/u;
 const driftPattern = /drift/u;
 const blockerPattern = /blocker/u;
-const convertersPattern = /no converters registered/u;
+const convertersPattern = /5 converter step\(s\) ran under the ledger/u;
+const converterStepNames = [
+  'curricula',
+  'rules',
+  'assignments',
+  'council',
+  'equivalencies',
+];
 const notReadablePattern = /not readable/u;
 const failedPattern = /^Migration failed:/u;
 
@@ -481,6 +488,34 @@ describe('migration cli apply refusals', () => {
   });
 
   test('apply refuses while the relational target collections are not readable, and fails closed when their rows are not', async () => {
+    // A legacy deployment carries no relational column yet, so its report
+    // is taken from a store that is not installed either (the columns setup
+    // adds are part of the source fingerprint).
+    const absentReport = path.join(scratch.directory, 'absent.json');
+    const absentFingerprint = await dryRunReport(
+      storeFromDataset(uniqueDataset(), { installed: false }),
+      absentReport,
+    );
+    const absent = cliContext(
+      storeFromDataset(uniqueDataset(), { installed: false }),
+    );
+
+    await expect(
+      runMigrationCli(
+        [
+          '--apply',
+          reportFlag,
+          absentReport,
+          receiptFlag,
+          await writeReceipt(absentFingerprint),
+        ],
+        environment,
+        absent.io,
+      ),
+    ).resolves.toBe(1);
+    expect(absent.stderr.join('\n')).toMatch(notReadablePattern);
+    expect(absent.fake.mutations()).toEqual([]);
+
     const reportPath = path.join(scratch.directory, reportName);
     const sourceFingerprint = await dryRunReport(installedStore(), reportPath);
     const receiptPath = await writeReceipt(sourceFingerprint);
@@ -491,16 +526,6 @@ describe('migration cli apply refusals', () => {
       receiptFlag,
       receiptPath,
     ];
-    const absent = cliContext(
-      storeFromDataset(uniqueDataset(), { installed: false }),
-    );
-
-    await expect(
-      runMigrationCli(applyArguments, environment, absent.io),
-    ).resolves.toBe(1);
-    expect(absent.stderr.join('\n')).toMatch(notReadablePattern);
-    expect(absent.fake.mutations()).toEqual([]);
-
     const unreadable = installedStore();
     unreadable.items
       .get('curriculum_entries')
@@ -518,7 +543,7 @@ describe('migration cli apply refusals', () => {
 });
 
 describe('migration cli apply', () => {
-  test('apply records the preflight step in the ledger, reports zero converters and writes no target row', async () => {
+  test('apply records the preflight step and the five converter steps in the ledger and prints aggregate counts only', async () => {
     const reportPath = path.join(scratch.directory, reportName);
     const store = installedStore();
     const sourceFingerprint = await dryRunReport(store, reportPath);
@@ -537,30 +562,54 @@ describe('migration cli apply', () => {
     expect(code).toBe(0);
     expect(apply.stderr).toEqual([]);
 
-    const summary = stdoutLine.parse(JSON.parse(apply.stdout[0] ?? ''));
+    const printed = apply.stdout[0] ?? '';
+    const summary = stdoutLine.parse(JSON.parse(printed));
 
     expect(summary).toMatchObject({
       backup: { artifacts: 1 },
-      converters: 0,
+      converters: 5,
       mode: 'apply',
       sourceFingerprint,
-      steps: { completed: ['preflight'], skipped: [] },
+      steps: { completed: ['preflight', ...converterStepNames], skipped: [] },
+      unresolved: {
+        orphan_assignment: 1,
+        unlinked_generation_values: 1,
+        unresolved_staff_text: 10,
+      },
       version: migrationVersion,
+      written: {
+        academic_years: 15,
+        course_curricula: 12,
+        course_enrollment_rules: 120,
+        course_equivalencies: 8,
+        curriculum_entries: 18,
+        student_council: 3,
+        teaching_assignments: 10,
+      },
     });
     expect(String(summary['message'])).toMatch(convertersPattern);
-    expect(apply.fake.mutations().map(({ pathname }) => pathname)).toEqual([
+    expect(printed).not.toContain('Alpha');
+    expect(printed).not.toContain('SYN-');
+    expect(
+      apply.fake
+        .mutations()
+        .slice(0, 2)
+        .map(({ pathname }) => pathname),
+    ).toEqual([
       `/items/${ledgerCollection}`,
       `/items/${ledgerCollection}?fields=id`,
     ]);
-
-    for (const collection of [
-      'curriculum_entries',
-      'course_curricula',
-      'course_enrollment_rules',
-      'academic_years',
-    ]) {
-      expect(store.items.get(collection)).toEqual([]);
-    }
+    expect(store.items.get('curriculum_entries')).toHaveLength(18);
+    expect(store.items.get('course_curricula')).toHaveLength(12);
+    expect(store.items.get('course_enrollment_rules')).toHaveLength(120);
+    expect(store.items.get('academic_years')).toHaveLength(15);
+    expect(store.items.get('teaching_assignments')).toHaveLength(17);
+    expect(store.items.get('courses')).toHaveLength(8);
+    expect(
+      ledgerRows(store).map((row) => [row['step'], row['status']]),
+    ).toEqual(
+      ['preflight', ...converterStepNames].map((step) => [step, 'completed']),
+    );
 
     expect(ledgerRows(store)[0]).toMatchObject({
       source_fingerprint: sourceFingerprint,
@@ -589,8 +638,9 @@ describe('migration cli apply', () => {
     ).resolves.toBe(0);
     expect(again.fake.mutations()).toEqual([]);
     expect(stdoutLine.parse(JSON.parse(again.stdout[0] ?? ''))).toMatchObject({
-      steps: { completed: [], skipped: ['preflight'] },
+      steps: { completed: [], skipped: ['preflight', ...converterStepNames] },
+      written: {},
     });
-    expect(ledgerRows(store)).toHaveLength(1);
+    expect(ledgerRows(store)).toHaveLength(6);
   });
 });

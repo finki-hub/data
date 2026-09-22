@@ -22,12 +22,33 @@ const forCourse = (course: CourseRow, label: null | string) => ({
   label,
 });
 
+// Credits or availability of a generation the course has no label for:
+// course_curricula, the only target for them, gets no row, so the values
+// stay on the course and are put under review rather than dropped silently.
+const unlinkedValues = (
+  course: CourseRow,
+  generation: '2018' | '2023',
+  link: LinkCandidate,
+): readonly Finding[] => {
+  const credits = course[`credits_${generation}`];
+  const available = course[`available_${generation}`];
+  if (link.resolution !== 'none' || (credits === null && available === null)) {
+    return [];
+  }
+  return [
+    finding('unlinked_generation_values', {
+      ...forCourse(course, nonEmpty(course.name)),
+      message: `course ${String(course.id)} carries credits_${generation} ${String(credits)} and available_${generation} ${String(available)} but no ${generation} label; no ${generation} link will hold them, so they stay on the course under review.`,
+    }),
+  ];
+};
+
 export const currentOf = (
   course: CourseRow,
   indexes: Indexes,
 ): Part<'current'> => {
   const current = resolveLabel(nonEmpty(course.name_2023), indexes.current);
-  const findings: Finding[] = [];
+  const findings: Finding[] = [...unlinkedValues(course, '2023', current)];
   if (current.resolution === 'ambiguous') {
     findings.push(
       finding('ambiguous_curriculum_2023', {
@@ -164,6 +185,7 @@ export const legacyOf = (
   };
   return {
     findings: [
+      ...unlinkedValues(course, '2018', legacy.entry),
       ...entryFindings(course, name, legacy),
       ...equivalencyFindings(course, name, {
         ...legacy,

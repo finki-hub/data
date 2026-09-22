@@ -63,6 +63,13 @@ export const assignmentRow = z.object({
   id,
   professors: text,
 });
+// Once the relational model is installed, the role-bearing rows the
+// migration adds beside the original text rows carry their provenance in
+// `source_collection`; the inventory reads it to keep them out of the
+// checkpoint view (and out of the source fingerprint).
+export const provenancedAssignmentRow = assignmentRow.extend({
+  source_collection: text,
+});
 export const patternRow = z.object({
   academic_year: text,
   course_name: text,

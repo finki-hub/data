@@ -2,17 +2,20 @@ import path from 'node:path';
 
 import type { DirectusConfig } from '../config.js';
 import type { DirectusRequest } from '../directus-request.js';
+import type { ConverterSink } from './converter-types.js';
 
 import { BackupReceiptError, validateBackupReceipt } from './backup-receipt.js';
+import { defaultBatchSize } from './batches.js';
 import {
   loadMigrationConfig,
   type MigrationConfig,
   MigrationConfigError,
 } from './config.js';
+import { converterSteps } from './converters.js';
 import { fingerprintInventory } from './fingerprint.js';
 import { readInventory } from './inventory.js';
 import { ledgerCollection } from './ledger-claim.js';
-import { LedgerRefusalError, type MigrationStep } from './ledger-types.js';
+import { LedgerRefusalError } from './ledger-types.js';
 import { readLedgerOrNull, runLedger, summarizeLedger } from './ledger.js';
 import { preflight } from './preflight.js';
 import {
@@ -21,12 +24,16 @@ import {
   writePrivateJson,
 } from './private-files.js';
 import {
+  type Finding,
   type MigrationReport,
   migrationReportSchema,
   migrationVersion,
 } from './report.js';
 
 export type CliIo = {
+  // Rows per write batch; the CLI uses the default and tests lower it to
+  // exercise an interruption between batches.
+  readonly batchSize?: number;
   readonly createRequest: (config: DirectusConfig) => DirectusRequest;
   readonly now: () => string;
   readonly runToken: () => string;
@@ -38,17 +45,13 @@ export class MigrationRefusalError extends Error {
   public override readonly name = 'MigrationRefusalError';
 }
 
-// Converters that write target rows register here in later tasks; with none
-// registered, --apply records the preflight step and reports exactly that.
-export const converters: readonly MigrationStep[] = [];
-
 const collator = new Intl.Collator('en');
 
 const countByCode = (
-  report: MigrationReport,
+  findings: readonly Finding[],
 ): Readonly<Record<string, number>> => {
   const counts = new Map<string, number>();
-  for (const { code } of [...report.blockers, ...report.warnings]) {
+  for (const { code } of findings) {
     counts.set(code, (counts.get(code) ?? 0) + 1);
   }
   return Object.fromEntries(
@@ -75,7 +78,7 @@ const dryRun = async (
     JSON.stringify({
       blockers: report.blockers.length,
       counts: report.counts,
-      findings: countByCode(report),
+      findings: countByCode([...report.blockers, ...report.warnings]),
       ledger: report.ledger,
       migratable: report.migratable,
       mode: 'dry-run',
@@ -145,6 +148,11 @@ const apply = async (
     );
   }
   const existing = live.mappings.filter(({ targetId }) => targetId !== null);
+  const sink: ConverterSink = { findings: [], written: {} };
+  const converters = converterSteps(inventory, live, {
+    batchSize: io.batchSize ?? defaultBatchSize,
+    sink,
+  });
   const outcome = await runLedger(request, {
     now: io.now,
     resume: config.resume,
@@ -161,14 +169,13 @@ const apply = async (
       backup: receipt,
       converters: converters.length,
       ledger: ledgerCollection,
-      message:
-        converters.length === 0
-          ? 'no converters registered yet: the preflight step was recorded in the ledger and no target row was written'
-          : `${String(converters.length)} converter(s) ran under the ledger`,
+      message: `${String(converters.length)} converter step(s) ran under the ledger; no checkpoint scalar column was modified or deleted: target rows were appended, only empty link columns of council and equivalency rows were set, and unresolved relations are retained for review`,
       mode: 'apply',
       sourceFingerprint,
       steps: outcome,
+      unresolved: countByCode(sink.findings),
       version: migrationVersion,
+      written: sink.written,
     }),
   );
 };

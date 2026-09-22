@@ -54,8 +54,10 @@ const fromMatches = (
 
 // Links assignment text to staff rows only through complete labels: the
 // whole text as one staff name, or a text split on exactly one kind of
-// delimiter whose every part is a staff name. Names are never split on
-// spaces; anything else stays unresolved text for review.
+// delimiter whose every part is a distinct staff name. Names are never
+// split on spaces; a list that repeats a label is not an unambiguous list
+// of relations (it would invent a duplicate one), so it and anything else
+// stays unresolved text for review.
 export const resolveStaff = (
   role: StaffCandidate['role'],
   raw: null | string,
@@ -80,7 +82,7 @@ export const resolveStaff = (
     .split(delimiter)
     .map((part) => part.trim())
     .filter((part) => part !== '');
-  if (parts.length < 2) {
+  if (parts.length < 2 || new Set(parts).size !== parts.length) {
     return unresolved(base, parts);
   }
   return fromMatches(

@@ -86,6 +86,7 @@ const config = [
       'src/migrations/private-files.ts',
       'test/migration-cli.test.ts',
       'test/relational/migration-preflight.integration.mjs',
+      'test/relational/relational-migration.integration.mjs',
     ],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',

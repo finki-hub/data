@@ -1,5 +1,7 @@
 import type { SyntheticDataset } from './fixtures/synthetic-data.js';
 
+import { findModelCollection } from '../src/data-model/collections.js';
+import { compositeKeys } from '../src/data-model/relations.js';
 import {
   type DirectusRequest,
   DirectusRequestError,
@@ -44,8 +46,20 @@ const forbidden = (what: string): DirectusRequestError =>
     `You don't have permission to access ${what} or it does not exist.`,
   );
 
+// The columns `npm run setup` adds to an adopted checkpoint collection (the
+// nullable link and provenance columns of the relational model), null on
+// every existing row as the database leaves them.
+const adopted = (collection: string, row: FakeItem): FakeItem => {
+  const fields = findModelCollection(collection)?.fields ?? [];
+  const additions = fields
+    .filter(({ field }) => !Object.hasOwn(row, field))
+    .map(({ field }): [string, null] => [field, null]);
+  return { ...row, ...Object.fromEntries(additions), id: row.id };
+};
+
 // A store holding the checkpoint rows of a dataset; with `installed` the
-// relational collections exist (empty) as they do after `npm run setup`.
+// relational collections exist (empty) and the checkpoint collections carry
+// the relational columns, as they do after `npm run setup`.
 export const storeFromDataset = (
   dataset: SyntheticDataset,
   options: { readonly installed?: boolean; readonly limitMax?: number } = {},
@@ -54,7 +68,11 @@ export const storeFromDataset = (
   for (const [collection, rows] of Object.entries(dataset)) {
     items.set(
       collection,
-      rows.map((row) => ({ ...row })),
+      rows.map((row) =>
+        options.installed === true
+          ? adopted(collection, { ...row })
+          : { ...row },
+      ),
     );
   }
   if (options.installed === true) {
@@ -130,15 +148,65 @@ const columnsOf = (
   }));
 };
 
-const parseBody = (init: Parameters<typeof fetch>[1]): FakeItem => {
+const parseJson = (init: Parameters<typeof fetch>[1]): unknown => {
   if (typeof init?.body !== 'string') {
     throw failure(400, 'INVALID_PAYLOAD', 'A JSON body is required');
   }
-  const parsed: unknown = JSON.parse(init.body);
+  return JSON.parse(init.body);
+};
+
+const asItem = (parsed: unknown): FakeItem => {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw failure(400, 'INVALID_PAYLOAD', 'The body must be one object');
   }
   return { ...parsed, id: 0 };
+};
+
+const parseBody = (init: Parameters<typeof fetch>[1]): FakeItem =>
+  asItem(parseJson(init));
+
+// The domain keys the database enforces: the unique scalar columns the
+// model declares and the composite unique keys the constraints migration
+// creates. A create or update landing on a taken key fails the way the
+// database would, RECORD_NOT_UNIQUE.
+const uniqueKeysOf = (collection: string): ReadonlyArray<readonly string[]> => [
+  ...(findModelCollection(collection)?.fields ?? []).flatMap((field) =>
+    field.kind !== 'm2o' && field.kind !== 'enum' && field.unique === true
+      ? [[field.field]]
+      : [],
+  ),
+  ...compositeKeys
+    .filter((key) => key.collection === collection && key.kind === 'unique')
+    .map(({ columns }) => columns),
+];
+
+const assertUnique = (
+  collection: string,
+  rows: readonly FakeItem[],
+  candidate: FakeItem,
+): void => {
+  for (const columns of uniqueKeysOf(collection)) {
+    if (
+      columns.some(
+        (column) =>
+          candidate[column] === null || candidate[column] === undefined,
+      )
+    ) {
+      continue;
+    }
+    const taken = rows.some(
+      (row) =>
+        row.id !== candidate.id &&
+        columns.every((column) => row[column] === candidate[column]),
+    );
+    if (taken) {
+      throw failure(
+        400,
+        'RECORD_NOT_UNIQUE',
+        `Value for field "${columns.join(', ')}" in collection "${collection}" has to be unique.`,
+      );
+    }
+  }
 };
 
 const get = (store: FakeStore, pathname: string): unknown => {
@@ -187,11 +255,10 @@ const get = (store: FakeStore, pathname: string): unknown => {
   return listing(store, { collection, rows }, search);
 };
 
-const create = (
+const collectionOf = (
   store: FakeStore,
   pathname: string,
-  init: Parameters<typeof fetch>[1],
-): FakeItem => {
+): { readonly collection: string; readonly rows: FakeItem[] } => {
   const target = listPattern.exec(pathname)?.groups?.['target'];
   const collection = target?.slice('items/'.length);
   const rows =
@@ -199,17 +266,15 @@ const create = (
   if (collection === undefined || rows === undefined) {
     throw forbidden(`collection at ${pathname}`);
   }
-  const body = parseBody(init);
-  if (
-    typeof body['key'] === 'string' &&
-    rows.some((row) => row['key'] === body['key'])
-  ) {
-    throw failure(
-      400,
-      'RECORD_NOT_UNIQUE',
-      `Value for field "key" in collection "${collection}" has to be unique.`,
-    );
-  }
+  return { collection, rows };
+};
+
+const createOne = (
+  collection: string,
+  rows: FakeItem[],
+  body: FakeItem,
+): FakeItem => {
+  assertUnique(collection, rows, body);
   let nextId = 1;
   for (const row of rows) {
     if (typeof row.id === 'number') {
@@ -218,7 +283,30 @@ const create = (
   }
   const created = { ...body, id: nextId };
   rows.push(created);
-  return { ...created };
+  return created;
+};
+
+// `POST /items/:collection` with one object creates one row; with an array
+// it creates every row (Directus `createMany`) and returns them all, in
+// both cases projected to the requested fields when `fields` is given.
+const create = (
+  store: FakeStore,
+  pathname: string,
+  init: Parameters<typeof fetch>[1],
+): FakeItem | readonly FakeItem[] => {
+  const { collection, rows } = collectionOf(store, pathname);
+  const fields = new URL(pathname, 'https://fake.example').searchParams.get(
+    'fields',
+  );
+  const shape = (row: FakeItem): FakeItem =>
+    fields === null ? { ...row } : project(row, fields.split(','), collection);
+  const parsed = parseJson(init);
+  if (Array.isArray(parsed)) {
+    return parsed.map((item: unknown) =>
+      shape(createOne(collection, rows, asItem(item))),
+    );
+  }
+  return shape(createOne(collection, rows, asItem(parsed)));
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -266,6 +354,35 @@ const updateByQuery = (
   return updated;
 };
 
+// `PATCH /items/:collection` with an array of objects carrying their
+// primary keys updates each of them (Directus `updateBatch`).
+const updateBatch = (
+  store: FakeStore,
+  pathname: string,
+  items: readonly unknown[],
+): readonly FakeItem[] => {
+  const { collection, rows } = collectionOf(store, pathname);
+  const fields = (
+    new URL(pathname, 'https://fake.example').searchParams.get('fields') ?? 'id'
+  ).split(',');
+  return items.map((item) => {
+    const patch = asItem(item);
+    const id =
+      typeof item === 'object' && item !== null && 'id' in item
+        ? Number(item.id)
+        : NaN;
+    const index = rows.findIndex((row) => row.id === id);
+    const existing = rows[index];
+    if (existing === undefined) {
+      throw forbidden(`item ${String(id)} in collection "${collection}"`);
+    }
+    const updated = { ...existing, ...patch, id: existing.id };
+    assertUnique(collection, rows, updated);
+    rows[index] = updated;
+    return project(updated, fields, collection);
+  });
+};
+
 const update = (
   store: FakeStore,
   pathname: string,
@@ -273,7 +390,10 @@ const update = (
 ): FakeItem | readonly FakeItem[] => {
   const match = singlePattern.exec(pathname);
   if (match === null) {
-    return updateByQuery(store, pathname, init);
+    const parsed = parseJson(init);
+    return Array.isArray(parsed)
+      ? updateBatch(store, pathname, parsed)
+      : updateByQuery(store, pathname, init);
   }
   const collection = match.groups?.['collection'];
   const id = Number(match.groups?.['id']);

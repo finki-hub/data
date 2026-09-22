@@ -761,6 +761,32 @@ describe('preflight warnings and mappings', () => {
     });
   });
 
+  test('puts credits or availability of a generation without a label under review and leaves empty ones alone', async () => {
+    const { report } = await reportFor(uniqueDataset());
+    const { report: emptied } = await reportFor(
+      withCourse(uniqueDataset(), courseNames.gamma, { available_2018: null }),
+    );
+    const { report: credited } = await reportFor(
+      withCourse(uniqueDataset(), courseNames.delta, { credits_2023: 6 }),
+    );
+
+    expect(report.blockers).toEqual([]);
+    expect(findings(report, 'unlinked_generation_values')).toEqual([
+      expect.objectContaining({
+        collection: 'courses',
+        ids: [3],
+        label: courseNames.gamma,
+      }),
+    ]);
+    expect(courseCandidate(report, courseNames.gamma).legacy.entry).toEqual(
+      expect.objectContaining({ resolution: 'none' }),
+    );
+    expect(findings(emptied, 'unlinked_generation_values')).toEqual([]);
+    expect(
+      findings(credited, 'unlinked_generation_values').map(({ ids }) => ids),
+    ).toEqual([[3], [4]]);
+  });
+
   test('warns about labels carrying regex or LIKE metacharacters and about orphan rows', async () => {
     const { report } = await reportFor(uniqueDataset());
 

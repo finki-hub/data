@@ -45,7 +45,24 @@ const missingArtifactPattern = /artifact .* is missing/u;
 const driftPattern = /drift/u;
 const blockerPattern = /blocker/u;
 const fingerprintPattern = /fingerprint/u;
-const convertersPattern = /no converters registered/u;
+const convertersPattern = /5 converter step\(s\) ran under the ledger/u;
+const stepNames = [
+  'curricula',
+  'rules',
+  'assignments',
+  'council',
+  'equivalencies',
+];
+// What the converter steps write for the seeded dataset: every curriculum
+// row, one link per unique current/legacy label, the fifteen years with a
+// rule per course and year, and one role row per resolved or retained text.
+const migratedCounts = {
+  academic_years: 15,
+  course_curricula: 12,
+  course_enrollment_rules: 8 * 15,
+  curriculum_entries: 18,
+  teaching_assignments: 7 + 10,
+};
 
 const applyWith = (report, receipt) => [
   '--apply',
@@ -116,13 +133,24 @@ const snapshot = async (target, directus) => ({
   revision: await sourceRevision(target),
 });
 
+const withoutId = (row) =>
+  Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'id'));
+
+// Assignment rows are seeded without ids, in dataset order, so the table's
+// sequence stays ahead of the role rows the migration appends, as it is on
+// a deployment filled through the importer; every other collection keeps
+// the dataset ids because nothing is appended to it.
 const seed = async (target, dataset) => {
   for (const collection of collectionKeys) {
+    const rows =
+      collection === 'teaching_assignments'
+        ? dataset[collection].map((row) => withoutId(row))
+        : dataset[collection];
     await read(
       await request(
         target,
         `/items/${collection}`,
-        json('POST', dataset[collection], target.token),
+        json('POST', rows, target.token),
       ),
       200,
     );
@@ -291,12 +319,12 @@ const dryRunReportsBlockers = async (target, directus, directory) => {
     ]),
     [
       [1, ['unresolved', 'unresolved']],
-      [3, ['unresolved', 'unresolved']],
-      [4, ['unresolved', 'none']],
-      [5, ['none', 'unresolved']],
+      [2, ['unresolved', 'unresolved']],
+      [3, ['unresolved', 'none']],
+      [4, ['none', 'unresolved']],
+      [5, ['unresolved', 'unresolved']],
       [6, ['unresolved', 'unresolved']],
       [7, ['unresolved', 'unresolved']],
-      [8, ['unresolved', 'unresolved']],
     ],
     'every assignment row carries its staff candidates',
   );
@@ -383,19 +411,41 @@ const applyRecordsLedger = async (target, directus, runs) => {
   assert.equal(await run.run(arguments_), 0, run.stderr.join('\n'));
   const summary = JSON.parse(run.stdout[0]);
   assert.equal(summary.mode, 'apply');
-  assert.equal(summary.converters, 0);
-  assert.deepEqual(summary.steps, { completed: ['preflight'], skipped: [] });
+  assert.equal(summary.converters, 5);
+  assert.deepEqual(summary.steps, {
+    completed: ['preflight', ...stepNames],
+    skipped: [],
+  });
   assert.match(summary.message, convertersPattern);
-  const after = await snapshot(target, directus);
-  assert.equal(after.fingerprint, before.fingerprint);
-  assert.equal(after.revision, before.revision, 'no source table was touched');
-  for (const collection of targetCollections) {
-    assert.equal(after.counts[collection], 0, `${collection} must stay empty`);
+  for (const forbidden of ['Alpha', 'SYN-', '@', 'Synthetic']) {
+    assert.ok(
+      !run.stdout[0].includes(forbidden),
+      `stdout carries ${forbidden}`,
+    );
   }
-  assert.equal(after.counts[ledgerCollection], 1);
+  const after = await snapshot(target, directus);
+  assert.equal(
+    after.fingerprint,
+    before.fingerprint,
+    'the converters write target rows and link columns only, never a fingerprinted column',
+  );
+  assert.deepEqual(
+    {
+      ...after.counts,
+      teaching_assignments: 7,
+      ...Object.fromEntries(targetCollections.map((c) => [c, 0])),
+      [ledgerCollection]: 0,
+    },
+    { ...before.counts, teaching_assignments: 7 },
+    'no checkpoint row was removed',
+  );
+  for (const [collection, expected] of Object.entries(migratedCounts)) {
+    assert.equal(after.counts[collection], expected, collection);
+  }
+  assert.equal(after.counts[ledgerCollection], 6);
   const [row] = await get(
     target,
-    `/items/${ledgerCollection}?fields=key,version,step,status,source_fingerprint,run_token,started_at,finished_at,error`,
+    `/items/${ledgerCollection}?fields=key,version,step,status,source_fingerprint,run_token,started_at,finished_at,error&filter[step][_eq]=preflight`,
   );
   assert.deepEqual(row, {
     error: null,
@@ -412,9 +462,12 @@ const applyRecordsLedger = async (target, directus, runs) => {
   assert.equal(await again.run(arguments_), 0);
   assert.deepEqual(JSON.parse(again.stdout[0]).steps, {
     completed: [],
-    skipped: ['preflight'],
+    skipped: ['preflight', ...stepNames],
   });
-  assert.equal(await count(target, ledgerCollection), 1);
+  assert.deepEqual(JSON.parse(again.stdout[0]).written, {});
+  assert.equal(await count(target, ledgerCollection), 6);
+  const unchanged = await snapshot(target, directus);
+  assert.deepEqual(unchanged.counts, after.counts);
   const drift = cli(target);
   assert.equal(
     await drift.run(
@@ -451,13 +504,14 @@ const applyRecordsLedger = async (target, directus, runs) => {
     1,
   );
   assert.match(summaryDrift.stderr.join('\n'), driftPattern);
-  assert.equal(await count(target, ledgerCollection), 1);
+  assert.equal(await count(target, ledgerCollection), 6);
 };
 
+// The preflight step's row, the one the re-claim scenario manipulates.
 const ledgerRow = async (target) => {
   const [row] = await get(
     target,
-    `/items/${ledgerCollection}?fields=id,status,run_token,error,id_map`,
+    `/items/${ledgerCollection}?fields=id,status,run_token,error,id_map&filter[step][_eq]=preflight`,
   );
   return row;
 };
@@ -495,9 +549,9 @@ const applyReclaimsLedger = async (target, directus, runs) => {
   assert.equal(await reclaim.run(arguments_), 0, reclaim.stderr.join('\n'));
   assert.deepEqual(JSON.parse(reclaim.stdout[0]).steps, {
     completed: ['preflight'],
-    skipped: [],
+    skipped: stepNames,
   });
-  assert.equal(await count(target, ledgerCollection), 1);
+  assert.equal(await count(target, ledgerCollection), 6);
   const reclaimed = await ledgerRow(target);
   assert.equal(reclaimed.error, null);
   assert.equal(reclaimed.run_token, 'integration-run');
@@ -540,16 +594,24 @@ const applyReclaimsLedger = async (target, directus, runs) => {
   const resumedRow = await ledgerRow(target);
   assert.equal(resumedRow.run_token, 'integration-run');
   assert.equal(resumedRow.status, 'completed');
-  assert.equal(await count(target, ledgerCollection), 1);
+  assert.equal(await count(target, ledgerCollection), 6);
   const after = await snapshot(target, directus);
-  for (const collection of targetCollections) {
-    assert.equal(after.counts[collection], 0, `${collection} must stay empty`);
+  for (const [collection, expected] of Object.entries(migratedCounts)) {
+    assert.equal(after.counts[collection], expected, `${collection} unchanged`);
   }
 };
 
+// Target rows go first (their links reference entries and years), then the
+// checkpoint rows the migration linked.
 const cleanup = async (target) => {
   await removeAll(target, ledgerCollection);
-  for (const collection of collectionKeys) {
+  for (const collection of [
+    'course_enrollment_rules',
+    'course_curricula',
+    'curriculum_entries',
+    'academic_years',
+    ...collectionKeys,
+  ]) {
     await removeAll(target, collection);
   }
   const remaining = await counts(target);

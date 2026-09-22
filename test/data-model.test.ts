@@ -560,6 +560,9 @@ describe('relations and aliases', () => {
     expect(
       findField('teaching_assignments', 'display_override').nullable,
     ).toBeTruthy();
+    expect(findField('teaching_assignments', 'display_override').kind).toBe(
+      'text',
+    );
     expect(
       findField('teaching_assignments', 'source_collection').readOnly,
     ).toBeTruthy();

@@ -30,6 +30,7 @@ import {
   operationRow,
   type PatternRow,
   patternRow,
+  provenancedAssignmentRow,
   ruleRow,
   staffRow,
   studentRow,
@@ -96,9 +97,35 @@ const rows = <S extends RowSchema>(
     schema,
   });
 
+// The original assignment text rows only. Once the relational model is
+// installed the collection also holds the role-bearing rows the migration
+// created, told apart by their provenance; they are target rows, never
+// source rows, so they stay out of the checkpoint view and the fingerprint
+// (the checkpoint derivation never sees them first either: they carry no
+// text and a higher id than the original row of their course name).
+const readAssignments = async (
+  request: DirectusRequest,
+  pageSize: number,
+  columns: readonly string[],
+): Promise<readonly AssignmentRow[]> => {
+  const collection = 'teaching_assignments';
+  if (!columns.includes('source_collection')) {
+    return rows(request, { collection, pageSize, schema: assignmentRow });
+  }
+  const all = await rows(request, {
+    collection,
+    pageSize,
+    schema: provenancedAssignmentRow,
+  });
+  return all
+    .filter((row) => row.source_collection === null)
+    .map((row) => assignmentRow.parse(row));
+};
+
 const readCheckpoint = async (
   request: DirectusRequest,
   pageSize: number,
+  columns: Columns,
 ): Promise<CheckpointRows> => ({
   course_enrollment_patterns: await rows(request, {
     collection: 'course_enrollment_patterns',
@@ -156,11 +183,11 @@ const readCheckpoint = async (
     pageSize,
     schema: studentRow,
   }),
-  teaching_assignments: await rows(request, {
-    collection: 'teaching_assignments',
+  teaching_assignments: await readAssignments(
+    request,
     pageSize,
-    schema: assignmentRow,
-  }),
+    columns.teaching_assignments,
+  ),
 });
 
 // The relational target collections, read for their provenance so a resumed
@@ -210,9 +237,10 @@ export const readInventory = async (
   options: InventoryOptions,
 ): Promise<Inventory> => {
   const pageSize = options.pageSize ?? defaultPageSize;
+  const fields = await readCheckpointColumns(request);
   return {
-    checkpoint: await readCheckpoint(request, pageSize),
-    fields: await readCheckpointColumns(request),
+    checkpoint: await readCheckpoint(request, pageSize, fields),
+    fields,
     flows: await readAll(request, {
       fields: Object.keys(flowRow.shape),
       pageSize,

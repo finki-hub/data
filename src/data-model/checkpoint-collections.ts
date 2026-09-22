@@ -86,7 +86,9 @@ const additions: Readonly<Partial<Record<string, readonly ModelField[]>>> = {
       note: 'professor or assistant; empty on unconverted checkpoint rows.',
     }),
     scalar('sort', 'integer'),
-    scalar('display_override', 'string', {
+    // `text`, not `string`: an unresolved imported label is the whole
+    // professors/assistants text of the checkpoint row, an unbounded column.
+    scalar('display_override', 'text', {
       note: 'Literal label shown instead of the staff name, or the unresolved imported label.',
     }),
     ...provenanceFields(),
