@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
+import { folders } from '../../src/data-model/presentation/navigation.js';
+import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { modelRelations } from '../../src/data-model/relations.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 
@@ -117,19 +119,61 @@ export const teardownOrder = () => {
   return order;
 };
 
+const remove = async (target, path) =>
+  read(
+    await request(target, path, { method: 'DELETE', token: target.token }),
+    204,
+  );
+
+// The global presets `installPresentation` declares (matched by collection
+// and bookmark name), deleted before their collections go so nothing dangles.
+const destroyPresets = async (target) => {
+  const listing = await read(
+    await request(
+      target,
+      '/presets?limit=-1&fields=id,bookmark,collection,user,role',
+      { token: target.token },
+    ),
+    200,
+  );
+  const declared = listing.data.filter(
+    (preset) =>
+      preset.user === null &&
+      preset.role === null &&
+      presetDefinitions.some(
+        (definition) =>
+          definition.collection === preset.collection &&
+          definition.bookmark === preset.bookmark,
+      ),
+  );
+  for (const preset of declared) await remove(target, `/presets/${preset.id}`);
+};
+
+// The sidebar folders `installPresentation` creates; a folder is a
+// table-less collection row, so dropping it touches no data.
+const destroyFolders = async (target) => {
+  const present = new Set(await userCollections(target));
+  for (const folder of folders) {
+    if (!present.has(folder.collection)) continue;
+    await remove(target, `/collections/${folder.collection}`);
+  }
+};
+
+// Removes everything `installPresentation` adds beside the model
+// collections, so a fixture that ran `npm run setup` returns to marker-only.
+export const destroyPresentation = async (target) => {
+  await destroyPresets(target);
+  await destroyFolders(target);
+};
+
 export const destroyDataModel = async (target) => {
+  await destroyPresets(target);
   const present = new Set(await userCollections(target));
   const failures = [];
   for (const collection of teardownOrder()) {
     if (!present.has(collection)) continue;
     try {
-      await read(
-        await request(target, `/collections/${collection}`, {
-          method: 'DELETE',
-          token: target.token,
-        }),
-        204,
-      );
+      await remove(target, `/collections/${collection}`);
     } catch (error) {
       failures.push(error);
     }
@@ -139,6 +183,7 @@ export const destroyDataModel = async (target) => {
       failures,
       'Data model teardown did not remove every collection',
     );
+  await destroyFolders(target);
 };
 
 export const withDataModel = async (target, body) => {

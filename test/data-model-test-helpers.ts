@@ -2,9 +2,14 @@ import type {
   ModelCollection,
   ModelField,
   ModelRelation,
+  ModelRelationAlias,
 } from '../src/schema.js';
 
 import { dataModelCollections } from '../src/data-model/collections.js';
+import {
+  toAliasPayload,
+  toFieldPayload,
+} from '../src/data-model/field-payloads.js';
 import { expectedColumnType } from '../src/data-model/fields.js';
 import { aliasesFor, relationsOf } from '../src/data-model/relations.js';
 import {
@@ -21,9 +26,16 @@ export type FakeColumn = {
   is_unique: boolean;
 };
 
+// The `directus_fields` row as `GET /fields/:collection` reports it: every
+// meta column is present, unset ones as null.
+export type FakeMeta = {
+  [key: string]: unknown;
+  special?: null | readonly string[];
+};
+
 export type FakeField = {
   field: string;
-  meta: null | { special?: null | string[] };
+  meta: FakeMeta | null;
   schema: FakeColumn | null;
   type: null | string;
 };
@@ -42,13 +54,21 @@ export type FakeRelation = {
 
 export type FakeCollection = {
   collection: string;
-  meta: unknown;
+  meta: null | Record<string, unknown>;
   schema: unknown;
+};
+
+export type FakePreset = {
+  bookmark: null | string;
+  collection: null | string;
+  role: null | string;
+  user: null | string;
 };
 
 export type FakeState = {
   collections: FakeCollection[];
   fields: Record<string, FakeField[]>;
+  presets?: FakePreset[];
   relations: Record<string, FakeRelation[]>;
 };
 
@@ -70,10 +90,30 @@ export const primaryKeyField: FakeField = {
   type: 'integer',
 };
 
-// The column Directus would report after the installer created the field.
-export const installedField = (field: ModelField): FakeField => ({
+// Meta columns Directus reports as null or false when the installer payload
+// leaves them unset.
+export const metaDefaults: FakeMeta = {
+  conditions: null,
+  display: null,
+  display_options: null,
+  group: null,
+  hidden: false,
+  note: null,
+  options: null,
+  special: null,
+  translations: null,
+  validation: null,
+};
+
+// The column Directus would report after the installer created the field,
+// carrying the exact meta the installer payload wrote.
+export const installedField = (field: ModelField, sort = 1): FakeField => ({
   field: field.field,
-  meta: { special: field.kind === 'm2o' ? ['m2o'] : null },
+  meta: {
+    ...metaDefaults,
+    ...toFieldPayload(field, sort).meta,
+    special: field.kind === 'm2o' ? ['m2o'] : null,
+  },
   schema: {
     default_value: field.kind === 'm2o' ? null : (field.defaultValue ?? null),
     foreign_key_table: field.kind === 'm2o' ? field.related : null,
@@ -87,9 +127,12 @@ export const installedField = (field: ModelField): FakeField => ({
   type: expectedColumnType(field),
 });
 
-export const installedAlias = (field: string): FakeField => ({
-  field,
-  meta: { special: ['o2m'] },
+export const installedAlias = (
+  alias: ModelRelationAlias,
+  sort = 1,
+): FakeField => ({
+  field: alias.field,
+  meta: { ...metaDefaults, ...toAliasPayload(alias, sort).meta },
   schema: null,
   type: 'alias',
 });
@@ -119,9 +162,11 @@ export const installedCollection = (
   collection: { collection: collection.collection, meta: {}, schema: {} },
   fields: [
     primaryKeyField,
-    ...collection.fields.map(installedField),
-    ...aliasesFor(collection.collection).map(({ alias }) =>
-      installedAlias(alias.field),
+    ...collection.fields.map((field, index) =>
+      installedField(field, index + 1),
+    ),
+    ...aliasesFor(collection.collection).map(({ alias }, index) =>
+      installedAlias(alias, collection.fields.length + index + 1),
     ),
   ],
   relations: relationsOf(collection.collection).map(installedRelation),
@@ -193,6 +238,9 @@ export const fakeDirectus = (
     if (method === 'GET') {
       if (pathname === '/collections') {
         return state.collections;
+      }
+      if (pathname.startsWith('/presets')) {
+        return state.presets ?? [];
       }
       const match = listPattern.exec(pathname);
       const collection = match?.groups?.['collection'];

@@ -36,7 +36,9 @@ export class ExistingCollectionError extends Error {
   }
 }
 
-const toApiField = (
+// The field meta the legacy importer writes for a checkpoint column. Exported
+// so the tests can lock it to the relational installer's baseline.
+export const toApiField = (
   spec: CollectionSpec['fields'][number],
   index: number,
 ): ApiField => {

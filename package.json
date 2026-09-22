@@ -37,7 +37,7 @@
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
     "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs",
-    "test:relational": "node --import tsx --test 'test/relational/*.integration.mjs'",
+    "test:relational": "node --import tsx --test --test-concurrency=1 'test/relational/*.integration.mjs'",
     "test:search": "node --test test/search.integration.mjs"
   },
   "type": "module",

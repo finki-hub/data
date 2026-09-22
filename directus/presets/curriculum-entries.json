@@ -1,0 +1,40 @@
+[
+  {
+    "bookmark": "Curriculum 2018",
+    "collection": "curriculum_entries",
+    "icon": "menu_book",
+    "user": null,
+    "role": null,
+    "search": null,
+    "filter": { "generation": { "_eq": "2018" } },
+    "layout": "tabular",
+    "layout_options": { "tabular": { "spacing": "comfortable" } },
+    "layout_query": {
+      "tabular": {
+        "fields": ["code", "name", "level", "semester", "channel", "course_links"],
+        "sort": ["catalog_order"],
+        "limit": 50,
+        "page": 1
+      }
+    }
+  },
+  {
+    "bookmark": "Curriculum 2023",
+    "collection": "curriculum_entries",
+    "icon": "menu_book",
+    "user": null,
+    "role": null,
+    "search": null,
+    "filter": { "generation": { "_eq": "2023" } },
+    "layout": "tabular",
+    "layout_options": { "tabular": { "spacing": "comfortable" } },
+    "layout_query": {
+      "tabular": {
+        "fields": ["code", "name", "level", "semester", "channel", "course_links"],
+        "sort": ["catalog_order"],
+        "limit": 50,
+        "page": 1
+      }
+    }
+  }
+]

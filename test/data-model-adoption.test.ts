@@ -89,7 +89,9 @@ describe('installDataModel adoption', () => {
     state.collections.push(installedCollection(curricula).collection);
     state.fields['course_curricula'] = [
       primaryKeyField,
-      ...curricula.fields.map(installedField),
+      ...curricula.fields.map((field, index) =>
+        installedField(field, index + 1),
+      ),
     ];
     state.relations['course_curricula'] = [
       {
