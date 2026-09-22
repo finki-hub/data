@@ -152,6 +152,7 @@ const helperCollections = [
   'course_curricula',
   'data_operation_results',
   'data_operations',
+  'migration_ledger',
   'moodle_history_memberships',
   'moodle_import_rows',
 ];

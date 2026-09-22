@@ -38,6 +38,7 @@ import {
   splitSqlStatements,
 } from '../directus/extensions/directus-extension-data-operations/src/source-invalidation-sql.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
+import { migrationCollectionKeys } from '../src/data-model/migration-collections.js';
 import { coordinationDomains as modelDomains } from '../src/data-model/operations-collections.js';
 
 const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
@@ -106,7 +107,10 @@ const triggerTables = statements.flatMap((statement) =>
     .map((match) => match.groups?.['table'] ?? '')
     .toArray(),
 );
-const modelTables = dataModelCollections.map(({ collection }) => collection);
+// The migration ledger is private CLI bookkeeping, never a source table.
+const modelTables = dataModelCollections
+  .map(({ collection }) => collection)
+  .filter((collection) => !migrationCollectionKeys.includes(collection));
 const tableDomains = Object.entries(sourceTableDomains);
 
 describe('option contract', () => {
@@ -267,6 +271,19 @@ describe('source-invalidation migration', () => {
       expect(modelTables).toContain(table);
       expect(triggerTables).not.toContain(table);
       expect(sourceInvalidationSql).not.toContain(`TRUNCATE ON "${table}"`);
+    }
+
+    // The exemption of the migration collections is explicit and bounded:
+    // each is a model collection that no trigger and no domain mapping names.
+    expect(migrationCollectionKeys).toEqual(['migration_ledger']);
+
+    for (const table of migrationCollectionKeys) {
+      expect(
+        dataModelCollections.map(({ collection }) => collection),
+      ).toContain(table);
+      expect(triggerTables).not.toContain(table);
+      expect(Object.keys(sourceTableDomains)).not.toContain(table);
+      expect(sourceInvalidationSql).not.toContain(`ON "${table}"`);
     }
     for (const table of optionalSourceTables) {
       const guarded = statements.find((statement) =>

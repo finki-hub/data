@@ -1,0 +1,130 @@
+import type { AssignmentRow } from './inventory-schemas.js';
+import type { Finding, StaffCandidate } from './report.js';
+
+import {
+  finding,
+  type LabelIndex,
+  listIds,
+  nonEmpty,
+  quote,
+} from './labels.js';
+
+const delimiters = [',', ';', '\n'] as const;
+
+type Text = Pick<StaffCandidate, 'role' | 'text'>;
+
+type Matched = Pick<StaffCandidate, 'parts' | 'staff'>;
+
+const candidate = (
+  { role, text }: Text,
+  resolution: StaffCandidate['resolution'],
+  { parts, staff }: Matched,
+): StaffCandidate => ({
+  parts: [...parts],
+  resolution,
+  role,
+  staff: [...staff],
+  text,
+});
+
+const unresolved = (base: Text, parts: readonly string[]): StaffCandidate =>
+  candidate(base, 'unresolved', { parts, staff: [] });
+
+// Complete labels only: `unique` when every label names exactly one staff
+// row, `ambiguous` when every label names a staff row but at least one
+// names several (the ids in contention are carried, none is linked), and
+// `unresolved` when a label names no staff row at all.
+const fromMatches = (
+  base: Text,
+  parts: readonly string[],
+  matches: ReadonlyArray<readonly number[]>,
+): StaffCandidate => {
+  if (matches.some((ids) => ids.length === 0)) {
+    return unresolved(base, parts);
+  }
+  const staff = [...new Set(matches.flat())].toSorted(
+    (left, right) => left - right,
+  );
+  return candidate(
+    base,
+    matches.every((ids) => ids.length === 1) ? 'unique' : 'ambiguous',
+    { parts, staff },
+  );
+};
+
+// Links assignment text to staff rows only through complete labels: the
+// whole text as one staff name, or a text split on exactly one kind of
+// delimiter whose every part is a staff name. Names are never split on
+// spaces; anything else stays unresolved text for review.
+export const resolveStaff = (
+  role: StaffCandidate['role'],
+  raw: null | string,
+  staffByName: LabelIndex,
+): StaffCandidate => {
+  const text = nonEmpty(raw);
+  const base = { role, text };
+  if (text === null) {
+    return candidate(base, 'none', { parts: [], staff: [] });
+  }
+  const whole = text.trim();
+  const wholeMatches = staffByName.get(whole) ?? [];
+  if (wholeMatches.length > 0) {
+    return fromMatches(base, [whole], [wholeMatches]);
+  }
+  const present = delimiters.filter((item) => whole.includes(item));
+  const [delimiter] = present;
+  if (delimiter === undefined || present.length !== 1) {
+    return unresolved(base, [whole]);
+  }
+  const parts = whole
+    .split(delimiter)
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  if (parts.length < 2) {
+    return unresolved(base, parts);
+  }
+  return fromMatches(
+    base,
+    parts,
+    parts.map((part) => staffByName.get(part) ?? []),
+  );
+};
+
+// Both texts of one assignment row: every row is converted into staff
+// links, not only the first row of a course name.
+export const assignmentStaff = (
+  row: AssignmentRow,
+  staffByName: LabelIndex,
+): readonly StaffCandidate[] => [
+  resolveStaff('professor', row.professors, staffByName),
+  resolveStaff('assistant', row.assistants, staffByName),
+];
+
+// One finding per text that cannot be linked: retained as display text when
+// unresolved, or naming the staff rows in contention when ambiguous.
+export const staffFindings = (
+  row: AssignmentRow,
+  staff: readonly StaffCandidate[],
+): readonly Finding[] =>
+  staff.flatMap((item) => {
+    const label = nonEmpty(row.course_name);
+    const base = { collection: 'teaching_assignments', ids: [row.id], label };
+    const where = `${item.role} text of assignment ${String(row.id)} for ${quote(label)}`;
+    if (item.resolution === 'ambiguous') {
+      return [
+        finding('ambiguous_staff_label', {
+          ...base,
+          message: `${where} names staff rows ${listIds(item.staff)} through a label several of them carry; no staff link is set and the text is retained until the rows are told apart.`,
+        }),
+      ];
+    }
+    if (item.resolution === 'unresolved') {
+      return [
+        finding('unresolved_staff_text', {
+          ...base,
+          message: `${where} is not a complete staff label or an unambiguous list of them; it is retained as display text for review.`,
+        }),
+      ];
+    }
+    return [];
+  });

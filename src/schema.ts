@@ -114,6 +114,7 @@ export const relationalCollectionKeys = [
   'course_enrollments',
   'data_operations',
   'data_operation_results',
+  'migration_ledger',
 ] as const;
 
 export type RelationalCollectionKey = (typeof relationalCollectionKeys)[number];

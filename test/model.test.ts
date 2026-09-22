@@ -158,6 +158,7 @@ describe('studio metadata', () => {
       'moodle_history_memberships',
       'course_enrollments',
       'data_operation_results',
+      'migration_ledger',
     ]);
     expect(
       aliasMetas.filter(

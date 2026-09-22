@@ -68,7 +68,10 @@ const installsSchemaOnly = async (target, directus, state) => {
   }
   const after = await schemaCounts(target);
   assert.equal(after.presets, before.presets, 'setup must not write presets');
-  assert.equal(after.collections, before.collections + 24);
+  assert.equal(
+    after.collections,
+    before.collections + dataModelCollectionKeys.length,
+  );
   state.installed = after;
 };
 
@@ -76,12 +79,12 @@ const reinstallsWithoutMutation = async (target, directus, state) => {
   const recorder = recording(directus);
   const summary = await installDataModel(recorder.request);
   assert.deepEqual(recorder.mutations(), []);
-  assert.equal(recorder.calls.length, 1 + 24 * 2);
+  assert.equal(recorder.calls.length, 1 + dataModelCollectionKeys.length * 2);
   assert.deepEqual(summary.collections, {
     adopted: 0,
     created: 0,
     refused: 0,
-    skipped: 24,
+    skipped: dataModelCollectionKeys.length,
   });
   assert.deepEqual(summary.relations, {
     adopted: 0,

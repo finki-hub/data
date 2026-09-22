@@ -134,8 +134,8 @@ describe('target collections', () => {
     expect(new Set(dataModelCollectionKeys)).toEqual(
       new Set([...collectionKeys, ...relationalCollectionKeys]),
     );
-    expect(dataModelCollectionKeys).toHaveLength(24);
-    expect(new Set(dataModelCollectionKeys).size).toBe(24);
+    expect(dataModelCollectionKeys).toHaveLength(25);
+    expect(new Set(dataModelCollectionKeys).size).toBe(25);
   });
 
   test('adopts the checkpoint collections with their current fields first', () => {
@@ -608,7 +608,7 @@ describe('installDataModel on fresh and installed projects', () => {
     const summary = await installDataModel(request);
 
     expect(summary).toEqual({
-      collections: { adopted: 0, created: 24, refused: 0, skipped: 0 },
+      collections: { adopted: 0, created: 25, refused: 0, skipped: 0 },
       fields: { adopted: 0, created: totalFields, refused: 0, skipped: 0 },
       relations: {
         adopted: 0,
@@ -625,7 +625,7 @@ describe('installDataModel on fresh and installed projects', () => {
       false,
     );
 
-    const collections = changes.slice(0, 24);
+    const collections = changes.slice(0, 25);
 
     expect(collections.map(({ pathname }) => pathname)).toEqual(
       dataModelCollectionKeys.map(() => '/collections'),
@@ -634,7 +634,7 @@ describe('installDataModel on fresh and installed projects', () => {
       collections.map(({ body }) => collectionBody.parse(body).collection),
     ).toEqual(dataModelCollectionKeys);
 
-    const relations = changes.slice(24);
+    const relations = changes.slice(25);
 
     expect(relations.map(({ pathname }) => pathname)).toEqual(
       modelRelations.map(() => '/relations'),
@@ -690,7 +690,7 @@ describe('installDataModel on fresh and installed projects', () => {
 
     expect(mutations(requests)).toEqual([]);
     expect(summary).toEqual({
-      collections: { adopted: 0, created: 0, refused: 0, skipped: 24 },
+      collections: { adopted: 0, created: 0, refused: 0, skipped: 25 },
       fields: { adopted: 0, created: 0, refused: 0, skipped: totalFields },
       relations: {
         adopted: 0,
@@ -700,7 +700,7 @@ describe('installDataModel on fresh and installed projects', () => {
       },
     });
     expect(requests.filter(({ method }) => method === 'GET')).toHaveLength(
-      1 + 24 * 2,
+      1 + 25 * 2,
     );
   });
 
@@ -717,7 +717,7 @@ describe('installDataModel on fresh and installed projects', () => {
       'LIMIT_EXCEEDED',
     );
     expect(failure instanceof Error && failure.message).toContain(
-      '24 collections',
+      '25 collections',
     );
     expect(failure instanceof CollectionLimitError && failure.collection).toBe(
       'courses',
@@ -767,7 +767,7 @@ describe('installDataModel over existing definitions', () => {
     ]);
     expect(failure.summary.collections).toEqual({
       adopted: 0,
-      created: 23,
+      created: 24,
       refused: 0,
       skipped: 1,
     });

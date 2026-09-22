@@ -63,6 +63,7 @@ const config = [
   {
     files: [
       'directus/extensions/directus-extension-rebuild-derived-data/derive.js',
+      'src/migrations/labels.ts',
       'src/workbook-enrollment-reader.ts',
     ],
     rules: {
@@ -76,6 +77,25 @@ const config = [
     files: ['test/relational/data-coordination.integration.mjs'],
     rules: {
       'security/detect-child-process': 'off',
+    },
+  },
+  {
+    // The migration report and backup receipt live at operator-named private
+    // paths; the CLI tests write and read them in a temporary directory.
+    files: [
+      'src/migrations/private-files.ts',
+      'test/migration-cli.test.ts',
+      'test/relational/migration-preflight.integration.mjs',
+    ],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  {
+    // Node 24 ships no Temporal; the CLI entry point stamps the ledger.
+    files: ['src/migrations/cli.ts'],
+    rules: {
+      'unicorn/prefer-temporal': 'off',
     },
   },
   {

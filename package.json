@@ -34,6 +34,7 @@
     "import": "node --env-file-if-exists=.env --import tsx src/cli.ts",
     "import:dry-run": "node --env-file-if-exists=.env --import tsx src/cli.ts --dry-run",
     "lint": "eslint . --cache",
+    "migrate": "node --import tsx src/migrations/cli.ts",
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
     "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs",

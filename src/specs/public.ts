@@ -6,7 +6,9 @@ import {
   requiredField,
 } from '../schema.js';
 
-const academicYears = [
+// The academic years every course carries an enrollment count for, newest
+// first; shared with the migration preflight that seeds one rule per year.
+export const academicYears = [
   '2025/2026',
   '2024/2025',
   '2023/2024',

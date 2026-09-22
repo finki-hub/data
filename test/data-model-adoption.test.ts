@@ -167,7 +167,7 @@ describe('installDataModel adoption', () => {
     const postPaths = posts.map(({ pathname }) => pathname);
 
     expect(postPaths.filter((path) => path === '/collections')).toHaveLength(
-      21,
+      22,
     );
     expect(postPaths.filter((path) => path === '/relations')).toHaveLength(
       modelRelations.length - 1,
@@ -192,7 +192,7 @@ describe('installDataModel adoption', () => {
     ]);
     expect(summary.collections).toEqual({
       adopted: 1,
-      created: 21,
+      created: 22,
       refused: 0,
       skipped: 2,
     });

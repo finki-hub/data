@@ -66,8 +66,9 @@ export const folders: readonly Folder[] = [
       'course_enrollment_patterns',
       'data_operations',
       'data_operation_results',
+      'migration_ledger',
     ],
-    note: 'Enrollment rules, derived counts and the private operation state.',
+    note: 'Enrollment rules, derived counts, the private operation state and the migration ledger.',
     sort: 5,
   },
 ];
