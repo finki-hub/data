@@ -1,6 +1,7 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
+import { coordinationStatus } from './coordinate.js';
 import { findMigration, type Migration, migrations } from './migrations.js';
 
 export type SqlRunner = {
@@ -71,6 +72,16 @@ export default defineEndpoint((router, { database }) => {
         executeMigration(trx, migration),
       );
       response.json({ data: { applied: migration.name, statements } });
+    } catch (error) {
+      forwardError(next, error);
+    }
+  });
+
+  // The bounded coordination status: revisions, pending domains, the
+  // current claim without its token, the last failure and the fingerprints.
+  router.get('/status', async (_request, response, next) => {
+    try {
+      response.json({ data: await coordinationStatus(database) });
     } catch (error) {
       forwardError(next, error);
     }

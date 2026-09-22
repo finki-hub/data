@@ -30,6 +30,13 @@ export const publishedFiles = [
   'students',
 ] as const;
 
+// The enumerated work domains of the coordinator, in dependency order.
+export const coordinationDomains = [
+  'history_index',
+  'enrollments',
+  'publication',
+] as const;
+
 export const operationsCollections: readonly ModelCollection[] = [
   {
     collection: 'course_enrollment_rules',
@@ -145,6 +152,43 @@ export const operationsCollections: readonly ModelCollection[] = [
           note: `Outcome of the last ${file}.json publication.`,
         }),
       ),
+      // Coordination status written by the finki-hub-data-coordinate
+      // operation and the source-invalidation trigger; appended after the
+      // original columns so an installed project gains them additively.
+      scalar('source_revision', 'integer', {
+        defaultValue: 0,
+        note: 'Incremented by the source-invalidation trigger inside every source transaction.',
+        nullable: false,
+        readOnly: true,
+      }),
+      enumField('claim_domain', coordinationDomains, { readOnly: true }),
+      scalar('claim_revision', 'integer', { readOnly: true }),
+      scalar('claim_fingerprint', 'string', { readOnly: true }),
+      scalar('claim_started_at', 'timestamp', { readOnly: true }),
+      scalar('claim_heartbeat_at', 'timestamp', {
+        note: 'Refreshed by the running job; a claim silent for longer than the documented window is abandoned.',
+        readOnly: true,
+      }),
+      scalar('claim_pages', 'json', {
+        note: 'Page tokens planned under the current claim.',
+        readOnly: true,
+      }),
+      scalar('claim_staged', 'json', {
+        note: 'Page tokens staged so far under the current claim.',
+        readOnly: true,
+      }),
+      scalar('last_error_at', 'timestamp', { readOnly: true }),
+      scalar('last_failed_revision', 'integer', { readOnly: true }),
+      enumField('last_failed_domain', coordinationDomains, { readOnly: true }),
+      scalar('last_failed_fingerprint', 'string', { readOnly: true }),
+      scalar('calculation_fingerprint', 'string', {
+        note: 'Flow-graph fingerprint of the last accepted calculation.',
+        readOnly: true,
+      }),
+      scalar('publication_fingerprint', 'string', {
+        note: 'Flow-graph fingerprint of the last accepted publication.',
+        readOnly: true,
+      }),
     ],
     hidden: true,
     icon: 'settings_suggest',

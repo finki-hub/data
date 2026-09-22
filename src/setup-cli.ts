@@ -1,4 +1,7 @@
-import { applySchemaConstraints } from './data-model/constraints.js';
+import {
+  applySchemaConstraints,
+  applySourceInvalidation,
+} from './data-model/constraints.js';
 import { installDataModel, SchemaRefusalError } from './data-model/install.js';
 import { installPresentation } from './data-model/presentation.js';
 import { createDirectusRequest } from './directus-request.js';
@@ -8,9 +11,14 @@ const main = async (): Promise<void> => {
   const request = createDirectusRequest(loadSetupConfig(process.env));
   const summary = await installDataModel(request);
   const constraints = await applySchemaConstraints(request);
+  const invalidation = await applySourceInvalidation(request);
   const presentation = await installPresentation(request);
   process.stdout.write(
-    `${JSON.stringify({ ...summary, constraints, presentation }, null, 2)}\n`,
+    `${JSON.stringify(
+      { ...summary, constraints, invalidation, presentation },
+      null,
+      2,
+    )}\n`,
   );
 };
 

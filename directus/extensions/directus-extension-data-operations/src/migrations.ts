@@ -1,3 +1,8 @@
+import {
+  sourceInvalidationSql,
+  splitSqlStatements,
+} from './source-invalidation-sql.js';
+
 export type Migration = {
   readonly name: string;
   readonly statements: readonly string[];
@@ -70,8 +75,19 @@ $$`,
   ],
 };
 
+// The statement-level source-invalidation triggers: the correctness
+// boundary of the coordinator, installed from the static SQL file and
+// nothing else. See src/migrations/source-invalidation.sql.
+export const sourceInvalidation: Migration = {
+  name: 'source-invalidation',
+  statements: splitSqlStatements(sourceInvalidationSql),
+};
+
 // The only migrations the endpoint will ever run.
-export const migrations: readonly Migration[] = [schemaConstraints];
+export const migrations: readonly Migration[] = [
+  schemaConstraints,
+  sourceInvalidation,
+];
 
 export const findMigration = (
   name: string | undefined,

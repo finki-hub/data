@@ -1,0 +1,52 @@
+export const coordinationErrorCodes = [
+  'CLAIM_MISMATCH',
+  'COMPLETION_RACED',
+  'DUPLICATE_ROWS',
+  'FINGERPRINT_CHANGED',
+  'INVALID_OPTIONS',
+  'OWNER_MISMATCH',
+  'PAGE_UNPLANNED',
+  'PAGES_MISSING',
+  'SOURCE_CHANGED',
+] as const;
+
+export type CoordinationError = DirectusError;
+
+export type CoordinationErrorCode = (typeof coordinationErrorCodes)[number];
+
+export type CoordinationErrorOptions = ErrorOptions & {
+  readonly details?: Readonly<Record<string, unknown>>;
+  readonly reason: CoordinationErrorCode;
+  readonly status?: number;
+};
+
+// A refusal of the coordinator, shaped like the DirectusError class of
+// @directus/errors (which the bundle cannot import): the API error handler
+// recognises the name and renders the status and code, so a manual Flow
+// with error_on_reject surfaces the refusal to its caller as a 409 or 400
+// instead of a masked 500, and a reject branch receives the same code.
+export class DirectusError extends Error {
+  public readonly code: string;
+  public readonly extensions: Readonly<Record<string, unknown>>;
+  public override readonly name = 'DirectusError';
+  public readonly reason: CoordinationErrorCode;
+  public readonly status: number;
+
+  public constructor(message: string, options: CoordinationErrorOptions) {
+    super(message, options);
+    this.reason = options.reason;
+    this.code = `COORDINATION_${options.reason}`;
+    this.status = options.status ?? 409;
+    this.extensions = { reason: options.reason, ...options.details };
+  }
+}
+
+export const coordinationError = (
+  reason: CoordinationErrorCode,
+  message: string,
+  options: Omit<CoordinationErrorOptions, 'reason'> = {},
+): CoordinationError => new DirectusError(message, { ...options, reason });
+
+export const isCoordinationError = (
+  value: unknown,
+): value is CoordinationError => value instanceof DirectusError;

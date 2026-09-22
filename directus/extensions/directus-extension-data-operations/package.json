@@ -15,7 +15,9 @@
     "type": "bundle",
     "path": { "app": "dist/app.js", "api": "dist/api.js" },
     "entries": [
-      { "type": "endpoint", "name": "finki-hub-data-operations", "source": "src/index.ts" }
+      { "type": "endpoint", "name": "finki-hub-data-operations", "source": "src/index.ts" },
+      { "type": "operation", "name": "finki-hub-data-coordinate", "source": { "app": "src/app.ts", "api": "src/coordinate.ts" } },
+      { "type": "hook", "name": "finki-hub-data-recovery", "source": "src/recovery.ts" }
     ],
     "host": "^12.0.0"
   }

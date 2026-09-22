@@ -208,6 +208,20 @@ describe('target collections', () => {
       'publish_rooms_outcome',
       'publish_staff_outcome',
       'publish_students_outcome',
+      'source_revision',
+      'claim_domain',
+      'claim_revision',
+      'claim_fingerprint',
+      'claim_started_at',
+      'claim_heartbeat_at',
+      'claim_pages',
+      'claim_staged',
+      'last_error_at',
+      'last_failed_revision',
+      'last_failed_domain',
+      'last_failed_fingerprint',
+      'calculation_fingerprint',
+      'publication_fingerprint',
     ]);
     expect(findCollection('data_operation_results').hidden).toBeTruthy();
     expect(findCollection('moodle_history_memberships').hidden).toBeTruthy();
@@ -333,7 +347,10 @@ describe('domain keys', () => {
   });
 
   test('ships one idempotent SQL statement for every composite key', () => {
-    expect(migrations.map(({ name }) => name)).toEqual(['schema-constraints']);
+    expect(migrations.map(({ name }) => name)).toEqual([
+      'schema-constraints',
+      'source-invalidation',
+    ]);
 
     for (const key of compositeKeys) {
       const columns = key.columns.map((column) => `"${column}"`).join(', ');

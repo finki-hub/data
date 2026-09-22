@@ -33,7 +33,10 @@ const config = [
     },
   },
   {
-    files: ['directus/extensions/directus-extension-course-search/src/**/*.ts'],
+    files: [
+      'directus/extensions/directus-extension-course-search/src/**/*.ts',
+      'directus/extensions/directus-extension-data-operations/src/**/*.ts',
+    ],
     rules: {
       camelcase: 'off',
     },
@@ -65,6 +68,14 @@ const config = [
     rules: {
       'no-new': 'off',
       'security/detect-non-literal-regexp': 'off',
+    },
+  },
+  {
+    // The restart-recovery scenario restarts the isolated fixture container
+    // through Docker when the operator names it in the environment.
+    files: ['test/relational/data-coordination.integration.mjs'],
+    rules: {
+      'security/detect-child-process': 'off',
     },
   },
   {

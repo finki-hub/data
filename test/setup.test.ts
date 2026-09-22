@@ -13,9 +13,11 @@ import {
 import packageJson from '../package.json' with { type: 'json' };
 import {
   applySchemaConstraints,
+  applySourceInvalidation,
   dataOperationsEndpoint,
   DataOperationsUnavailableError,
   schemaConstraintsMigration,
+  sourceInvalidationMigration,
 } from '../src/data-model/constraints.js';
 import { DirectusRequestError } from '../src/directus-request.js';
 import { loadSetupConfig, SetupConfigError } from '../src/setup-config.js';
@@ -109,6 +111,23 @@ describe('schema constraints', () => {
     ]);
   });
 
+  test('applies the source-invalidation migration through the same endpoint', async () => {
+    const calls: Array<{ readonly init: unknown; readonly pathname: string }> =
+      [];
+    const result = await applySourceInvalidation(async (pathname, init) => {
+      calls.push({ init, pathname });
+      return { applied: 'source-invalidation', statements: 22 };
+    });
+
+    expect(result).toEqual({ applied: 'source-invalidation', statements: 22 });
+    expect(calls).toEqual([
+      {
+        init: { method: 'POST' },
+        pathname: `${dataOperationsEndpoint}/migrations/source-invalidation`,
+      },
+    ]);
+  });
+
   test('rejects an unexpected endpoint response', async () => {
     await expect(
       applySchemaConstraints(async () => ({ ok: true })),
@@ -145,6 +164,7 @@ describe('schema constraints', () => {
   test('runs only allowlisted migrations for administrators, one statement per call', async () => {
     expect(migrations.map(({ name }) => name)).toEqual([
       schemaConstraintsMigration,
+      sourceInvalidationMigration,
     ]);
     expect(findMigration(schemaConstraintsMigration)).toBe(schemaConstraints);
     expect(findMigration('../schema-constraints')).toBeUndefined();
