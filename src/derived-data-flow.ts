@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { checkpointFlowId, type FlowTemplate } from './flows/flow-template.js';
 
 const sourceCollections = [
   'courses',
@@ -12,57 +12,41 @@ const sourceCollections = [
   'student_council',
 ] as const;
 
-type DirectusRequest = (
-  pathname: string,
-  init?: Parameters<typeof fetch>[1],
-) => Promise<unknown>;
+export const derivedDataFlowId = checkpointFlowId('01');
 
-export const createDerivedDataFlow = async (
-  request: DirectusRequest,
-): Promise<string> => {
-  const flowId = randomUUID();
-  const operationId = randomUUID();
+const rebuildOperationId = checkpointFlowId('11');
 
-  await request('/flows', {
-    body: JSON.stringify({
-      accountability: 'activity',
-      description:
-        'Recalculates course exports and student council names from source collections.',
-      icon: 'calculate',
-      id: flowId,
-      name: 'Rebuild derived data',
-      options: {
-        async: false,
-        collections: sourceCollections,
-        location: 'collection',
-        requireConfirmation: true,
-        requireSelection: false,
-      },
-      status: 'inactive',
-      trigger: 'manual',
-    }),
-    method: 'POST',
-  });
-
-  await request('/operations', {
-    body: JSON.stringify({
-      flow: flowId,
-      id: operationId,
+// The checkpoint Rebuild derived data Flow the workbook import installs
+// once under a stable id, so a later run recognises it and never resets
+// what Studio changed in it. It keeps the checkpoint derivation working on
+// a fresh import until its relational replacement lands.
+export const derivedDataFlow: FlowTemplate = {
+  accountability: 'activity',
+  description:
+    'Recalculates course exports and student council names from source collections.',
+  entry: rebuildOperationId,
+  icon: 'calculate',
+  id: derivedDataFlowId,
+  name: 'Rebuild derived data',
+  operations: [
+    {
+      id: rebuildOperationId,
       key: 'rebuild_derived_data',
       name: 'Rebuild derived data',
       options: {},
       position_x: 19,
       position_y: 1,
+      reject: null,
       resolve: null,
       type: 'finki-hub-rebuild-derived-data',
-    }),
-    method: 'POST',
-  });
-
-  await request(`/flows/${flowId}`, {
-    body: JSON.stringify({ operation: operationId, status: 'active' }),
-    method: 'PATCH',
-  });
-
-  return flowId;
+    },
+  ],
+  options: {
+    async: false,
+    collections: sourceCollections,
+    location: 'collection',
+    requireConfirmation: true,
+    requireSelection: false,
+  },
+  trigger: 'manual',
 };

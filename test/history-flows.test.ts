@@ -14,9 +14,9 @@ import {
 } from '../src/flows/history-script.js';
 import {
   historyIndexFlows,
-  IncompleteFlowError,
   installHistoryIndexFlows,
 } from '../src/flows/index-histories.js';
+import { IncompleteFlowError } from '../src/flows/install-flows.js';
 
 const coordinateType = 'finki-hub-data-coordinate';
 const throwError = 'throw-error';

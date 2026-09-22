@@ -84,7 +84,9 @@ const config = [
     // paths; the CLI tests write and read them in a temporary directory.
     files: [
       'src/migrations/private-files.ts',
+      'test/import-cli.test.ts',
       'test/migration-cli.test.ts',
+      'test/relational/lifecycle.integration.mjs',
       'test/relational/migration-preflight.integration.mjs',
       'test/relational/relational-migration.integration.mjs',
     ],
@@ -93,8 +95,8 @@ const config = [
     },
   },
   {
-    // Node 24 ships no Temporal; the CLI entry point stamps the ledger.
-    files: ['src/migrations/cli.ts'],
+    // Node 24 ships no Temporal; the CLI entry points stamp the ledger.
+    files: ['src/cli.ts', 'src/migrations/cli.ts'],
     rules: {
       'unicorn/prefer-temporal': 'off',
     },

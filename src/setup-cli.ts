@@ -1,37 +1,12 @@
-import {
-  applySchemaConstraints,
-  applySourceInvalidation,
-} from './data-model/constraints.js';
-import { installDataModel, SchemaRefusalError } from './data-model/install.js';
-import { installPresentation } from './data-model/presentation.js';
 import { createDirectusRequest } from './directus-request.js';
-import { installHistoryIndexFlows } from './flows/index-histories.js';
-import { loadSetupConfig } from './setup-config.js';
+import { runSetupCli } from './setup-run.js';
 
-const main = async (): Promise<void> => {
-  const request = createDirectusRequest(loadSetupConfig(process.env));
-  const summary = await installDataModel(request);
-  const constraints = await applySchemaConstraints(request);
-  const invalidation = await applySourceInvalidation(request);
-  const presentation = await installPresentation(request);
-  const flows = await installHistoryIndexFlows(request);
-  process.stdout.write(
-    `${JSON.stringify(
-      { ...summary, constraints, flows, invalidation, presentation },
-      null,
-      2,
-    )}\n`,
-  );
-};
-
-try {
-  await main();
-} catch (error) {
-  if (error instanceof SchemaRefusalError) {
-    process.stdout.write(`${JSON.stringify(error.summary, null, 2)}\n`);
-  }
-  process.stderr.write(
-    `Setup failed: ${error instanceof Error ? error.message : String(error)}\n`,
-  );
-  process.exitCode = 1;
-}
+process.exitCode = await runSetupCli(process.env, {
+  createRequest: createDirectusRequest,
+  stderr: (line) => {
+    process.stderr.write(`${line}\n`);
+  },
+  stdout: (line) => {
+    process.stdout.write(`${line}\n`);
+  },
+});

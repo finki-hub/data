@@ -2,7 +2,6 @@ import path from 'node:path';
 
 import type { DirectusConfig } from '../config.js';
 import type { DirectusRequest } from '../directus-request.js';
-import type { ConverterSink } from './converter-types.js';
 
 import { BackupReceiptError, validateBackupReceipt } from './backup-receipt.js';
 import { defaultBatchSize } from './batches.js';
@@ -11,12 +10,12 @@ import {
   type MigrationConfig,
   MigrationConfigError,
 } from './config.js';
-import { converterSteps } from './converters.js';
+import { countByCode, runConversion } from './conversion.js';
 import { fingerprintInventory } from './fingerprint.js';
 import { readInventory } from './inventory.js';
 import { ledgerCollection } from './ledger-claim.js';
 import { LedgerRefusalError } from './ledger-types.js';
-import { readLedgerOrNull, runLedger, summarizeLedger } from './ledger.js';
+import { readLedgerOrNull, summarizeLedger } from './ledger.js';
 import { preflight } from './preflight.js';
 import {
   PrivateFileError,
@@ -24,7 +23,6 @@ import {
   writePrivateJson,
 } from './private-files.js';
 import {
-  type Finding,
   type MigrationReport,
   migrationReportSchema,
   migrationVersion,
@@ -44,23 +42,6 @@ export type CliIo = {
 export class MigrationRefusalError extends Error {
   public override readonly name = 'MigrationRefusalError';
 }
-
-const collator = new Intl.Collator('en');
-
-const countByCode = (
-  findings: readonly Finding[],
-): Readonly<Record<string, number>> => {
-  const counts = new Map<string, number>();
-  for (const { code } of findings) {
-    counts.set(code, (counts.get(code) ?? 0) + 1);
-  }
-  return Object.fromEntries(
-    counts
-      .entries()
-      .toArray()
-      .toSorted(([left], [right]) => collator.compare(left, right)),
-  );
-};
 
 const dryRun = async (
   config: MigrationConfig,
@@ -147,29 +128,22 @@ const apply = async (
       `The live preflight found ${String(live.blockers.length)} blocker(s); nothing was applied.`,
     );
   }
-  const existing = live.mappings.filter(({ targetId }) => targetId !== null);
-  const sink: ConverterSink = { findings: [], written: {} };
-  const converters = converterSteps(inventory, live, {
-    batchSize: io.batchSize ?? defaultBatchSize,
-    sink,
-  });
-  const outcome = await runLedger(request, {
-    now: io.now,
-    resume: config.resume,
-    runToken: io.runToken(),
-    sourceFingerprint,
-    steps: [
-      { run: () => Promise.resolve(existing), step: 'preflight' },
-      ...converters,
-    ],
-    version: migrationVersion,
-  });
+  const { converters, outcome, sink } = await runConversion(
+    request,
+    { inventory, live },
+    {
+      batchSize: io.batchSize ?? defaultBatchSize,
+      now: io.now,
+      resume: config.resume,
+      runToken: io.runToken(),
+    },
+  );
   io.stdout(
     JSON.stringify({
       backup: receipt,
-      converters: converters.length,
+      converters,
       ledger: ledgerCollection,
-      message: `${String(converters.length)} converter step(s) ran under the ledger; no checkpoint scalar column was modified or deleted: target rows were appended, only empty link columns of council and equivalency rows were set, and unresolved relations are retained for review`,
+      message: `${String(converters)} converter step(s) ran under the ledger; no checkpoint scalar column was modified or deleted: target rows were appended, only empty link columns of council and equivalency rows were set, and unresolved relations are retained for review`,
       mode: 'apply',
       sourceFingerprint,
       steps: outcome,

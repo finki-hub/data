@@ -19,8 +19,15 @@ import {
   schemaConstraintsMigration,
   sourceInvalidationMigration,
 } from '../src/data-model/constraints.js';
-import { DirectusRequestError } from '../src/directus-request.js';
+import { SchemaRefusalError } from '../src/data-model/install.js';
+import {
+  type DirectusRequest,
+  DirectusRequestError,
+} from '../src/directus-request.js';
+import { IncompleteFlowError } from '../src/flows/install-flows.js';
+import { exitCodes } from '../src/lifecycle.js';
 import { loadSetupConfig, SetupConfigError } from '../src/setup-config.js';
+import { runSetupCli } from '../src/setup-run.js';
 
 const missingUrlPattern = /DIRECTUS_URL is not set/u;
 const missingTokenPattern = /DIRECTUS_TOKEN/u;
@@ -28,6 +35,10 @@ const absoluteUrlPattern = /not an absolute URL/u;
 const protocolPattern = /http or https/u;
 const buildPattern = /npm run build:operations/u;
 const restartPattern = /restart the Directus container/u;
+const refusedTargetPattern =
+  /^Setup refused: DIRECTUS_URL is not set\. Setup never assumes a default project and does not read \.env/u;
+const refusedFlowPattern =
+  /^Setup refused: The Flow "Synthetic" \(synthetic-flow\) exists without its entry operation/u;
 
 const packageScripts = z.object({ scripts: z.record(z.string(), z.string()) });
 
@@ -201,5 +212,115 @@ describe('schema constraints', () => {
     expect(executed[12]).toContain(
       "pg_trigger_depth() < 2 AND current_setting('finki_hub.history_writer', true) IS DISTINCT FROM 'on'",
     );
+  });
+});
+
+// A request the setup stand-in never needs to answer.
+const idleRequest: DirectusRequest = () => Promise.resolve(null);
+
+// The command over a setup stand-in that answers `outcome` (or throws
+// it); `requests` counts every request the command created.
+const command = (outcome: () => Promise<unknown>) => {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const requests = { created: 0 };
+  return {
+    requests,
+    run: (environment: Readonly<Record<string, string | undefined>>) =>
+      runSetupCli(environment, {
+        createRequest: () => {
+          requests.created += 1;
+          return idleRequest;
+        },
+        setup: outcome,
+        stderr: (line) => {
+          stderr.push(line);
+        },
+        stdout: (line) => {
+          stdout.push(line);
+        },
+      }),
+    stderr,
+    stdout,
+  };
+};
+
+describe('setup command', () => {
+  const target = {
+    DIRECTUS_TOKEN: 'synthetic-setup-token',
+    DIRECTUS_URL: 'http://127.0.0.1:18055',
+  };
+  const counts = { adopted: 0, created: 0, refused: 1, skipped: 0 };
+  const refusedSummary = {
+    collections: counts,
+    fields: counts,
+    relations: counts,
+  };
+
+  test('prints the summary and exits 0', async () => {
+    const run = command(() => Promise.resolve({ flows: { created: [] } }));
+
+    await expect(run.run(target)).resolves.toBe(exitCodes.ok);
+    expect(JSON.parse(run.stdout.join('\n'))).toEqual({
+      flows: { created: [] },
+    });
+    expect(run.stderr).toEqual([]);
+  });
+
+  test('refuses without an explicit target with exit code 2 and no request', async () => {
+    const run = command(() => Promise.resolve({}));
+
+    await expect(
+      run.run({ DIRECTUS_TOKEN: target.DIRECTUS_TOKEN }),
+    ).resolves.toBe(exitCodes.refused);
+    expect(run.stderr).toHaveLength(1);
+    expect(run.stderr[0]).toMatch(refusedTargetPattern);
+    expect(run.requests.created).toBe(0);
+    expect(run.stdout).toEqual([]);
+  });
+
+  test('refuses a half-installed Flow with exit code 2', async () => {
+    const run = command(() =>
+      Promise.reject(
+        new IncompleteFlowError({ id: 'synthetic-flow', name: 'Synthetic' }),
+      ),
+    );
+
+    await expect(run.run(target)).resolves.toBe(exitCodes.refused);
+    expect(run.stderr[0]).toMatch(refusedFlowPattern);
+  });
+
+  test('refuses definitions the model cannot adopt with exit code 2, printing the plan summary', async () => {
+    const run = command(() =>
+      Promise.reject(
+        new SchemaRefusalError({
+          collections: [],
+          fields: [],
+          refusals: [
+            {
+              collection: 'courses',
+              field: 'name',
+              reason: 'synthetic incompatible column',
+            },
+          ],
+          relations: [],
+          summary: refusedSummary,
+        }),
+      ),
+    );
+
+    await expect(run.run(target)).resolves.toBe(exitCodes.refused);
+    expect(JSON.parse(run.stdout.join('\n'))).toEqual(refusedSummary);
+    expect(run.stderr[0]).toContain(
+      'Setup refused: Refusing to install the data model over incompatible existing definitions:\n- synthetic incompatible column',
+    );
+  });
+
+  test('fails any other error with exit code 1', async () => {
+    const run = command(() => Promise.reject(new Error('synthetic outage')));
+
+    await expect(run.run(target)).resolves.toBe(exitCodes.failed);
+    expect(run.stderr).toEqual(['Setup failed: synthetic outage']);
+    expect(run.stdout).toEqual([]);
   });
 });

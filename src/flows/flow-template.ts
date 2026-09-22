@@ -2,10 +2,20 @@
 // rerun recognises it, and the helpers the history index templates share.
 export const coordinateOperation = 'finki-hub-data-coordinate';
 
-const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-0000000009';
+const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
+
+// A deterministic UUID: two hex digits name the Flow family, the suffix one
+// Flow or operation inside it.
+const familyId = (family: string, suffix: string): string =>
+  `${idPrefix}${family}${suffix}`;
 
 // A deterministic UUID of the history index Flow family.
-export const historyId = (suffix: string): string => `${idPrefix}${suffix}`;
+export const historyId = (suffix: string): string => familyId('09', suffix);
+
+// A deterministic UUID of the checkpoint Flows the workbook import installs
+// (Rebuild derived data, Publish public assets).
+export const checkpointFlowId = (suffix: string): string =>
+  familyId('07', suffix);
 
 export type OperationTemplate = {
   readonly id: string;

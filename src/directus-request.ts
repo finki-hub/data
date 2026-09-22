@@ -9,6 +9,14 @@ export type DirectusRequest = (
 
 export type DirectusResponseMode = 'data' | 'raw';
 
+// A request that can also hand back the undecoded body, which is how a
+// manual Flow trigger answers.
+export type DirectusModeRequest = (
+  pathname: string,
+  init?: Parameters<typeof fetch>[1],
+  responseMode?: DirectusResponseMode,
+) => Promise<unknown>;
+
 export type DirectusErrorDetails = {
   readonly code: null | string;
   readonly reason: null | string;
