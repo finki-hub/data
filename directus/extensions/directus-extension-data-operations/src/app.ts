@@ -141,7 +141,7 @@ export default defineOperationApp({
       field: 'files',
       meta: {
         interface: 'input-code',
-        note: 'complete (publication): per-file outcomes { "courses": "...", "rooms": "...", "staff": "...", "students": "..." }.',
+        note: 'complete (publication): the outcome of each published file keyed by its filename, for example { "courses.json": "uploaded", "rooms.json": "uploaded" }; replaces the previous outcomes.',
         options: { language: 'json' },
         width: 'full',
       },

@@ -17,6 +17,7 @@ import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.
 import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
+import { publicationFlows } from '../../src/flows/prepare-public-assets.js';
 import { automaticProcessingFlows } from '../../src/flows/process-pending.js';
 import { snapshotImportFlows } from '../../src/flows/snapshot-import.js';
 import { runImportCli } from '../../src/import-run.js';
@@ -62,6 +63,7 @@ const setupFlows = [
   ...snapshotImportFlows,
   ...mappedEnrollmentFlows,
   ...legacyEnrollmentFlows,
+  ...publicationFlows,
   ...automaticProcessingFlows,
 ];
 const templateFlowIds = new Set([

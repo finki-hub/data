@@ -4,7 +4,6 @@ import {
   columns,
   dirtyUnion,
 } from './sql-state.js';
-import { publishedFiles } from './state.js';
 
 // Every statement below binds its values with `?`; none of them carries a
 // caller-supplied identifier. SET expressions read the row as it was
@@ -59,18 +58,13 @@ WHERE "claim_token" = ?`;
 // inputs committed since the claim was taken (verifyClaim).
 const inputsUnchanged = `${claimInputRevision} <= "claim_revision"`;
 
-// Bindings: dirty JSON, one outcome per published file, token, owner,
-// claim revision, fingerprint.
+// Bindings: dirty JSON, the per-file outcomes JSON (or null), token,
+// owner, claim revision, fingerprint.
 export const finishSql = `UPDATE "data_operations" SET "dirty_domains" = ?::json, "completed_revision" = "claim_revision",
   "calculation_fingerprint" = CASE WHEN "claim_domain" IN ('history_index', 'enrollments') THEN "claim_fingerprint" ELSE "calculation_fingerprint" END,
   "publication_fingerprint" = CASE WHEN "claim_domain" = 'publication' THEN "claim_fingerprint" ELSE "publication_fingerprint" END,
   "publication_state" = CASE WHEN "claim_domain" = 'publication' THEN 'completed' ELSE "publication_state" END,
-  ${publishedFiles
-    .map(
-      (file) =>
-        `"publish_${file}_outcome" = CASE WHEN "claim_domain" = 'publication' THEN ? ELSE "publish_${file}_outcome" END`,
-    )
-    .join(', ')},
+  "publication_outcomes" = CASE WHEN "claim_domain" = 'publication' THEN ?::json ELSE "publication_outcomes" END,
   "started_at" = "claim_started_at", "finished_at" = clock_timestamp(), ${claimClear}
 WHERE "claim_token" = ? AND "claim_owner" = ? AND "claim_revision" = ? AND ${inputsUnchanged} AND "claim_fingerprint" = ?`;
 

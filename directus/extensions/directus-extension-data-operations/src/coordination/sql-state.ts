@@ -5,7 +5,6 @@ import {
   isClaimDomain,
   normaliseDomains,
   type OperationsState,
-  publishedFiles,
 } from './state.js';
 
 const isoText = (column: string, alias: string): string =>
@@ -40,7 +39,7 @@ export const columns = [
   '"publication_fingerprint"',
   '"import_state"',
   '"publication_state"',
-  ...publishedFiles.map((file) => `"publish_${file}_outcome"`),
+  '"publication_outcomes"',
   isoText('"started_at"', 'started_iso'),
   isoText('"finished_at"', 'finished_iso'),
 ].join(', ');
@@ -116,11 +115,9 @@ export const stateRow = z.object({
   last_failed_fingerprint: optionalString,
   last_failed_revision: optionalInt,
   publication_fingerprint: optionalString,
+  // A value edited out of shape by hand is reported as no outcome.
+  publication_outcomes: z.record(z.string(), z.string()).nullable().catch(null),
   publication_state: z.string(),
-  publish_courses_outcome: optionalString,
-  publish_rooms_outcome: optionalString,
-  publish_staff_outcome: optionalString,
-  publish_students_outcome: optionalString,
   requested_revision: z.number().int(),
   source_revision: z.number().int(),
   started_iso: optionalString,
@@ -180,13 +177,8 @@ export const toState = (row: StateRow): OperationsState => ({
           revision: row.last_failed_revision,
         },
   publicationFingerprint: row.publication_fingerprint,
+  publicationOutcomes: row.publication_outcomes,
   publicationState: row.publication_state,
-  publishedFiles: {
-    courses: row.publish_courses_outcome,
-    rooms: row.publish_rooms_outcome,
-    staff: row.publish_staff_outcome,
-    students: row.publish_students_outcome,
-  },
   requestedRevision: row.requested_revision,
   sourceRevision: row.source_revision,
   startedAt: row.started_iso,

@@ -525,6 +525,140 @@ that way; `snapshotReadiness` in the same file flags active Moodle users
 changed outside the snapshot workflow (the snapshot status's
 `activeMatchesPromotion`).
 
+## Public files: definitions, readiness and preparation
+
+Every published file is declared once, in code, in the data-operations
+extension: `directus/extensions/directus-extension-data-operations/src/exports/`.
+A definition (`courses.ts`, `rooms.ts`, `staff.ts`, `students.ts`) names
+
+- its `filename` (a root-level `*.json` name the storage writer accepts);
+- the native reads it needs: a collection, an explicit field list
+  (relational dot paths such as `entry.code` or `staff.name` are resolved
+  on read), a sort and an optional filter, never `*`, never `_some` or
+  `_none`, never a Moodle user or a private field such as `source_group`;
+- `orderBy`, the id field that orders the file;
+- the ordered field map: each public key with its value (a source path of
+  the row, or a resolver in the same module, such as `professors` or
+  `enrollmentCount(year)`) and its value rule: `text` (as is), `number`
+  (its decimal text), `numeric_boolean` (`"1"`/`"0"`) or `boolean`
+  (`"TRUE"`/`"FALSE"`); every rule omits null, undefined and `''` and keeps
+  `false` and `0`, as `directus/flows/serialize-assets.cjs` does. The map is
+  the file's whole allowlist: no other key can be published;
+- `maxBytes`, the size bound of the compact JSON, and `checks`, the
+  readiness checks of that file.
+
+`exports/index.ts` lists the definitions in publication order. A generic
+engine (`exports/engine.ts`) reads each definition's sources through the
+Directus ItemsService (system rights after the operation's own
+administrator check, explicit fields, events off), serializes the rows in
+id order with the value rules, and validates every payload against its
+definition (a list of one object per read row, only declared keys and in
+their order, non-empty text values, the size bound) before anything is
+answered. Relation values are resolved on read, so renaming a staff member
+or a curriculum entry shows in the next preparation without any rebuild.
+
+courses.json projects the relational rows into its existing keys:
+`professors` is `professors_override` when set, else the course's professor
+assignments in `sort` (then id) order, each its `display_override` or its
+staff member's name, joined with `, ` (so the conversion links a
+checkpoint text to staff rows only when that join gives the text back: a
+list separated by `;`, a line break or a bare `,`, or with padding, stays
+one literal review row); `assistants` likewise; the 2023 and
+2018 keys come from the course's curriculum link of that generation and its
+entry (`2018-name` prefers `name_2018_override`), credits and availability
+from the link; `channel` is true when either linked entry has its channel;
+the fifteen year keys come from `course_enrollments` rows of the years in
+`exportedYears` in `courses.ts`, the one place the public years are
+configured: a new `academic_years` row adds no key until its label is listed
+there. Anything the projection cannot resolve (a missing count, two links of
+one generation, an assignment without a role or a label) refuses the
+preparation with ids only; nothing is guessed.
+
+### Changing or adding a published file
+
+1. Edit the file's definition module, or add a new module and append it to
+   `exports/index.ts`. Declare every read with explicit fields and every
+   key with its rule; add readiness checks when the file needs data that
+   must be complete first. A check that concerns the whole project rather
+   than one file goes into `globalChecks` in `exports/global-checks.ts`;
+   the same read rules and private-read tests cover it.
+2. Update the expected output in the tests: `test/relational-export.test.ts`
+   pins the four existing files to the reference serializer, and
+   `test/export-definitions.test.ts` shows a new definition end to end.
+3. `npm run build:operations`, then restart Directus.
+
+No Flow, no schema change and no Studio edit is involved: both publication
+Flows only call the export operation, which serves every definition. Task
+15's publication uploads every defined file in the listed order.
+
+### The Flows
+
+`npm run setup` installs two manual Flows on **Data Operations**
+(administrators only; once, under stable ids):
+
+- **Data / Validate readiness** answers `{ready, revision, blockers,
+  warnings, issueCounts, links}`: a count per issue code and the Studio page
+  of each, never a name or a row.
+- **Publish / Prepare public assets** is a dry preparation: readiness, then
+  every file read, serialized and validated, then the source revision
+  again. It answers `{revision, files: [{filename, rows, bytes, sha256}],
+  warnings, durationMs}` and uploads nothing. It refuses with
+  `EXPORT_NOT_READY` (409, before any file is read) while readiness has a
+  blocker, and with `EXPORT_UNSTABLE_PREPARATION` (409) when the source
+  revision or the accepted calculation moved, or a calculation turned
+  pending, while the files were prepared.
+
+Both call the `finki-hub-exports` operation (actions `readiness` and
+`prepare`), which checks the administrator flag again. Neither holds a
+coordinator step, so neither is part of the calculation fingerprint. The
+checkpoint **Publish public assets** Flow is left as it is.
+
+Blockers: `history_index_*` and `enrollments_*` (`pending`, `running`,
+`failed`, from the coordinator status), `snapshot_import_running`,
+`snapshot_import_failed`, `conversion_incomplete` (a step of the one-time
+conversion still running or failed in `migration_ledger`),
+`enrollment_count_missing` (an exported course and year without a count
+row), `enrollment_rule_missing` (without a rule, so it is never counted),
+`curriculum_link_unresolved` (an equivalency of the course names a 2018
+entry, or a 2018 label that matched no entry, while the course has neither
+a 2018 link nor a `name_2018_override`), `curriculum_value_unlinked` (a
+course carries an imported `name_2023`, or credits or availability of a
+generation, without a curriculum link of that generation),
+`assignment_role_missing`, `assignment_unresolved` (a published assignment
+with neither a staff member nor a display label),
+`assignment_source_duplicate` (the published professors or assistants of a
+course come from two imported assignment rows). Warnings:
+`assignment_review_label` (an unresolved imported label published as text),
+`assignment_order_ambiguous` (two rows of one course and role at one
+position; the id decides their order), `mapping_without_rule` (mappings
+nothing counts), `mapped_entry_awaiting_review`, `entry_needs_mapping`
+(Moodle lines nobody mapped, administrative ones included),
+`equivalency_without_course`, `snapshot_staged`, `active_snapshot_edited`
+and `snapshot_never_promoted`.
+
+Every value the checkpoint files published and the relational rows cannot
+publish blocks, so a first publication never loses or changes text
+silently:
+
+- a curriculum label that matched no entry (the conversion reports
+  `unmatched_curriculum_2023_label` or `unmatched_curriculum_2018_label`),
+  and a generation's credits or availability without any label
+  (`unlinked_generation_values`), block as `curriculum_value_unlinked` or
+  `curriculum_link_unresolved`: create the entry and link it to the course,
+  or clear the imported value on the course when dropping it from the
+  public file is intended;
+- a course with two checkpoint assignment rows (`duplicate_assignment`)
+  gets role rows for both, while the checkpoint derivation published only
+  the first: `assignment_source_duplicate` blocks until the role rows of
+  the row that is not wanted are deleted.
+
+A readiness code has one kind and one Studio page: a definition that
+declares an existing code with another kind or page is refused before
+anything is read, and a check two definitions share runs once.
+
+`data_operations.publication_outcomes` keeps the outcome of each file of the
+last publication, keyed by filename, for any number of files.
+
 ## Branding
 
 `npm run brand` applies the shared FINKI Hub logo, favicon, login artwork,

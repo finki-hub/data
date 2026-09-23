@@ -16,7 +16,6 @@ import {
   normaliseDomains,
   type OperationsState,
   type PageSource,
-  type PublishedFile,
   sourceColumnDomains,
   sourceTableDeletionDomains,
   sourceTableDomains,
@@ -65,8 +64,8 @@ export type FakeData = {
   inputRevisions: Record<CalculationDomain, number>;
   lastError: OperationsState['lastError'];
   publicationFingerprint: null | string;
+  publicationOutcomes: null | Readonly<Record<string, string>>;
   publicationState: string;
-  publishedFiles: Record<PublishedFile, null | string>;
   requestedRevision: number;
   sourceRevision: number;
   startedAtMs: null | number;
@@ -84,8 +83,8 @@ const freshData = (): FakeData => ({
   inputRevisions: { enrollments: 0, history_index: 0 },
   lastError: null,
   publicationFingerprint: null,
+  publicationOutcomes: null,
   publicationState: 'idle',
-  publishedFiles: { courses: null, rooms: null, staff: null, students: null },
   requestedRevision: 0,
   sourceRevision: 0,
   startedAtMs: null,
@@ -240,8 +239,8 @@ export class FakeCoordination {
       inputRevisions: { ...data.inputRevisions },
       lastError: data.lastError,
       publicationFingerprint: data.publicationFingerprint,
+      publicationOutcomes: data.publicationOutcomes,
       publicationState: data.publicationState,
-      publishedFiles: data.publishedFiles,
       requestedRevision: data.requestedRevision,
       sourceRevision: data.sourceRevision,
       startedAt: stamp(data.startedAtMs),
@@ -330,12 +329,7 @@ export class FakeCoordination {
         if (claim.domain === 'publication') {
           data().publicationFingerprint = claim.fingerprint;
           data().publicationState = 'completed';
-          data().publishedFiles = {
-            courses: input.files?.courses ?? null,
-            rooms: input.files?.rooms ?? null,
-            staff: input.files?.staff ?? null,
-            students: input.files?.students ?? null,
-          };
+          data().publicationOutcomes = input.files;
         } else {
           data().calculationFingerprint = claim.fingerprint;
         }

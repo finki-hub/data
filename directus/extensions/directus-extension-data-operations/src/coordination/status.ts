@@ -122,7 +122,10 @@ const statusOf = ({
     lastRun: { finishedAt: state.finishedAt, startedAt: state.startedAt },
     pending,
     process: context.owner,
-    publication: { files: state.publishedFiles, state: state.publicationState },
+    publication: {
+      files: state.publicationOutcomes,
+      state: state.publicationState,
+    },
     revisions: {
       completed: state.completedRevision,
       // The last change to each calculation's inputs; a run claimed at or

@@ -68,6 +68,7 @@ const config = [
       'src/migrations/enrollment-rules.ts',
       'src/migrations/labels.ts',
       'src/workbook-enrollment-reader.ts',
+      'test/relational-export-helpers.ts',
     ],
     rules: {
       'no-new': 'off',
@@ -97,6 +98,7 @@ const config = [
       'test/enrollment-proposal.test.ts',
       'test/import-cli.test.ts',
       'test/migration-cli.test.ts',
+      'test/relational/export-projection.integration.mjs',
       'test/relational/lifecycle.integration.mjs',
       'test/relational/migration-preflight.integration.mjs',
       'test/relational/relational-migration.integration.mjs',

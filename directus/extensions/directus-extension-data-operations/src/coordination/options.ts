@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { publicFilenamePattern } from '../exports/types.js';
 import { historyRowProblem } from '../history-contract.js';
 import { pageTokenPattern } from '../page-state.js';
 import { coordinationError } from './errors.js';
@@ -7,10 +8,10 @@ import {
   claimTargets,
   coordinationDomains,
   errorMessageLength,
+  maxPublishedFiles,
   maxRowsPerPage,
   pageSize,
   planSources,
-  publishedFiles,
 } from './state.js';
 
 // Studio stores an untouched option as null or an empty string, a template
@@ -94,14 +95,13 @@ export const historyRowSchema = z
     }
   });
 
-const filesSchema = z.object(
-  Object.fromEntries(
-    publishedFiles.map((file) => [file, outcome.nullable().optional()]),
-  ) as Record<
-    (typeof publishedFiles)[number],
-    z.ZodOptional<z.ZodNullable<typeof outcome>>
-  >,
-);
+// Per-file publication outcomes keyed by the published filename, as many
+// as the publication has files.
+const filesSchema = z
+  .record(z.string().regex(publicFilenamePattern), outcome)
+  .refine((files) => Object.keys(files).length <= maxPublishedFiles, {
+    message: `At most ${maxPublishedFiles} files`,
+  });
 
 export const coordinatorInputSchema = z.discriminatedUnion('action', [
   z.object({

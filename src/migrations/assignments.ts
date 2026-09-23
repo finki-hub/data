@@ -12,6 +12,7 @@ import {
   unresolved,
 } from './converter-types.js';
 import { finding, type LabelIndex, listIds, quote } from './labels.js';
+import { staffListSeparator } from './preflight-staff.js';
 
 // A role-bearing assignment row: one per staff member a text names when
 // every complete label matches exactly one staff row, or one review row
@@ -132,7 +133,7 @@ const reviewFinding = (context: Context, candidate: StaffCandidate) => {
       })
     : finding('unresolved_staff_text', {
         ...base,
-        message: `${where} is not a complete staff label or an unambiguous list of them; a review row keeps the text and links no staff.`,
+        message: `${where} is not a complete staff label or an unambiguous list of them joined exactly by "${staffListSeparator}"; a review row keeps the text and links no staff.`,
       });
 };
 
@@ -183,7 +184,10 @@ const courseFinding = (
 // Every assignment row in id order, duplicates included: rows whose course
 // label names exactly one course get role rows; an orphan or ambiguous
 // course label keeps the original row untouched and reports it. Names are
-// never split on spaces, and professors_override is never read here.
+// never split on spaces, and professors_override is never read here. The
+// checkpoint derivation published only the first row of a course, so the
+// export readiness blocks a course whose published list merges role rows
+// of two source rows (assignment_source_duplicate) until one is removed.
 export const convertTeachingAssignments = (
   input: AssignmentInput,
 ): Conversion<RoleRowRecord> => {

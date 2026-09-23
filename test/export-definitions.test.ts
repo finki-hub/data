@@ -1,0 +1,458 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
+
+import type {
+  ExportDefinition,
+  ReadinessCheck,
+  SourceRead,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
+import type { FakeItem } from './migration-test-helpers.js';
+
+import {
+  checkDefinitions,
+  definitionProblems,
+  definitionReads,
+  globalReads,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
+import {
+  readFileSources,
+  serializeFile,
+  type SourceReader,
+  validateFile,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import { conversionCheck } from '../directus/extensions/directus-extension-data-operations/src/exports/global-checks.js';
+import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
+import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
+import { findModelCollection } from '../src/data-model/collections.js';
+import { findModelRelation } from '../src/data-model/relations.js';
+import { privateCollectionSpecs } from '../src/specs/private.js';
+import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
+import {
+  convertedStore,
+  edit,
+  injecting,
+  refusalOf,
+  roomCapacity,
+  storeReader,
+} from './relational-export-helpers.js';
+import { rowsOf } from './relational-migration-helpers.js';
+
+const publicRows = (body: string) =>
+  z.array(z.record(z.string(), z.string())).parse(JSON.parse(body));
+
+// Every read the export layer makes: the global readiness checks and every
+// definition with its checks.
+const everyRead = [
+  ...globalReads(),
+  ...exportDefinitions.flatMap((definition) => definitionReads(definition)),
+];
+
+// Whether a field path exists in the data model: every step but the last
+// an M2O relation, the last a field of the collection it reaches (or id).
+const pathExists = (collection: string, path: string): boolean => {
+  const [head = '', ...rest] = path.split('.');
+  if (rest.length > 0) {
+    const relation = findModelRelation(collection, head);
+    return (
+      relation !== undefined && pathExists(relation.related, rest.join('.'))
+    );
+  }
+  return (
+    head === 'id' ||
+    (findModelCollection(collection)?.fields.some(
+      ({ field }) => field === head,
+    ) ??
+      false)
+  );
+};
+
+// Every field path a filter names, operators and logical groups skipped.
+const filterPaths = (filter: unknown, prefix = ''): string[] => {
+  if (Array.isArray(filter)) {
+    return filter.flatMap((inner) => filterPaths(inner, prefix));
+  }
+  if (typeof filter !== 'object' || filter === null) {
+    return [];
+  }
+  return Object.entries(filter).flatMap(([key, inner]) => {
+    if (key.startsWith('_')) {
+      return key === '_and' || key === '_or' ? filterPaths(inner, prefix) : [];
+    }
+    const path = prefix === '' ? key : `${prefix}.${key}`;
+    const deeper = filterPaths(inner, path);
+    return deeper.length === 0 ? [path] : deeper;
+  });
+};
+
+// The collections the export layer may read (an allowlist: a collection
+// added to the model is private until listed here), each with the only
+// fields it may touch where the collection holds private or internal
+// columns (null allows every field the other rules allow). A dot path is
+// checked at every collection it passes through.
+const readable: Readonly<Record<string, null | readonly string[]>> = {
+  academic_years: ['label'],
+  course_curricula: null,
+  course_enrollment_rules: ['academic_year', 'course'],
+  course_enrollments: ['academic_year', 'count', 'course'],
+  course_equivalencies: null,
+  courses: null,
+  curriculum_entries: null,
+  migration_ledger: ['id', 'status'],
+  moodle_course_entries: ['id', 'review_state'],
+  moodle_course_mappings: ['academic_year', 'course', 'entry'],
+  rooms: null,
+  staff: null,
+  students: ['id', 'index_number', 'name'],
+  teaching_assignments: null,
+};
+
+// Every (collection, field) a path touches: each M2O step and the last
+// field of the collection it reaches.
+const touched = (
+  collection: string,
+  path: string,
+): ReadonlyArray<readonly [string, string]> => {
+  const [head = '', ...rest] = path.split('.');
+  const here: readonly [string, string] = [collection, head];
+  const relation = rest.length > 0 ? findModelRelation(collection, head) : null;
+  return relation === null || relation === undefined
+    ? [here]
+    : [here, ...touched(relation.related, rest.join('.'))];
+};
+
+const outsideAllowlist = ([collection, field]: readonly [string, string]) => {
+  const fields = readable[collection];
+  return fields === undefined || (fields !== null && !fields.includes(field));
+};
+
+const moodleUserFields = new Set(
+  privateCollectionSpecs[0].fields.map(({ target }) => target),
+);
+
+const wildcardOrSome = /"_(?:none|some)"|"\*"/u;
+const sha256Pattern = /^[0-9a-f]{64}$/u;
+
+const namesMoodleField = (path: string): boolean =>
+  path.split('.').some((step) => moodleUserFields.has(step));
+
+// What a read may not touch: a collection or field outside the
+// allowlist, a Moodle user field, the private student grouping, any label
+// but the academic year's, a wildcard or _some/_none.
+const privateReadsOf = ([label, read]: readonly [string, SourceRead]) => {
+  const paths = [...read.fields, ...filterPaths(read.filter)];
+  return [
+    ...(readable[read.collection] === undefined ? [read.collection] : []),
+    ...paths
+      .flatMap((path) => touched(read.collection, path))
+      .filter((step) => outsideAllowlist(step))
+      .map(([collection, field]) => `${collection}.${field}`),
+    ...paths.filter((path) => namesMoodleField(path)),
+    ...paths.filter((path) => path.endsWith('source_group')),
+    ...paths.filter(
+      (path) => path.endsWith('label') && path !== 'academic_year.label',
+    ),
+    ...(wildcardOrSome.test(JSON.stringify(read)) ? ['* or _some'] : []),
+  ].map((problem) => `${label}: ${problem}`);
+};
+
+const missingPathsOf = ([label, read]: readonly [string, SourceRead]) =>
+  [...read.fields, ...filterPaths(read.filter)]
+    .filter((path) => !pathExists(read.collection, path))
+    .map((path) => `${label}: ${path}`);
+
+// Rooms beyond the fixture's three, enough to pass a 4 KiB bound.
+const extraRooms = (rows: FakeItem[]): FakeItem[] => [
+  ...rows,
+  ...Array.from({ length: 80 }, (_, index) => ({
+    capacity: index,
+    id: 100 + index,
+    name: `Synthetic Extra Room ${index}`,
+  })),
+];
+
+describe('the shipped export definitions', () => {
+  test('are well formed', () => {
+    expect(definitionProblems(exportDefinitions)).toEqual([]);
+    expect(() => {
+      checkDefinitions(exportDefinitions);
+    }).not.toThrow();
+  });
+
+  test('read only fields and filter paths the data model has', () => {
+    expect(everyRead.flatMap(missingPathsOf)).toEqual([]);
+  });
+
+  test('never read Moodle users, a private collection or a private field', () => {
+    expect(globalReads().length).toBeGreaterThan(0);
+    expect(everyRead.flatMap(privateReadsOf)).toEqual([]);
+    // The checker itself sees each kind of private read.
+    expect(
+      privateReadsOf([
+        'probe',
+        {
+          collection: 'moodle_users',
+          fields: ['Mail', 'label', 'source_group', '*'],
+          sort: [],
+        },
+      ]),
+    ).toEqual([
+      'probe: moodle_users',
+      'probe: moodle_users.Mail',
+      'probe: moodle_users.label',
+      'probe: moodle_users.source_group',
+      'probe: moodle_users.*',
+      'probe: Mail',
+      'probe: source_group',
+      'probe: label',
+      'probe: * or _some',
+    ]);
+    expect(
+      [
+        { collection: 'migration_ledger', fields: ['id', 'error', 'id_map'] },
+        { collection: 'data_operations', fields: ['id'] },
+        { collection: 'students', fields: ['id', 'source_group'] },
+        { collection: 'moodle_course_mappings', fields: ['entry.label'] },
+      ].flatMap((read, index) =>
+        privateReadsOf([`probe ${index}`, { ...read, sort: [] }]),
+      ),
+    ).toEqual([
+      'probe 0: migration_ledger.error',
+      'probe 0: migration_ledger.id_map',
+      'probe 1: data_operations',
+      'probe 1: data_operations.id',
+      'probe 2: students.source_group',
+      'probe 2: source_group',
+      'probe 3: moodle_course_entries.label',
+      'probe 3: entry.label',
+    ]);
+  });
+});
+
+describe('the value rules', () => {
+  test.each([
+    ['text', 'Room 1', 'Room 1'],
+    ['text', ' untrimmed ', ' untrimmed '],
+    ['number', 0, '0'],
+    ['number', -1, '-1'],
+    ['number', 6, '6'],
+    ['numeric_boolean', true, '1'],
+    ['numeric_boolean', false, '0'],
+    ['boolean', true, 'TRUE'],
+    ['boolean', false, 'FALSE'],
+  ] as const)('publishes a %s %j as %j', (rule, value, form) => {
+    expect(publicForm(rule, value)).toBe(form);
+  });
+
+  test.each([
+    ['text', 6],
+    ['number', '6'],
+    ['number', NaN],
+    ['numeric_boolean', 1],
+    ['boolean', 'TRUE'],
+    ['text', { name: 'x' }],
+  ] as const)('refuses a %s value %j of another type', (rule, value) => {
+    expect(publicForm(rule, value)).toBeNull();
+  });
+});
+
+const fileOf = async (definition: ExportDefinition, reader: SourceReader) => {
+  const sources = await readFileSources(definition, reader);
+  return validateFile(
+    definition,
+    serializeFile(definition, sources),
+    sources.rows.length,
+  );
+};
+
+describe('a new file is one definition', () => {
+  test('is read, serialized and validated by the same engine', async () => {
+    const store = await convertedStore();
+    const file = await fileOf(roomCapacity, storeReader(store));
+
+    expect(definitionProblems([...exportDefinitions, roomCapacity])).toEqual(
+      [],
+    );
+    expect(publicRows(file.body)).toEqual([
+      { large: 'TRUE', room: 'Synthetic Room 101', seats: '24' },
+      { large: 'FALSE', room: 'Synthetic Hall 2', seats: '0' },
+      { room: 'Synthetic Storage' },
+    ]);
+    expect(file).toMatchObject({ filename: 'room-capacity.json', rows: 3 });
+    expect(file.body).toBe(
+      '[{"room":"Synthetic Room 101","seats":"24","large":"TRUE"},{"room":"Synthetic Hall 2","seats":"0","large":"FALSE"},{"room":"Synthetic Storage"}]',
+    );
+  });
+
+  test('never publishes a key its definition does not declare', async () => {
+    const reader = injecting(storeReader(await convertedStore()), {
+      ...forbiddenPrivateFields,
+      type: 'lab',
+    });
+    const file = await fileOf(roomCapacity, reader);
+    const keys = publicRows(file.body).flatMap((row) => Object.keys(row));
+
+    expect(new Set(keys)).toEqual(new Set(['large', 'room', 'seats']));
+  });
+
+  test('refuses a resolver value outside its rule instead of publishing it', async () => {
+    const leaky: ExportDefinition = {
+      ...roomCapacity,
+      fields: [{ key: 'room', rule: 'text', value: ({ row }) => row }],
+    };
+
+    await expect(
+      fileOf(leaky, storeReader(await convertedStore())),
+    ).rejects.toMatchObject({ code: 'EXPORT_INVALID_PAYLOAD', status: 500 });
+  });
+
+  test('is bounded by its own size limit', async () => {
+    const store = edit(await convertedStore(), 'rooms', extraRooms);
+
+    const refusal = await refusalOf(() =>
+      fileOf(roomCapacity, storeReader(store)),
+    );
+
+    expect(rowsOf(store, 'rooms')).toHaveLength(83);
+    expect(refusal.code).toBe('EXPORT_INVALID_PAYLOAD');
+    expect(refusal.message).toContain('above its bound of 4096');
+  });
+});
+
+describe('payload validation', () => {
+  test.each([
+    [
+      'an undeclared key',
+      [{ Mail: 'x', name: 'Room' }],
+      'rooms.json row 0 carries the undeclared key Mail',
+    ],
+    [
+      'a key out of order',
+      [{ floor: '0', name: 'Room' }],
+      'rooms.json row 0 lists name out of order',
+    ],
+    ['a number instead of text', [{ floor: 0 }], 'is not a list of rows'],
+    ['an empty text', [{ name: '' }], 'is not a list of rows'],
+    ['a dropped row', [], 'rooms.json holds 0 rows for 1 read'],
+    ['no list', { name: 'Room' }, 'is not a list of rows'],
+  ])('refuses %s', (_label, value, message) => {
+    expect(() => validateFile(rooms, value, 1)).toThrow(message);
+  });
+
+  test('answers the body, its UTF-8 bytes and its sha256', () => {
+    // Declared order: name, floor, capacity.
+    const file = validateFile(
+      rooms,
+      [{ name: 'Синтетичка сала', floor: '0', capacity: '24' }],
+      1,
+    );
+
+    expect(file.bytes).toBe(Buffer.byteLength(file.body, 'utf8'));
+    expect(file.bytes).toBeGreaterThan(file.body.length);
+    expect(file.sha256).toMatch(sha256Pattern);
+  });
+});
+
+describe('the definition rules', () => {
+  const broken = (change: Partial<ExportDefinition>) =>
+    definitionProblems([{ ...roomCapacity, ...change }]);
+
+  test.each([
+    [{ filename: 'Room Capacity.json' }, 'is not a root-level JSON filename'],
+    [{ filename: '../rooms.json' }, 'is not a root-level JSON filename'],
+    [{ orderBy: 'sort' }, 'orders by sort, which its read omits'],
+    [
+      { rows: { ...roomCapacity.rows, fields: ['id', 'name'] } },
+      'key seats reads capacity, which is omitted',
+    ],
+    [
+      {
+        rows: { ...roomCapacity.rows, fields: ['id', 'name', 'capacity', '*'] },
+      },
+      'read rows selects a wildcard',
+    ],
+    [
+      {
+        rows: {
+          ...roomCapacity.rows,
+          filter: { location: { _some: { name: { _eq: 'x' } } } },
+        },
+      },
+      'read rows filters with _some or _none',
+    ],
+    [
+      {
+        fields: [
+          { key: 'room', rule: 'text', value: 'name' },
+          { key: 'room', rule: 'text', value: 'name' },
+        ],
+      },
+      'declares a key twice',
+    ],
+    [
+      {
+        related: {
+          links: { by: 'room', collection: 'rooms', fields: ['id'], sort: [] },
+        },
+      },
+      'read links groups by an omitted field',
+    ],
+    [{ maxBytes: 0 }, 'has no positive size bound'],
+  ] as const)('names %j', (change, problem) => {
+    expect(broken(change).join('; ')).toContain(problem);
+  });
+
+  test.each<readonly [Partial<SourceRead>, string]>([
+    [{ fields: ['*'] }, 'global check 1 read steps selects a wildcard'],
+    [
+      { filter: { steps: { _some: { status: { _eq: 'failed' } } } } },
+      'global check 1 read steps filters with _some or _none',
+    ],
+    [{ fields: [] }, 'global check 1 read steps selects no field'],
+  ])(
+    'applies the read rules to the global checks too: %j',
+    (change, problem) => {
+      const malformed: ReadinessCheck = {
+        ...conversionCheck,
+        reads: {
+          steps: {
+            collection: 'migration_ledger',
+            fields: change.fields ?? ['id'],
+            sort: ['id'],
+            ...(change.filter !== undefined && { filter: change.filter }),
+          },
+        },
+      };
+
+      expect(definitionProblems(exportDefinitions, [malformed])).toContain(
+        problem,
+      );
+      expect(definitionProblems(exportDefinitions)).toEqual([]);
+    },
+  );
+
+  test('names a global code a definition redeclares with another kind', () => {
+    const redeclared: ExportDefinition = {
+      ...roomCapacity,
+      checks: [
+        {
+          codes: {
+            conversion_incomplete: { collection: 'rooms', kind: 'warning' },
+          },
+          evaluate: () => ({}),
+          reads: {},
+        },
+      ],
+    };
+
+    expect(definitionProblems([redeclared])).toEqual([
+      'readiness code conversion_incomplete is declared as blocker of migration_ledger and as warning of rooms',
+    ]);
+  });
+
+  test('refuses two files of one name before anything is read', () => {
+    expect(() => {
+      checkDefinitions([rooms, rooms]);
+    }).toThrow('two definitions publish the same filename');
+  });
+});

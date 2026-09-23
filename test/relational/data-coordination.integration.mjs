@@ -678,10 +678,10 @@ const retriesFailure = async (target) => {
   const retried = await claimNow(target, 'publication', true);
   assert.equal(retried.claimed, true);
   const files = {
-    courses: 'published',
-    rooms: 'published',
-    staff: 'published',
-    students: 'skipped',
+    'courses.json': 'published',
+    'rooms.json': 'published',
+    'staff.json': 'published',
+    'students.json': 'skipped',
   };
   assert.deepEqual(
     await act(target, { action: 'complete', files, token: retried.token }),
@@ -699,7 +699,7 @@ const retriesFailure = async (target) => {
   });
   const raw = await get(target, '/items/data_operations');
   assert.equal(raw.publication_state, 'completed');
-  assert.equal(raw.publish_students_outcome, 'skipped');
+  assert.deepEqual(raw.publication_outcomes, files);
   assert.equal(raw.claim_token, null);
   assert.notEqual(raw.finished_at, null);
 };

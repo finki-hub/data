@@ -6,7 +6,6 @@ import type {
   Domain,
   OperationsState,
   PageSource,
-  PublishedFile,
 } from './state.js';
 
 export type ClaimInsert = {
@@ -91,11 +90,9 @@ export type CoordinationStore = {
   ) => Promise<T>;
 };
 
-// Per-file publication outcomes as reported by the publication Flow; a
-// missing or null entry records no outcome for that file.
-export type FileOutcomes = Readonly<
-  Partial<Record<PublishedFile, null | string | undefined>>
->;
+// Per-file publication outcomes keyed by the published filename, as
+// reported by the publication; they replace the previous outcomes whole.
+export type FileOutcomes = Readonly<Record<string, string>>;
 
 export type FinishInput = {
   readonly claimRevision: number;

@@ -35,7 +35,6 @@ import {
   type OperationsState,
   type PageSource,
   pageSourceTables,
-  publishedFiles,
 } from './state.js';
 
 export type SqlBinding = boolean | null | number | string;
@@ -167,7 +166,7 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   finish: (input) =>
     matched(client, finishSql, [
       json(input.dirtyDomains),
-      ...publishedFiles.map((file) => input.files?.[file] ?? null),
+      input.files === null ? null : json(input.files),
       input.token,
       input.owner,
       input.claimRevision,

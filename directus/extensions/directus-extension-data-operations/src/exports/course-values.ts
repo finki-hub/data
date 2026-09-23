@@ -1,0 +1,141 @@
+import type { Resolver, Row, RowContext } from './types.js';
+
+import { unresolved } from './errors.js';
+import { idOf, pathValue, textOf } from './values.js';
+
+// The resolvers of courses.json. Each one reads the course row and its
+// related rows (read keys `curricula`, `assignments`, `enrollments` of
+// courses.ts) and answers the value the checkpoint derivation produced,
+// resolving relation values on read, so a renamed staff member or
+// curriculum entry is published without any rebuild. Anything they cannot
+// resolve unambiguously is refused with ids only; nothing is guessed.
+
+export type Generation = '2018' | '2023';
+
+// Joins the labels of one course's professors or assistants. The
+// conversion links a checkpoint list to staff rows only when this join
+// gives its text back (`staffListSeparator` of src/migrations/
+// preflight-staff.ts, pinned equal by a test).
+export const labelSeparator = ', ';
+
+export const assignmentRoles = ['professor', 'assistant'] as const;
+
+type Role = (typeof assignmentRoles)[number];
+
+const courseId = ({ row }: RowContext): string => String(idOf(row['id']));
+
+const relatedRows = (context: RowContext, key: string): readonly Row[] =>
+  context.related[key] ?? [];
+
+// The course's one link of a generation, whose entry is of that
+// generation, or undefined without a link.
+const linkOf = (
+  context: RowContext,
+  generation: Generation,
+): Row | undefined => {
+  const links = relatedRows(context, 'curricula').filter(
+    (candidate) => candidate['generation'] === generation,
+  );
+  if (links.length > 1) {
+    unresolved(
+      `Course ${courseId(context)} has ${links.length} ${generation} curriculum links`,
+    );
+  }
+  const [link] = links;
+  if (
+    link !== undefined &&
+    pathValue(link, 'entry.generation') !== generation
+  ) {
+    unresolved(
+      `Course ${courseId(context)} links a ${generation} curriculum entry of another generation or none`,
+    );
+  }
+  return link;
+};
+
+// A value of the course's link of a generation (`credits`, `available`)
+// or of the linked entry (`entry.code`); null without a link.
+export const curriculum =
+  (generation: Generation, path: string): Resolver =>
+  (context) => {
+    const link = linkOf(context, generation);
+    return link === undefined ? null : pathValue(link, path);
+  };
+
+// 2018-name: the course's name_2018_override when set, else the name of
+// its linked 2018 entry.
+export const legacyName: Resolver = (context) =>
+  textOf(context.row['name_2018_override']) ??
+  curriculum('2018', 'entry.name')(context);
+
+// channel: true when either linked entry has its channel set; the Discord
+// channel list plays no part.
+export const channel: Resolver = (context) =>
+  curriculum('2023', 'entry.channel')(context) === true ||
+  curriculum('2018', 'entry.channel')(context) === true;
+
+const position = (row: Row): number => idOf(row['sort']) ?? Infinity;
+
+const byPosition = (left: Row, right: Row): number =>
+  position(left) - position(right) ||
+  (idOf(left['id']) ?? 0) - (idOf(right['id']) ?? 0);
+
+const knownRoles: ReadonlySet<unknown> = new Set(assignmentRoles);
+
+export const isRole = (value: unknown): value is Role => knownRoles.has(value);
+
+// The course's assignment rows of a role in `sort` order (unsorted rows
+// last), then id; a row without a known role is refused.
+const assigned = (context: RowContext, role: Role): readonly Row[] => {
+  const rows = relatedRows(context, 'assignments');
+  const unknown = rows.find((row) => !isRole(row['role']));
+  if (unknown !== undefined) {
+    unresolved(
+      `Assignment ${String(idOf(unknown['id']))} of course ${courseId(context)} has no role`,
+    );
+  }
+  return rows.filter((row) => row['role'] === role).toSorted(byPosition);
+};
+
+// Each row's display_override when set, else its staff member's name,
+// joined in order; null without a row.
+const labelsOf = (context: RowContext, role: Role): null | string => {
+  const rows = assigned(context, role);
+  if (rows.length === 0) {
+    return null;
+  }
+  return rows
+    .map(
+      (row) =>
+        textOf(row['display_override']) ??
+        textOf(pathValue(row, 'staff.name')) ??
+        unresolved(
+          `Assignment ${String(idOf(row['id']))} of course ${courseId(context)} has no label`,
+        ),
+    )
+    .join(labelSeparator);
+};
+
+// professors: the course's professors_override when set, else its
+// professor assignments.
+export const professors: Resolver = (context) =>
+  textOf(context.row['professors_override']) ?? labelsOf(context, 'professor');
+
+export const assistants: Resolver = (context) => labelsOf(context, 'assistant');
+
+// The course's count of an academic year: exactly one count row must
+// exist, a missing count is refused rather than published as 0.
+export const enrollmentCount =
+  (year: string): Resolver =>
+  (context) => {
+    const counts = relatedRows(context, 'enrollments').filter(
+      (candidate) => pathValue(candidate, 'academic_year.label') === year,
+    );
+    const [row] = counts;
+    if (row === undefined || counts.length > 1) {
+      unresolved(
+        `Course ${courseId(context)} has ${counts.length} enrollment counts for ${year}`,
+      );
+    }
+    return row?.['count'];
+  };

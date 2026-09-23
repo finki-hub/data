@@ -56,14 +56,9 @@ export const pageSourceTables: Readonly<Record<PageSource, string>> = {
   rules: 'course_enrollment_rules',
 };
 
-export const publishedFiles = [
-  'courses',
-  'rooms',
-  'staff',
-  'students',
-] as const;
-
-export type PublishedFile = (typeof publishedFiles)[number];
+// A publication records at most this many per-file outcomes, keyed by
+// the published filename (courses.json, ...).
+export const maxPublishedFiles = 64;
 
 export const operationId = 'finki-hub-data-coordinate';
 
@@ -228,8 +223,10 @@ export type OperationsState = {
   readonly inputRevisions: Readonly<Record<CalculationDomain, number>>;
   readonly lastError: LastError | null;
   readonly publicationFingerprint: null | string;
+  // The outcome of each file of the last completed publication, keyed by
+  // filename; null when none was recorded.
+  readonly publicationOutcomes: null | Readonly<Record<string, string>>;
   readonly publicationState: string;
-  readonly publishedFiles: Readonly<Record<PublishedFile, null | string>>;
   readonly requestedRevision: number;
   readonly sourceRevision: number;
   readonly startedAt: null | string;

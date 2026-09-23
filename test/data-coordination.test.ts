@@ -158,8 +158,8 @@ const baseState = (
   inputRevisions: { enrollments: 3, history_index: 3 },
   lastError: null,
   publicationFingerprint: graphA,
+  publicationOutcomes: null,
   publicationState: 'idle',
-  publishedFiles: { courses: null, rooms: null, staff: null, students: null },
   requestedRevision: 3,
   sourceRevision: 3,
   startedAt: null,
@@ -817,24 +817,21 @@ describe('failures and recovery over the persistence port', () => {
     });
 
     const retried = await claimToken(fake, publication, { retry: true });
+    // Keyed by filename, as many as the publication has.
+    const files = { 'courses.json': 'published', 'extra.json': 'skipped' };
 
     await expect(
       runAction(
         {
           action: 'complete',
-          files: { courses: 'published', rooms: 'published', staff: 'skipped' },
+          files,
           token: retried,
         },
         context(fake),
       ),
     ).resolves.toMatchObject({ completed: true, domain: publication });
     expect(fake.data.publicationState).toBe('completed');
-    expect(fake.data.publishedFiles).toEqual({
-      courses: 'published',
-      rooms: 'published',
-      staff: 'skipped',
-      students: null,
-    });
+    expect(fake.data.publicationOutcomes).toEqual(files);
     expect(fake.data.publicationFingerprint).toBe(graphA);
     expect(fake.data.dirtyDomains).toEqual([]);
     await expect(claim(fake, publication)).resolves.toEqual({

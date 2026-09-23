@@ -25,13 +25,6 @@ export const publicationStates = [
   'failed',
 ] as const;
 
-export const publishedFiles = [
-  'courses',
-  'rooms',
-  'staff',
-  'students',
-] as const;
-
 // The enumerated work domains of the coordinator, in dependency order.
 export const coordinationDomains = [
   'history_index',
@@ -152,11 +145,10 @@ export const operationsCollections: readonly ModelCollection[] = [
         defaultValue: 'idle',
         nullable: false,
       }),
-      ...publishedFiles.map((file) =>
-        scalar(`publish_${file}_outcome`, 'string', {
-          note: `Outcome of the last ${file}.json publication.`,
-        }),
-      ),
+      scalar('publication_outcomes', 'json', {
+        note: 'Outcome of each file of the last publication, keyed by its filename (courses.json, ...).',
+        readOnly: true,
+      }),
       // Coordination status written by the finki-hub-data-coordinate
       // operation and the source-invalidation trigger; appended after the
       // original columns so an installed project gains them additively.

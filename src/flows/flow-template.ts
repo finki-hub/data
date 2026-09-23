@@ -2,6 +2,10 @@
 // rerun recognises it, and the helpers the history index templates share.
 export const coordinateOperation = 'finki-hub-data-coordinate';
 
+// The export operation of the data-operations extension: readiness and the
+// preparation of every public file its export definitions declare.
+export const exportsOperation = 'finki-hub-exports';
+
 const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 
 // A deterministic UUID: two hex digits name the Flow family, the suffix one
@@ -23,6 +27,10 @@ export const checkpointFlowId = (suffix: string): string =>
 // A deterministic UUID of the automatic processing Flow family (the
 // enrollment dispatcher, Mark pending and the scheduled Process pending).
 export const automationId = (suffix: string): string => familyId('13', suffix);
+
+// A deterministic UUID of the publication Flow family (Data / Validate
+// readiness and Publish / Prepare public assets).
+export const publicationId = (suffix: string): string => familyId('14', suffix);
 
 export type OperationTemplate = {
   readonly id: string;

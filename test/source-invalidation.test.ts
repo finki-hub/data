@@ -76,6 +76,16 @@ const invalidOptions: readonly unknown[] = [
     token: uuid,
   },
   { action: 'complete' },
+  { action: 'complete', files: { courses: 'published' }, token: uuid },
+  { action: 'complete', files: { '../x.json': 'published' }, token: uuid },
+  { action: 'complete', files: { 'a.json': 'x'.repeat(121) }, token: uuid },
+  {
+    action: 'complete',
+    files: Object.fromEntries(
+      Array.from({ length: 65 }, (_, index) => [`f${index}.json`, 'ok']),
+    ),
+    token: uuid,
+  },
   { action: 'fail', code: 'has space', token: uuid },
   { action: 'fail', code: 'x'.repeat(65), token: uuid },
 ];
@@ -192,12 +202,12 @@ describe('option contract', () => {
       parseCoordinatorInput({
         ...blanks,
         action: 'complete',
-        files: { courses: 'published', rooms: null },
+        files: { 'courses.json': 'published', 'rooms.json': 'skipped' },
         token: uuid,
       }),
     ).toEqual({
       action: 'complete',
-      files: { courses: 'published', rooms: null },
+      files: { 'courses.json': 'published', 'rooms.json': 'skipped' },
       token: uuid,
     });
     expect(

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { labelSeparator } from '../directus/extensions/directus-extension-data-operations/src/exports/course-values.js';
 import {
   convertTeachingAssignments,
   roleKey,
@@ -11,6 +12,7 @@ import {
   type EquivalencyLinks,
 } from '../src/migrations/equivalencies.js';
 import { indexLabels } from '../src/migrations/labels.js';
+import { staffListSeparator } from '../src/migrations/preflight-staff.js';
 import { findField } from './data-model-test-helpers.js';
 import {
   courseNames,
@@ -228,7 +230,7 @@ describe('teaching assignments: review rows', () => {
 });
 
 describe('teaching assignments: staff links', () => {
-  test('links complete labels split on one delimiter to exactly one staff row each, in order', async () => {
+  test('links complete labels of a list joined exactly by ", " to one staff row each, in order', async () => {
     const prepared = await prepare(
       withStaff(uniqueDataset(), [
         'Prof. Abe Alpha',
@@ -252,14 +254,61 @@ describe('teaching assignments: staff links', () => {
       ({ role, source_id }) => source_id === 7 && role === 'professor',
     );
 
+    // The assistants use "; ": linked, the export would republish them
+    // joined by ", ", so the text stays one literal review row.
     expect(alpha).toEqual([
       { display_override: null, role: 'professor', sort: 1, staff: 101 },
       { display_override: null, role: 'professor', sort: 2, staff: 100 },
-      { display_override: null, role: 'assistant', sort: 1, staff: 102 },
-      { display_override: null, role: 'assistant', sort: 2, staff: 103 },
+      {
+        display_override: alphaAssistants,
+        role: 'assistant',
+        sort: 1,
+        staff: null,
+      },
     ]);
     expect(theta).toMatchObject({ display_override: null, staff: 104 });
+    expect(staffListSeparator).toBe(labelSeparator);
   });
+
+  test.each([
+    ['a "; " list', 'Prof. One; Prof. Two'],
+    ['a ";" list', 'Prof. One;Prof. Two'],
+    ['a line-break list', 'Prof. One\nProf. Two'],
+    ['a "," list', 'Prof. One,Prof. Two'],
+    ['a list with a padded part', 'Prof. One,  Prof. Two'],
+    ['a list with a padded delimiter', 'Prof. One , Prof. Two'],
+    ['a padded list', ' Prof. One, Prof. Two'],
+    ['a padded label', 'Prof. One '],
+  ])(
+    'keeps %s literal although every part names one staff row',
+    async (_label, text) => {
+      const prepared = await prepare(
+        withAssignment(withStaff(uniqueDataset(), ['Prof. One', 'Prof. Two']), {
+          id: 9,
+          course_name: courseNames.delta,
+          professors: text,
+          assistants: null,
+        }),
+      );
+
+      const conversion = convertAssignments(prepared);
+      const rows = conversion.writes
+        .map(({ record }) => record)
+        .filter(({ source_id }) => source_id === 9);
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          display_override: text,
+          role: 'professor',
+          sort: 1,
+          staff: null,
+        }),
+      ]);
+      expect(conversion.findings.filter(({ ids }) => ids.includes(9))).toEqual([
+        expect.objectContaining({ code: 'unresolved_staff_text' }),
+      ]);
+    },
+  );
 
   test('retains text with mixed delimiters or a label several staff rows carry, naming the contention', async () => {
     const mixed = await prepare(
