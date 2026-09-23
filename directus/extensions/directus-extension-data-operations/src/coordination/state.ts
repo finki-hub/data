@@ -26,6 +26,14 @@ export const pageSources = ['history', 'rules'] as const;
 
 export type PageSource = (typeof pageSources)[number];
 
+// What plan_pages may plan: one source table, or `enrollments`, the one
+// plan of an enrollments claim that covers both rule families (mapped rule
+// pages, legacy rule pages crossed with history pages, and a zero page per
+// legacy rule page), so its completion never drops a family's rows.
+export const planSources = [...pageSources, 'enrollments'] as const;
+
+export type PlanSource = (typeof planSources)[number];
+
 // The only tables the page planner ever reads, keyed by the enumerated
 // source names an operation may name.
 export const pageSourceTables: Readonly<Record<PageSource, string>> = {
@@ -52,6 +60,38 @@ export const claimStaleAfterMs = 60_000;
 
 // Every planned page covers at most this many source rows.
 export const pageSize = 250;
+
+// A legacy rule page holds at most this many legacy_regex rules; its
+// Run Script compiles each of them once.
+export const legacyRulePageSize = 500;
+
+// The UTF-8 bytes of `Courses` one legacy history page may hold. Run
+// Script copies the whole data chain into an isolate of 32 MB and stops it
+// after 10 s (the defaults, never raised). Memory: V8 keeps a string with
+// any non-Latin-1 character at two bytes per UTF-16 unit and disposes the
+// isolate at about 16 MB of string storage, so a page costs at most twice
+// its bytes. Time grows with rules times bytes: on the largest page (500
+// rules, 800,000 two-byte bytes) literal and cross-line rules take 0.1-0.2
+// s and whole-text line walks (^(?:.*\n)*...) 3.3 s, a third of the
+// timeout (docs/progress/evidence/relational-redesign/task-12-fix-0/).
+// A page of typical histories reaches 250 users first; larger histories
+// only split into more pages, each still read once per rule page.
+export const historyPageBudget = 800_000;
+
+// The UTF-8 bytes of pattern text one legacy rule page may hold: the same
+// 2 MB of string storage as 500 rules of 2,000 characters, while one
+// pattern may use all of it. The planner cuts rule pages by rows and by
+// these bytes, so no existing pattern needs a length cap.
+export const legacyPatternBudget = 1_000_000;
+
+// The only claim domain each table source may be planned under. An
+// enrollments claim plans its rules alone only while every rule is
+// mapped_entries; otherwise it needs source `enrollments`, the one plan
+// that covers the legacy family too.
+export const pageSourceDomains: Readonly<Record<PageSource, Domain>> = {
+  history: 'history_index',
+  rules: 'enrollments',
+};
 
 export const maxRowsPerPage = 10_000;
 

@@ -463,17 +463,29 @@ const stagesPages = async (target, state) => {
     ...body,
   });
   await refused(target, page({}), pageUnplanned);
-  // A first plan over the Moodle users, one page staged under it; the plan
+  // An enrollments claim never plans the Moodle users (Task 12): a plan
+  // without the legacy family could let the completion drop its rows.
+  await refused(
+    target,
+    { action: 'plan_pages', source: 'history', token: claim.token },
+    'COORDINATION_DOMAIN_MISMATCH',
+  );
+  // A first plan of both rule families, one page staged under it; the plan
   // over the rules that follows must discard that page's candidates.
+  const ruleRange = {
+    from: Math.min(...state.ruleIds),
+    rows: 3,
+    to: Math.max(...state.ruleIds),
+  };
   const replaced = await act(target, {
     action: 'plan_pages',
-    source: 'history',
+    source: 'enrollments',
     token: claim.token,
   });
   assert.deepEqual(replaced, {
     discarded: 0,
-    pages: [{ from: state.userId, rows: 1, to: state.userId, token: 'p0001' }],
-    source: 'history',
+    pages: [{ ...ruleRange, kind: 'mapped', token: 'p0001' }],
+    source: 'enrollments',
     total: 1,
   });
   assert.deepEqual(await act(target, page({ rows: [rows[0]] })), {
@@ -489,14 +501,7 @@ const stagesPages = async (target, state) => {
   });
   assert.deepEqual(plan, {
     discarded: 1,
-    pages: [
-      {
-        from: Math.min(...state.ruleIds),
-        rows: 3,
-        to: Math.max(...state.ruleIds),
-        token: 'p0001',
-      },
-    ],
+    pages: [{ ...ruleRange, token: 'p0001' }],
     source: 'rules',
     total: 1,
   });

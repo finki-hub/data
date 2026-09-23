@@ -70,8 +70,10 @@ const collator = new Intl.Collator('en');
 // rules, two planned pages of 250 and 4.
 const bulkCourses = 124;
 const invalidAggregate = /INVALID_AGGREGATE/u;
+// The coordinator plans the rules of an enrollments claim only while every
+// rule is mapped_entries (Task 12); a legacy rule needs source enrollments.
 const legacyRefused =
-  /INVALID_RULE_PAGE Rule \d+ of page p0001 has the mode legacy_regex/u;
+  /^plan_pages with source rules plans mapped_entries rules only, and rule \d+ has another mode; plan with source enrollments, which covers the legacy family too\. Nothing was planned\.$/u;
 const historyDomain =
   /needs an enrollments claim, and the current claim runs history_index/u;
 const planMismatch = 'PAGE_PLAN_MISMATCH';
@@ -407,10 +409,12 @@ const pageFailure = async (target, state, { code, extra, stage }) => {
   return result;
 };
 
-// A mapped rule page that also holds a legacy_regex rule is refused whole:
-// staging its mapped rules alone would let the completion, which replaces
-// every installed row, drop the legacy pair's count. The run fails without
-// a completion and the legacy pair's installed row survives.
+// A `rules` plan of an enrollments claim that holds a legacy_regex rule is
+// refused before any page runs: staging the mapped rules alone would let
+// the completion, which replaces every installed row, drop the legacy
+// pair's count. The run fails without a completion, the claim is released
+// and the legacy pair's installed row survives. (An `enrollments` plan,
+// Task 12, plans the two families on separate pages instead.)
 const refusesLegacyRulePage = async (target, state) => {
   const legacy = await create(target, state, [
     'course_enrollment_rules',
@@ -434,14 +438,15 @@ const refusesLegacyRulePage = async (target, state) => {
   assert.deepEqual(await enrollmentCounts(target, state), installed);
   const run = await runCounts(target);
   assert.equal(run.status, 500, JSON.stringify(run.body));
-  assert.equal(errorCode(run.body), 'MAPPED_COUNT_FAILED');
+  assert.equal(errorCode(run.body), 'PLAN_REFUSED');
   assert.match(run.body.errors[0].message, legacyRefused);
+  assert.ok(run.body.errors[0].message.includes(`rule ${legacy} `));
   assert.doesNotMatch(JSON.stringify(run.body), privateText);
   assert.deepEqual(await candidates(target), [], 'nothing was staged');
   assert.deepEqual(await enrollmentCounts(target, state), installed);
   const after = await status(target);
   assert.equal(after.claim, null);
-  assert.equal(after.lastError.code, 'MAPPED_COUNT_FAILED');
+  assert.equal(after.lastError.code, 'PLAN_FAILED');
   // The legacy rule and its row go again; the later runs count the mapped
   // rules alone.
   await remove(target, `${enrollmentsPath}/${kept.data.id}`);

@@ -22,7 +22,7 @@ const pageContext = { page: '{{ $trigger.token }}' };
 export const mappedPageFlow: FlowTemplate = {
   accountability: 'activity',
   description:
-    'Stages the mapped enrollment counts of one planned rule page. Input {claim, token, from, to, rows, revision} (a plan_pages page of source "rules" plus the claim and its revision): checks the page against the plan stored for the current enrollments claim (claim, revision, range and rule count), reads the rules of the page, refuses a page that holds a rule of another mode, counts every course/year serially with "Data / Count mapped enrollments", and stages all of them, zeros included, with stage_page. Answers {page, replaced, staged}, or {ok: false, page, stage, code, message} with nothing staged. Only the claim\'s completion installs course enrollments.',
+    'Stages the mapped enrollment counts of one planned rule page. Input {claim, token, from, to, rows, revision} (a mapped page of a plan_pages plan of source "enrollments", or a page of source "rules", which the coordinator plans only while every rule is mapped_entries, plus the claim and its revision): checks the page against the plan stored for the current enrollments claim (claim, revision, page kind, range and rule count), reads the mapped_entries rules of the range and refuses the page when they are fewer than planned, counts every course/year serially with "Data / Count mapped enrollments", and stages all of them, zeros included, with stage_page. Answers {page, replaced, staged}, or {ok: false, page, stage, code, message} with nothing staged. Only the claim\'s completion installs course enrollments.',
   entry: enrollmentId('21'),
   icon: 'functions',
   id: mappedEnrollmentFlowIds.page,

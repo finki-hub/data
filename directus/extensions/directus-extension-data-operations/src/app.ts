@@ -3,7 +3,7 @@ import { defineOperationApp } from '@directus/extensions-sdk';
 import {
   coordinationDomains,
   operationId,
-  pageSources,
+  planSources,
 } from './coordination/state.js';
 
 const choices = (values: readonly string[]) =>
@@ -88,8 +88,8 @@ export default defineOperationApp({
       field: 'source',
       meta: {
         interface: 'select-dropdown',
-        note: 'plan_pages: history pages Moodle users, rules pages enrollment rules; planning discards every candidate row staged under the claim.',
-        options: { allowNone: true, choices: choices(pageSources) },
+        note: 'plan_pages: history pages Moodle users (history_index claims), rules pages enrollment rules (enrollments claims while every rule is mapped_entries), enrollments plans both rule families of an enrollments claim (mapped pages, legacy pages, zero pages); planning discards every candidate row staged under the claim.',
+        options: { allowNone: true, choices: choices(planSources) },
         width: 'half',
       },
       name: 'Page source',

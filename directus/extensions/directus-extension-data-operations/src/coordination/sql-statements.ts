@@ -82,3 +82,10 @@ export const installSql = `INSERT INTO "course_enrollments" ("course", "academic
 SELECT "course", "academic_year", SUM("count")::integer, ?, clock_timestamp()
 FROM "data_operation_results" WHERE "claim_token" = ?
 GROUP BY "course", "academic_year" ORDER BY "course", "academic_year"`;
+
+// What an enrollments plan is cut from: the mode and pattern bytes of
+// every rule (never its pattern) and the UTF-8 bytes of every raw history
+// (never its text).
+export const ruleModesSql = `SELECT "id", "mode", COALESCE(octet_length("pattern"), 0) AS "bytes" FROM "course_enrollment_rules" ORDER BY "id"`;
+
+export const historySizesSql = `SELECT "id", COALESCE(octet_length("Courses"), 0) AS "bytes" FROM "moodle_users" ORDER BY "id"`;

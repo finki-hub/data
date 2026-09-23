@@ -26,6 +26,7 @@ import {
   type FlowRow,
   flowRow,
   idRow,
+  moodleUserRow,
   type OperationRow,
   operationRow,
   type PatternRow,
@@ -45,7 +46,7 @@ export type CheckpointRows = {
   readonly curriculum_2023: ReadonlyArray<z.infer<typeof curriculum2023Row>>;
   readonly deans_office: ReadonlyArray<z.infer<typeof deansRow>>;
   readonly discord_channels: ReadonlyArray<z.infer<typeof discordRow>>;
-  readonly moodle_users: ReadonlyArray<z.infer<typeof idRow>>;
+  readonly moodle_users: ReadonlyArray<z.infer<typeof moodleUserRow>>;
   readonly rooms: ReadonlyArray<z.infer<typeof idRow>>;
   readonly staff: ReadonlyArray<z.infer<typeof staffRow>>;
   readonly student_council: readonly CouncilRow[];
@@ -165,7 +166,7 @@ const readCheckpoint = async (
   moodle_users: await rows(request, {
     collection: 'moodle_users',
     pageSize,
-    schema: idRow,
+    schema: moodleUserRow,
   }),
   rooms: await rows(request, { collection: 'rooms', pageSize, schema: idRow }),
   staff: await rows(request, {

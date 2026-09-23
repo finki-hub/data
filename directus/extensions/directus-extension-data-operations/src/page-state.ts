@@ -21,15 +21,15 @@ export const pageTokenPattern = /^p\d{4,9}$/u;
 export const pageToken = (index: number): string =>
   `p${String(index + 1).padStart(4, '0')}`;
 
-// Splits the sorted, distinct source ids into consecutive ranges. The ids
-// are read at the claimed revision; any later source change is refused at
-// completion, so the plan never has to guess ids it did not see.
-export const planPages = (
-  ids: readonly number[],
-  size: number = pageSize,
-): PageRange[] => {
+// The inclusive id range of consecutive source rows and how many rows it
+// holds.
+export type IdRange = Omit<PageRange, 'token'>;
+
+// Splits the sorted, distinct ids into consecutive ranges of at most
+// `size` rows.
+export const idRanges = (ids: readonly number[], size: number): IdRange[] => {
   const sorted = [...new Set(ids)].sort((left, right) => left - right);
-  const pages: PageRange[] = [];
+  const ranges: IdRange[] = [];
   for (let start = 0; start < sorted.length; start += size) {
     const chunk = sorted.slice(start, start + size);
     const from = chunk[0];
@@ -37,15 +37,22 @@ export const planPages = (
     if (from === undefined || to === undefined) {
       break;
     }
-    pages.push({
-      from,
-      rows: chunk.length,
-      to,
-      token: pageToken(pages.length),
-    });
+    ranges.push({ from, rows: chunk.length, to });
   }
-  return pages;
+  return ranges;
 };
+
+// Splits the source ids into consecutive planned pages. The ids are read
+// at the claimed revision; any later source change is refused at
+// completion, so the plan never has to guess ids it did not see.
+export const planPages = (
+  ids: readonly number[],
+  size: number = pageSize,
+): PageRange[] =>
+  idRanges(ids, size).map((range, index) => ({
+    ...range,
+    token: pageToken(index),
+  }));
 
 const pairKey = (row: CountRow): string => `${row.course}/${row.academic_year}`;
 

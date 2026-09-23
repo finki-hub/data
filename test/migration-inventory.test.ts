@@ -122,7 +122,9 @@ describe('inventory', () => {
       pathname.startsWith('/items/moodle_users?'),
     );
 
-    expect(queryOf(moodleRead?.pathname ?? '').get('fields')).toBe('id');
+    expect(queryOf(moodleRead?.pathname ?? '').get('fields')).toBe(
+      'Courses,id',
+    );
     expect(inventory.fields.moodle_users).toContain('Mail');
     expect(inventory.fields.courses).toContain('credits_2023');
     expect(inventory.checkpoint.curriculum_2023[0]).toMatchObject({

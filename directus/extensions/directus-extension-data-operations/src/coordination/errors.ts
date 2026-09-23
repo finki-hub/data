@@ -8,9 +8,11 @@ export const coordinationErrorCodes = [
   'INVALID_OPTIONS',
   'OWNER_MISMATCH',
   'PAGE_INCOMPLETE',
+  'PAGE_OVER_BUDGET',
   'PAGE_UNPLANNED',
   'PAGES_MISSING',
   'SOURCE_CHANGED',
+  'UNKNOWN_RULE_MODE',
 ] as const;
 
 export type CoordinationError = DirectusError;

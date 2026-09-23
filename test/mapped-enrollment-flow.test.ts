@@ -56,6 +56,8 @@ const foreign = /names a claim that is not the current claim/u;
 const revision = /names revision 6, and the claim runs at revision 7/u;
 const historyDomain = /the current claim runs history_index/u;
 const publicationDomain = /the current claim runs publication/u;
+const otherKind =
+  /is planned as a legacy(?:_zeros)? page, not a mapped rule page/u;
 const statusRefusal =
   /^read_plan must answer the one coordination status row\.$/u;
 const nothingStaged = /nothing was staged\.$/u;
@@ -240,6 +242,18 @@ describe('page plan script', () => {
     expect(checked(firstPage)).toEqual(firstPage);
   });
 
+  test('answers a mapped page of an enrollments plan', () => {
+    const enrollmentsPlan = {
+      ...status,
+      claim_pages: status.claim_pages.map((entry) => ({
+        ...entry,
+        kind: 'mapped',
+      })),
+    };
+
+    expect(checked(page, [enrollmentsPlan])).toEqual(page);
+  });
+
   test.each([
     {
       name: 'a consistent sub-range',
@@ -302,6 +316,40 @@ describe('page plan script', () => {
       name: 'a plan stored without ranges',
       readPlan: [{ ...status, claim_pages: ['p0001', 'p0002'] }],
       reason: unplanned,
+    },
+    {
+      name: 'a legacy page of an enrollments plan',
+      readPlan: [
+        {
+          ...status,
+          claim_pages: [
+            status.claim_pages[0],
+            {
+              bytes: 10,
+              from: 10,
+              kind: 'legacy',
+              rows: 3,
+              rules: { from: 20, rows: 1, to: 20 },
+              to: 14,
+              token: 'p0002',
+            },
+          ],
+        },
+      ],
+      reason: otherKind,
+    },
+    {
+      name: 'a zero page of an enrollments plan',
+      readPlan: [
+        {
+          ...status,
+          claim_pages: [
+            status.claim_pages[0],
+            { from: 10, kind: 'legacy_zeros', rows: 3, to: 14, token: 'p0002' },
+          ],
+        },
+      ],
+      reason: otherKind,
     },
   ])('refuses $name before a rule is read', ({ readPlan, reason, trigger }) => {
     const message = refusalOf(() =>
@@ -600,7 +648,8 @@ describe('mapped enrollment Flow templates', () => {
       code: pagePlanScript,
     });
     // The rules are read from the checked page only, never from the
-    // caller's range.
+    // caller's range, and only the mapped ones: an enrollments plan cuts
+    // mapped pages from the mapped rules, legacy rules may lie between.
     expect(step(mappedPageFlow, 'read_rules').options).toEqual({
       collection: 'course_enrollment_rules',
       emitEvents: false,
@@ -611,6 +660,7 @@ describe('mapped enrollment Flow templates', () => {
           id: {
             _between: ['{{ check_page.from }}', '{{ check_page.to }}'],
           },
+          mode: { _eq: 'mapped_entries' },
         },
         limit: -1,
         sort: ['id'],

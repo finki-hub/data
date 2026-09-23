@@ -29,6 +29,28 @@ export const mappedEnrollmentFlowIds = {
   pair: enrollmentId('01'),
 } as const;
 
+export const legacyFamily = '12';
+
+// A deterministic UUID of the legacy enrollment Flow family.
+export const legacyId = (suffix: string): string =>
+  familyId(legacyFamily, suffix);
+
+// An operation of the legacy enrollment family.
+export const legacyStep = (
+  spec: Omit<OperationSpec, 'family'>,
+): OperationTemplate => operation({ ...spec, family: legacyFamily });
+
+// The legacy enrollment Flows: the parent, one legacy page (a history page
+// crossed with a legacy rule page), one zero page (a legacy rule page).
+export const legacyEnrollmentFlowIds = {
+  page: legacyId('02'),
+  parent: legacyId('01'),
+  zeros: legacyId('03'),
+} as const;
+
+// The code every legacy Flow fails its claim with.
+export const legacyFailureCode = 'LEGACY_COUNT_FAILED';
+
 // A failure record in place of a result: where the run stopped, the code
 // (the refused operation's own, or a fixed one for a script) and its
 // message, plus the context the caller names (ids only, never a payload).
@@ -58,7 +80,9 @@ export const planQuery = {
 // Checks the page payload ($trigger = {claim, token, from, to, rows,
 // revision}) against the plan the coordinator stored (read_plan): the claim
 // must be the current enrollments claim at that very revision, and the page
-// must be planned under it with exactly this range and row count. Answers
+// must be planned under it with exactly this range and row count, as a
+// page of a `rules` plan or a mapped page of an `enrollments` plan (never a
+// legacy or zero page of the legacy family). Answers
 // the page as planned, and only that range is read. stage_page checks no
 // more than that the token is planned, so a consistent payload of a
 // sub-range, another page's range under this token or a claim of another
@@ -93,22 +117,30 @@ export const pagePlanScript = String.raw`module.exports = function (data) {
     return entry !== null && typeof entry === 'object' && entry.token === page.token;
   });
   if (planned.length !== 1) {
-    refuse('is not planned with its range under this claim (plan_pages with source rules)');
+    refuse('is not planned with its range under this claim (plan_pages with source enrollments or rules)');
   }
   const range = planned[0];
+  if (range.kind !== undefined && range.kind !== 'mapped') {
+    refuse('is planned as a ' + String(range.kind) + ' page, not a mapped rule page');
+  }
   if (range.from !== page.from || range.to !== page.to || range.rows !== page.rows) {
     refuse('was planned as ids ' + String(range.from) + ' to ' + String(range.to) + ' (' + String(range.rows) + ' rules), not ' + page.from + ' to ' + page.to + ' (' + page.rows + ')');
   }
   return { claim: page.claim, from: range.from, revision: page.revision, rows: range.rows, to: range.to, token: page.token };
 };`;
 
-// The rules of the planned page (check_page), read whole: the check below
-// compares their number with the plan, so a read cut short by
-// QUERY_LIMIT_MAX can never pass as a smaller page.
+// The mapped rules of the planned page (check_page), read whole: the check
+// below compares their number with the plan, so a read cut short by
+// QUERY_LIMIT_MAX can never pass as a smaller page. An enrollments plan
+// cuts mapped pages from the mapped_entries rules alone, so legacy rules
+// may lie inside the id range and are left out here; a `rules` plan counts
+// every rule of the range, so a legacy rule there makes the read shorter
+// than planned and refuses the page.
 export const rulePageQuery = {
   fields: ['id', 'course', 'academic_year', 'mode'],
   filter: {
     id: { _between: ['{{ check_page.from }}', '{{ check_page.to }}'] },
+    mode: { _eq: 'mapped_entries' },
   },
   limit: -1,
   sort: ['id'],

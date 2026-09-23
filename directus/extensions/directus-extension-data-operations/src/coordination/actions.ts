@@ -11,6 +11,7 @@ import {
   unreachable,
 } from './action-support.js';
 import { decideClaim } from './decisions.js';
+import { planEnrollmentsAction } from './plan-enrollments.js';
 import {
   completeAction,
   failAction,
@@ -124,7 +125,12 @@ export const runAction = (
     case 'mark':
       return markAction(input.domains, context);
     case 'plan_pages':
-      return planPagesAction(input, context);
+      return input.source === 'enrollments'
+        ? planEnrollmentsAction(input.token, context)
+        : planPagesAction(
+            { source: input.source, token: input.token },
+            context,
+          );
     case 'stage_page':
       return stagePageAction(input, context);
     case 'status':

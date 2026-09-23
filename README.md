@@ -18,7 +18,7 @@ branding files, and it does read `.env` (see [Branding](#branding)).
 
 | Situation | Command | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template and the mapped enrollment count Flow templates. Writes no records. |
+| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template and the mapped and legacy enrollment count Flow templates. Writes no records. |
 | New project, first data from the spreadsheet | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (below). |
 | Project that already holds data | `npm run migrate -- --dry-run --report <private path>`, then `-- --apply` | Upgrades it in place to the relational model through the migration ledger. Never reads the workbook. |
 
@@ -304,27 +304,28 @@ the course/year pairs whose enrollment rule has the mode `mapped_entries`:
   entries counts once. When nothing matches, the count is a real zero. On a
   failure the Flow returns `{ok: false, stage, code, message}` and never
   a zero. It writes nothing.
-- **Data / Count mapped enrollment page** takes one planned page of
-  `course_enrollment_rules` (`plan_pages` with source `rules`, plus the
-  claim and its revision). It first reads the plan that the coordinator
-  stored for the current claim. The claim must be that enrollments claim
-  at that revision, and the page's range and rule count must be the
-  planned ones; anything else is refused with `PAGE_PLAN_MISMATCH`. It
-  then reads the rules of the planned range and checks that it read every
-  one of them. It counts each pair with the Flow above, one pair at a
-  time, and stages all counts of the page, zeros included, in one
-  coordinator `stage_page` call. If any pair fails, it stages nothing.
+- **Data / Count mapped enrollment page** takes one planned mapped page
+  (a mapped page of `plan_pages` with source `enrollments`, or a page of
+  source `rules`, which the coordinator plans only while every rule is
+  `mapped_entries`, plus the claim and its revision). It first reads the plan
+  that the coordinator stored for the current claim. The claim must be that
+  enrollments claim at that revision, and the page's kind, range and rule
+  count must be the planned ones; anything else is refused with
+  `PAGE_PLAN_MISMATCH`. It then reads the `mapped_entries` rules of the
+  planned range and checks that it read every one of them. It counts each
+  pair with the Flow above, one pair at a time, and stages all counts of
+  the page, zeros included, in one coordinator `stage_page` call. If any
+  pair fails, it stages nothing.
 
 Only the enrollment claim's completion writes `course_enrollments`, and it
-replaces every row at the claimed revision. Setup does not install a Flow
-yet that claims enrollments, plans the pages, runs the page Flow for each of
-them and completes the claim; it arrives with the automatic processing work.
-Rules in `legacy_regex` mode have no counting Flow yet. The page Flow
-refuses a page that holds one (`INVALID_RULE_PAGE`) and stages nothing:
-`stage_page` replaces a page whole and the completion replaces every row,
-so staging only the mapped rules of that page would drop the legacy pair's
-count. An enrollment run therefore fails, and keeps the installed counts,
-while any legacy rule remains, until one step stages every rule of a page.
+replaces every row at the claimed revision, so one claim must stage both
+rule families (see the next section). Setup does not install a Flow yet
+that claims enrollments, plans the pages, runs both families and completes
+the claim; it arrives with the automatic processing work. The coordinator
+refuses `plan_pages` with source `rules` under an enrollments claim while
+any rule is not `mapped_entries`, and source `history` under any claim but
+a history index claim (`DOMAIN_MISMATCH`), so an enrollments claim is
+never completed from a plan that leaves the legacy family out.
 Both templates contain a coordinator step, so an edit to either of them in
 Studio marks every calculation pending again. The count query filters with
 the path `history_memberships.entry.mappings` and puts the course and the
@@ -339,6 +340,77 @@ mapped rule and one per page (256 for 254 rules on two pages), besides the
 row of the Flow that started it. Directus 12.3.1 prunes these rows only when
 `RETENTION_ENABLED` is `true`; run rows then follow `FLOW_LOGS_RETENTION`
 (90 days by default). The Compose file leaves retention off.
+
+## Enrollment counts from legacy rules
+
+Every existing course/year is seeded by the migration as a `legacy_regex`
+rule with the pattern text the checkpoint compiled (a last-id override of
+`course_enrollment_patterns`, else the literal `<course name>-<year>`). The
+pattern stays editable in **Course Enrollment Rules**; no Flow and no
+extension interprets it except the count script below, which applies it
+exactly like the checkpoint did: `new RegExp(pattern, 'u')` over the whole
+raw `Courses` history, tested once per user. Names are not escaped, so a
+pattern may cross line boundaries, and a pattern that does not compile
+(for example the default of a course named `C++ Course`) fails the run.
+
+`npm run setup` installs three operation-triggered templates:
+
+- **Data / Count legacy enrollments** takes `{claim}`. It reads the plan the
+  caller stored with `plan_pages` source `enrollments`, runs the two Flows
+  below serially for every planned legacy page and zero page, checks every
+  answer, and answers `{ok: true, legacyPages, staged, zeroPages, pairs,
+  counted, zeros}`. It never plans and never completes. Any failure fails
+  the claim (`LEGACY_COUNT_FAILED`), so its candidates are discarded and the
+  installed counts stay, and answers `{ok: false, stage, code, message}`
+  naming the first failed page.
+- **Data / Count legacy rules page** counts one legacy page: at most 250
+  Moodle users (only `id` and `Courses` are read) against at most 500
+  legacy rules (`id`, `course`, `academic_year`, `pattern`). It checks the
+  page against the stored plan, validates types, counts and the byte sizes
+  of the histories and of the patterns, compiles every pattern first, and
+  stages only the nonzero partial counts. When any step fails it fails the
+  claim at once, so every later page of the run refuses without reading a
+  history or compiling a pattern: a pathological pattern costs one
+  timeout, not one per history page.
+- **Data / Fill legacy rule zeros** runs once per legacy rule page after all
+  of its legacy pages. It reads the native `sum(count)` grouped by course
+  and year over this claim's candidates of exactly those pages (never
+  another claim's, a mapped page's or its own earlier rows) and stages an
+  explicit zero for every legacy pair no page counted. Like the page Flow,
+  it fails the claim at once when any step fails. The completion sums the
+  staged rows and never fills zeros itself.
+
+`plan_pages` with source `enrollments` plans both families in one plan of
+an enrollments claim: the mapped pages first, then per legacy rule page
+every history page and its zero page. Every page must be staged before
+`complete` accepts the claim, so a run that skips a family is refused with
+`PAGES_MISSING` and deletes nothing. History pages hold at most 250 users
+and 800,000 UTF-8 bytes of `Courses`; legacy rule pages hold at most 500
+rules and 1,000,000 UTF-8 bytes of pattern text, with no cap on a single
+pattern's length. Run Script copies the whole data chain into an isolate
+of 32 MB (`FLOWS_RUN_SCRIPT_MAX_MEMORY`) and stops it after 10 seconds
+(`FLOWS_RUN_SCRIPT_TIMEOUT`). On Directus 12.3.1 the isolate is disposed
+at about 16 MB of string storage, and a text with any non-Latin-1
+character costs two bytes per character there. The time of a page grows
+with its rules times its bytes: on the largest page, literal and
+cross-line patterns take 0.1 to 0.2 seconds and whole-text line walks
+such as `^(?:.*\n)*...` about 3.3 seconds, a third of the timeout. A
+single history or pattern over its budget refuses the plan
+(`PAGE_OVER_BUDGET`, naming the user or rule id and the sizes only). A
+pathological pattern runs into the Run Script timeout and fails the run
+visibly. Neither limit is raised automatically.
+
+The dry-run of `npm run migrate` also writes a conversion proposal into the
+private report (`mappingProposal`): for every legacy rule whose course/year
+has explicit entry mappings it compares the set of Moodle user ids the
+pattern matches with the set the mappings match, and for every superseded
+duplicate pattern row the set that row would match, with counts and at most
+five sample user ids per difference. Each expression runs over the
+histories with a deadline of 10 seconds; one that runs out is reported as
+`timedOut` (never equal) instead of holding the dry-run. It never changes
+a rule; switch a rule to `mapped_entries` in Studio only where the sets
+are equal, and keep `legacy_regex` where an expression needs several
+entries at once. The printed summary carries the counts only.
 
 ## Branding
 

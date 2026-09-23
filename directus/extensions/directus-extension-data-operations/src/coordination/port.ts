@@ -1,3 +1,4 @@
+import type { EnrollmentSources, RuleMode } from '../enrollment-pages.js';
 import type { CountRow, PageRange } from '../page-state.js';
 import type { HistoryIndexPort } from './history-port.js';
 import type {
@@ -30,6 +31,10 @@ export type CoordinationPort = {
   readonly candidateCount: (token: string) => Promise<number>;
   readonly currentFingerprint: () => Promise<string>;
   readonly discardCandidates: (token: string, page?: string) => Promise<number>;
+  // The id, mode and pattern bytes of every enrollment rule and the id
+  // and Courses bytes of every Moodle user: what an enrollments plan is
+  // cut from. No pattern, course, year or history text is read.
+  readonly enrollmentSources: () => Promise<EnrollmentSources>;
   readonly ensureSingleton: () => Promise<void>;
   // Guard: claim token, owner, source revision and fingerprint unchanged.
   readonly finish: (input: FinishInput) => Promise<boolean>;
@@ -57,8 +62,13 @@ export type CoordinationPort = {
   ) => Promise<boolean>;
   // Guard: claim token. Clears the claim and records the failure details.
   readonly release: (input: ReleaseInput) => Promise<boolean>;
+  // The id, mode and pattern bytes of every enrollment rule (never its
+  // pattern), for a rules plan's check that no rule is legacy_regex.
+  readonly ruleModes: () => Promise<readonly RuleMode[]>;
   readonly sourceIds: (source: PageSource) => Promise<readonly number[]>;
-  // Guard: claim token, owner and source revision unchanged.
+  // Guard: claim token, owner and source revision unchanged. A page of an
+  // enrollments plan carries its kind (and a legacy page its bytes and rule
+  // range) beside the range the coordinator keeps.
   readonly storePlan: (
     token: string,
     owner: string,

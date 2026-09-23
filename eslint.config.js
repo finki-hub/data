@@ -64,6 +64,8 @@ const config = [
   {
     files: [
       'directus/extensions/directus-extension-rebuild-derived-data/derive.js',
+      'directus/flows/count-history-page.cjs',
+      'src/migrations/enrollment-rules.ts',
       'src/migrations/labels.ts',
       'src/workbook-enrollment-reader.ts',
     ],
@@ -89,6 +91,7 @@ const config = [
     // paths; the CLI tests write and read them in a temporary directory.
     files: [
       'src/migrations/private-files.ts',
+      'test/enrollment-proposal.test.ts',
       'test/import-cli.test.ts',
       'test/migration-cli.test.ts',
       'test/relational/lifecycle.integration.mjs',
@@ -113,9 +116,12 @@ const config = [
     // The Run Script bodies of the history index Flows are string
     // constants; the suite executes them in node:vm against the shared
     // history vector to prove they split exactly like the bundle; the
-    // mapped enrollment scripts run there against the data chain shapes.
+    // mapped and legacy enrollment scripts run there against the data
+    // chain shapes.
     files: [
       'test/history-index.test.ts',
+      'test/legacy-enrollment-helpers.ts',
+      'test/legacy-enrollment-templates.test.ts',
       'test/mapped-enrollment-flow.test.ts',
     ],
     rules: {

@@ -17,11 +17,13 @@ import {
   claimSql,
   finishSql,
   graphSql,
+  historySizesSql,
   insertSql,
   installSql,
   markSql,
   planSql,
   releaseSql,
+  ruleModesSql,
   stagedSql,
   stateSql,
 } from './sql-statements.js';
@@ -51,6 +53,19 @@ const resultSchema = z.object({
 
 const countRow = z.object({ count: z.coerce.number().int().nonnegative() });
 const idRows = z.array(z.object({ id: z.coerce.number().int() }));
+const ruleModeRows = z.array(
+  z.object({
+    bytes: z.coerce.number().int().nonnegative(),
+    id: z.coerce.number().int(),
+    mode: z.string().nullable(),
+  }),
+);
+const historySizeRows = z.array(
+  z.object({
+    bytes: z.coerce.number().int().nonnegative(),
+    id: z.coerce.number().int(),
+  }),
+);
 const graphRows = z.array(
   z.object({
     entry: z.string().nullable(),
@@ -133,6 +148,14 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
       `DELETE FROM "data_operation_results" WHERE "claim_token" = ?${page === undefined ? '' : ' AND "page_token" = ?'}`,
       page === undefined ? [token] : [token, page],
     ),
+  enrollmentSources: async () => {
+    const rules = await run(client, ruleModesSql);
+    const users = await run(client, historySizesSql);
+    return {
+      rules: ruleModeRows.parse(rules.rows),
+      users: historySizeRows.parse(users.rows),
+    };
+  },
   ensureSingleton: async () => {
     await run(
       client,
@@ -185,6 +208,10 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
       input.failed ? 'failed' : 'idle',
       input.token,
     ]),
+  ruleModes: async () => {
+    const rules = await run(client, ruleModesSql);
+    return ruleModeRows.parse(rules.rows);
+  },
   sourceIds: async (source: PageSource) => {
     const result = await run(
       client,

@@ -11,6 +11,7 @@ import {
   MigrationConfigError,
 } from './config.js';
 import { countByCode, runConversion } from './conversion.js';
+import { proposeMappingConversion } from './enrollment-rules.js';
 import { fingerprintInventory } from './fingerprint.js';
 import { readInventory } from './inventory.js';
 import { ledgerCollection } from './ledger-claim.js';
@@ -22,6 +23,7 @@ import {
   readPrivateJson,
   writePrivateJson,
 } from './private-files.js';
+import { proposalInputs, readProposalMappings } from './proposal-inputs.js';
 import {
   type MigrationReport,
   migrationReportSchema,
@@ -54,13 +56,26 @@ const dryRun = async (
     inventory,
     ledger === null ? null : summarizeLedger(ledger),
   );
-  await writePrivateJson(config.report, report);
+  // The regex-to-mapping proposal goes into the private report only; the
+  // printed summary carries its counts.
+  const mappingProposal = proposeMappingConversion(
+    proposalInputs(
+      inventory,
+      report,
+      await readProposalMappings(
+        request,
+        inventory.targets?.academic_years ?? [],
+      ),
+    ),
+  );
+  await writePrivateJson(config.report, { ...report, mappingProposal });
   io.stdout(
     JSON.stringify({
       blockers: report.blockers.length,
       counts: report.counts,
       findings: countByCode([...report.blockers, ...report.warnings]),
       ledger: report.ledger,
+      mappingProposal: mappingProposal.summary,
       migratable: report.migratable,
       mode: 'dry-run',
       reportWritten: true,

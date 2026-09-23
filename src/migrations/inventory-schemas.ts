@@ -9,8 +9,10 @@ const idText = z.union([z.string(), z.number().int()]).transform(String);
 // The exact checkpoint columns the preflight reads: the labels that drive
 // every lookup, the overrides that take precedence over them, and every
 // value column a converter copies into the relational model, so an edit to
-// any of them changes the source fingerprint. Emails, names of students,
-// Moodle profiles and histories are never requested.
+// any of them changes the source fingerprint. The raw Moodle histories are
+// read for the fingerprint and the legacy-regex-to-mapping proposal
+// (follow-up 14) and never written to the report; emails, names of
+// students and Moodle profiles are never requested.
 export const courseRow = z.object({
   available_2018: flag,
   available_2023: flag,
@@ -24,6 +26,9 @@ export const courseRow = z.object({
 });
 export const staffRow = z.object({ id, name: text });
 export const idRow = z.object({ id });
+// A workbook row without a history is written without the column, which
+// the database stores as NULL.
+export const moodleUserRow = z.object({ Courses: text.default(null), id });
 export const studentRow = z.object({ id, index_number: text });
 const curriculumBase = {
   catalog_order: integer,

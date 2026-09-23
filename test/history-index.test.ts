@@ -729,9 +729,21 @@ describe('index guards', () => {
     fake.fingerprint = graphA;
     fake.data.calculationFingerprint = graphA;
     fake.sourceIds.history = [1];
+    fake.sourceIds.rules = [1];
     fake.sourceWrite('academic_years');
     const token = await claimDomain(fake, 'enrollments');
-    await planHistory(fake, token);
+
+    // The users are never planned under an enrollment claim; a page
+    // planned from its rules still names p0001 for the writer to refuse.
+    await expect(failureOf(planHistory(fake, token))).resolves.toEqual({
+      code: 'COORDINATION_DOMAIN_MISMATCH',
+      status: 409,
+    });
+
+    await runAction(
+      { action: 'plan_pages', source: 'rules', token },
+      context(fake),
+    );
 
     await expect(
       failureOf(indexPage(fake, { rows: [{ entries: ['A'], id: 1 }], token })),

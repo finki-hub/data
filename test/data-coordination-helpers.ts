@@ -2,6 +2,7 @@ import type {
   CoordinationPort,
   CoordinationStore,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/port.js';
+import type { EnrollmentSources } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
 
 import {
   type ClaimDomain,
@@ -93,6 +94,9 @@ export class FakeCoordination {
   // a writing transaction locked the singleton before anything else.
   public readLocks: boolean[] = [];
   public sourceIds: Record<PageSource, number[]> = { history: [], rules: [] };
+  // What plan_pages with source enrollments reads: rule modes and pattern
+  // bytes (also what a rules plan checks) and history byte sizes.
+  public enrollmentSources: EnrollmentSources = { rules: [], users: [] };
   public transactions = 0;
   public readonly store: CoordinationStore;
 
@@ -266,6 +270,7 @@ export class FakeCoordination {
         );
         return before - data().candidates.length;
       },
+      enrollmentSources: async () => this.enrollmentSources,
       ensureSingleton: async () => {},
       finish: async (input) => {
         const claim = this.#liveClaim(input.token, input.owner, false);
@@ -382,6 +387,7 @@ export class FakeCoordination {
         this.#release(claim, input);
         return true;
       },
+      ruleModes: async () => this.enrollmentSources.rules,
       sourceIds: async (source) => this.sourceIds[source],
       storePlan: async (token, owner, pages) => {
         const claim = this.#liveClaim(token, owner, true);

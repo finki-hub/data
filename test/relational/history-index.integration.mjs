@@ -759,15 +759,18 @@ const gatesNonAdministrators = async (target) => {
 };
 
 // The writer serves the history domain only; an enrollment claim is
-// refused and released cleanly.
+// refused and released cleanly. Since Task 12 the coordinator refuses to
+// plan the Moodle users under it at all, so no history page is planned
+// for the writer to be offered; the writer's own domain check is covered
+// by the unit suite.
 const refusesForeignDomain = async (target, state) => {
   const claim = await act(target, { action: 'claim', domain: 'enrollments' });
   assert.equal(claim.claimed, true, JSON.stringify(claim));
-  await act(target, {
-    action: 'plan_pages',
-    source: 'history',
-    token: claim.token,
-  });
+  await refused(
+    target,
+    { action: 'plan_pages', source: 'history', token: claim.token },
+    'COORDINATION_DOMAIN_MISMATCH',
+  );
   await refused(
     target,
     {
@@ -776,7 +779,7 @@ const refusesForeignDomain = async (target, state) => {
       rows: pageRows(state.users),
       token: claim.token,
     },
-    'COORDINATION_DOMAIN_MISMATCH',
+    'COORDINATION_PAGE_UNPLANNED',
   );
   const rules = await act(target, {
     action: 'plan_pages',

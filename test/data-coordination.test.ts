@@ -576,10 +576,7 @@ describe('pages over the persistence port', () => {
 
   test('never labels a partial batch current and installs aggregated counts atomically', async () => {
     const fake = new FakeCoordination();
-    fake.sourceIds.history = Array.from(
-      { length: 300 },
-      (_, index) => index + 1,
-    );
+    fake.sourceIds.rules = Array.from({ length: 300 }, (_, index) => index + 1);
     fake.data.enrollments.push({
       academic_year: 9,
       count: 99,
@@ -591,7 +588,7 @@ describe('pages over the persistence port', () => {
     const token = await claimToken(fake, enrollments);
     const plan = planned.parse(
       await runAction(
-        { action: 'plan_pages', source: 'history', token },
+        { action: 'plan_pages', source: 'rules', token },
         context(fake),
       ),
     );
@@ -644,17 +641,21 @@ describe('pages over the persistence port', () => {
 
   test('discards the candidates of a replaced plan so completion installs only the current plan', async () => {
     const fake = new FakeCoordination();
-    fake.sourceIds.history = Array.from(
-      { length: 300 },
-      (_, index) => index + 1,
-    );
+    fake.enrollmentSources = {
+      rules: Array.from({ length: 300 }, (_, index) => ({
+        bytes: 0,
+        id: index + 1,
+        mode: 'mapped_entries',
+      })),
+      users: [],
+    };
     fake.sourceIds.rules = [1, 2, 3];
     await settleHistory(fake);
     fake.sourceWrite('moodle_course_mappings');
     const token = await claimToken(fake, enrollments);
     const row = { academic_year: 1, count: 10, course: 1 };
     const first = await runAction(
-      { action: 'plan_pages', source: 'history', token },
+      { action: 'plan_pages', source: 'enrollments', token },
       context(fake),
     );
 
@@ -891,10 +892,15 @@ describe('failures and recovery over the persistence port', () => {
     fake.data.calculationFingerprint = graphA;
     fake.sourceWrite('courses');
     const token = await claimToken(fake, publication, { owner: oldProcess });
-    await runAction(
-      { action: 'plan_pages', source: 'rules', token },
-      context(fake, oldProcess),
-    );
+
+    // A publication claim plans no table source.
+    await expect(
+      runAction(
+        { action: 'plan_pages', source: 'rules', token },
+        context(fake, oldProcess),
+      ),
+    ).rejects.toMatchObject({ code: 'COORDINATION_DOMAIN_MISMATCH' });
+
     await failureOf(
       stage(fake, {
         owner: oldProcess,

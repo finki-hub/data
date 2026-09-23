@@ -177,8 +177,20 @@ const runOperations = [
     suffix: '17',
     type: 'throw-error',
   }),
+  // A refused plan releases the claim, as a dispatcher would.
   step({
-    edges: { reject: '17', resolve: '18' },
+    edges: { resolve: '17' },
+    key: 'plan_fail',
+    options: {
+      action: 'fail',
+      code: 'PLAN_FAILED',
+      token: '{{ claim.token }}',
+    },
+    suffix: '20',
+    type: coordinate,
+  }),
+  step({
+    edges: { reject: '20', resolve: '18' },
     key: 'plan',
     options: {
       action: 'plan_pages',

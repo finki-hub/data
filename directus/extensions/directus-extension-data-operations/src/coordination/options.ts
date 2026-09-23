@@ -7,7 +7,7 @@ import {
   coordinationDomains,
   maxRowsPerPage,
   pageSize,
-  pageSources,
+  planSources,
   publishedFiles,
 } from './state.js';
 
@@ -100,7 +100,7 @@ export const coordinatorInputSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('plan_pages'),
-    source: z.preprocess(blank, z.enum(pageSources)),
+    source: z.preprocess(blank, z.enum(planSources)),
     token,
   }),
   z.object({

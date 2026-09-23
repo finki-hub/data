@@ -7,6 +7,7 @@ import {
 } from './data-model/constraints.js';
 import { installDataModel } from './data-model/install.js';
 import { installPresentation } from './data-model/presentation.js';
+import { installLegacyEnrollmentFlows } from './flows/count-legacy-enrollments.js';
 import { installMappedEnrollmentFlows } from './flows/count-mapped-enrollments.js';
 import { installHistoryIndexFlows } from './flows/index-histories.js';
 import { installSnapshotFolder } from './flows/snapshot-folder.js';
@@ -16,7 +17,7 @@ import { installSnapshotImportFlows } from './flows/snapshot-import.js';
 // constraints and source-invalidation triggers, the Studio presentation,
 // the checkpoint table views with the Search bookmark, the private folder
 // of the Moodle snapshot files and the Flow templates (history index,
-// snapshot import, mapped enrollment counts). Every step is
+// snapshot import, mapped and legacy enrollment counts). Every step is
 // idempotent and install-once (a rerun preserves Studio edits to presets,
 // the folder and Flows) and none writes a data record.
 // The workbook import runs exactly this before it writes any row, so an
@@ -31,9 +32,20 @@ export const runSetup = async (request: DirectusRequest) => {
   const history = await installHistoryIndexFlows(request);
   const snapshot = await installSnapshotImportFlows(request);
   const enrollments = await installMappedEnrollmentFlows(request);
+  const legacy = await installLegacyEnrollmentFlows(request);
   const flows = {
-    created: [...history.created, ...snapshot.created, ...enrollments.created],
-    skipped: [...history.skipped, ...snapshot.skipped, ...enrollments.skipped],
+    created: [
+      ...history.created,
+      ...snapshot.created,
+      ...enrollments.created,
+      ...legacy.created,
+    ],
+    skipped: [
+      ...history.skipped,
+      ...snapshot.skipped,
+      ...enrollments.skipped,
+      ...legacy.skipped,
+    ],
   };
   return {
     ...summary,

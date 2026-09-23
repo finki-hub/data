@@ -1,4 +1,5 @@
 import type { CoordinatorInput } from './options.js';
+import type { PageSource } from './state.js';
 
 import { duplicatePairs, planPages } from '../page-state.js';
 import {
@@ -17,6 +18,7 @@ import {
   verifyOwnership,
 } from './decisions.js';
 import { coordinationError } from './errors.js';
+import { checkPlanSource } from './plan-enrollments.js';
 
 type Input<Action extends CoordinatorInput['action']> = Extract<
   CoordinatorInput,
@@ -32,9 +34,10 @@ type Input<Action extends CoordinatorInput['action']> = Extract<
 // A plan starts, or restarts, the staging of the claim: every candidate row
 // staged under the claim so far is discarded in the same transaction, so a
 // completed run installs exactly the pages of its current plan and never a
-// page of a plan it replaced.
+// page of a plan it replaced. A source that does not fit the claim's domain
+// is refused first (checkPlanSource), and the claim stays as it was.
 export const planPagesAction = (
-  input: Input<'plan_pages'>,
+  input: { readonly source: PageSource; readonly token: string },
   context: ActionContext,
 ) =>
   guarded(context, async (port) => {
@@ -46,9 +49,10 @@ export const planPagesAction = (
     if (verdict === 'source_changed') {
       return overtaken(verdict, input.token);
     }
-    if (verdict !== 'ok') {
-      throw mismatch(verdict);
+    if (verdict !== 'ok' || state.claim === null) {
+      throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);
     }
+    await checkPlanSource(port, state.claim.domain, input.source);
     const discarded = await port.discardCandidates(input.token);
     const pages = planPages(await port.sourceIds(input.source));
     if (!(await port.storePlan(input.token, context.owner, pages))) {

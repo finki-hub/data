@@ -13,6 +13,7 @@ import { findModelCollection } from '../../src/data-model/collections.js';
 import { derivedDataFlowId } from '../../src/derived-data-flow.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { toApiField } from '../../src/directus.js';
+import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.js';
 import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { snapshotImportFlows } from '../../src/flows/snapshot-import.js';
@@ -57,6 +58,7 @@ const setupFlows = [
   ...historyIndexFlows,
   ...snapshotImportFlows,
   ...mappedEnrollmentFlows,
+  ...legacyEnrollmentFlows,
 ];
 const templateFlowIds = new Set([
   ...checkpointFlowIds,

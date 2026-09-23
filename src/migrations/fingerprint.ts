@@ -4,8 +4,10 @@ import type { Inventory } from './inventory.js';
 
 // Bumped whenever the inventoried payload changes shape: version 2 added the
 // curriculum and course value columns the converters copy and the column
-// list of every checkpoint collection.
-export const fingerprintVersion = 2;
+// list of every checkpoint collection; version 3 added the raw `Courses`
+// history of every Moodle user, which the legacy-regex-to-mapping proposal
+// reads, so an edited history is drift.
+export const fingerprintVersion = 3;
 
 const collator = new Intl.Collator('en');
 
