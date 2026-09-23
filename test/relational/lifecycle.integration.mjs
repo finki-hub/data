@@ -13,6 +13,7 @@ import { findModelCollection } from '../../src/data-model/collections.js';
 import { derivedDataFlowId } from '../../src/derived-data-flow.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { toApiField } from '../../src/directus.js';
+import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { snapshotImportFlows } from '../../src/flows/snapshot-import.js';
 import { runImportCli } from '../../src/import-run.js';
@@ -52,7 +53,11 @@ const stepNames = [
   'equivalencies',
 ];
 const checkpointFlowIds = [derivedDataFlowId, publicAssetsFlowId];
-const setupFlows = [...historyIndexFlows, ...snapshotImportFlows];
+const setupFlows = [
+  ...historyIndexFlows,
+  ...snapshotImportFlows,
+  ...mappedEnrollmentFlows,
+];
 const templateFlowIds = new Set([
   ...checkpointFlowIds,
   ...setupFlows.map(({ id }) => id),

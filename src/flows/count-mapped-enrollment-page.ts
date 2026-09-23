@@ -1,0 +1,172 @@
+import { coordinateOperation, type FlowTemplate } from './flow-template.js';
+import {
+  candidateRowsScript,
+  countFailure,
+  enrollmentId,
+  mappedEnrollmentFlowIds,
+  pagePlanScript,
+  planQuery,
+  rulePageQuery,
+  rulePairsScript,
+  enrollmentStep as step,
+} from './shared.js';
+
+const pageContext = { page: '{{ $trigger.token }}' };
+
+// One planned page of course_enrollment_rules under an enrollment claim.
+// The page is first checked against the plan the coordinator stored for
+// the current claim, then its rules (all mapped_entries) name its pairs,
+// the pair Flow counts each in turn, and the page's candidate rows are
+// staged in one stage_page call, which replaces whatever the page staged
+// before. A failure anywhere stages nothing and answers a failure record.
+export const mappedPageFlow: FlowTemplate = {
+  accountability: 'activity',
+  description:
+    'Stages the mapped enrollment counts of one planned rule page. Input {claim, token, from, to, rows, revision} (a plan_pages page of source "rules" plus the claim and its revision): checks the page against the plan stored for the current enrollments claim (claim, revision, range and rule count), reads the rules of the page, refuses a page that holds a rule of another mode, counts every course/year serially with "Data / Count mapped enrollments", and stages all of them, zeros included, with stage_page. Answers {page, replaced, staged}, or {ok: false, page, stage, code, message} with nothing staged. Only the claim\'s completion installs course enrollments.',
+  entry: enrollmentId('21'),
+  icon: 'functions',
+  id: mappedEnrollmentFlowIds.page,
+  name: 'Data / Count mapped enrollment page',
+  operations: [
+    step({
+      edges: { reject: enrollmentId('28'), resolve: enrollmentId('22') },
+      key: 'read_plan',
+      name: 'Read the plan of the claim',
+      options: {
+        collection: 'data_operations',
+        emitEvents: false,
+        permissions: '$full',
+        query: planQuery,
+      },
+      position: [19, 1],
+      suffix: '21',
+      type: 'item-read',
+    }),
+    step({
+      edges: { reject: enrollmentId('29'), resolve: enrollmentId('23') },
+      key: 'check_page',
+      name: 'Check the page against the plan',
+      options: { code: pagePlanScript },
+      position: [37, 1],
+      suffix: '22',
+      type: 'exec',
+    }),
+    step({
+      edges: { reject: enrollmentId('2a'), resolve: enrollmentId('24') },
+      key: 'read_rules',
+      name: 'Read the rules of the page',
+      options: {
+        collection: 'course_enrollment_rules',
+        emitEvents: false,
+        permissions: '$full',
+        query: rulePageQuery,
+      },
+      position: [55, 1],
+      suffix: '23',
+      type: 'item-read',
+    }),
+    step({
+      edges: { reject: enrollmentId('2b'), resolve: enrollmentId('25') },
+      key: 'pair_payloads',
+      name: 'List the mapped course/year pairs',
+      options: { code: rulePairsScript },
+      position: [73, 1],
+      suffix: '24',
+      type: 'exec',
+    }),
+    step({
+      edges: { reject: enrollmentId('2c'), resolve: enrollmentId('26') },
+      key: 'count_pairs',
+      name: 'Count every pair in turn',
+      options: {
+        flow: mappedEnrollmentFlowIds.pair,
+        iterationMode: 'serial',
+        payload: '{{ pair_payloads }}',
+      },
+      position: [91, 1],
+      suffix: '25',
+      type: 'trigger',
+    }),
+    step({
+      edges: { reject: enrollmentId('2d'), resolve: enrollmentId('27') },
+      key: 'candidate_rows',
+      name: 'Check every count of the page',
+      options: { code: candidateRowsScript },
+      position: [109, 1],
+      suffix: '26',
+      type: 'exec',
+    }),
+    step({
+      edges: { reject: enrollmentId('2e') },
+      key: 'stage_candidates',
+      name: 'Stage the candidate counts of the page',
+      options: {
+        action: 'stage_page',
+        page: '{{ check_page.token }}',
+        rows: '{{ candidate_rows }}',
+        token: '{{ check_page.claim }}',
+      },
+      position: [127, 1],
+      suffix: '27',
+      type: coordinateOperation,
+    }),
+    step({
+      key: 'plan_failed',
+      name: 'Record the plan read failure',
+      options: countFailure('plan', pageContext),
+      position: [19, 19],
+      suffix: '28',
+      type: 'transform',
+    }),
+    step({
+      key: 'page_failed',
+      name: 'Record the unplanned page',
+      options: countFailure('page', pageContext, 'PAGE_PLAN_MISMATCH'),
+      position: [37, 19],
+      suffix: '29',
+      type: 'transform',
+    }),
+    step({
+      key: 'rules_failed',
+      name: 'Record the rule read failure',
+      options: countFailure('rules', pageContext),
+      position: [55, 19],
+      suffix: '2a',
+      type: 'transform',
+    }),
+    step({
+      key: 'payloads_failed',
+      name: 'Record the refused rule page',
+      options: countFailure('pairs', pageContext, 'INVALID_RULE_PAGE'),
+      position: [73, 19],
+      suffix: '2b',
+      type: 'transform',
+    }),
+    step({
+      key: 'pairs_failed',
+      name: 'Record the pair run failure',
+      options: countFailure('count', pageContext),
+      position: [91, 19],
+      suffix: '2c',
+      type: 'transform',
+    }),
+    step({
+      key: 'candidates_failed',
+      name: 'Record the failed pair',
+      options: countFailure('candidates', pageContext, 'COUNT_FAILED'),
+      position: [109, 19],
+      suffix: '2d',
+      type: 'transform',
+    }),
+    step({
+      key: 'stage_failed',
+      name: 'Record the staging failure',
+      options: countFailure('stage', pageContext),
+      position: [127, 19],
+      suffix: '2e',
+      type: 'transform',
+    }),
+  ],
+  options: { return: '$last' },
+  trigger: 'operation',
+};

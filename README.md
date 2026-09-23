@@ -18,7 +18,7 @@ branding files, and it does read `.env` (see [Branding](#branding)).
 
 | Situation | Command | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)** and the **Data / Import Moodle snapshot** Flow template. Writes no records. |
+| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template and the mapped enrollment count Flow templates. Writes no records. |
 | New project, first data from the spreadsheet | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (below). |
 | Project that already holds data | `npm run migrate -- --dry-run --report <private path>`, then `-- --apply` | Upgrades it in place to the relational model through the migration ledger. Never reads the workbook. |
 
@@ -290,6 +290,55 @@ this workflow, whatever later imports did). A failed run logs its code and
 the database object involved, never a value, to the Directus log.
 
 After promoting a new snapshot, also run **Rebuild derived data** from the Flows action in any affected source collection. This refreshes course enrollment counts and the other derived fields. Publishing to R2 remains a separate explicit action.
+
+## Enrollment counts from explicit mappings
+
+`npm run setup` installs two operation-triggered Flow templates that count
+the course/year pairs whose enrollment rule has the mode `mapped_entries`:
+
+- **Data / Count mapped enrollments** counts one pair. It takes
+  `{course, academic_year, revision, claim}`, refreshes the enrollment claim,
+  reads the number of distinct Moodle users that have a history entry mapped
+  to that course and academic year in one mapping row, and returns
+  `{course, academic_year, count, revision}`. A user who has two matching
+  entries counts once. When nothing matches, the count is a real zero. On a
+  failure the Flow returns `{ok: false, stage, code, message}` and never
+  a zero. It writes nothing.
+- **Data / Count mapped enrollment page** takes one planned page of
+  `course_enrollment_rules` (`plan_pages` with source `rules`, plus the
+  claim and its revision). It first reads the plan that the coordinator
+  stored for the current claim. The claim must be that enrollments claim
+  at that revision, and the page's range and rule count must be the
+  planned ones; anything else is refused with `PAGE_PLAN_MISMATCH`. It
+  then reads the rules of the planned range and checks that it read every
+  one of them. It counts each pair with the Flow above, one pair at a
+  time, and stages all counts of the page, zeros included, in one
+  coordinator `stage_page` call. If any pair fails, it stages nothing.
+
+Only the enrollment claim's completion writes `course_enrollments`, and it
+replaces every row at the claimed revision. Setup does not install a Flow
+yet that claims enrollments, plans the pages, runs the page Flow for each of
+them and completes the claim; it arrives with the automatic processing work.
+Rules in `legacy_regex` mode have no counting Flow yet. The page Flow
+refuses a page that holds one (`INVALID_RULE_PAGE`) and stages nothing:
+`stage_page` replaces a page whole and the completion replaces every row,
+so staging only the mapped rules of that page would drop the legacy pair's
+count. An enrollment run therefore fails, and keeps the installed counts,
+while any legacy rule remains, until one step stages every rule of a page.
+Both templates contain a coordinator step, so an edit to either of them in
+Studio marks every calculation pending again. The count query filters with
+the path `history_memberships.entry.mappings` and puts the course and the
+year side by side in that path. Keep that shape when you edit the query in Studio:
+Directus ignores a `_some` block that holds two conditions, and two separate
+`_some` blocks can match the course of one mapping with the year of
+another.
+
+Both Flows log activity only (no data chain is stored). Directus writes one
+`run` activity row for every Flow run, so an enrollment run adds one row per
+mapped rule and one per page (256 for 254 rules on two pages), besides the
+row of the Flow that started it. Directus 12.3.1 prunes these rows only when
+`RETENTION_ENABLED` is `true`; run rows then follow `FLOW_LOGS_RETENTION`
+(90 days by default). The Compose file leaves retention off.
 
 ## Branding
 

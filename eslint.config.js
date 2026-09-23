@@ -27,7 +27,8 @@ const config = [
     },
   },
   {
-    files: ['directus/extensions/**/*.js'],
+    // Flow scripts answer Directus field names such as academic_year.
+    files: ['directus/extensions/**/*.js', 'directus/flows/**/*.cjs'],
     rules: {
       camelcase: 'off',
     },
@@ -111,8 +112,12 @@ const config = [
   {
     // The Run Script bodies of the history index Flows are string
     // constants; the suite executes them in node:vm against the shared
-    // history vector to prove they split exactly like the bundle.
-    files: ['test/history-index.test.ts'],
+    // history vector to prove they split exactly like the bundle; the
+    // mapped enrollment scripts run there against the data chain shapes.
+    files: [
+      'test/history-index.test.ts',
+      'test/mapped-enrollment-flow.test.ts',
+    ],
     rules: {
       'sonarjs/code-eval': 'off',
     },
