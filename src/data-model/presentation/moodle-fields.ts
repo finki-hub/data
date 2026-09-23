@@ -31,7 +31,7 @@ export const moodleFieldPresentations: readonly FieldPresentation[] = [
     collection: 'moodle_course_entries',
     field: 'memberships',
     meta: {
-      note: 'Moodle users whose raw history carries this entry, in first-occurrence order: a derived index the "Data / Rebuild Moodle history index" Flow replaces, never edited.',
+      note: 'Moodle users whose raw history carries this entry, in first-occurrence order: a derived index the scheduled "Data / Process pending" Flow rebuilds after every history edit, never edited.',
     },
   },
   {

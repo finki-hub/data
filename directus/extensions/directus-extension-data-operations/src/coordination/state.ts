@@ -17,10 +17,25 @@ export const claimDomains = [...coordinationDomains, 'snapshot'] as const;
 
 export type ClaimDomain = (typeof claimDomains)[number];
 
-export const calculationDomains: readonly Domain[] = [
-  'history_index',
-  'enrollments',
-];
+const calculationDomainList = ['history_index', 'enrollments'] as const;
+
+export type CalculationDomain = (typeof calculationDomainList)[number];
+
+export const calculationDomains: readonly Domain[] = calculationDomainList;
+
+// What a claim may name: one domain, or `next_calculation`, the first
+// pending calculation domain in dependency order. The scheduled Flow
+// claims `next_calculation` every tick; publication is never picked that
+// way, only its own Flow claims it.
+export const nextCalculation = 'next_calculation';
+
+export const claimTargets = [...coordinationDomains, nextCalculation] as const;
+
+export type ClaimTarget = (typeof claimTargets)[number];
+
+// A failure message kept in the status is cut to this many characters, so
+// a caller can pass a whole failure record without a size check of its own.
+export const errorMessageLength = 600;
 
 export const pageSources = ['history', 'rules'] as const;
 
@@ -57,6 +72,12 @@ export const operationId = 'finki-hub-data-coordinate';
 // heartbeat with every plan_pages, stage_page or heartbeat call, so a live
 // claim is never taken away by time alone.
 export const claimStaleAfterMs = 60_000;
+
+// How long a claim waits for the singleton row lock. A source transaction
+// holds that lock from its first statement to its commit (a long import
+// batch, a snapshot promotion); a scheduled tick behind it answers busy
+// instead of holding a pooled connection until the commit.
+export const claimLockWaitMs = 2_000;
 
 // Every planned page covers at most this many source rows.
 export const pageSize = 250;
@@ -133,6 +154,16 @@ export const sourceTableDeletionDomains: Readonly<
   moodle_course_entries: ['history_index'],
 };
 
+// Domains an UPDATE naming one of these columns marks on top of the
+// table's usual ones: an entry label belongs to the index writer, so a
+// label edited by hand leaves the index behind the raw histories until it
+// is rebuilt. Mirrors the column trigger finki_hub_entry_label_invalidation.
+export const sourceColumnDomains: Readonly<
+  Record<string, Readonly<Record<string, readonly Domain[]>>>
+> = {
+  moodle_course_entries: { label: ['history_index'] },
+};
+
 // Checkpoint tables a later task may remove; their triggers are installed
 // only while the table exists.
 export const optionalSourceTables: readonly string[] = [
@@ -176,6 +207,9 @@ export type LastError = {
   readonly code: string;
   readonly domain: ClaimDomain | null;
   readonly fingerprint: null | string;
+  // What the failing step said (ids and counts only), cut to
+  // errorMessageLength; null when the release named no cause.
+  readonly message: null | string;
   readonly revision: null | number;
 };
 
@@ -187,6 +221,11 @@ export type OperationsState = {
   readonly dirtyDomains: readonly Domain[];
   readonly finishedAt: null | string;
   readonly importState: string;
+  // Per calculation domain, the source revision of the last statement or
+  // mark that touched its inputs (its own domain or an upstream one), so a
+  // publication-only edit never overtakes or retries a calculation. The
+  // source revision itself stands in while a column was never written.
+  readonly inputRevisions: Readonly<Record<CalculationDomain, number>>;
   readonly lastError: LastError | null;
   readonly publicationFingerprint: null | string;
   readonly publicationState: string;

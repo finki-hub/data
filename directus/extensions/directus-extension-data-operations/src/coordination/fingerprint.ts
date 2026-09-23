@@ -21,9 +21,11 @@ export const canonicalJson = (value: unknown): string => {
   return JSON.stringify(value ?? null);
 };
 
-// One row per operation of every managed Flow: the trigger configuration,
-// the entry operation, and each operation's key, type, options and edges.
-// Names, descriptions, icons, colours and positions are not part of it.
+// One row per operation of every managed Flow (graphSql: the Flows holding
+// a coordinate operation and every Flow they reach through Trigger Flow
+// operations): the trigger configuration, the entry operation, and each
+// operation's key, type, options and edges. Names, descriptions, icons,
+// colours, positions, status and accountability are not part of it.
 export type GraphRow = {
   readonly entry: null | string;
   readonly flow: string;

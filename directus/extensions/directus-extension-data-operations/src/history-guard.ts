@@ -10,7 +10,7 @@ export const membershipEvents = ['create', 'update', 'delete'] as const;
 export const derivedIndexRefusal = () =>
   coordinationError(
     'DERIVED_INDEX',
-    'moodle_history_memberships is the derived Moodle history index; only the history index run writes it. Edit the raw Courses history of the Moodle user, or the entry and its mappings, then run the "Data / Rebuild Moodle history index" Flow.',
+    'moodle_history_memberships is the derived Moodle history index; only the history index run writes it. Edit the raw Courses history of the Moodle user, or the entry and its mappings; the scheduled "Data / Process pending" Flow rebuilds the index.',
     { status: 403 },
   );
 

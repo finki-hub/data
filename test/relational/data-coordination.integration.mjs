@@ -33,7 +33,9 @@ const triggerPath = `/flows/trigger/${flowId}`;
 const containerPattern = /^[a-z0-9][a-z0-9_.-]{0,127}$/u;
 const uuidPattern = /^[0-9a-f-]{36}$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
-const expectedStatements = 22;
+// The singleton row and index, the function, 19 table triggers (3 of them
+// guarded) and the entry label trigger of Task 13.
+const expectedStatements = 23;
 const allDomains = ['history_index', 'enrollments', 'publication'];
 const optionKeys = [
   'action',
@@ -226,7 +228,12 @@ const installsFlow = async (target, state) => {
   assert.equal(report.claim, null);
   assert.deepEqual(report.pending, allDomains);
   assert.deepEqual(report.dirty, []);
-  assert.deepEqual(report.revisions, { completed: 0, requested: 0, source: 0 });
+  assert.deepEqual(report.revisions, {
+    completed: 0,
+    inputs: { enrollments: 0, history_index: 0 },
+    requested: 0,
+    source: 0,
+  });
   assert.match(report.fingerprints.current, sha256Pattern);
   assert.equal(report.fingerprints.calculation, null);
   assert.equal(report.lastError, null);
@@ -409,13 +416,16 @@ const claimsOnce = async (target, state) => {
   });
 };
 
+// An edit of a collection the counts read (an academic year) overtakes an
+// enrollments claim; a publication-only edit would not (Task 13, the
+// automatic-processing scenario).
 const refusesStaleCompletion = async (target, state) => {
   const claim = await claimNow(target, 'enrollments');
   assert.equal(claim.claimed, true);
   assert.equal(claim.revision, 10);
   await create(target, state, [
-    'rooms',
-    { location: 'Synthetic Building', name: 'Synthetic Coordination Room' },
+    'academic_years',
+    { label: '2033/2034', sort: 3 },
   ]);
   const error = await refused(
     target,
@@ -660,6 +670,7 @@ const retriesFailure = async (target) => {
   assert.equal(report.lastError.revision, 11);
   assert.deepEqual(await claimNow(target, 'publication'), {
     claimed: false,
+    domain: 'publication',
     error: 'SYNTHETIC_PUBLISH_FAILURE',
     reason: 'failed',
     revision: 11,
@@ -737,6 +748,7 @@ const recoversAfterRestart = async (target, state) => {
   }
   assert.deepEqual(outcome, {
     claimed: false,
+    domain: 'publication',
     error: 'CLAIM_ABANDONED',
     reason: 'failed',
     revision: 12,

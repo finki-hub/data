@@ -10,6 +10,7 @@ import type {
   StagedRows,
 } from './port.js';
 
+import { touchesInputs } from './failures.js';
 import { fingerprintOfGraph } from './fingerprint.js';
 import { historySqlPort } from './history-sql.js';
 import { stateRow, toState } from './sql-state.js';
@@ -20,6 +21,7 @@ import {
   historySizesSql,
   insertSql,
   installSql,
+  lockWaitSql,
   markSql,
   planSql,
   releaseSql,
@@ -168,7 +170,7 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
       ...publishedFiles.map((file) => input.files?.[file] ?? null),
       input.token,
       input.owner,
-      input.sourceRevision,
+      input.claimRevision,
       input.fingerprint,
     ]),
   heartbeat: (token, owner) =>
@@ -189,9 +191,16 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
     await run(client, 'DELETE FROM "course_enrollments"');
     return affected(client, installSql, [revision, token]);
   },
+  limitLockWait: async (ms) => {
+    await run(client, lockWaitSql, [String(ms)]);
+  },
   markDomains: async (domains): Promise<MarkResult> => {
     const row = markRow.parse(
-      await first(client, markSql, [json(normaliseDomains(domains))]),
+      await first(client, markSql, [
+        touchesInputs(domains, 'history_index'),
+        touchesInputs(domains, 'enrollments'),
+        json(normaliseDomains(domains)),
+      ]),
     );
     return {
       dirtyDomains: normaliseDomains(row.dirty_domains ?? []),
@@ -205,6 +214,7 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   release: (input: ReleaseInput) =>
     matched(client, releaseSql, [
       input.code,
+      input.message ?? null,
       input.failed ? 'failed' : 'idle',
       input.token,
     ]),

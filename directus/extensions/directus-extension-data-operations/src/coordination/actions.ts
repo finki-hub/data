@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import type { CoordinatorInput } from './options.js';
 import type { CoordinationPort } from './port.js';
-import type { Domain } from './state.js';
 
 import { indexPageAction } from '../history-index.js';
 import {
@@ -11,6 +10,7 @@ import {
   unreachable,
 } from './action-support.js';
 import { decideClaim } from './decisions.js';
+import { isLockUnavailable } from './errors.js';
 import { planEnrollmentsAction } from './plan-enrollments.js';
 import {
   completeAction,
@@ -19,6 +19,7 @@ import {
   planPagesAction,
   stagePageAction,
 } from './run-actions.js';
+import { claimLockWaitMs, type Domain } from './state.js';
 import { statusAction } from './status.js';
 
 export const recoverAction = (context: ActionContext) =>
@@ -36,7 +37,10 @@ const markAction = (domains: readonly Domain[], context: ActionContext) =>
 
 // One job only: the singleton row is locked, an abandoned claim is released
 // first, then the decision is taken over the locked state and the claim is
-// written under the same lock with a fresh token.
+// written under the same lock with a fresh token. The answer names the
+// claimed domain, which for next_calculation is the one the decision
+// picked. An idle answer (busy, nothing pending, upstream dirty, failed)
+// reads the singleton and the Flow graph only, never a collection.
 const takeClaim = async (
   port: CoordinationPort,
   input: Extract<CoordinatorInput, { action: 'claim' }>,
@@ -62,7 +66,7 @@ const takeClaim = async (
       const token = randomUUID();
       const taken = await port.takeClaim({
         dirtyDomains: decision.dirtyDomains,
-        domain: input.domain,
+        domain: decision.domain,
         fingerprint,
         owner: context.owner,
         sourceRevision: state.sourceRevision,
@@ -73,6 +77,7 @@ const takeClaim = async (
       }
       return {
         claimed: true,
+        domain: decision.domain,
         domains: decision.dirtyDomains,
         fingerprint,
         owner: context.owner,
@@ -83,6 +88,7 @@ const takeClaim = async (
     case 'failed':
       return {
         claimed: false,
+        domain: decision.domain,
         error: decision.error.code,
         reason: 'failed',
         revision: decision.error.revision,
@@ -100,10 +106,25 @@ const takeClaim = async (
   }
 };
 
-const claimAction = (
+// The claim waits a bounded time for the singleton row lock: behind a
+// long source transaction (which holds it until its commit) a tick answers
+// busy at once instead of holding a pooled connection for the whole wait.
+const claimAction = async (
   input: Extract<CoordinatorInput, { action: 'claim' }>,
   context: ActionContext,
-) => context.store.transaction((port) => takeClaim(port, input, context));
+) => {
+  try {
+    return await context.store.transaction(async (port) => {
+      await port.limitLockWait(claimLockWaitMs);
+      return takeClaim(port, input, context);
+    });
+  } catch (error) {
+    if (isLockUnavailable(error)) {
+      return { claimed: false, reason: 'busy' };
+    }
+    throw error;
+  }
+};
 
 // Dispatches one validated action. Every action is one short transaction
 // (two when an overtaken run has to be released).

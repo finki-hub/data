@@ -1,10 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import {
-  abandonedCode,
-  type ActionContext,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/action-support.js';
+import type { ActionContext } from '../directus/extensions/directus-extension-data-operations/src/coordination/action-support.js';
+
 import {
   recoverAction,
   runAction,
@@ -17,6 +15,10 @@ import {
   pendingDomains,
   verifyClaim,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/decisions.js';
+import {
+  abandonedCode,
+  interruptedCode,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
 import {
   claimStaleAfterMs,
   type Domain,
@@ -153,6 +155,7 @@ const baseState = (
   dirtyDomains: [],
   finishedAt: null,
   importState: 'idle',
+  inputRevisions: { enrollments: 3, history_index: 3 },
   lastError: null,
   publicationFingerprint: graphA,
   publicationState: 'idle',
@@ -239,7 +242,11 @@ describe('claim decisions', () => {
         ...request,
         domain: enrollments,
       }),
-    ).toEqual({ dirtyDomains: [enrollments], kind: 'claim' });
+    ).toEqual({
+      dirtyDomains: [enrollments],
+      domain: enrollments,
+      kind: 'claim',
+    });
 
     const failed = baseState({
       dirtyDomains: [publication],
@@ -248,6 +255,7 @@ describe('claim decisions', () => {
         code: 'PUBLISH_FAILED',
         domain: publication,
         fingerprint: graphA,
+        message: null,
         revision: 3,
       },
     });
@@ -262,6 +270,7 @@ describe('claim decisions', () => {
           code,
           domain: publication,
           fingerprint: graphA,
+          message: null,
           revision: 3,
         },
       });
@@ -284,6 +293,7 @@ describe('claim decisions', () => {
       }),
     ).toEqual({
       dirtyDomains: [history, enrollments, publication],
+      domain: history,
       kind: 'claim',
     });
   });
@@ -318,9 +328,16 @@ describe('page and completion decisions', () => {
     expect(verifyClaim(state, { ...check, owner: processB })).toBe(
       'owner_mismatch',
     );
-    expect(verifyClaim({ ...state, sourceRevision: 4 }, check)).toBe(
-      'source_changed',
-    );
+    expect(
+      verifyClaim(
+        {
+          ...state,
+          inputRevisions: { enrollments: 4, history_index: 3 },
+          sourceRevision: 4,
+        },
+        check,
+      ),
+    ).toBe('source_changed');
     expect(verifyClaim(baseState(), check)).toBe('claim_mismatch');
     expect(decideStage(state, { ...check, page: secondPage })).toEqual({
       kind: 'ok',
@@ -350,7 +367,11 @@ describe('page and completion decisions', () => {
     ).toEqual({ kind: 'fingerprint_changed' });
     expect(
       decideCompletion(
-        baseState({ claim: liveClaim(), sourceRevision: 4 }),
+        baseState({
+          claim: liveClaim(),
+          inputRevisions: { enrollments: 4, history_index: 3 },
+          sourceRevision: 4,
+        }),
         check,
       ),
     ).toEqual({ kind: 'source_changed' });
@@ -462,7 +483,10 @@ describe('claims over the persistence port', () => {
     ).rejects.toMatchObject({ code: claimMismatch });
     expect(fake.data.claim?.token).toBe(token);
     await expect(
-      runAction({ action: 'fail', code: 'X', token: otherUuid }, context(fake)),
+      runAction(
+        { action: 'fail', code: 'X', message: null, token: otherUuid },
+        context(fake),
+      ),
     ).resolves.toEqual({ failed: false, reason: 'claim_mismatch' });
     expect(fake.data.claim?.token).toBe(token);
     await expect(complete(fake, token)).rejects.toMatchObject({
@@ -746,7 +770,10 @@ describe('lock discipline over the persistence port', () => {
 
     await expect(
       locksOf(
-        runAction({ action: 'fail', code: 'X', token: next }, context(fake)),
+        runAction(
+          { action: 'fail', code: 'X', message: null, token: next },
+          context(fake),
+        ),
       ),
     ).resolves.toEqual([true]);
     await expect(
@@ -768,7 +795,7 @@ describe('failures and recovery over the persistence port', () => {
     expect(fake.data.publicationState).toBe('running');
     await expect(
       runAction(
-        { action: 'fail', code: 'PUBLISH_FAILED', token },
+        { action: 'fail', code: 'PUBLISH_FAILED', message: null, token },
         context(fake),
       ),
     ).resolves.toMatchObject({
@@ -822,7 +849,7 @@ describe('failures and recovery over the persistence port', () => {
     });
   });
 
-  test('releases an abandoned claim after the window but never a heartbeating one', async () => {
+  test('releases an abandoned claim after the window but never a heartbeating one, rerunning a calculation once', async () => {
     const fake = new FakeCoordination();
     const token = await claimToken(fake, history, { owner: oldProcess });
     const revision = fake.data.sourceRevision;
@@ -853,35 +880,28 @@ describe('failures and recovery over the persistence port', () => {
 
     fake.advance(2);
 
-    await expect(
-      claim(fake, history, { owner: newProcess }),
-    ).resolves.toMatchObject({
-      claimed: false,
-      error: abandonedCode,
-      reason: 'failed',
-      revision,
-    });
-    expect(fake.data.claim).toBeNull();
+    // The first interruption of a calculation at its inputs (a restart
+    // mid-run) is released and the same claim attempt runs it again.
+    const rerun = claimed.parse(
+      await claim(fake, history, { owner: newProcess }),
+    );
+
+    expect(rerun.owner).toBe(newProcess);
+    expect(rerun.token).not.toBe(token);
     expect(fake.data.lastError).toMatchObject({
-      code: abandonedCode,
+      code: interruptedCode,
       domain: history,
       revision,
     });
-
-    const fresh = claimed.parse(
-      await claim(fake, history, { owner: newProcess, retry: true }),
-    );
-
-    expect(fresh.owner).toBe(newProcess);
-    expect(fresh.token).not.toBe(token);
     await expect(complete(fake, token, oldProcess)).rejects.toMatchObject({
       code: claimMismatch,
     });
 
-    await planHistory(fake, fresh.token, newProcess);
+    // A repeat interruption waits for a retry (automatic-processing-revisions).
+    await planHistory(fake, rerun.token, newProcess);
 
     await expect(
-      complete(fake, fresh.token, newProcess),
+      complete(fake, rerun.token, newProcess),
     ).resolves.toMatchObject({
       completed: true,
     });

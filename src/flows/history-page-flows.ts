@@ -13,29 +13,52 @@ import {
 
 const triggerToken = '{{ $trigger.token }}';
 
+// The history index family. `03` was the manual runner of Task 9, retired
+// before any deployment: the scheduled Process pending claims the index
+// and runs the refresh Flow (`04`), and Mark pending is the manual path.
 export const historyFlowIds = {
   page: historyId('02'),
+  refresh: historyId('04'),
   run: historyId('01'),
-  runner: historyId('03'),
 } as const;
 
 // A Directus Flow is a tree: every operation is the resolve or reject
 // target of at most one other operation (both columns are unique), so each
 // step that can fail gets a failure record of its own.
 
-// One planned range of Moodle users: native Read Data selects only id and
-// Courses, a small script splits the exact entries and the narrow index
-// writer replaces the memberships of those users inside one transaction.
-// Any failure answers a failure record instead of a result.
+// One planned range of Moodle users: the claim is checked (and its
+// heartbeat refreshed) first, so a page left over after its run was
+// overtaken or failed stops before it reads anything; then native Read
+// Data selects only id and Courses, a small script splits the exact
+// entries and the narrow index writer replaces the memberships of those
+// users inside one transaction. Any failure answers a failure record
+// instead of a result.
 export const pageFlow: FlowTemplate = {
   accountability: 'activity',
   description:
-    'Indexes one planned range of Moodle users: reads id and Courses, splits the exact history entries and replaces the memberships of those users. Called serially by "Data / Index Moodle histories".',
-  entry: historyId('21'),
+    'Indexes one planned range of Moodle users: checks that its claim is still live, reads id and Courses, splits the exact history entries and replaces the memberships of those users. Called serially by "Data / Index Moodle histories".',
+  entry: historyId('27'),
   icon: 'history_edu',
   id: historyFlowIds.page,
   name: 'Data / Index history page',
   operations: [
+    operation({
+      edges: { reject: historyId('28'), resolve: historyId('21') },
+      key: 'check_claim',
+      name: 'Check that the claim is still live',
+      options: { action: 'heartbeat', token: '{{ $trigger.claim }}' },
+      position: [1, 1],
+      suffix: '27',
+      type: coordinateOperation,
+    }),
+    operation({
+      key: 'claim_failed',
+      name: 'Record the lost claim',
+      options: failureRecord({ page: triggerToken, stage: 'claim' }),
+      position: [1, 19],
+      suffix: '28',
+      type: 'transform',
+    }),
     operation({
       edges: { reject: historyId('24'), resolve: historyId('22') },
       key: 'read_histories',

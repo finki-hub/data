@@ -43,6 +43,7 @@ import {
   entriesByLabel,
   entriesPath,
   get,
+  historyRunnerId,
   installSyntheticFlow,
   invoke,
   patch,
@@ -51,6 +52,7 @@ import {
   remove,
   status,
 } from './history-index-helpers.mjs';
+import { installHistoryRunner } from './history-runner.mjs';
 import {
   assertRefusedRun,
   baseSeed,
@@ -188,6 +190,8 @@ const installsFlows = async (target, directus, state) => {
   await installDriverFlow(target);
   state.flows.push(legacyRunFlowId);
   await installLegacyRunFlow(target);
+  state.flows.push(historyRunnerId);
+  await installHistoryRunner(target);
 };
 
 // The Task 2 histories and a 40,000-character one are indexed first; then

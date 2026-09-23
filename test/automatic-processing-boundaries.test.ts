@@ -1,0 +1,402 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
+
+import type { DirectusRequest } from '../src/directus-request.js';
+
+import { sourceTableDomains } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
+import { dataModelCollectionKeys } from '../src/data-model/collections.js';
+import { derivedDataFlowId } from '../src/derived-data-flow.js';
+import { importWorkbook } from '../src/directus.js';
+import {
+  editorForbiddenGrants,
+  forbiddenGrantsIn,
+  readSnapshotReadiness,
+  snapshotReadiness,
+} from '../src/editor-policy.js';
+import {
+  chosenDomainsScript,
+  markPendingFlow,
+} from '../src/flows/mark-pending.js';
+import {
+  automaticProcessingFlows,
+  installAutomaticProcessingFlows,
+  processPendingFlow,
+} from '../src/flows/process-pending.js';
+import {
+  findLegacyFlows,
+  LegacyFlowsError,
+  legacyOperationTypes,
+} from '../src/legacy-flows.js';
+import { exitCodes, isRefusal } from '../src/lifecycle.js';
+import { FakeCoordination } from './data-coordination-helpers.js';
+import {
+  lifecycleDataset,
+  workbookData,
+} from './fixtures/synthetic-workbook.js';
+import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
+import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+
+const history = 'history_index';
+
+const collator = new Intl.Collator('en');
+const byText = (left: string, right: string): number =>
+  collator.compare(left, right);
+
+// The error a promise rejected with, or null when it resolved.
+const caught = async (work: Promise<unknown>): Promise<unknown> => {
+  try {
+    await work;
+  } catch (error) {
+    return error;
+  }
+  return null;
+};
+const enrollments = 'enrollments';
+const publication = 'publication';
+
+// The domains an edit marks, read back from the fake's mirror of the
+// statement triggers.
+const marks = (
+  table: string,
+  operation: 'delete' | 'insert' | 'update',
+  columns: readonly string[] = [],
+) => {
+  const fake = new FakeCoordination();
+  fake.sourceWrite(table, operation, columns);
+  return fake.data.dirtyDomains;
+};
+
+describe('source invalidation of the completed source model', () => {
+  test('marks the right domains for every editable source table', () => {
+    const expected: Readonly<Record<string, readonly string[]>> = {
+      academic_years: [enrollments, publication],
+      course_curricula: [publication],
+      course_enrollment_patterns: [publication],
+      course_enrollment_rules: [enrollments, publication],
+      course_equivalencies: [publication],
+      courses: [publication],
+      curriculum_2018: [publication],
+      curriculum_2023: [publication],
+      curriculum_entries: [publication],
+      deans_office: [publication],
+      discord_channels: [publication],
+      moodle_course_entries: [enrollments, publication],
+      moodle_course_mappings: [enrollments, publication],
+      moodle_users: [history, enrollments, publication],
+      rooms: [publication],
+      staff: [publication],
+      student_council: [publication],
+      students: [publication],
+      teaching_assignments: [publication],
+    };
+
+    expect(sourceTableDomains).toEqual(expected);
+
+    // Every model collection is a source table or a derived, staging,
+    // status or migration collection that must never mark anything.
+    const unmarked = dataModelCollectionKeys.filter(
+      (collection) => !Object.hasOwn(expected, collection),
+    );
+
+    expect(unmarked.toSorted(byText)).toEqual([
+      'course_enrollments',
+      'data_operation_results',
+      'data_operations',
+      'migration_ledger',
+      'moodle_history_memberships',
+      'moodle_import_rows',
+    ]);
+  });
+
+  test('covers the old and the new pair of a moved or deleted mapping or rule by marking the whole domain', () => {
+    for (const table of ['moodle_course_mappings', 'course_enrollment_rules']) {
+      for (const operation of ['update', 'delete'] as const) {
+        expect(marks(table, operation, ['course', 'academic_year'])).toEqual([
+          enrollments,
+          publication,
+        ]);
+      }
+    }
+
+    expect(marks('academic_years', 'delete')).toEqual([
+      enrollments,
+      publication,
+    ]);
+  });
+
+  test('marks the history index for a deleted entry or a hand-edited label, never for a review', () => {
+    expect(marks('moodle_course_entries', 'delete')).toEqual([
+      history,
+      enrollments,
+      publication,
+    ]);
+    expect(marks('moodle_course_entries', 'update', ['label'])).toEqual([
+      history,
+      enrollments,
+      publication,
+    ]);
+    expect(
+      marks('moodle_course_entries', 'update', [
+        'review_state',
+        'review_reason',
+      ]),
+    ).toEqual([enrollments, publication]);
+  });
+});
+
+const store = () => emptyStore();
+
+describe('checkpoint Flows of an old deployment (follow-ups 26 and 27)', () => {
+  test('recognises the checkpoint Rebuild and Publish Flows by operation type, not by name or id', () => {
+    expect([...legacyOperationTypes].toSorted(byText)).toEqual([
+      'finki-hub-publish-json',
+      'finki-hub-publish-public-assets',
+      'finki-hub-rebuild-derived-data',
+    ]);
+  });
+
+  test('refuses an import beside checkpoint Flows of another id before any write', async () => {
+    const legacy = store();
+    legacy.flows.push(
+      {
+        id: 'old-publish',
+        name: 'Synthetic renamed publisher',
+        status: 'active',
+      },
+      { id: derivedDataFlowId, name: 'Rebuild derived data', status: 'active' },
+    );
+    legacy.operations.push(
+      { flow: 'old-publish', id: 'op-1', type: 'finki-hub-publish-json' },
+      {
+        flow: derivedDataFlowId,
+        id: 'op-2',
+        type: 'finki-hub-rebuild-derived-data',
+      },
+    );
+    const fake = fakeImportDirectus(legacy);
+
+    await expect(findLegacyFlows(fake.request)).resolves.toEqual([
+      {
+        id: 'old-publish',
+        name: 'Synthetic renamed publisher',
+        status: 'active',
+        types: ['finki-hub-publish-json'],
+      },
+    ]);
+
+    const error = await caught(
+      importWorkbook(fake.request, workbookData(lifecycleDataset()), fake.io),
+    );
+
+    expect(error).toBeInstanceOf(LegacyFlowsError);
+    expect(isRefusal(error)).toBeTruthy();
+    expect(exitCodes.refused).toBe(2);
+    expect(String(error)).toContain(
+      '"Synthetic renamed publisher" (old-publish, active, finki-hub-publish-json)',
+    );
+    expect(fake.mutations()).toEqual([]);
+    expect(fake.setups()).toBe(0);
+  });
+
+  test('accepts a project whose only checkpoint Flows are the import’s own', async () => {
+    const own = store();
+    own.flows.push({ id: derivedDataFlowId, name: 'Rebuild derived data' });
+    own.operations.push({
+      flow: derivedDataFlowId,
+      id: 'op-2',
+      type: 'finki-hub-rebuild-derived-data',
+    });
+
+    await expect(
+      findLegacyFlows(fakeImportDirectus(own).request),
+    ).resolves.toEqual([]);
+  });
+});
+
+describe('the editor policy template and the snapshot readiness check', () => {
+  test('forbids the native snapshot shortcut and every derived write, and nothing an editor needs', () => {
+    expect(editorForbiddenGrants.map(({ collection }) => collection)).toEqual([
+      'moodle_users',
+      'moodle_import_rows',
+      'moodle_history_memberships',
+      'course_enrollments',
+      'data_operation_results',
+      'data_operations',
+      'migration_ledger',
+      'directus_flows',
+      'directus_operations',
+      'directus_permissions',
+      'directus_policies',
+      'directus_access',
+    ]);
+    expect(
+      forbiddenGrantsIn([
+        { action: 'read', collection: 'moodle_users' },
+        { action: 'create', collection: 'moodle_users' },
+        { action: 'update', collection: 'moodle_users' },
+        { action: 'read', collection: 'course_enrollments' },
+        { action: 'update', collection: 'course_enrollments' },
+        { action: 'update', collection: 'moodle_course_mappings' },
+        { action: 'create', collection: 'courses' },
+        { action: 'read', collection: 'data_operations' },
+        // A Flow operation edited to write with $full on the schedule, a
+        // ledger step marked done, or a permission granted to oneself
+        // would each bypass the rules above; reading Flows (the manual
+        // buttons need it) stays allowed.
+        { action: 'read', collection: 'directus_flows' },
+        { action: 'update', collection: 'directus_operations' },
+        { action: 'create', collection: 'directus_flows' },
+        { action: 'update', collection: 'migration_ledger' },
+        { action: 'create', collection: 'directus_permissions' },
+        { action: 'update', collection: 'directus_access' },
+      ]),
+    ).toEqual([
+      { action: 'create', collection: 'moodle_users' },
+      { action: 'update', collection: 'moodle_users' },
+      { action: 'update', collection: 'course_enrollments' },
+      { action: 'read', collection: 'data_operations' },
+      { action: 'update', collection: 'directus_operations' },
+      { action: 'create', collection: 'directus_flows' },
+      { action: 'update', collection: 'migration_ledger' },
+      { action: 'create', collection: 'directus_permissions' },
+      { action: 'update', collection: 'directus_access' },
+    ]);
+  });
+
+  test('flags active Moodle users edited outside the snapshot workflow and a failed import', async () => {
+    const report = {
+      active: { fingerprint: 'b', rows: 30 },
+      activeMatchesPromotion: false,
+      promoted: { at: null, fingerprint: 'a', rows: 31 },
+      state: 'completed',
+    };
+
+    const [edited, ...others] = snapshotReadiness(report);
+
+    expect(others).toEqual([]);
+    expect(edited?.code).toBe('ACTIVE_SNAPSHOT_EDITED');
+    expect(edited?.message).toContain(
+      'The active Moodle users (30 rows) no longer equal the snapshot the last promotion made active (31 rows)',
+    );
+    expect(
+      snapshotReadiness({
+        ...report,
+        activeMatchesPromotion: null,
+        promoted: null,
+      }),
+    ).toEqual([]);
+    expect(
+      snapshotReadiness({
+        ...report,
+        activeMatchesPromotion: true,
+        state: 'failed',
+      }).map(({ code }) => code),
+    ).toEqual(['SNAPSHOT_IMPORT_FAILED']);
+    expect(() => snapshotReadiness({ state: 'completed' })).toThrow(z.ZodError);
+
+    const paths: string[] = [];
+    const request: DirectusRequest = async (pathname) => {
+      paths.push(pathname);
+      return report;
+    };
+
+    await expect(readSnapshotReadiness(request)).resolves.toHaveLength(1);
+    expect(paths).toEqual(['/finki-hub-data-operations/snapshot']);
+  });
+});
+
+describe('Mark pending', () => {
+  test('is an administrator-only manual Flow on data_operations that marks and never runs', () => {
+    expect(markPendingFlow).toMatchObject({
+      accountability: 'activity',
+      id: '6a1d9f0e-2b3c-4d5e-8f70-000000001303',
+      name: 'Data / Mark pending',
+      options: {
+        async: false,
+        collections: ['data_operations'],
+        error_on_reject: true,
+        requireSelection: false,
+      },
+      trigger: 'manual',
+    });
+
+    const entry = markPendingFlow.operations.find(
+      ({ id }) => id === markPendingFlow.entry,
+    );
+
+    expect(entry).toMatchObject({
+      key: 'admin_only',
+      options: { filter: { $accountability: { admin: { _eq: true } } } },
+      type: 'condition',
+    });
+    expect(
+      markPendingFlow.operations
+        .map(({ options }) => options['action'])
+        .filter((action) => action !== undefined),
+    ).toEqual(['mark', 'status']);
+    expect(
+      markPendingFlow.operations.filter(({ type }) => type === 'trigger'),
+    ).toEqual([]);
+  });
+
+  test('marks the chosen domains, or both calculation domains when none is chosen', () => {
+    expect(runScript(chosenDomainsScript, { $trigger: { body: {} } })).toEqual([
+      history,
+      enrollments,
+    ]);
+    expect(
+      runScript(chosenDomainsScript, {
+        $trigger: { body: { domains: [publication] } },
+      }),
+    ).toEqual([publication]);
+    expect(runScript(chosenDomainsScript, { $trigger: null })).toEqual([
+      history,
+      enrollments,
+    ]);
+    expect(refusalOf(() => runScript('module.exports = 1;', {}))).toContain(
+      'module.exports',
+    );
+  });
+});
+
+const flowBody = z.looseObject({ id: z.string(), status: z.string() });
+
+describe('installation', () => {
+  test('installs the children first and the schedule last, each inactive until wired', async () => {
+    const posted: Array<{ readonly id: string; readonly status: string }> = [];
+    const activated: string[] = [];
+    const request: DirectusRequest = async (pathname, init) => {
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') {
+        return [];
+      }
+      if (pathname === '/flows') {
+        posted.push(
+          flowBody.parse(
+            JSON.parse(typeof init?.body === 'string' ? init.body : 'null'),
+          ),
+        );
+      }
+      if (method === 'PATCH') {
+        activated.push(pathname);
+      }
+      return {};
+    };
+
+    await expect(installAutomaticProcessingFlows(request)).resolves.toEqual({
+      created: [
+        'Data / Count enrollments',
+        'Data / Mark pending',
+        'Data / Process pending',
+      ],
+      skipped: [],
+    });
+    expect(posted.map(({ status }) => status)).toEqual([
+      'inactive',
+      'inactive',
+      'inactive',
+    ]);
+    expect(activated.at(-1)).toBe(`/flows/${processPendingFlow.id}`);
+    expect(automaticProcessingFlows.at(-1)).toBe(processPendingFlow);
+  });
+});

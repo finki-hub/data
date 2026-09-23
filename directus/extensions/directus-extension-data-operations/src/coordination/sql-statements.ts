@@ -1,4 +1,9 @@
-import { claimClear, columns, dirtyUnion } from './sql-state.js';
+import {
+  claimClear,
+  claimInputRevision,
+  columns,
+  dirtyUnion,
+} from './sql-state.js';
 import { publishedFiles } from './state.js';
 
 // Every statement below binds its values with `?`; none of them carries a
@@ -9,10 +14,22 @@ import { publishedFiles } from './state.js';
 export const stateSql = (lock: boolean): string =>
   `SELECT ${columns} FROM "data_operations" ORDER BY "id" LIMIT 1${lock ? ' FOR UPDATE' : ''}`;
 
-export const graphSql = `SELECT f."id" AS "flow", f."trigger", f."options" AS "flow_options", f."operation" AS "entry",
+// The managed Flow graph: every Flow holding a coordinate operation, and
+// every Flow reachable from one of those through Trigger Flow operations
+// (a child that computes without a coordinate step of its own still
+// shapes the output). UNION stops at Flows already reached, so a cycle
+// ends; a templated or unknown child id matches no Flow. Only system
+// tables are read, never a collection. Binding: the coordinate type.
+export const graphSql = `WITH RECURSIVE "managed"("flow") AS (
+  SELECT "flow"::text FROM "directus_operations" WHERE "type" = ?
+  UNION
+  SELECT o."options"->>'flow' FROM "directus_operations" o JOIN "managed" m ON o."flow"::text = m."flow"
+  WHERE o."type" = 'trigger' AND o."options"->>'flow' IS NOT NULL
+)
+SELECT f."id" AS "flow", f."trigger", f."options" AS "flow_options", f."operation" AS "entry",
   o."id" AS "operation", o."key", o."type", o."options", o."resolve", o."reject"
 FROM "directus_flows" f LEFT JOIN "directus_operations" o ON o."flow" = f."id"
-WHERE f."id" IN (SELECT "flow" FROM "directus_operations" WHERE "type" = ?)
+WHERE f."id"::text IN (SELECT "flow" FROM "managed")
 ORDER BY f."id", o."id"`;
 
 // Bindings: token, owner, domain, fingerprint, dirty JSON, domain, revision.
@@ -30,15 +47,20 @@ WHERE "claim_token" IS NULL AND "source_revision" = ?`;
 const failureColumn = (column: string, value: string): string =>
   `"${column}" = CASE WHEN "claim_domain" = 'snapshot' THEN "${column}" ELSE ${value} END`;
 
-// Bindings: error code, publication state, token.
+// Bindings: error code, error message, publication state, token.
 export const releaseSql = `UPDATE "data_operations" SET ${failureColumn('last_error_code', '?')},
+  ${failureColumn('last_error_message', '?')},
   ${failureColumn('last_error_at', 'clock_timestamp()')}, ${failureColumn('last_failed_revision', '"claim_revision"')},
   ${failureColumn('last_failed_domain', '"claim_domain"')}, ${failureColumn('last_failed_fingerprint', '"claim_fingerprint"')},
   "publication_state" = CASE WHEN "claim_domain" = 'publication' THEN ? ELSE "publication_state" END, ${claimClear}
 WHERE "claim_token" = ?`;
 
+// A live claim's guard: no statement that touched the claimed domain's
+// inputs committed since the claim was taken (verifyClaim).
+const inputsUnchanged = `${claimInputRevision} <= "claim_revision"`;
+
 // Bindings: dirty JSON, one outcome per published file, token, owner,
-// revision, fingerprint.
+// claim revision, fingerprint.
 export const finishSql = `UPDATE "data_operations" SET "dirty_domains" = ?::json, "completed_revision" = "claim_revision",
   "calculation_fingerprint" = CASE WHEN "claim_domain" IN ('history_index', 'enrollments') THEN "claim_fingerprint" ELSE "calculation_fingerprint" END,
   "publication_fingerprint" = CASE WHEN "claim_domain" = 'publication' THEN "claim_fingerprint" ELSE "publication_fingerprint" END,
@@ -50,7 +72,7 @@ export const finishSql = `UPDATE "data_operations" SET "dirty_domains" = ?::json
     )
     .join(', ')},
   "started_at" = "claim_started_at", "finished_at" = clock_timestamp(), ${claimClear}
-WHERE "claim_token" = ? AND "claim_owner" = ? AND "source_revision" = ? AND "claim_fingerprint" = ?`;
+WHERE "claim_token" = ? AND "claim_owner" = ? AND "claim_revision" = ? AND ${inputsUnchanged} AND "claim_fingerprint" = ?`;
 
 // Bindings: page, token, owner. The append happens in SQL under the row
 // lock, so parallel pages never lose each other's entries.
@@ -61,16 +83,26 @@ export const stagedSql = `UPDATE "data_operations" SET "claim_heartbeat_at" = cl
       UNION ALL SELECT ?::text
     ) AS pages
   ) AS staged
-) WHERE "claim_token" = ? AND "claim_owner" = ? AND "source_revision" = "claim_revision"`;
+) WHERE "claim_token" = ? AND "claim_owner" = ? AND ${inputsUnchanged}`;
 
 // Bindings: planned pages JSON ({ token, from, to, rows } each), token,
 // owner.
 export const planSql = `UPDATE "data_operations" SET "claim_pages" = ?::json, "claim_staged" = '[]'::json, "claim_heartbeat_at" = clock_timestamp()
-WHERE "claim_token" = ? AND "claim_owner" = ? AND "source_revision" = "claim_revision"`;
+WHERE "claim_token" = ? AND "claim_owner" = ? AND ${inputsUnchanged}`;
 
-// Bindings: marked domains JSON.
+// A calculation's input revision moves with a statement or mark that
+// touches it or an upstream domain, like the trigger function's.
+const inputRevisionSet = (column: string): string =>
+  `"${column}" = CASE WHEN ?::boolean THEN "source_revision" + 1 ELSE "${column}" END`;
+
+// Bindings: whether the mark touches the history index inputs, the
+// enrollment inputs, then the marked domains JSON.
 export const markSql = `UPDATE "data_operations" SET "source_revision" = "source_revision" + 1, "requested_revision" = "source_revision" + 1,
+  ${inputRevisionSet('history_index_input_revision')}, ${inputRevisionSet('enrollments_input_revision')},
   "dirty_domains" = ${dirtyUnion('?::json')} RETURNING "source_revision", "dirty_domains"`;
+
+// Bindings: the lock wait in milliseconds, for this transaction only.
+export const lockWaitSql = `SELECT set_config('lock_timeout', ?, true)`;
 
 // Bindings: token, page, revision, rows JSON.
 export const insertSql = `INSERT INTO "data_operation_results" ("claim_token", "page_token", "course", "academic_year", "count", "revision")

@@ -19,9 +19,10 @@ import {
 import { IncompleteFlowError } from '../src/flows/install-flows.js';
 
 const coordinateType = 'finki-hub-data-coordinate';
-const throwError = 'throw-error';
+const triggerClaim = '{{ $trigger.claim }}';
 const knownActions: readonly string[] = coordinatorActions;
 const cyclePattern = /cycle/u;
+const collator = new Intl.Collator('en');
 const uuidPattern = /^[0-9a-f-]{36}$/u;
 const flowBody = z.object({ id: z.string(), status: z.string() });
 
@@ -31,13 +32,13 @@ const operations = historyIndexFlows.flatMap((flow) =>
 const byKey = new Map(
   operations.map((step) => [`${step.flow}/${step.key}`, step]),
 );
-const runnerTemplate = historyIndexFlows.find(
-  ({ id }) => id === historyFlowIds.runner,
+const refreshTemplate = historyIndexFlows.find(
+  ({ id }) => id === historyFlowIds.refresh,
 );
-const runnerStep = (key: string) =>
-  byKey.get(`${historyFlowIds.runner}/${key}`);
-const runnerKeyOf = (id: null | string | undefined) =>
-  runnerTemplate?.operations.find((candidate) => candidate.id === id)?.key;
+const refreshStep = (key: string) =>
+  byKey.get(`${historyFlowIds.refresh}/${key}`);
+const refreshKeyOf = (id: null | string | undefined) =>
+  refreshTemplate?.operations.find((candidate) => candidate.id === id)?.key;
 
 describe('flow templates', () => {
   test('use unique deterministic ids, unique keys per flow and edges inside the flow', () => {
@@ -87,17 +88,41 @@ describe('flow templates', () => {
     const coordinate = operations.filter(({ type }) => type === coordinateType);
 
     expect(coordinate.map(({ options }) => options['action'])).toEqual([
+      'heartbeat',
       'index_page',
       'plan_pages',
-      'claim',
-      'fail',
       'complete',
+      'fail',
+      'fail',
+      'fail',
+      'fail',
     ]);
     expect(
       coordinate.every(({ options }) =>
         knownActions.includes(String(options['action'])),
       ),
     ).toBeTruthy();
+
+    // A page checks its claim before it reads: a page left over after an
+    // overtaking or a failure stops without touching moodle_users.
+    const pageStep = (key: string) =>
+      byKey.get(`${historyFlowIds.page}/${key}`);
+
+    expect(historyIndexFlows[0]?.entry).toBe(pageStep('check_claim')?.id);
+    expect(pageStep('check_claim')).toMatchObject({
+      options: { action: 'heartbeat', token: triggerClaim },
+      reject: pageStep('claim_failed')?.id,
+      resolve: pageStep('read_histories')?.id,
+    });
+    expect(pageStep('claim_failed')?.options).toEqual({
+      json: {
+        code: '{{ $last.code }}',
+        message: '{{ $last.message }}',
+        ok: false,
+        page: '{{ $trigger.token }}',
+        stage: 'claim',
+      },
+    });
     expect(byKey.get(`${historyFlowIds.page}/read_histories`)?.options).toEqual(
       {
         collection: 'moodle_users',
@@ -120,7 +145,7 @@ describe('flow templates', () => {
       action: 'index_page',
       page: '{{ $trigger.token }}',
       rows: '{{ split_entries }}',
-      token: '{{ $trigger.claim }}',
+      token: triggerClaim,
     });
     expect(byKey.get(`${historyFlowIds.run}/with_token`)?.options).toEqual({
       code: pagesWithTokenScript,
@@ -133,26 +158,24 @@ describe('flow templates', () => {
       iterationMode: 'serial',
       payload: '{{ with_token }}',
     });
-    expect(byKey.get(`${historyFlowIds.runner}/index`)?.options).toMatchObject({
+    expect(byKey.get(`${historyFlowIds.refresh}/index`)?.options).toEqual({
       flow: historyFlowIds.run,
       iterationMode: 'serial',
+      payload: { token: triggerClaim },
     });
   });
 
-  test('declare the page and run flows as children and the runner as a manual flow', () => {
-    const [page, run, runner] = historyIndexFlows;
+  test('declare every history flow as an operation-triggered child; no manual runner remains', () => {
+    expect(historyIndexFlows.map(({ id }) => id)).toEqual([
+      historyFlowIds.page,
+      historyFlowIds.run,
+      historyFlowIds.refresh,
+    ]);
 
-    expect(page?.trigger).toBe('operation');
-    expect(run?.trigger).toBe('operation');
-    expect(page?.options).toEqual({ return: '$last' });
-    expect(run?.options).toEqual({ return: '$last' });
-    expect(runner?.trigger).toBe('manual');
-    expect(runner?.options).toMatchObject({
-      async: false,
-      collections: ['moodle_users'],
-      error_on_reject: true,
-      requireSelection: false,
-    });
+    for (const flow of historyIndexFlows) {
+      expect(flow.trigger).toBe('operation');
+      expect(flow.options).toEqual({ return: '$last' });
+    }
   });
 
   test('order operations so every edge target exists before its source', () => {
@@ -184,64 +207,82 @@ describe('flow templates', () => {
   });
 });
 
-describe('runner template', () => {
-  test('gate the runner on administrators and end every refusal in a throw-error', () => {
-    expect(runnerKeyOf(runnerTemplate?.entry)).toBe('admin_only');
-    expect(runnerStep('admin_only')).toMatchObject({
-      options: { filter: { $accountability: { admin: { _eq: true } } } },
-      type: 'condition',
+describe('refresh template', () => {
+  test('complete the claim after every page indexed, otherwise fail it with a described cause', () => {
+    expect(refreshKeyOf(refreshTemplate?.entry)).toBe('index');
+    expect(refreshKeyOf(refreshStep('index')?.resolve)).toBe('index_ok');
+    expect(refreshStep('index_ok')?.options).toEqual({
+      filter: { index: { ok: { _eq: true } } },
     });
-    expect(runnerKeyOf(runnerStep('admin_only')?.resolve)).toBe('claim');
-    expect(
-      runnerStep(runnerKeyOf(runnerStep('admin_only')?.reject) ?? ''),
-    ).toMatchObject({
-      options: { code: 'FORBIDDEN', status: 403 },
-      type: throwError,
+    expect(refreshKeyOf(refreshStep('index_ok')?.resolve)).toBe('complete');
+    expect(refreshStep('complete')?.options).toEqual({
+      action: 'complete',
+      token: triggerClaim,
     });
-
-    // Only "nothing pending" answers 200 without a run.
-    expect(runnerKeyOf(runnerStep('claimed')?.reject)).toBe('up_to_date');
-    expect(runnerStep('up_to_date')?.options).toEqual({
-      filter: { claim: { reason: { _eq: 'nothing_pending' } } },
-    });
-    expect(runnerKeyOf(runnerStep('up_to_date')?.resolve)).toBe('not_claimed');
-    expect(runnerKeyOf(runnerStep('up_to_date')?.reject)).toBe('failed_before');
-    expect(
-      runnerStep(runnerKeyOf(runnerStep('failed_before')?.resolve) ?? ''),
-    ).toMatchObject({
-      options: { code: 'RETRY_REQUIRED', status: 409 },
-      type: throwError,
-    });
-    expect(
-      runnerStep(runnerKeyOf(runnerStep('failed_before')?.reject) ?? ''),
-    ).toMatchObject({
-      options: { code: 'CLAIM_BUSY', status: 409 },
-      type: throwError,
+    expect(refreshKeyOf(refreshStep('complete')?.resolve)).toBe('answer');
+    expect(refreshStep('answer')?.options).toEqual({
+      json: {
+        completed: true,
+        domain: 'history_index',
+        index: '{{ index }}',
+        ok: true,
+        revision: '{{ complete.revision }}',
+      },
     });
 
-    // A failed run is marked failed, described, then reported.
-    expect(runnerKeyOf(runnerStep('index_ok')?.reject)).toBe('fail_run');
-    expect(runnerKeyOf(runnerStep('fail_run')?.resolve)).toBe(
-      'describe_failure',
-    );
-    expect(runnerStep('describe_failure')?.options).toEqual({
+    // A failed page is described, the claim failed with that description,
+    // and the uniform failure record answered.
+    expect(refreshKeyOf(refreshStep('index_ok')?.reject)).toBe('describe');
+    expect(refreshStep('describe')?.options).toEqual({
       code: describeFailureScript,
     });
-    expect(
-      runnerStep(runnerKeyOf(runnerStep('describe_failure')?.resolve) ?? ''),
-    ).toMatchObject({
-      options: {
-        code: 'INDEX_FAILED',
-        message: '{{ describe_failure }}',
-        status: 500,
-      },
-      type: throwError,
+    expect(refreshKeyOf(refreshStep('describe')?.resolve)).toBe('index_fail');
+    expect(refreshStep('index_fail')?.options).toEqual({
+      action: 'fail',
+      code: 'INDEX_FAILED',
+      message: '{{ describe }}',
+      token: triggerClaim,
     });
+    expect(refreshKeyOf(refreshStep('index_fail')?.resolve)).toBe(
+      'index_failed',
+    );
+    expect(refreshStep('index_failed')?.options).toEqual({
+      json: {
+        code: 'INDEX_FAILED',
+        message: '{{ describe }}',
+        ok: false,
+        stage: 'index',
+      },
+    });
+
+    // Every other rejection fails the claim too: nothing is left for the
+    // stale window to release.
+    expect(refreshKeyOf(refreshStep('index')?.reject)).toBe('run_fail');
+    expect(refreshKeyOf(refreshStep('describe')?.reject)).toBe('describe_fail');
+    expect(refreshKeyOf(refreshStep('complete')?.reject)).toBe('complete_fail');
+    expect(refreshStep('complete_fail')?.options).toMatchObject({
+      action: 'fail',
+      code: 'COMPLETION_REFUSED',
+      message: '{{ complete.message }}',
+    });
+    expect(refreshStep('complete_failed')?.options).toMatchObject({
+      json: { code: '{{ complete.code }}', ok: false, stage: 'complete' },
+    });
+
+    const rejecting = (refreshTemplate?.operations ?? []).filter(
+      ({ reject }) => reject !== null,
+    );
+
     expect(
-      runnerTemplate?.operations
-        .filter(({ type }) => type === throwError)
-        .every(({ reject, resolve }) => reject === null && resolve === null),
-    ).toBeTruthy();
+      rejecting
+        .map(({ key }) => key)
+        .toSorted((left, right) => collator.compare(left, right)),
+    ).toEqual(['complete', 'describe', 'index', 'index_ok']);
+    expect(
+      (refreshTemplate?.operations ?? []).some(
+        ({ options }) => options['action'] === 'claim',
+      ),
+    ).toBeFalsy();
   });
 });
 

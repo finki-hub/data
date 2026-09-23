@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export const coordinationErrorCodes = [
   'CLAIM_MISMATCH',
   'COMPLETION_RACED',
@@ -55,3 +57,10 @@ export const coordinationError = (
 export const isCoordinationError = (
   value: unknown,
 ): value is CoordinationError => value instanceof DirectusError;
+
+// PostgreSQL's lock_not_available (SQLSTATE 55P03): a bounded lock wait
+// (limitLockWait) ended before the lock was granted.
+const lockNotAvailable = z.object({ code: z.literal('55P03') });
+
+export const isLockUnavailable = (error: unknown): boolean =>
+  lockNotAvailable.safeParse(error).success;

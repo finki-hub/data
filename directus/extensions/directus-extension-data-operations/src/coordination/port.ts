@@ -36,7 +36,8 @@ export type CoordinationPort = {
   // cut from. No pattern, course, year or history text is read.
   readonly enrollmentSources: () => Promise<EnrollmentSources>;
   readonly ensureSingleton: () => Promise<void>;
-  // Guard: claim token, owner, source revision and fingerprint unchanged.
+  // Guard: claim token, owner, claim revision, the claimed domain's inputs
+  // (verifyClaim) and fingerprint unchanged.
   readonly finish: (input: FinishInput) => Promise<boolean>;
   // Guard: claim token and owner.
   readonly heartbeat: (token: string, owner: string) => Promise<boolean>;
@@ -49,12 +50,18 @@ export type CoordinationPort = {
     token: string,
     revision: number,
   ) => Promise<number>;
+  // Bounds how long the rest of this transaction waits for a row lock; a
+  // longer wait fails with SQLSTATE 55P03 (lock_not_available).
+  readonly limitLockWait: (ms: number) => Promise<void>;
+  // Moves the source revision, the input revision of every calculation
+  // the marked domains touch, and adds them to the dirty domains.
   readonly markDomains: (domains: readonly Domain[]) => Promise<MarkResult>;
   // With lock, the singleton row is locked until the transaction ends;
   // every transaction that writes reads it locked before anything else.
   readonly readState: (lock: boolean) => Promise<OperationsState>;
-  // Guard: claim token, owner and source revision unchanged. Appends the
-  // page to the staged list atomically and refreshes the heartbeat.
+  // Guard: claim token, owner and the claimed domain's inputs unchanged.
+  // Appends the page to the staged list atomically and refreshes the
+  // heartbeat.
   readonly recordStagedPage: (
     token: string,
     owner: string,
@@ -66,8 +73,8 @@ export type CoordinationPort = {
   // pattern), for a rules plan's check that no rule is legacy_regex.
   readonly ruleModes: () => Promise<readonly RuleMode[]>;
   readonly sourceIds: (source: PageSource) => Promise<readonly number[]>;
-  // Guard: claim token, owner and source revision unchanged. A page of an
-  // enrollments plan carries its kind (and a legacy page its bytes and rule
+  // Guard: claim token, owner and the claimed domain's inputs unchanged. A
+  // page of an enrollments plan carries its kind (and a legacy page its bytes and rule
   // range) beside the range the coordinator keeps.
   readonly storePlan: (
     token: string,
@@ -91,11 +98,11 @@ export type FileOutcomes = Readonly<
 >;
 
 export type FinishInput = {
+  readonly claimRevision: number;
   readonly dirtyDomains: readonly Domain[];
   readonly files: FileOutcomes | null;
   readonly fingerprint: string;
   readonly owner: string;
-  readonly sourceRevision: number;
   readonly token: string;
 };
 
@@ -109,6 +116,10 @@ export type ReleaseInput = {
   // True for a genuine failure (fail, abandoned); false when the run was
   // merely overtaken by a source or graph change and will simply rerun.
   readonly failed: boolean;
+  // Why, as the status shows it (bounded, ids and counts only); absent or
+  // null when the release names no cause (a snapshot promotion's claim,
+  // whose failure the promotion records itself).
+  readonly message?: null | string;
   readonly token: string;
 };
 

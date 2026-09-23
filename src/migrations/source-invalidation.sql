@@ -7,6 +7,16 @@
 -- (moodle_history_memberships, course_enrollments, moodle_import_rows,
 -- data_operations, data_operation_results, directus_*) carry no trigger.
 --
+-- Invalidation is per table and marks whole domains: an UPDATE that moves
+-- a mapping or a rule to another course or year, and any DELETE, marks
+-- the domain, whose next run recomputes every pair, so the old and the new
+-- relationship are both covered. The history index and the enrollment
+-- counts also keep the revision of the last statement that touched their
+-- inputs (history_index_input_revision, enrollments_input_revision): a
+-- running calculation is overtaken only by such a statement. Checkpoint overrides
+-- (course_enrollment_patterns) mark publication only: the relational
+-- counts read the enrollment rules the migration converted them into.
+--
 -- Applied by the bundled migration runner of the data-operations extension
 -- (POST /finki-hub-data-operations/migrations/source-invalidation) after the
 -- data model is installed. Statements are separated by a line holding a
@@ -40,14 +50,23 @@ BEGIN
     WHEN 'academic_years' THEN ARRAY['enrollments', 'publication']
     ELSE ARRAY['publication']
   END;
-  -- Deleting a history entry cascades its memberships away: the derived
-  -- index no longer matches the raw histories until it is rebuilt.
-  IF TG_TABLE_NAME = 'moodle_course_entries' AND TG_OP IN ('DELETE', 'TRUNCATE') THEN
+  -- Deleting a history entry cascades its memberships away, and a label
+  -- edited by hand (the label belongs to the index writer, which only
+  -- inserts entries) no longer names the lines its memberships came from:
+  -- either way the derived index no longer matches the raw histories until
+  -- it is rebuilt. The label case arrives through the column trigger below.
+  IF TG_TABLE_NAME = 'moodle_course_entries' AND (TG_OP IN ('DELETE', 'TRUNCATE') OR TG_NAME = 'finki_hub_entry_label_invalidation') THEN
     affected := affected || ARRAY['history_index'];
   END IF;
+  -- A calculation's input revision moves with every statement that marks
+  -- it or an upstream domain, so a run of it is overtaken (and a failure
+  -- of it lifted) by those statements only, never by a publication-only
+  -- edit; publication follows the source revision itself.
   UPDATE "data_operations" SET
     "source_revision" = "source_revision" + 1,
     "requested_revision" = "source_revision" + 1,
+    "history_index_input_revision" = CASE WHEN affected && ARRAY['history_index'] THEN "source_revision" + 1 ELSE "history_index_input_revision" END,
+    "enrollments_input_revision" = CASE WHEN affected && ARRAY['history_index', 'enrollments'] THEN "source_revision" + 1 ELSE "enrollments_input_revision" END,
     "dirty_domains" = (
       SELECT COALESCE(json_agg(domain ORDER BY position), '[]'::json)
       FROM unnest(ARRAY['history_index', 'enrollments', 'publication']) WITH ORDINALITY AS known(domain, position)
@@ -94,6 +113,8 @@ CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_users" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_course_entries" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
+;
+CREATE OR REPLACE TRIGGER "finki_hub_entry_label_invalidation" AFTER UPDATE OF "label" ON "moodle_course_entries" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_course_mappings" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;

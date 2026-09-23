@@ -157,11 +157,11 @@ export const completeAction = (
         : 0;
     await port.discardCandidates(input.token);
     const finished = await port.finish({
+      claimRevision: claim.revision,
       dirtyDomains: dirtyAfterCompletion(state, claim.domain),
       files: input.files ?? null,
       fingerprint,
       owner: context.owner,
-      sourceRevision: claim.revision,
       token: input.token,
     });
     if (!finished) {
@@ -196,6 +196,7 @@ export const failAction = (input: Input<'fail'>, context: ActionContext) =>
     await releaseClaim(port, {
       code: input.code,
       failed: true,
+      message: input.message,
       token: input.token,
     });
     return {

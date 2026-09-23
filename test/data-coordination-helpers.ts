@@ -5,12 +5,19 @@ import type {
 import type { EnrollmentSources } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
 
 import {
+  abandonmentCode,
+  inputRevision,
+  touchesInputs,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
+import {
+  type CalculationDomain,
   type ClaimDomain,
   type Domain,
   normaliseDomains,
   type OperationsState,
   type PageSource,
   type PublishedFile,
+  sourceColumnDomains,
   sourceTableDeletionDomains,
   sourceTableDomains,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
@@ -55,6 +62,7 @@ export type FakeData = {
   enrollments: FakeEnrollment[];
   finishedAtMs: null | number;
   history: FakeHistory;
+  inputRevisions: Record<CalculationDomain, number>;
   lastError: OperationsState['lastError'];
   publicationFingerprint: null | string;
   publicationState: string;
@@ -73,6 +81,7 @@ const freshData = (): FakeData => ({
   enrollments: [],
   finishedAtMs: null,
   history: freshHistory(),
+  inputRevisions: { enrollments: 0, history_index: 0 },
   lastError: null,
   publicationFingerprint: null,
   publicationState: 'idle',
@@ -97,6 +106,8 @@ export class FakeCoordination {
   // What plan_pages with source enrollments reads: rule modes and pattern
   // bytes (also what a rules plan checks) and history byte sizes.
   public enrollmentSources: EnrollmentSources = { rules: [], users: [] };
+  // Every bounded lock wait a transaction asked for, in order.
+  public lockWaits: number[] = [];
   public transactions = 0;
   public readonly store: CoordinationStore;
 
@@ -130,31 +141,56 @@ export class FakeCoordination {
 
   public recoverOutside(staleAfterMs: number): boolean {
     const claim = this.#data.claim;
-    if (claim === null || this.#now - claim.heartbeatAtMs <= staleAfterMs) {
+    const state = this.#state();
+    if (
+      claim === null ||
+      state.claim === null ||
+      this.#now - claim.heartbeatAtMs <= staleAfterMs
+    ) {
       return false;
     }
-    this.#release(claim, { code: 'CLAIM_ABANDONED', failed: true });
+    this.#release(claim, {
+      code: abandonmentCode(state, state.claim),
+      failed: true,
+      message: null,
+    });
     return true;
   }
 
-  // What the statement-level trigger does inside a source transaction; a
-  // DELETE or TRUNCATE marks the deletion domains of the table as well.
+  // What the statement-level triggers do inside a source transaction; a
+  // DELETE or TRUNCATE marks the deletion domains of the table as well,
+  // and an UPDATE naming a watched column (an entry label) its domains.
   public sourceWrite(
     table: string,
     operation: 'delete' | 'insert' | 'update' = 'insert',
+    columns: readonly string[] = [],
   ): void {
+    const watched = sourceColumnDomains[table] ?? {};
     const domains = [
       ...(sourceTableDomains[table] ?? []),
       ...(operation === 'delete'
         ? (sourceTableDeletionDomains[table] ?? [])
         : []),
+      ...(operation === 'update'
+        ? columns.flatMap((column) => watched[column] ?? [])
+        : []),
     ];
-    this.#data.sourceRevision += 1;
-    this.#data.requestedRevision = this.#data.sourceRevision;
-    this.#data.dirtyDomains = normaliseDomains([
-      ...this.#data.dirtyDomains,
-      ...domains,
-    ]);
+    this.#mark(domains);
+  }
+
+  // What the trigger function and markSql both write: the next source
+  // revision, the input revision of every calculation the domains touch,
+  // and the union of the dirty domains.
+  #mark(domains: readonly Domain[]): void {
+    const data = this.#data;
+    data.sourceRevision += 1;
+    data.requestedRevision = data.sourceRevision;
+    for (const calculation of ['history_index', 'enrollments'] as const) {
+      if (touchesInputs(domains, calculation)) {
+        data.inputRevisions[calculation] = data.sourceRevision;
+      }
+    }
+    data.dirtyDomains = normaliseDomains([...data.dirtyDomains, ...domains]);
   }
 
   async #transaction<T>(
@@ -201,6 +237,7 @@ export class FakeCoordination {
       dirtyDomains: data.dirtyDomains,
       finishedAt: stamp(data.finishedAtMs),
       importState: 'idle',
+      inputRevisions: { ...data.inputRevisions },
       lastError: data.lastError,
       publicationFingerprint: data.publicationFingerprint,
       publicationState: data.publicationState,
@@ -215,7 +252,11 @@ export class FakeCoordination {
   // snapshot promotion's claim is released.
   #release(
     claim: FakeClaim,
-    input: { readonly code: string; readonly failed: boolean },
+    input: {
+      readonly code: string;
+      readonly failed: boolean;
+      readonly message?: null | string;
+    },
   ): void {
     if (claim.domain !== 'snapshot') {
       this.#data.lastError = {
@@ -223,6 +264,7 @@ export class FakeCoordination {
         code: input.code,
         domain: claim.domain,
         fingerprint: claim.fingerprint,
+        message: input.message ?? null,
         revision: claim.revision,
       };
     }
@@ -242,7 +284,10 @@ export class FakeCoordination {
     if (claim?.token !== token || claim.owner !== owner) {
       return null;
     }
-    if (atRevision && claim.revision !== this.#data.sourceRevision) {
+    if (
+      atRevision &&
+      inputRevision(this.#state(), claim.domain) > claim.revision
+    ) {
       return null;
     }
     return claim;
@@ -273,10 +318,9 @@ export class FakeCoordination {
       enrollmentSources: async () => this.enrollmentSources,
       ensureSingleton: async () => {},
       finish: async (input) => {
-        const claim = this.#liveClaim(input.token, input.owner, false);
+        const claim = this.#liveClaim(input.token, input.owner, true);
         if (
-          claim === null ||
-          input.sourceRevision !== data().sourceRevision ||
+          claim?.revision !== input.claimRevision ||
           claim.fingerprint !== input.fingerprint
         ) {
           return false;
@@ -354,13 +398,11 @@ export class FakeCoordination {
         data().enrollments = totals.values().toArray();
         return data().enrollments.length;
       },
+      limitLockWait: async (ms) => {
+        this.lockWaits.push(ms);
+      },
       markDomains: async (domains) => {
-        data().sourceRevision += 1;
-        data().requestedRevision = data().sourceRevision;
-        data().dirtyDomains = normaliseDomains([
-          ...data().dirtyDomains,
-          ...domains,
-        ]);
+        this.#mark(domains);
         return {
           dirtyDomains: data().dirtyDomains,
           sourceRevision: data().sourceRevision,

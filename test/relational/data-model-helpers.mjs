@@ -6,6 +6,7 @@ import { folders } from '../../src/data-model/presentation/navigation.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { modelRelations } from '../../src/data-model/relations.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
+import { processPendingFlowId } from '../../src/flows/process-pending.js';
 
 const systemPrefix = 'directus_';
 const restrictedUserPrefix = 'relational-restricted-';
@@ -186,7 +187,44 @@ export const destroyDataModel = async (target) => {
   await destroyFolders(target);
 };
 
-export const withDataModel = async (target, body) => {
+const flowStatus = async (target, id) => {
+  const listing = await read(
+    await request(target, `/flows?fields=status&filter[id][_eq]=${id}`, {
+      token: target.token,
+    }),
+    200,
+  );
+  return listing.data[0]?.status ?? null;
+};
+
+const setFlowStatus = async (target, id, status) =>
+  read(
+    await request(
+      target,
+      `/flows/${id}`,
+      json('PATCH', { status }, target.token),
+    ),
+    200,
+  );
+
+// The scheduled Data / Process pending claims pending work every 15
+// seconds. A suite that drives the coordinator by hand pauses it (status
+// inactive, which the managed-graph fingerprint does not cover) and the
+// returned function restores the status it found; nothing when the Flow is
+// not installed or already inactive.
+export const pauseAutomaticProcessing = async (target) => {
+  if ((await flowStatus(target, processPendingFlowId)) !== 'active') {
+    return () => Promise.resolve();
+  }
+  await setFlowStatus(target, processPendingFlowId, 'inactive');
+  return async () => {
+    if ((await flowStatus(target, processPendingFlowId)) === 'inactive') {
+      await setFlowStatus(target, processPendingFlowId, 'active');
+    }
+  };
+};
+
+const runOnDataModel = async (target, body) => {
   await assertMarkerPresent(target);
   const collections = await userCollections(target);
   const existing = collections.filter((collection) =>
@@ -217,6 +255,20 @@ export const withDataModel = async (target, body) => {
     throw cleanupError;
   }
   if (failed) throw failure;
+};
+
+// Runs a suite over a data model it installs and tears down. Unless the
+// suite asks for automatic processing, the scheduled Flow is paused for
+// the run and resumed afterwards.
+export const withDataModel = async (target, body, options = {}) => {
+  const resume = options.automatic
+    ? () => Promise.resolve()
+    : await pauseAutomaticProcessing(target);
+  try {
+    await runOnDataModel(target, body);
+  } finally {
+    await resume();
+  }
 };
 
 // A non-administrator with a static token and no policies at all.

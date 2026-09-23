@@ -16,6 +16,8 @@ import { toApiField } from '../../src/directus.js';
 import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.js';
 import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { markPendingFlowId } from '../../src/flows/mark-pending.js';
+import { automaticProcessingFlows } from '../../src/flows/process-pending.js';
 import { snapshotImportFlows } from '../../src/flows/snapshot-import.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
@@ -35,6 +37,7 @@ import {
   adminRequest,
   destroyDataModel,
   json,
+  pauseAutomaticProcessing,
   read,
   recording,
   request,
@@ -59,6 +62,7 @@ const setupFlows = [
   ...snapshotImportFlows,
   ...mappedEnrollmentFlows,
   ...legacyEnrollmentFlows,
+  ...automaticProcessingFlows,
 ];
 const templateFlowIds = new Set([
   ...checkpointFlowIds,
@@ -426,6 +430,9 @@ const assertPresets = async (target) => {
 const importConverts = async (target, context) => {
   const run = importCli(target, context.workbook);
   assert.equal(await run.run(), exitCodes.ok, run.stderr.join('\n'));
+  // On a fixture without the templates the import's setup has just
+  // installed an active Process pending; this suite drives no domain.
+  await pauseAutomaticProcessing(target);
   const summary = aggregateOnly(run.stdout[0]);
   await assertImported(target, context, summary);
   await assertRebuilt(target);
@@ -464,11 +471,10 @@ const upgradeSeesConversionDone = async (target, context) => {
   assert.deepEqual(applied.written, {});
 };
 
-// Studio-style edits: a Flow option of the Rebuild Flow and of a history
-// template, and the icon of the Search bookmark.
+// Studio-style edits: a Flow option of the Rebuild Flow and of the Mark
+// pending template, and the icon of the Search bookmark.
 const editInStudio = async (target) => {
-  const [runner] = historyIndexFlows.slice(-1);
-  for (const id of [derivedDataFlowId, runner.id]) {
+  for (const id of [derivedDataFlowId, markPendingFlowId]) {
     const [flow] = await get(
       target,
       `/flows?fields=id,options&filter[id][_eq]=${id}`,
@@ -605,6 +611,7 @@ const upgradeMatchesImport = async (target, directus, context) => {
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
   await createCheckpointProject(target, context.data);
   const setup = await runSetup(directus);
+  await pauseAutomaticProcessing(target);
   assert.deepEqual(setup.presets, { created: 0, skipped: 14 });
   await assert.rejects(access(context.absent), 'the workbook is absent');
   const { applied, report } = await upgrade(target, context, 'old-schema');
@@ -626,6 +633,7 @@ const setupThenImport = async (target, directus, context) => {
   await destroyDataModel(target);
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
   await runSetup(directus);
+  await pauseAutomaticProcessing(target);
   assert.deepEqual(
     await countApplicationRecords(directus),
     {},

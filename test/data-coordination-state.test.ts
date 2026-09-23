@@ -36,10 +36,13 @@ const statusRow = (overrides: Partial<StateRow> = {}): StateRow => ({
   claim_token: null,
   completed_revision: 3,
   dirty_domains: [publication],
+  enrollments_input_revision: null,
   finished_iso: null,
+  history_index_input_revision: null,
   import_state: 'idle',
   last_error_code: null,
   last_error_iso: null,
+  last_error_message: null,
   last_failed_domain: null,
   last_failed_fingerprint: null,
   last_failed_revision: null,
@@ -63,6 +66,19 @@ describe('status row mapping', () => {
     expect(state.lastError).toBeNull();
     expect(state.dirtyDomains).toEqual([publication]);
     expect(state.sourceRevision).toBe(3);
+    // Input revisions never written (a project older than the columns)
+    // read as the source revision: every statement counts, as before.
+    expect(state.inputRevisions).toEqual({ enrollments: 3, history_index: 3 });
+    expect(
+      toState(
+        stateRow.parse(
+          statusRow({
+            enrollments_input_revision: 2,
+            history_index_input_revision: 1,
+          }),
+        ),
+      ).inputRevisions,
+    ).toEqual({ enrollments: 2, history_index: 1 });
   });
 
   test('sees a row whose token survived its other claim columns as an abandoned claim', () => {

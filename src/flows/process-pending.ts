@@ -1,0 +1,218 @@
+import type { DirectusRequest } from '../directus-request.js';
+
+import { dispatcherFlow, dispatcherFlowId } from './count-enrollments.js';
+import {
+  automationId,
+  condition,
+  coordinateOperation,
+  type FlowTemplate,
+  operation,
+} from './flow-template.js';
+import { historyFlowIds } from './history-page-flows.js';
+import {
+  type FlowInstallSummary,
+  installFlowTemplates,
+} from './install-flows.js';
+import { markPendingFlow } from './mark-pending.js';
+import {
+  failStepId,
+  type ReleaseBranch,
+  releaseSteps,
+} from './release-steps.js';
+
+export const processPendingFlowId = automationId('02');
+
+// Every 15 seconds: the schedule's six-field cron (seconds first) on
+// Directus 12.3.1. `0 */15 * * * *` would be every 15 minutes.
+export const processPendingCron = '*/15 * * * * *';
+
+const claimToken = '{{ claim.token }}';
+
+const branch = (
+  spec: Pick<
+    ReleaseBranch,
+    'code' | 'message' | 'position' | 'stage' | 'suffixes'
+  >,
+): ReleaseBranch => ({ ...spec, family: '13', token: claimToken });
+
+// A child that releases the claim itself (complete or fail) needs the
+// scheduler only when it could not: the Trigger Flow step rejected, or the
+// child answered nothing because it is inactive or deleted.
+const historyCrashed = branch({
+  code: 'INDEX_FAILED',
+  message: '{{ refresh.message }}',
+  position: [73, 19],
+  stage: 'history_run',
+  suffixes: ['41', '42'],
+});
+const historyMissing = branch({
+  code: 'INDEX_FAILED',
+  message:
+    '"Data / Refresh history index" answered nothing (inactive or deleted); the claim was released without a run.',
+  position: [91, 19],
+  stage: 'history_missing',
+  suffixes: ['43', '44'],
+});
+const countCrashed = branch({
+  code: 'ENROLLMENTS_FAILED',
+  message: '{{ count.message }}',
+  position: [73, 73],
+  stage: 'enrollments_run',
+  suffixes: ['45', '46'],
+});
+const countMissing = branch({
+  code: 'ENROLLMENTS_FAILED',
+  message:
+    '"Data / Count enrollments" answered nothing (inactive or deleted); the claim was released without a run.',
+  position: [91, 73],
+  stage: 'enrollments_missing',
+  suffixes: ['47', '48'],
+});
+
+// The native scheduler of automatic processing. Every tick goes through
+// the coordinator's atomic claim, which also releases a claim whose
+// heartbeat went stale: with the default in-memory synchronization every
+// Directus process fires every tick and a long run overlaps the next ones,
+// so the claim is the only guard. An idle tick (busy, nothing pending,
+// upstream dirty, or a failure at this revision) reads the status row and
+// the Flow graph and ends at `idle`; it reads no collection. A claimed
+// tick runs exactly one domain, the first pending one in dependency order
+// (the history index before the enrollment counts; publication never,
+// that is the publish Flow's), through the child that completes or fails
+// the claim; the next tick takes the next domain. A failure stays failed
+// until an edit, Mark pending or a graph change: no timed retry. The
+// schedule has no caller and no accountability, so every item read in the
+// children names its permissions ($full) explicitly.
+export const processPendingFlow: FlowTemplate = {
+  accountability: 'activity',
+  description:
+    'Runs pending derived work every 15 seconds: claims the first pending calculation domain (Moodle history index, then enrollment counts; never publication) through the coordinator and runs "Data / Refresh history index" or "Data / Count enrollments" under that claim, one domain per tick. An idle tick claims nothing and reads no collection. A failed run stays failed until a source edit, "Data / Mark pending" or a Flow graph change; no timed retry.',
+  entry: automationId('31'),
+  icon: 'schedule',
+  id: processPendingFlowId,
+  name: 'Data / Process pending',
+  operations: [
+    operation({
+      edges: { reject: automationId('36'), resolve: automationId('32') },
+      family: '13',
+      key: 'claim',
+      name: 'Claim the next pending calculation',
+      options: { action: 'claim', domain: 'next_calculation' },
+      position: [19, 1],
+      suffix: '31',
+      type: coordinateOperation,
+    }),
+    operation({
+      family: '13',
+      key: 'claim_failed',
+      name: 'Answer the refused claim',
+      options: {
+        json: {
+          claimed: false,
+          code: '{{ claim.code }}',
+          message: '{{ claim.message }}',
+          stage: 'claim',
+        },
+      },
+      position: [19, 19],
+      suffix: '36',
+      type: 'transform',
+    }),
+    condition({
+      edges: { reject: automationId('37'), resolve: automationId('33') },
+      family: '13',
+      filter: { claim: { claimed: { _eq: true } } },
+      key: 'claimed',
+      name: 'Claimed?',
+      position: [37, 1],
+      suffix: '32',
+    }),
+    operation({
+      family: '13',
+      key: 'idle',
+      name: 'Nothing to run',
+      options: { json: { claimed: false, reason: '{{ claim.reason }}' } },
+      position: [37, 19],
+      suffix: '37',
+      type: 'transform',
+    }),
+    condition({
+      edges: { reject: automationId('38'), resolve: automationId('34') },
+      family: '13',
+      filter: { claim: { domain: { _eq: 'history_index' } } },
+      key: 'route',
+      name: 'History index?',
+      position: [55, 1],
+      suffix: '33',
+    }),
+    operation({
+      edges: {
+        reject: failStepId(historyCrashed),
+        resolve: automationId('35'),
+      },
+      family: '13',
+      key: 'refresh',
+      name: 'Refresh the history index',
+      options: {
+        flow: historyFlowIds.refresh,
+        iterationMode: 'serial',
+        payload: { claim: claimToken },
+      },
+      position: [73, 1],
+      suffix: '34',
+      type: 'trigger',
+    }),
+    condition({
+      edges: { reject: failStepId(historyMissing) },
+      family: '13',
+      filter: { refresh: { ok: { _nnull: true } } },
+      key: 'refreshed',
+      name: 'Answered?',
+      position: [91, 1],
+      suffix: '35',
+    }),
+    operation({
+      edges: { reject: failStepId(countCrashed), resolve: automationId('39') },
+      family: '13',
+      key: 'count',
+      name: 'Count enrollments',
+      options: {
+        flow: dispatcherFlowId,
+        iterationMode: 'serial',
+        payload: { claim: claimToken, revision: '{{ claim.revision }}' },
+      },
+      position: [73, 55],
+      suffix: '38',
+      type: 'trigger',
+    }),
+    condition({
+      edges: { reject: failStepId(countMissing) },
+      family: '13',
+      filter: { count: { ok: { _nnull: true } } },
+      key: 'counted',
+      name: 'Answered?',
+      position: [91, 55],
+      suffix: '39',
+    }),
+    ...[historyCrashed, historyMissing, countCrashed, countMissing].flatMap(
+      (entry) => releaseSteps(entry),
+    ),
+  ],
+  options: { cron: processPendingCron },
+  trigger: 'schedule',
+};
+
+// The automatic processing Flows in installation order: every child before
+// the Flows that call it, the schedule last, so its first tick finds them.
+export const automaticProcessingFlows: readonly FlowTemplate[] = [
+  dispatcherFlow,
+  markPendingFlow,
+  processPendingFlow,
+];
+
+// Installs the automatic processing Flows once each; a Flow whose id
+// exists keeps every Studio edit (see installFlowTemplates).
+export const installAutomaticProcessingFlows = (
+  request: DirectusRequest,
+): Promise<FlowInstallSummary> =>
+  installFlowTemplates(request, automaticProcessingFlows);

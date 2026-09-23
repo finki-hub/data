@@ -1,6 +1,7 @@
 import { defineOperationApp } from '@directus/extensions-sdk';
 
 import {
+  claimTargets,
   coordinationDomains,
   operationId,
   planSources,
@@ -46,8 +47,8 @@ export default defineOperationApp({
       field: 'domain',
       meta: {
         interface: 'select-dropdown',
-        note: 'claim: the domain to run.',
-        options: { allowNone: true, choices: choices(coordinationDomains) },
+        note: 'claim: the domain to run, or next_calculation for the first pending calculation domain in dependency order (history_index, then enrollments; never publication).',
+        options: { allowNone: true, choices: choices(claimTargets) },
         width: 'half',
       },
       name: 'Domain',
@@ -124,6 +125,16 @@ export default defineOperationApp({
         width: 'half',
       },
       name: 'Failure code',
+      type: 'string',
+    },
+    {
+      field: 'message',
+      meta: {
+        interface: 'input',
+        note: 'fail: why, kept in the status beside the code (ids and counts only; cut to 600 characters).',
+        width: 'full',
+      },
+      name: 'Failure message',
       type: 'string',
     },
     {

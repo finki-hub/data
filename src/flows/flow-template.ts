@@ -20,6 +20,10 @@ export const snapshotId = (suffix: string): string => familyId('10', suffix);
 export const checkpointFlowId = (suffix: string): string =>
   familyId('07', suffix);
 
+// A deterministic UUID of the automatic processing Flow family (the
+// enrollment dispatcher, Mark pending and the scheduled Process pending).
+export const automationId = (suffix: string): string => familyId('13', suffix);
+
 export type OperationTemplate = {
   readonly id: string;
   readonly key: string;
@@ -41,7 +45,7 @@ export type FlowTemplate = {
   readonly name: string;
   readonly operations: readonly OperationTemplate[];
   readonly options: Readonly<Record<string, unknown>>;
-  readonly trigger: 'manual' | 'operation';
+  readonly trigger: 'manual' | 'operation' | 'schedule';
 };
 
 export type OperationEdges = {

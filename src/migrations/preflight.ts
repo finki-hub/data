@@ -1,6 +1,7 @@
 import type { Inventory } from './inventory.js';
 
 import { findModelCollection } from '../data-model/collections.js';
+import { legacyOperationTypes } from '../legacy-flows.js';
 import { type CollectionKey, collectionKeys } from '../schema.js';
 import { isBlocker, sortFindings } from './findings.js';
 import { fingerprintInventory } from './fingerprint.js';
@@ -16,11 +17,6 @@ import {
   type MigrationReport,
   migrationVersion,
 } from './report.js';
-
-const legacyOperationTypes: ReadonlySet<string> = new Set([
-  'finki-hub-publish-public-assets',
-  'finki-hub-rebuild-derived-data',
-]);
 
 const flowSummaries = (
   inventory: Inventory,

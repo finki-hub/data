@@ -119,6 +119,8 @@ export const fieldGroups: readonly FieldGroup[] = [
     headerIcon: 'history_toggle_off',
     members: [
       'source_revision',
+      'history_index_input_revision',
+      'enrollments_input_revision',
       'requested_revision',
       'completed_revision',
       'dirty_domains',
@@ -156,12 +158,13 @@ export const fieldGroups: readonly FieldGroup[] = [
     headerIcon: 'error',
     members: [
       'last_error_code',
+      'last_error_message',
       'last_error_at',
       'last_failed_revision',
       'last_failed_domain',
       'last_failed_fingerprint',
     ],
-    note: 'Kept until an explicit retry or a newer source or graph revision succeeds.',
+    note: 'The last failure stays recorded after a later success; it holds its domain back only while the source and Flow graph are still at its revision (the status reports this as blocking).',
     readOnly: true,
     sort: 3,
     start: 'closed',

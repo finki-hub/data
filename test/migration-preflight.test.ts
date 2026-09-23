@@ -816,7 +816,7 @@ describe('preflight warnings and mappings', () => {
 });
 
 describe('preflight flows and mappings', () => {
-  test('lists persisted Flows and flags the legacy rebuild Flow for cutover review', async () => {
+  test('lists persisted Flows and flags the legacy rebuild and publish Flows for cutover review', async () => {
     const store = storeFromDataset(uniqueDataset(), { installed: true });
     store.flows.push(
       {
@@ -833,16 +833,37 @@ describe('preflight flows and mappings', () => {
         status: 'inactive',
         trigger: 'event',
       },
+      {
+        id: 'flow-c',
+        name: 'Synthetic renamed publisher',
+        operation: 'op-c',
+        status: 'active',
+        trigger: 'manual',
+      },
     );
-    store.operations.push({
-      flow: 'flow-a',
-      id: 'op-a',
-      key: 'rebuild',
-      options: {},
-      reject: null,
-      resolve: null,
-      type: 'finki-hub-rebuild-derived-data',
-    });
+    // The checkpoint Publish public assets Flow writes the four files with
+    // the finki-hub-publish-json operation (follow-up 26: the preflight
+    // looked for another type and reported it as an ordinary Flow).
+    store.operations.push(
+      {
+        flow: 'flow-a',
+        id: 'op-a',
+        key: 'rebuild',
+        options: {},
+        reject: null,
+        resolve: null,
+        type: 'finki-hub-rebuild-derived-data',
+      },
+      {
+        flow: 'flow-c',
+        id: 'op-c',
+        key: 'publish_assets',
+        options: {},
+        reject: null,
+        resolve: null,
+        type: 'finki-hub-publish-json',
+      },
+    );
     const report = await reportOf(store);
 
     expect(report.flows).toEqual([
@@ -860,12 +881,23 @@ describe('preflight flows and mappings', () => {
         status: 'inactive',
         trigger: 'event',
       },
+      {
+        id: 'flow-c',
+        name: 'Synthetic renamed publisher',
+        operationTypes: ['finki-hub-publish-json'],
+        status: 'active',
+        trigger: 'manual',
+      },
     ]);
-    expect(report.counts.flows).toBe(2);
+    expect(report.counts.flows).toBe(3);
     expect(findings(report, 'legacy_flow_present')).toEqual([
       expect.objectContaining({
         collection: 'directus_flows',
         label: 'flow-a',
+      }),
+      expect.objectContaining({
+        collection: 'directus_flows',
+        label: 'flow-c',
       }),
     ]);
     expect(findings(report, 'persisted_flow')).toHaveLength(1);

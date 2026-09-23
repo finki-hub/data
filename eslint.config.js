@@ -75,10 +75,13 @@ const config = [
     },
   },
   {
-    // The restart-recovery scenario restarts the isolated fixture container
-    // through Docker when the operator names it in the environment; the
-    // scenario runner starts `node --test` on the selected suites.
+    // The restart-recovery scenarios restart the isolated fixture container
+    // and the automatic processing suite reads PostgreSQL statistics with
+    // read-only psql SELECTs, through Docker, when the operator names the
+    // containers in the environment; the scenario runner starts
+    // `node --test` on the selected suites.
     files: [
+      'test/relational/automatic-processing-helpers.mjs',
       'test/relational/data-coordination.integration.mjs',
       'test/relational/run-scenarios.mjs',
     ],
@@ -106,8 +109,14 @@ const config = [
     },
   },
   {
-    // Node 24 ships no Temporal; the CLI entry points stamp the ledger.
-    files: ['src/cli.ts', 'src/migrations/cli.ts'],
+    // Node 24 ships no Temporal; the CLI entry points stamp the ledger, and
+    // the automatic processing suite reads the coordinator's timestamps to
+    // measure how long the schedule took.
+    files: [
+      'src/cli.ts',
+      'src/migrations/cli.ts',
+      'test/relational/automatic-processing-helpers.mjs',
+    ],
     rules: {
       'unicorn/prefer-temporal': 'off',
     },

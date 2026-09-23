@@ -21,8 +21,9 @@ const logSink = (candidate: unknown): LogSink | null =>
 
 // Startup recovery. A claim taken by a process that no longer exists stops
 // heartbeating; once it is silent for longer than the documented window it
-// is released with its failure details kept, and its domain stays pending
-// for an explicit retry. The check runs when the app is up and once more
+// is released with its failure details kept and its domain stays pending:
+// a calculation interrupted for the first time at its inputs runs again
+// at the next claim, anything else waits for an explicit retry. The check runs when the app is up and once more
 // after the window has passed, so a restart mid-run resolves itself even
 // when nothing calls claim in the meantime; every claim repeats the check.
 export default defineHook(({ init }, { database, logger }) => {

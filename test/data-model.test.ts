@@ -236,6 +236,9 @@ describe('target collections', () => {
       'import_promoted_rows',
       'import_promoted_fingerprint',
       'import_promoted_at',
+      'last_error_message',
+      'history_index_input_revision',
+      'enrollments_input_revision',
     ]);
     expect(findCollection('data_operation_results').hidden).toBeTruthy();
     expect(findCollection('moodle_history_memberships').hidden).toBeTruthy();

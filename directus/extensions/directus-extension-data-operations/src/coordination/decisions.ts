@@ -1,10 +1,13 @@
+import { blockingFailure, inputRevision } from './failures.js';
 import {
   calculationDomains,
   type Claim,
   type ClaimDomain,
+  type ClaimTarget,
   coordinationDomains,
   type Domain,
   type LastError,
+  nextCalculation,
   type OperationsState,
 } from './state.js';
 
@@ -51,45 +54,46 @@ export const abandonedClaim = (
 export type ClaimDecision =
   | { readonly blocking: readonly Domain[]; readonly kind: 'upstream_dirty' }
   | { readonly claim: Claim; readonly kind: 'busy' }
-  | { readonly dirtyDomains: readonly Domain[]; readonly kind: 'claim' }
-  | { readonly error: LastError; readonly kind: 'failed' }
+  | {
+      readonly dirtyDomains: readonly Domain[];
+      readonly domain: Domain;
+      readonly kind: 'claim';
+    }
+  | {
+      readonly domain: Domain;
+      readonly error: LastError;
+      readonly kind: 'failed';
+    }
   | { readonly kind: 'nothing_pending' };
 
 export type ClaimRequest = {
   readonly currentFingerprint: string;
-  readonly domain: Domain;
+  readonly domain: ClaimTarget;
   readonly retry: boolean;
 };
 
-// A run overtaken by a source or graph change was discarded, not failed:
-// it never blocks the rerun that the overtaking asks for.
-export const overtakingCodes: readonly string[] = [
-  'SOURCE_CHANGED',
-  'FINGERPRINT_CHANGED',
-];
-
-const blockedByFailure = (
-  state: OperationsState,
-  request: ClaimRequest,
-): LastError | null => {
-  const error = state.lastError;
-  if (
-    request.retry ||
-    error?.domain !== request.domain ||
-    overtakingCodes.includes(error.code) ||
-    error.revision !== state.sourceRevision ||
-    error.fingerprint !== request.currentFingerprint
-  ) {
-    return null;
+// The domain a claim names: itself while pending, or for next_calculation
+// the first pending calculation domain in dependency order, so the
+// scheduled Flow runs the history index before the enrollment counts and
+// never publication.
+const requestedDomain = (
+  pending: readonly Domain[],
+  target: ClaimTarget,
+): Domain | null => {
+  if (target === nextCalculation) {
+    return (
+      calculationDomains.find((domain) => pending.includes(domain)) ?? null
+    );
   }
-  return error;
+  return pending.includes(target) ? target : null;
 };
 
 // One job at a time: a present claim wins, then the domain must be pending,
-// its upstream domains settled, and a failure at this exact source and
-// graph revision must be retried explicitly. A successful claim persists
-// every pending domain as dirty, so a graph change marks its domains once
-// and completion later clears only the claimed one.
+// its upstream domains settled, and a failure at the domain's current
+// inputs and graph must be retried explicitly (blockingFailure). A
+// successful claim persists every pending domain as dirty, so a graph
+// change marks its domains once and completion later clears only the
+// claimed one.
 export const decideClaim = (
   state: OperationsState,
   request: ClaimRequest,
@@ -98,20 +102,23 @@ export const decideClaim = (
     return { claim: state.claim, kind: 'busy' };
   }
   const pending = pendingDomains(state, request.currentFingerprint);
-  if (!pending.includes(request.domain)) {
+  const domain = requestedDomain(pending, request.domain);
+  if (domain === null) {
     return { kind: 'nothing_pending' };
   }
-  const blocking = upstreamOf(request.domain).filter((domain) =>
-    pending.includes(domain),
+  const blocking = upstreamOf(domain).filter((upstream) =>
+    pending.includes(upstream),
   );
   if (blocking.length > 0) {
     return { blocking, kind: 'upstream_dirty' };
   }
-  const error = blockedByFailure(state, request);
+  const error = request.retry
+    ? null
+    : blockingFailure(state, domain, request.currentFingerprint);
   if (error !== null) {
-    return { error, kind: 'failed' };
+    return { domain, error, kind: 'failed' };
   }
-  return { dirtyDomains: pending, kind: 'claim' };
+  return { dirtyDomains: pending, domain, kind: 'claim' };
 };
 
 export type ClaimCheck = {
@@ -134,16 +141,18 @@ export const verifyOwnership = (
 export type ClaimVerdict = 'source_changed' | OwnershipVerdict;
 
 // A claim is usable while its token and owner match and no source
-// transaction committed since it was taken.
+// transaction that touched the claimed domain's inputs committed since it
+// was taken; a publication or snapshot claim reads everything, so any
+// source transaction counts for it.
 export const verifyClaim = (
   state: OperationsState,
   check: ClaimCheck,
 ): ClaimVerdict => {
   const ownership = verifyOwnership(state, check);
-  if (ownership !== 'ok') {
-    return ownership;
+  if (ownership !== 'ok' || state.claim === null) {
+    return ownership === 'ok' ? 'claim_mismatch' : ownership;
   }
-  return state.claim?.revision === state.sourceRevision
+  return inputRevision(state, state.claim.domain) <= state.claim.revision
     ? 'ok'
     : 'source_changed';
 };
@@ -173,7 +182,7 @@ export type CompletionDecision =
   | { readonly kind: 'unplanned' }
   | { readonly kind: Exclude<ClaimVerdict, 'ok'> };
 
-// Output is accepted only when the source revision and the graph
+// Output is accepted only when the claimed domain's inputs and the graph
 // fingerprint still match the claim and a calculation run (history index
 // or enrollments) planned its pages and staged every one of them; a
 // partial batch, or a run that never planned, is never labelled current.

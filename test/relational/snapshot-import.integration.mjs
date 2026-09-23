@@ -14,7 +14,6 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
-import { historyFlowIds } from '../../src/flows/history-page-flows.js';
 import {
   historyIndexFlows,
   installHistoryIndexFlows,
@@ -37,6 +36,8 @@ import {
   userCollections,
   withDataModel,
 } from './data-model-helpers.mjs';
+import { historyRunnerId, runnerPath } from './history-index-helpers.mjs';
+import { installHistoryRunner } from './history-runner.mjs';
 import {
   assertRawRows,
   backupTitlePrefix,
@@ -153,6 +154,8 @@ const installsFlow = async (target, directus, state) => {
       .map(({ key, reject, resolve, type }) => ({ key, reject, resolve, type }))
       .toSorted(sortByKey),
   );
+  state.probes.push(historyRunnerId);
+  await installHistoryRunner(target);
   // Each probe is recorded before it is created, so the cleanup removes
   // whatever part of the three an interrupted install created.
   state.probes.push(probeImportFlowId);
@@ -186,8 +189,8 @@ const installsFlow = async (target, directus, state) => {
   });
 };
 
-// A first snapshot, promoted into an empty project, indexed by the Task 9
-// runner and given one manual mapping.
+// A first snapshot, promoted into an empty project, indexed by the
+// synthetic history runner and given one manual mapping.
 const promotesFirstSnapshot = async (target, state) => {
   const rows = syntheticRows(previousRows, 70_000);
   const file = path.join(state.dir, 'snapshot-a.csv');
@@ -209,15 +212,11 @@ const promotesFirstSnapshot = async (target, state) => {
     firstFile: id,
     previous: { fingerprint: run.body.fingerprint, rows },
   });
-  const indexed = await call(
-    target,
-    `/flows/trigger/${historyFlowIds.runner}`,
-    {
-      body: JSON.stringify({ collection: 'moodle_users' }),
-      headers: { 'content-type': 'application/json' },
-      method: 'POST',
-    },
-  );
+  const indexed = await call(target, runnerPath, {
+    body: JSON.stringify({ collection: 'moodle_users' }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  });
   assert.equal(indexed.status, 200, JSON.stringify(indexed.body));
   assert.equal(indexed.body.completed, true);
   const memberships = await count(target, 'moodle_history_memberships');

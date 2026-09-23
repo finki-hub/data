@@ -3,6 +3,7 @@ import type { OperationsState } from './state.js';
 
 import { abandonedClaim } from './decisions.js';
 import { type CoordinationError, coordinationError } from './errors.js';
+import { abandonmentCode, interruptedCode } from './failures.js';
 
 export type ActionContext = {
   readonly owner: string;
@@ -10,7 +11,20 @@ export type ActionContext = {
   readonly store: CoordinationStore;
 };
 
-export const abandonedCode = 'CLAIM_ABANDONED';
+// Why an abandoned claim was released: the status carries it, since no
+// caller is left to receive a refusal.
+export const abandonedMessage =
+  'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded. Mark the domain pending (or retry) to run it again.';
+
+export const interruptedMessage =
+  'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded and the domain runs once more on its own. A second interruption at the same inputs waits for Mark pending.';
+
+const overtakenMessages: Readonly<Record<Overtaking, string>> = {
+  fingerprint_changed:
+    'The managed Flow graph changed during the run; its output was discarded and the domain stays pending.',
+  source_changed:
+    'A source change committed during the run; its output was discarded and the domain stays pending.',
+};
 
 export type Mismatch = 'claim_mismatch' | 'owner_mismatch';
 
@@ -58,6 +72,7 @@ export const releaseClaim = async (
   release: {
     readonly code: string;
     readonly failed: boolean;
+    readonly message: null | string;
     readonly token: string;
   },
 ): Promise<void> => {
@@ -80,19 +95,18 @@ export const guarded = async <T>(
     outcome.reason === 'source_changed'
       ? 'SOURCE_CHANGED'
       : 'FINGERPRINT_CHANGED';
+  const message = overtakenMessages[outcome.reason];
   await context.store.transaction((port) =>
-    releaseClaim(port, { code, failed: false, token: outcome.token }),
+    releaseClaim(port, { code, failed: false, message, token: outcome.token }),
   );
-  throw coordinationError(
-    code,
-    outcome.reason === 'source_changed'
-      ? 'A source change committed during the run; its output was discarded and the domain stays pending.'
-      : 'The managed Flow graph changed during the run; its output was discarded and the domain stays pending.',
-  );
+  throw coordinationError(code, message);
 };
 
-// Releases an abandoned claim before anything else happens. Returns the
-// state after the release, or the state as read when nothing was stale.
+// Releases an abandoned claim before anything else happens, with the code
+// abandonmentCode picks: a calculation interrupted for the first time at
+// its inputs is left pending for the next claim, anything else waits for
+// an explicit retry. Returns the state after the release, or the state as
+// read when nothing was stale.
 export const recoverInside = async (
   port: CoordinationPort,
   context: ActionContext,
@@ -102,9 +116,11 @@ export const recoverInside = async (
   if (stale === null) {
     return { released: false, state };
   }
+  const code = abandonmentCode(state, stale);
   await releaseClaim(port, {
-    code: abandonedCode,
+    code,
     failed: true,
+    message: code === interruptedCode ? interruptedMessage : abandonedMessage,
     token: stale.token,
   });
   return { released: true, state: await port.readState(true) };

@@ -1,5 +1,6 @@
 import type { ModelCollection } from '../schema.js';
 
+import { automaticProcessingFields } from './automatic-processing-fields.js';
 import { courseTemplate, provenanceFields } from './checkpoint-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
 import { enumField, m2o, scalar } from './fields.js';
@@ -194,6 +195,7 @@ export const operationsCollections: readonly ModelCollection[] = [
         readOnly: true,
       }),
       ...snapshotImportFields,
+      ...automaticProcessingFields,
     ],
     hidden: true,
     icon: 'settings_suggest',

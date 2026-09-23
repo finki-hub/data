@@ -5,6 +5,7 @@ import {
 } from './data-model/install.js';
 import { IncompleteFlowError } from './flows/install-flows.js';
 import { ExistingDataError } from './import-state.js';
+import { LegacyFlowsError } from './legacy-flows.js';
 import { SetupConfigError } from './setup-config.js';
 
 // Exit codes of the lifecycle commands (`npm run setup`, `npm run import`):
@@ -29,12 +30,14 @@ const refusals = [
   DataOperationsUnavailableError,
   ExistingDataError,
   IncompleteFlowError,
+  LegacyFlowsError,
   SchemaRefusalError,
   SetupConfigError,
 ] as const;
 
-// An incompatible state: no target named, a populated project offered to
-// the fresh importer, existing definitions the model cannot adopt, a
-// half-installed Flow, or a Directus without the data-operations bundle.
+// An incompatible state: no target named, a populated project (or one
+// holding checkpoint Flows of its own) offered to the fresh importer,
+// existing definitions the model cannot adopt, a half-installed Flow, or a
+// Directus without the data-operations bundle.
 export const isRefusal = (error: unknown): boolean =>
   refusals.some((refusal) => error instanceof refusal);

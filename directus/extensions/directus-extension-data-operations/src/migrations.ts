@@ -60,7 +60,7 @@ BEGIN
   IF pg_trigger_depth() < 2 AND current_setting('finki_hub.history_writer', true) IS DISTINCT FROM 'on' THEN
     RAISE EXCEPTION 'moodle_history_memberships is the derived Moodle history index; only the history index run writes it'
       USING ERRCODE = 'insufficient_privilege', TABLE = 'moodle_history_memberships',
-        HINT = 'Edit the raw Courses history of the Moodle user, then run the "Data / Rebuild Moodle history index" Flow.';
+        HINT = 'Edit the raw Courses history of the Moodle user; the scheduled "Data / Process pending" Flow rebuilds the index.';
   END IF;
   RETURN NULL;
 END

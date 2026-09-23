@@ -18,8 +18,8 @@ branding files, and it does read `.env` (see [Branding](#branding)).
 
 | Situation | Command | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template and the mapped and legacy enrollment count Flow templates. Writes no records. |
-| New project, first data from the spreadsheet | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (below). |
+| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template, the mapped and legacy enrollment count Flow templates and the automatic processing Flows (**Data / Process pending**, **Data / Mark pending**, **Data / Count enrollments**; see [Automatic processing](#automatic-processing)). Writes no records, but once it has run the schedule keeps the derived data current on its own. |
+| New project, first data from the spreadsheet | `npm run import` | Refuses unless every application collection is empty and no checkpoint Rebuild or Publish Flow exists under another id, runs setup, then imports the workbook once (below). |
 | Project that already holds data | `npm run migrate -- --dry-run --report <private path>`, then `-- --apply` | Upgrades it in place to the relational model through the migration ledger. Never reads the workbook. |
 
 Setup is idempotent and install-once: rerunning it creates only what is
@@ -27,8 +27,8 @@ missing. A preset (default view or bookmark) or Flow that already exists is
 never changed, whoever created it, so column choices, filters and Flow
 settings edited in Studio survive every rerun. Repository Flow definitions
 are templates with stable ids, not a source of truth. To take a newer
-template of a Moodle history index Flow, delete that Flow in Studio and run
-setup again. This does not work for **Rebuild derived data** and **Publish
+template of a Moodle history index or automatic processing Flow, delete
+that Flow in Studio and run setup again. This does not work for **Rebuild derived data** and **Publish
 public assets**. Setup never installs them: the workbook import installs
 them once (a project upgraded from the checkpoint importer keeps its own
 copies under random ids), and the import refuses a populated project. No
@@ -89,8 +89,13 @@ It then refuses, before its first write, a project in which any application
 collection (the thirteen checkpoint collections, the relational collections,
 the Moodle staging and index collections, the migration ledger) holds a
 record, and prints the record count of each; the empty schema `npm run
-setup` creates, including its coordination status row, is accepted. On an
-accepted project it:
+setup` creates, including its coordination status row, is accepted. It also
+refuses a project that holds a Flow running the checkpoint derivation or
+publication (an operation of type `finki-hub-rebuild-derived-data` or
+`finki-hub-publish-json`) under an id other than the import's own, for
+example an emptied old deployment, instead of installing a second **Rebuild
+derived data** and **Publish public assets** beside it; the message lists
+those Flows. On an accepted project it:
 
 1. runs exactly what `npm run setup` runs, so importing into an empty project
    equals setup followed by the import;
@@ -276,9 +281,9 @@ one database transaction under the coordinator's exclusive claim. A refused
 file or a failed step changes no active row. Course mappings, history
 entries and every other collection are never touched. The history
 memberships are cleared, and the history index, the enrollment counts and
-publication become pending: run **Data / Rebuild Moodle history index**
-next. To restore the previous snapshot, run the same Flow with the backup
-file. Deleting old backups is a manual File Library task.
+publication become pending: the schedule rebuilds the index and then the
+counts on its own (see [Automatic processing](#automatic-processing)). To
+restore the previous snapshot, run the same Flow with the backup file. Deleting old backups is a manual File Library task.
 
 The import is bounded by `IMPORT_TIMEOUT` (15 minutes in `compose.yaml`) and
 by `FINKI_HUB_SNAPSHOT_MAX_BYTES` (256 MiB unless set). For administrators,
@@ -289,7 +294,7 @@ rows still equal it (`activeMatchesPromotion`, false after an edit outside
 this workflow, whatever later imports did). A failed run logs its code and
 the database object involved, never a value, to the Directus log.
 
-After promoting a new snapshot, also run **Rebuild derived data** from the Flows action in any affected source collection. This refreshes course enrollment counts and the other derived fields. Publishing to R2 remains a separate explicit action.
+Until the cutover retires it, the checkpoint **Rebuild derived data** still computes the old calculated course fields: after promoting a new snapshot, also run it from the Flows action in any affected source collection. The relational enrollment counts need no button. Publishing to R2 remains a separate explicit action.
 
 ## Enrollment counts from explicit mappings
 
@@ -319,9 +324,9 @@ the course/year pairs whose enrollment rule has the mode `mapped_entries`:
 
 Only the enrollment claim's completion writes `course_enrollments`, and it
 replaces every row at the claimed revision, so one claim must stage both
-rule families (see the next section). Setup does not install a Flow yet
-that claims enrollments, plans the pages, runs both families and completes
-the claim; it arrives with the automatic processing work. The coordinator
+rule families (see the next section). **Data / Count enrollments** is the
+Flow that does so under the claim the schedule takes (see
+[Automatic processing](#automatic-processing)). The coordinator
 refuses `plan_pages` with source `rules` under an enrollments claim while
 any rule is not `mapped_entries`, and source `history` under any claim but
 a history index claim (`DOMAIN_MISMATCH`), so an enrollments claim is
@@ -411,6 +416,114 @@ histories with a deadline of 10 seconds; one that runs out is reported as
 a rule; switch a rule to `mapped_entries` in Studio only where the sets
 are equal, and keep `legacy_regex` where an expression needs several
 entries at once. The printed summary carries the counts only.
+
+## Automatic processing
+
+The history index and the enrollment counts refresh on their own; nobody
+has to press a button after an edit. `npm run setup` installs three Flows
+for this, beside the history and enrollment templates above:
+
+- **Data / Process pending** runs on a native Directus schedule every 15
+  seconds (cron `*/15 * * * * *`; the seconds field comes first, so
+  `0 */15 * * * *` would mean every 15 minutes). Each tick asks the
+  coordinator for the first pending calculation: the Moodle history index
+  first, the enrollment counts after it, never publication, which stays
+  for the publish Flow. When nothing is pending, when another run holds the
+  claim, when a long source transaction holds the status row for more than
+  2 seconds, or when the pending work failed at its current inputs, the
+  tick ends at once. It reads the coordination status row and the Flow
+  graph, never a collection. When it claims, it runs exactly one domain, through
+  **Data / Refresh history index** (every history page in turn, then the
+  completion) or **Data / Count enrollments** (one plan of both rule
+  families, the mapped pages in turn, a heartbeat, the legacy pages and
+  their explicit zeros, then one completion that installs every pair). The
+  next tick takes the next domain.
+- **Data / Mark pending** is a manual Flow on the hidden **Data Operations**
+  singleton for administrators. It marks the chosen domains pending (the
+  history index and the enrollment counts when none is chosen) and answers
+  the status. It runs nothing itself: the schedule picks the work up at its
+  next tick. It is also the explicit retry of a failed run.
+- **Data / Count enrollments** and **Data / Refresh history index** run
+  under a claim their caller holds and never claim themselves.
+
+Every edit of a source collection marks its domains inside the edit's own
+database transaction (the statement triggers of `npm run setup`), so a
+rolled-back edit marks nothing and a committed one is never missed. A
+Moodle user marks the history index, the counts and publication; entries,
+mappings, rules and academic years mark the counts and publication; every
+other source collection, including the checkpoint enrollment overrides,
+marks publication. The mark covers the whole domain, so a mapping or rule
+moved to another course or year, or deleted, changes both the old and the
+new pair; a deleted mapping leaves its rule, whose pair is then counted as
+0. Deleting an entry or editing its label by hand (the label belongs to
+the index) marks the history index too. Each calculation also keeps the
+revision of the last statement that touched its inputs
+(`history_index_input_revision`, `enrollments_input_revision`; a Moodle
+user touches both, an entry, mapping, rule or academic year the counts):
+an edit of a room, staff member, course or any other publication-only
+collection never discards a running calculation or retries a failed one. A change to a managed Flow (its
+trigger, an operation's type, options or edges, in any Flow that holds a
+coordinator step or that such a Flow reaches through a Trigger Flow step)
+marks both calculations; a name, description, icon, position or status
+does not.
+
+A change reaches `course_enrollments` within one interval plus the run: on
+the fixture, 13 to 15 seconds after an edit, of which the count run took
+about 0.2 seconds (7.3 seconds with 450 mapped rules). An edit of a Moodle
+history needs two ticks, the index and then the counts. Nothing is pushed
+to an open page: refresh it. Fifty edits between two ticks cost one run.
+
+When a run fails (for example a legacy pattern that does not compile), the
+installed counts stay, the domain stays pending, and the status keeps the
+failure's code and message (ids only). The schedule does not retry it on
+later ticks: an edit of a collection the calculation reads, **Data / Mark
+pending** or a change to the Flow graph lets the next tick run it again. A
+run that such an edit or a Flow change overtakes is discarded instead
+(`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`) and runs again at the next tick;
+a history page left over after that stops at its claim check before it
+reads any Moodle user. Work left pending by a Directus restart is
+processed by the restarted process's schedule. A restart in the middle of
+a run leaves a claim that stops heartbeating; once its last heartbeat is
+60 seconds old it is released as `CLAIM_INTERRUPTED`, and the next tick
+runs the domain again, with no button. If that rerun is interrupted too, at
+the same inputs and Flow graph, it is released as `CLAIM_ABANDONED`, a
+failure that waits for **Data / Mark pending**, so a run that brings the
+process down stops after one automatic retry. An abandoned publication
+claim is always `CLAIM_ABANDONED`.
+
+`GET /finki-hub-data-operations/status` (administrators) reports each
+domain under `domains` with `state` (`current`, `pending`, `running` or
+`failed`), `current`, and `waitingFor`, the pending domains it runs after.
+A failed or interrupted history run leaves `history_index` not current:
+its index is stale until a run completes. `lastError` keeps the last
+failure with its code, message and source revision after later successes;
+its `blocking` flag says whether it still holds its domain back.
+`revisions.inputs` shows each calculation's input revision. The message
+and the input revisions are stored in new columns (`last_error_message`,
+`history_index_input_revision`, `enrollments_input_revision`), so run
+`npm run setup` before the rebuilt data-operations extension starts; until
+a statement writes an input revision, the source revision stands in.
+
+Each tick writes one `run` activity row (about 5,760 a day), like every Flow
+run that logs activity; only `RETENTION_ENABLED=true` with
+`FLOW_LOGS_RETENTION` prunes them. Without `SYNCHRONIZATION_STORE=redis`,
+every Directus process fires every tick; the coordinator's claim lets one
+of them run. The Task 9 manual runner **Data / Rebuild Moodle history
+index** is no longer a setup template: a project that ran an earlier setup
+keeps it, and it should be deleted in Studio. The checkpoint **Rebuild
+derived data** Flow and its extension stay untouched until the cutover.
+
+When the first non-administrator role is created, it must not hold what
+`src/editor-policy.ts` forbids: create, update or delete on
+`moodle_users` (the native CSV import needs them; snapshots go through
+**Data / Import Moodle snapshot**), any write to the staging, index,
+count, coordination and migration ledger collections, and any write to
+Flows, operations, permissions, policies or their assignments (the
+managed Flows read and write with `$full`, the schedule without
+accountability, so editing one would lift every other rule). Administrators cannot be restricted
+that way; `snapshotReadiness` in the same file flags active Moodle users
+changed outside the snapshot workflow (the snapshot status's
+`activeMatchesPromotion`).
 
 ## Branding
 

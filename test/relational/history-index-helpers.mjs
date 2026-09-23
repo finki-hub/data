@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 import { splitHistoryEntries } from '../../directus/extensions/directus-extension-data-operations/src/history-contract.js';
-import { historyFlowIds } from '../../src/flows/history-page-flows.js';
 import {
   createItem,
   errorCode,
@@ -25,7 +24,10 @@ export const probeOperationId = '9e4d826c-5b1a-4c0e-8f2d-000000000904';
 export const operationType = 'finki-hub-data-coordinate';
 export const statusPath = '/finki-hub-data-operations/status';
 export const triggerPath = `/flows/trigger/${flowId}`;
-export const runnerPath = `/flows/trigger/${historyFlowIds.runner}`;
+// The synthetic manual history runner (history-runner.mjs), which the
+// suites install beside their other synthetic Flows.
+export const historyRunnerId = '9e4d826c-5b1a-4c0e-8f2d-000000001300';
+export const runnerPath = `/flows/trigger/${historyRunnerId}`;
 export const entriesPath = '/items/moodle_course_entries';
 export const membershipsPath = '/items/moodle_history_memberships';
 export const optionKeys = [
@@ -184,7 +186,7 @@ export const refused = async (target, body, code) => {
   return outcome.body;
 };
 
-// Runs the installed manual runner Flow the way Studio does.
+// Runs the synthetic manual runner Flow the way Studio does.
 export const rebuild = (target, body = {}) =>
   trigger(target, runnerPath, { collection: 'moodle_users', ...body });
 

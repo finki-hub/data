@@ -15,6 +15,8 @@ const isoText = (column: string, alias: string): string =>
 // text and the heartbeat age measured by the database clock.
 export const columns = [
   '"source_revision"',
+  '"history_index_input_revision"',
+  '"enrollments_input_revision"',
   '"requested_revision"',
   '"completed_revision"',
   '"dirty_domains"',
@@ -29,6 +31,7 @@ export const columns = [
   isoText('"claim_heartbeat_at"', 'claim_heartbeat_iso'),
   '(EXTRACT(EPOCH FROM (clock_timestamp() - "claim_heartbeat_at")) * 1000)::double precision AS "claim_heartbeat_age_ms"',
   '"last_error_code"',
+  '"last_error_message"',
   isoText('"last_error_at"', 'last_error_iso'),
   '"last_failed_revision"',
   '"last_failed_domain"',
@@ -54,6 +57,11 @@ export const claimClear = [
   '"claim_pages" = NULL',
   '"claim_staged" = NULL',
 ].join(', ');
+
+// The input revision of the claimed domain, as inputRevision computes it:
+// a calculation's own column (the source revision while it was never
+// written), the source revision for publication and a snapshot claim.
+export const claimInputRevision = `CASE "claim_domain" WHEN 'history_index' THEN COALESCE("history_index_input_revision", "source_revision") WHEN 'enrollments' THEN COALESCE("enrollments_input_revision", "source_revision") ELSE "source_revision" END`;
 
 // The union of the current dirty domains with the marked ones, in the
 // canonical domain order. The trigger function computes the same thing.
@@ -97,10 +105,13 @@ export const stateRow = z.object({
   claim_token: optionalString,
   completed_revision: z.number().int(),
   dirty_domains: z.array(z.unknown()).nullable(),
+  enrollments_input_revision: optionalInt,
   finished_iso: optionalString,
+  history_index_input_revision: optionalInt,
   import_state: z.string(),
   last_error_code: optionalString,
   last_error_iso: optionalString,
+  last_error_message: optionalString,
   last_failed_domain: optionalString,
   last_failed_fingerprint: optionalString,
   last_failed_revision: optionalInt,
@@ -151,6 +162,10 @@ export const toState = (row: StateRow): OperationsState => ({
   dirtyDomains: normaliseDomains(row.dirty_domains ?? []),
   finishedAt: row.finished_iso,
   importState: row.import_state,
+  inputRevisions: {
+    enrollments: row.enrollments_input_revision ?? row.source_revision,
+    history_index: row.history_index_input_revision ?? row.source_revision,
+  },
   lastError:
     row.last_error_code === null
       ? null
@@ -161,6 +176,7 @@ export const toState = (row: StateRow): OperationsState => ({
             ? row.last_failed_domain
             : null,
           fingerprint: row.last_failed_fingerprint,
+          message: row.last_error_message,
           revision: row.last_failed_revision,
         },
   publicationFingerprint: row.publication_fingerprint,

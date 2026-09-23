@@ -30,9 +30,11 @@ export type FailureBranch = {
 // candidates are discarded, the installed counts stay, and every later
 // page of the parent's serial run refuses in check_page within
 // milliseconds, before it reads a history or compiles a pattern, instead
-// of running into the same timeout once per history page. A claim that was
-// failed already or replaced answers claim_mismatch there and is left as
-// it is. The record then answers the failed step's own code and message.
+// of running into the same timeout once per history page. The status keeps
+// the refused step's message beside the code (ids only: the scripts never
+// quote a pattern or a history). A claim that was failed already or
+// replaced answers claim_mismatch there and is left as it is. The record
+// then answers the failed step's own code and message.
 export const failureSteps = (
   column: number,
   branches: readonly FailureBranch[],
@@ -45,6 +47,7 @@ export const failureSteps = (
       options: {
         action: 'fail',
         code: legacyFailureCode,
+        message: `{{ ${source}.message }}`,
         token: '{{ $trigger.claim }}',
       },
       position: [column + 18 * index, 19],

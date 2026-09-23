@@ -20,6 +20,7 @@ import {
   type ImportPhase,
 } from './import-interruption.js';
 import { countApplicationRecords, ExistingDataError } from './import-state.js';
+import { findLegacyFlows, LegacyFlowsError } from './legacy-flows.js';
 import { chunk, defaultBatchSize } from './migrations/batches.js';
 import {
   convertWorkbook,
@@ -153,7 +154,8 @@ const triggerRebuild = async (
 };
 
 // The one-time workbook import. It refuses, before any write, a populated
-// project (see countApplicationRecords); runs setup (so an import into an
+// project (see countApplicationRecords) and a project that holds checkpoint
+// Rebuild or Publish Flows under other ids (see findLegacyFlows); runs setup (so an import into an
 // empty project equals setup plus import); installs the checkpoint
 // Rebuild and Publish Flows once under stable ids; writes the workbook rows
 // into the checkpoint collections; converts them through the migration
@@ -174,6 +176,10 @@ export const importWorkbook = async (
   const records = await countApplicationRecords(request);
   if (Object.keys(records).length > 0) {
     throw new ExistingDataError(records);
+  }
+  const legacy = await findLegacyFlows(request);
+  if (legacy.length > 0) {
+    throw new LegacyFlowsError(legacy);
   }
   const setup = await (io.setup ?? runSetup)(request);
   const flows = await installFlowTemplates(request, templates);

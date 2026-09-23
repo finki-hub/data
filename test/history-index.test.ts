@@ -193,6 +193,7 @@ const liveState = (claim: object): OperationsState => ({
   dirtyDomains: [history],
   finishedAt: null,
   importState: 'idle',
+  inputRevisions: { enrollments: 1, history_index: 1 },
   lastError: null,
   publicationFingerprint: null,
   publicationState: 'idle',

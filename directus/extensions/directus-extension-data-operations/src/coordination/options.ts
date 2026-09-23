@@ -4,7 +4,9 @@ import { historyRowProblem } from '../history-contract.js';
 import { pageTokenPattern } from '../page-state.js';
 import { coordinationError } from './errors.js';
 import {
+  claimTargets,
   coordinationDomains,
+  errorMessageLength,
   maxRowsPerPage,
   pageSize,
   planSources,
@@ -51,6 +53,21 @@ const domain = z.enum(coordinationDomains);
 const token = z.preprocess(blank, z.uuid());
 const outcome = z.string().max(120);
 
+// A failure message never refuses the fail it rides on: text is cut to the
+// kept length, anything else (a whole failure record resolved by an exact
+// template) is kept as its JSON text, and an absent message is null.
+const failureMessage = z
+  .preprocess((value) => {
+    const present = blank(value);
+    if (present === undefined || typeof present === 'string') {
+      return present;
+    }
+    return JSON.stringify(present);
+  }, z.string().optional())
+  .transform((value) =>
+    value === undefined ? null : value.slice(0, errorMessageLength),
+  );
+
 export const countRowSchema = z.object({
   academic_year: z.number().int().positive(),
   count: z.number().int().nonnegative(),
@@ -93,7 +110,7 @@ export const coordinatorInputSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('claim'),
-    domain: z.preprocess(blank, domain),
+    domain: z.preprocess(blank, z.enum(claimTargets)),
     retry: z
       .preprocess(flag, z.boolean().optional())
       .transform((value) => value ?? false),
@@ -125,6 +142,7 @@ export const coordinatorInputSchema = z.discriminatedUnion('action', [
     code: z
       .preprocess(blank, z.string().regex(/^[A-Za-z]\w{0,63}$/u))
       .transform((value) => value.toUpperCase()),
+    message: failureMessage,
     token,
   }),
   z.object({ action: z.literal('heartbeat'), token }),

@@ -105,6 +105,27 @@ const flowHandler =
         .filter(({ id }) => id === filtered)
         .map(({ id, operation }) => ({ id, operation: operation ?? null }));
     }
+    // The legacy-Flow check of the import (findLegacyFlows): every
+    // operation's Flow and type, then the Flows it names.
+    if (
+      method === 'GET' &&
+      pathname === '/operations?fields=flow,type&limit=-1'
+    ) {
+      return store.operations.map((entry) => ({
+        flow: entry['flow'] ?? null,
+        type: entry['type'],
+      }));
+    }
+    if (
+      method === 'GET' &&
+      pathname === '/flows?fields=id,name,status&limit=-1'
+    ) {
+      return store.flows.map((entry) => ({
+        id: entry.id,
+        name: entry['name'],
+        status: entry['status'],
+      }));
+    }
     const triggered = triggerPattern.exec(pathname)?.groups?.['id'];
     if (triggered !== undefined) {
       triggers.push({ id: triggered, mode });

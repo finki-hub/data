@@ -13,7 +13,6 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
-import { historyFlowIds } from '../../src/flows/history-page-flows.js';
 import {
   historyIndexFlows,
   installHistoryIndexFlows,
@@ -50,6 +49,7 @@ import {
   failureCode,
   flowId,
   get,
+  historyRunnerId,
   indexPageBody,
   installProbeFlow,
   installSyntheticFlow,
@@ -75,6 +75,10 @@ import {
   trigger,
   withReader,
 } from './history-index-helpers.mjs';
+import {
+  installHistoryRunner,
+  removeHistoryRunner,
+} from './history-runner.mjs';
 
 const leftOutTwoPattern = /left out 2 of them/u;
 const busyPattern = /not claimed \(busy\)/u;
@@ -126,6 +130,8 @@ const installsFlows = async (target, directus, state) => {
   }
   await installSyntheticFlow(target);
   state.flowInstalled = true;
+  await installHistoryRunner(target);
+  state.runnerInstalled = true;
   const report = await status(target);
   assert.equal(report.claim, null);
   assert.deepEqual(report.historyIndex, {
@@ -379,7 +385,7 @@ const runsFlowsAfterEdit = async (target, state) => {
     `/activity?fields=item&filter[collection][_eq]=directus_flows&filter[action][_eq]=run&limit=-1`,
   );
   assert.ok(
-    activity.some(({ item }) => item === historyFlowIds.runner),
+    activity.some(({ item }) => item === historyRunnerId),
     'the runner logs an activity row',
   );
 
@@ -734,8 +740,9 @@ const refusesOverlongLine = async (target, state) => {
   assert.equal(report.historyIndex.entries, 9);
 };
 
-// Directus lets anyone who may read moodle_users trigger the manual
-// runner; its first operation refuses every non-administrator.
+// Directus lets anyone who may read moodle_users trigger a manual Flow on
+// it; the synthetic runner, like every data-operations Flow, refuses a
+// non-administrator in its first operation.
 const gatesNonAdministrators = async (target) => {
   const before = await status(target);
   await withReader(target, async (token) => {
@@ -857,6 +864,9 @@ const cleansUp = async (target, state) => {
   if (state.flowInstalled) {
     await remove(target, `/flows/${flowId}`);
   }
+  if (state.runnerInstalled) {
+    await removeHistoryRunner(target);
+  }
   if (state.probeInstalled) {
     await remove(target, `/flows/${probeFlowId}`);
   }
@@ -910,6 +920,7 @@ test('indexes raw Moodle histories into durable entries and replaceable membersh
     flowInstalled: false,
     items: [],
     probeInstalled: false,
+    runnerInstalled: false,
     templatesCreated: [],
   };
 

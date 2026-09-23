@@ -37,6 +37,7 @@ import {
   entriesByLabel,
   entriesPath,
   get,
+  historyRunnerId,
   installSyntheticFlow,
   invoke,
   patch,
@@ -46,6 +47,7 @@ import {
   remove,
   status,
 } from './history-index-helpers.mjs';
+import { installHistoryRunner } from './history-runner.mjs';
 import {
   anonymousTrigger,
   candidates,
@@ -188,6 +190,8 @@ const installsFlows = async (target, directus, state) => {
   await installDriverFlow(target);
   state.flows.push(runFlowId);
   await installRunFlow(target);
+  state.flows.push(historyRunnerId);
+  await installHistoryRunner(target);
 };
 
 // Users are indexed first (the history index is upstream of the counts),

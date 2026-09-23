@@ -80,6 +80,7 @@ const failureSteps = stages.flatMap(({ code, key, stage, suffixes }, index) => [
     options: {
       action: 'fail',
       code: legacyFailureCode,
+      message: `{{ ${key}.message }}`,
       token: '{{ $trigger.claim }}',
     },
     position: [19 + 18 * index, 19],
