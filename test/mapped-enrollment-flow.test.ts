@@ -9,16 +9,17 @@ import type { DirectusRequest } from '../src/directus-request.js';
 import { coordinatorActions } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import { mappedPageFlow } from '../src/flows/count-mapped-enrollment-page.js';
 import {
-  installMappedEnrollmentFlows,
   mappedCountQuery,
   mappedEnrollmentFlows,
   mappedPairFlow,
 } from '../src/flows/count-mapped-enrollments.js';
 import {
   coordinateOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   insertionOrder,
 } from '../src/flows/flow-template.js';
+import { installFlowFamily } from '../src/flows/registry.js';
 import {
   candidateRowsScript,
   mappedEnrollmentFlowIds,
@@ -763,7 +764,9 @@ describe('mapped enrollment Flow installer', () => {
       return {};
     };
 
-    await expect(installMappedEnrollmentFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.mapped),
+    ).resolves.toMatchObject({
       created: mappedEnrollmentFlows.map(({ name }) => name),
       skipped: [],
     });
@@ -796,7 +799,9 @@ describe('mapped enrollment Flow installer', () => {
 
     calls.length = 0;
 
-    await expect(installMappedEnrollmentFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.mapped),
+    ).resolves.toMatchObject({
       created: [],
       skipped: mappedEnrollmentFlows.map(({ name }) => name),
     });

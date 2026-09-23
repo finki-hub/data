@@ -11,7 +11,7 @@ import {
   calculationDomains,
   type CoordinationFacts,
   type SnapshotFacts,
-} from './global-checks.js';
+} from './readiness-facts.js';
 
 // The Directus side of the export operation: native reads through the
 // ItemsService, the coordinator status and the snapshot status.
@@ -19,7 +19,8 @@ import {
 // Reads as the system (accountability null): the operation checks the
 // caller's administrator flag itself before anything else, and every read
 // names its fields explicitly, so no private column is ever selected.
-// Events are not emitted and the whole result is read at once.
+// Events are not emitted and the whole result is read at once; an
+// aggregate read answers its one count row.
 export const itemsReader = async (
   context: OperationContext,
 ): Promise<SourceReader> => {
@@ -30,13 +31,16 @@ export const itemsReader = async (
       knex: context.database,
       schema,
     });
+    const filter = read.filter === undefined ? {} : { filter: read.filter };
     return items.readByQuery(
-      {
-        fields: [...read.fields],
-        ...(read.filter !== undefined && { filter: read.filter }),
-        limit: -1,
-        sort: [...read.sort],
-      },
+      read.aggregate === undefined
+        ? {
+            fields: [...read.fields],
+            ...filter,
+            limit: -1,
+            sort: [...read.sort],
+          }
+        : { aggregate: { [read.aggregate]: [...read.fields] }, ...filter },
       { emitEvents: false },
     );
   };

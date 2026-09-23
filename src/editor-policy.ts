@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import type { DirectusRequest } from './directus-request.js';
 
+import { readinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+
 export type PermissionAction = 'create' | 'delete' | 'read' | 'update';
 
 const allActions: readonly PermissionAction[] = [
@@ -109,9 +111,22 @@ const snapshotReport = z.object({
 });
 
 export type SnapshotReadinessFinding = {
-  readonly code: 'ACTIVE_SNAPSHOT_EDITED' | 'SNAPSHOT_IMPORT_FAILED';
+  readonly code: string;
   readonly message: string;
 };
+
+// A code of the readiness-check registry that readiness counts from the
+// snapshot status too: the policy reports the same issue under the same
+// code, and a code the registry drops fails here at load.
+const snapshotCode = (code: string): string => {
+  if (readinessEntry(code)?.source.kind !== 'snapshot') {
+    throw new Error(`The readiness registry declares no snapshot code ${code}`);
+  }
+  return code;
+};
+
+export const activeSnapshotEdited = snapshotCode('active_snapshot_edited');
+export const snapshotImportFailed = snapshotCode('snapshot_import_failed');
 
 // Flags the unsupported writes the snapshot workflow can see: active Moodle
 // users that no longer equal the snapshot the last promotion made active
@@ -126,13 +141,13 @@ export const snapshotReadiness = (
   const findings: SnapshotReadinessFinding[] = [];
   if (parsed.activeMatchesPromotion === false) {
     findings.push({
-      code: 'ACTIVE_SNAPSHOT_EDITED',
+      code: activeSnapshotEdited,
       message: `The active Moodle users (${String(parsed.active.rows)} rows) no longer equal the snapshot the last promotion made active (${String(parsed.promoted?.rows ?? 0)} rows): they were changed outside Data / Import Moodle snapshot. The next promotion replaces those changes.`,
     });
   }
   if (parsed.state === 'failed') {
     findings.push({
-      code: 'SNAPSHOT_IMPORT_FAILED',
+      code: snapshotImportFailed,
       message:
         'The last snapshot import or promotion failed; the active Moodle users are unchanged by it and its staging is not promoted.',
     });

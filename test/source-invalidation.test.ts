@@ -41,7 +41,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/source-invalidation-sql.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { migrationCollectionKeys } from '../src/data-model/migration-collections.js';
-import { coordinationDomains as modelDomains } from '../src/data-model/operations-collections.js';
+import { coordinationDomains as modelDomains } from '../src/data-model/operations-vocabularies.js';
 
 const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
 const triggerPattern =

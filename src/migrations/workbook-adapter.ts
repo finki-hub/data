@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 
 import type { DirectusRequest } from '../directus-request.js';
+import type { WorkbookContent } from '../workbook.js';
 import type { LedgerOutcome } from './ledger-types.js';
 
 import {
@@ -9,6 +10,7 @@ import {
   type MigrationData,
   type MigrationItem,
 } from '../schema.js';
+import { chunk, createRows } from './batches.js';
 import {
   type ConversionPlan,
   countByCode,
@@ -33,6 +35,8 @@ import {
 } from './inventory-schemas.js';
 import { type CheckpointRows, readInventory } from './inventory.js';
 import { preflight } from './preflight.js';
+import { convertAcademicYears } from './rules.js';
+import { readYearIds } from './target-reads.js';
 
 // The rows written for the workbook are not the rows the converters would
 // read, or the relational model is not readable: the conversion never runs
@@ -127,9 +131,10 @@ export const assertImportedRows = (
 // target row, Flow or extra column. Those only ever raise warnings, and
 // the import refuses a project holding a record, so the counts equal what
 // the import's own preflight finds after writing the rows.
-export const previewBlockers = (
-  data: MigrationData,
-): Readonly<Record<string, number>> => {
+export const previewBlockers = ({
+  academicYears,
+  data,
+}: WorkbookContent): Readonly<Record<string, number>> => {
   const checkpoint = workbookCheckpoint(data, (collection) =>
     data[collection].map((_, index) => index + 1),
   );
@@ -149,6 +154,7 @@ export const previewBlockers = (
       },
     },
     null,
+    academicYears,
   );
   return countByCode(blockers);
 };
@@ -165,15 +171,52 @@ export type WorkbookConversion =
       readonly written: Readonly<Record<string, number>>;
     };
 
+// The workbook's academic years were not all seeded: `npm run migrate`
+// converts only the years a project holds, so it cannot finish this
+// import, which has to start over.
+export class YearSeedError extends Error {
+  public override readonly name = 'YearSeedError';
+}
+
+// Seeds the workbook's academic years (published, sorted by column group)
+// that the project lacks, in bounded batches, and answers how many it
+// created. The rules step then finds them in place.
+const seedYears = async (
+  request: DirectusRequest,
+  academicYears: readonly string[],
+  batchSize: number,
+): Promise<number> => {
+  try {
+    const { writes } = convertAcademicYears(
+      academicYears,
+      await readYearIds(request),
+    );
+    for (const batch of chunk(writes, batchSize)) {
+      await createRows(request, {
+        collection: 'academic_years',
+        fields: ['label'],
+        records: batch.map(({ record }) => record),
+      });
+    }
+    return writes.length;
+  } catch (error) {
+    throw new YearSeedError(
+      `The academic years of the workbook were not all seeded: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+};
+
 // Feeds the imported workbook rows into the relational conversion exactly
 // as an upgrade would: the live inventory (checked against the workbook),
-// its preflight, then the shared ledger steps. A blocker (an ambiguous
-// relationship) stops before the ledger, like `--apply` refuses it; the
-// rows stay imported and the upgrade path finishes the conversion once the
-// blockers are resolved in Studio.
+// its preflight over the workbook's academic years, then the shared ledger
+// steps. The years are seeded after the preflight and before the blocker
+// gate: a blocker (an ambiguous relationship) stops before the ledger, like
+// `--apply` refuses it, and the upgrade path, which converts the years the
+// project holds, finishes it once the blockers are resolved in Studio.
 export const convertWorkbook = async (
   request: DirectusRequest,
-  data: MigrationData,
+  { academicYears, data }: WorkbookContent,
   plan: ConversionPlan,
 ): Promise<WorkbookConversion> => {
   const inventory = await readInventory(request, {});
@@ -183,19 +226,24 @@ export const convertWorkbook = async (
     );
   }
   assertImportedRows(data, inventory.checkpoint);
-  const live = preflight(inventory, null);
-  if (live.blockers.length > 0) {
-    return { blockers: countByCode(live.blockers), status: 'blocked' };
+  const live = preflight(inventory, null, academicYears);
+  const seeded = await seedYears(request, academicYears, plan.batchSize);
+  if (live.blockers.length === 0) {
+    const { outcome, sink } = await runConversion(
+      request,
+      { inventory, live },
+      plan,
+    );
+    const years = seeded + (sink.written['academic_years'] ?? 0);
+    return {
+      status: 'converted',
+      steps: outcome,
+      unresolved: countByCode(sink.findings),
+      written: {
+        ...sink.written,
+        ...(years > 0 && { academic_years: years }),
+      },
+    };
   }
-  const { outcome, sink } = await runConversion(
-    request,
-    { inventory, live },
-    plan,
-  );
-  return {
-    status: 'converted',
-    steps: outcome,
-    unresolved: countByCode(sink.findings),
-    written: sink.written,
-  };
+  return { blockers: countByCode(live.blockers), status: 'blocked' };
 };

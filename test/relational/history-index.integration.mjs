@@ -13,10 +13,9 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
-import {
-  historyIndexFlows,
-  installHistoryIndexFlows,
-} from '../../src/flows/index-histories.js';
+import { flowFamilyCodes } from '../../src/flows/flow-template.js';
+import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { installFlowFamily } from '../../src/flows/registry.js';
 import { targetFrom } from '../search-integration-helpers.mjs';
 import {
   adminRequest,
@@ -80,6 +79,9 @@ import {
   removeHistoryRunner,
 } from './history-runner.mjs';
 
+// The Flows a family install created and skipped.
+const flowLists = ({ created, skipped }) => ({ created, skipped });
+
 const leftOutTwoPattern = /left out 2 of them/u;
 const busyPattern = /not claimed \(busy\)/u;
 
@@ -91,15 +93,18 @@ const installsFlows = async (target, directus, state) => {
   state.templatesCreated = historyIndexFlows
     .map(({ id }) => id)
     .filter((id) => !present.has(id));
-  const first = await installHistoryIndexFlows(directus);
+  const first = await installFlowFamily(directus, flowFamilyCodes.history);
   assert.deepEqual(
     first.created.length + first.skipped.length,
     historyIndexFlows.length,
   );
-  assert.deepEqual(await installHistoryIndexFlows(directus), {
-    created: [],
-    skipped: historyIndexFlows.map(({ name }) => name),
-  });
+  assert.deepEqual(
+    flowLists(await installFlowFamily(directus, flowFamilyCodes.history)),
+    {
+      created: [],
+      skipped: historyIndexFlows.map(({ name }) => name),
+    },
+  );
   for (const flow of historyIndexFlows) {
     const live = await get(
       target,

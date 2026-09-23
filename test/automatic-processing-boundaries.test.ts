@@ -13,15 +13,16 @@ import {
   readSnapshotReadiness,
   snapshotReadiness,
 } from '../src/editor-policy.js';
+import { flowFamilyCodes } from '../src/flows/flow-template.js';
 import {
   chosenDomainsScript,
   markPendingFlow,
 } from '../src/flows/mark-pending.js';
 import {
   automaticProcessingFlows,
-  installAutomaticProcessingFlows,
   processPendingFlow,
 } from '../src/flows/process-pending.js';
+import { installFlowFamily } from '../src/flows/registry.js';
 import {
   findLegacyFlows,
   LegacyFlowsError,
@@ -31,7 +32,7 @@ import { exitCodes, isRefusal } from '../src/lifecycle.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
 import {
   lifecycleDataset,
-  workbookData,
+  workbookContent,
 } from './fixtures/synthetic-workbook.js';
 import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
@@ -185,7 +186,11 @@ describe('checkpoint Flows of an old deployment (follow-ups 26 and 27)', () => {
     ]);
 
     const error = await caught(
-      importWorkbook(fake.request, workbookData(lifecycleDataset()), fake.io),
+      importWorkbook(
+        fake.request,
+        workbookContent(lifecycleDataset()),
+        fake.io,
+      ),
     );
 
     expect(error).toBeInstanceOf(LegacyFlowsError);
@@ -274,7 +279,7 @@ describe('the editor policy template and the snapshot readiness check', () => {
     const [edited, ...others] = snapshotReadiness(report);
 
     expect(others).toEqual([]);
-    expect(edited?.code).toBe('ACTIVE_SNAPSHOT_EDITED');
+    expect(edited?.code).toBe('active_snapshot_edited');
     expect(edited?.message).toContain(
       'The active Moodle users (30 rows) no longer equal the snapshot the last promotion made active (31 rows)',
     );
@@ -291,7 +296,7 @@ describe('the editor policy template and the snapshot readiness check', () => {
         activeMatchesPromotion: true,
         state: 'failed',
       }).map(({ code }) => code),
-    ).toEqual(['SNAPSHOT_IMPORT_FAILED']);
+    ).toEqual(['snapshot_import_failed']);
     expect(() => snapshotReadiness({ state: 'completed' })).toThrow(z.ZodError);
 
     const paths: string[] = [];
@@ -383,7 +388,9 @@ describe('installation', () => {
       return {};
     };
 
-    await expect(installAutomaticProcessingFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.automation),
+    ).resolves.toMatchObject({
       created: [
         'Data / Count enrollments',
         'Data / Mark pending',

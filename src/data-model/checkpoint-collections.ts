@@ -1,9 +1,20 @@
 import type { CollectionSpec, ModelCollection, ModelField } from '../schema.js';
 
 import { collectionSpecs } from '../model.js';
-import { enumField, fromCheckpointField, m2o, scalar } from './fields.js';
+import {
+  enumField,
+  fromCheckpointField,
+  labelledChoices,
+  m2o,
+  scalar,
+} from './fields.js';
 
 export const assignmentRoles = ['professor', 'assistant'] as const;
+
+const roleChoices = labelledChoices(assignmentRoles, {
+  assistant: 'Assistant',
+  professor: 'Professor',
+});
 
 export const courseTemplate = '{{name}}';
 export const staffTemplate = '{{name}}';
@@ -82,7 +93,7 @@ const additions: Readonly<Partial<Record<string, readonly ModelField[]>>> = {
       note: 'Resolved staff member; unresolved labels stay in display_override.',
       template: staffTemplate,
     }),
-    enumField('role', assignmentRoles, {
+    enumField('role', roleChoices, {
       note: 'professor or assistant; empty on unconverted checkpoint rows.',
     }),
     scalar('sort', 'integer'),

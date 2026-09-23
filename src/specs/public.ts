@@ -6,8 +6,10 @@ import {
   requiredField,
 } from '../schema.js';
 
-// The academic years every course carries an enrollment count for, newest
-// first; shared with the migration preflight that seeds one rule per year.
+// The academic years the checkpoint courses carry an enrollment_* column
+// for, newest first. They shape those columns only: the one-time import
+// seeds the years the workbook's enrollment sheet names (which must include
+// these), and a populated project converts these and the years it holds.
 export const academicYears = [
   '2025/2026',
   '2024/2025',

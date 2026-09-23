@@ -1,4 +1,5 @@
 import type {
+  EnumChoice,
   FieldSpec,
   ModelCollectionKey,
   ModelEnumField,
@@ -20,9 +21,18 @@ export const scalar = (
   options: ScalarOptions = {},
 ): ModelScalarField => ({ field, kind, nullable: true, ...options });
 
+// The choices of a vocabulary, in the order of its values, each with the
+// one label the record declares for it (a missing or extra label does not
+// compile).
+export const labelledChoices = <const V extends string>(
+  values: readonly V[],
+  labels: Readonly<Record<V, string>>,
+): readonly EnumChoice[] =>
+  values.map((value) => ({ label: labels[value], value }));
+
 export const enumField = (
   field: string,
-  choices: readonly string[],
+  choices: readonly EnumChoice[],
   options: EnumOptions = {},
 ): ModelEnumField => ({
   choices,
@@ -31,6 +41,10 @@ export const enumField = (
   nullable: true,
   ...options,
 });
+
+// The stored values an enum field accepts, in declaration order.
+export const choiceValues = (field: ModelEnumField): string[] =>
+  field.choices.map(({ value }) => value);
 
 export const m2o = (
   field: string,

@@ -58,16 +58,24 @@ const readPatternCell = (context: PatternCellContext): MigrationItem | null => {
   };
 };
 
-export const readCourseEnrollmentPatterns = (
-  workbook: ExcelJS.Workbook,
-  source: Extract<
-    CollectionSource,
-    { readonly kind: 'course-enrollment-patterns' }
-  >,
-): readonly MigrationItem[] => {
-  const worksheet = getWorksheet(workbook, source.sheet);
-  const items: MigrationItem[] = [];
+type PatternSource = Extract<
+  CollectionSource,
+  { readonly kind: 'course-enrollment-patterns' }
+>;
 
+type YearColumn = {
+  readonly academicYear: string;
+  readonly patternColumn: number;
+};
+
+// Every academic-year column group of the sheet, in sheet order: the year
+// label in row 1 and the pattern column two to its right. A group without
+// a label, or a label named twice, is refused.
+const yearColumns = (
+  worksheet: ExcelJS.Worksheet,
+  sheet: string,
+): readonly YearColumn[] => {
+  const columns: YearColumn[] = [];
   for (
     let patternColumn = firstPatternColumn;
     patternColumn <= worksheet.actualColumnCount;
@@ -79,10 +87,41 @@ export const readCourseEnrollmentPatterns = (
     ).trim();
     if (academicYear === '') {
       throw new WorkbookDataError(
-        `Missing academic year in ${source.sheet} column ${yearColumn}`,
+        `Missing academic year in ${sheet} column ${yearColumn}`,
       );
     }
+    if (columns.some((column) => column.academicYear === academicYear)) {
+      throw new WorkbookDataError(
+        `Academic year ${academicYear} heads two column groups of ${sheet}`,
+      );
+    }
+    columns.push({ academicYear, patternColumn });
+  }
+  return columns;
+};
 
+// The academic years the enrollment sheet names, in its order (newest
+// first in the workbook): the one-time import seeds exactly these years
+// and one fallback rule per course and year.
+export const readEnrollmentYears = (
+  workbook: ExcelJS.Workbook,
+  source: PatternSource,
+): readonly string[] =>
+  yearColumns(getWorksheet(workbook, source.sheet), source.sheet).map(
+    ({ academicYear }) => academicYear,
+  );
+
+export const readCourseEnrollmentPatterns = (
+  workbook: ExcelJS.Workbook,
+  source: PatternSource,
+): readonly MigrationItem[] => {
+  const worksheet = getWorksheet(workbook, source.sheet);
+  const items: MigrationItem[] = [];
+
+  for (const { academicYear, patternColumn } of yearColumns(
+    worksheet,
+    source.sheet,
+  )) {
     for (
       let rowNumber = 2;
       rowNumber <= worksheet.actualRowCount;

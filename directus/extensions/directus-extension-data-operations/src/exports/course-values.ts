@@ -123,19 +123,18 @@ export const professors: Resolver = (context) =>
 
 export const assistants: Resolver = (context) => labelsOf(context, 'assistant');
 
-// The course's count of an academic year: exactly one count row must
-// exist, a missing count is refused rather than published as 0.
-export const enrollmentCount =
-  (year: string): Resolver =>
-  (context) => {
-    const counts = relatedRows(context, 'enrollments').filter(
-      (candidate) => pathValue(candidate, 'academic_year.label') === year,
+// The course's count of a published academic year (a key row of the
+// published-year rule): exactly one count row must exist, a missing count
+// is refused rather than published as 0.
+export const enrollmentCount = (context: RowContext, year: Row): unknown => {
+  const counts = relatedRows(context, 'enrollments').filter(
+    (candidate) => candidate['academic_year'] === year['id'],
+  );
+  const [row] = counts;
+  if (row === undefined || counts.length > 1) {
+    unresolved(
+      `Course ${courseId(context)} has ${counts.length} enrollment counts for ${String(year['label'])}`,
     );
-    const [row] = counts;
-    if (row === undefined || counts.length > 1) {
-      unresolved(
-        `Course ${courseId(context)} has ${counts.length} enrollment counts for ${year}`,
-      );
-    }
-    return row?.['count'];
-  };
+  }
+  return row?.['count'];
+};

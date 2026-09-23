@@ -1,6 +1,7 @@
 import {
   coordinateOperation,
   familyId,
+  type FlowFamilyCode,
   operation,
   type OperationTemplate,
 } from './flow-template.js';
@@ -10,8 +11,8 @@ import {
 export type ReleaseBranch = {
   // The code kept with the claim's failure (a fixed, bounded code).
   readonly code: string;
-  // The two hex digits of the Flow family.
-  readonly family: string;
+  // The Flow family the branch belongs to.
+  readonly family: FlowFamilyCode;
   // The (templated) message kept beside the code and answered.
   readonly message: string;
   // Where the fail step sits on the canvas; its record sits below it.

@@ -1,4 +1,3 @@
-import { assignmentCheck } from './assignment-checks.js';
 import {
   assistants,
   channel,
@@ -8,8 +7,7 @@ import {
   legacyName,
   professors,
 } from './course-values.js';
-import { curriculumCheck, importedValuesCheck } from './curriculum-checks.js';
-import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
+import { publishedYear } from './key-sources.js';
 import {
   defaultMaxBytes,
   type ExportDefinition,
@@ -19,28 +17,6 @@ import {
 // courses.json: one row per course in id order, with the keys, order and
 // value forms of the reference serializer (serialize-assets.cjs), projected
 // from the relational rows on read.
-
-// The public academic-year keys, newest first: the explicit configuration
-// of this file. A new academic_years row adds no public key until its
-// label is listed here, and every exported course needs a count for every
-// year listed.
-export const exportedYears = [
-  '2025/2026',
-  '2024/2025',
-  '2023/2024',
-  '2022/2023',
-  '2021/2022',
-  '2020/2021',
-  '2019/2020',
-  '2018/2019',
-  '2017/2018',
-  '2016/2017',
-  '2015/2016',
-  '2014/2015',
-  '2013/2014',
-  '2012/2013',
-  '2011/2012',
-] as const;
 
 const states2023 = ['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'seis'];
 const states2018 = ['kn', 'siis', 'pit', 'imb', 'ki', 'ke', 'seis'];
@@ -116,21 +92,12 @@ const linkField = (
 });
 
 export const courses: ExportDefinition = {
-  checks: [
-    enrollmentCheck(exportedYears),
-    curriculumCheck,
-    importedValuesCheck,
-    assignmentCheck,
-    mappingCheck,
-  ],
   fields: [
     { key: 'name', rule: 'text', value: 'name' },
     { key: 'professors', rule: 'text', value: professors },
-    ...exportedYears.map((year): FieldEntry => ({
-      key: year,
-      rule: 'number',
-      value: enrollmentCount(year),
-    })),
+    // The published-year rule: one key per published academic year, its
+    // label, newest first, valued by the course's count for that year.
+    { keys: 'published_years', rule: 'number', value: enrollmentCount },
     linkField('2023', 'available'),
     linkField('2018', 'available'),
     { key: 'channel', rule: 'boolean', value: channel },
@@ -176,8 +143,8 @@ export const courses: ExportDefinition = {
     enrollments: {
       by: 'course',
       collection: 'course_enrollments',
-      fields: ['course', 'count', 'academic_year.label'],
-      filter: { academic_year: { label: { _in: [...exportedYears] } } },
+      fields: ['course', 'count', 'academic_year'],
+      filter: publishedYear('academic_year'),
       sort: ['course', 'academic_year'],
     },
   },

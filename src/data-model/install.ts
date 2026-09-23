@@ -22,6 +22,7 @@ import {
   type ExistingState,
 } from './directus-schema.js';
 import { toAliasPayload, toFieldPayload } from './field-payloads.js';
+import { outOfSetRefusals, withRefusals } from './live-choices.js';
 import { planDataModel } from './plan.js';
 import {
   aliasesFor,
@@ -171,6 +172,14 @@ const applyField = async (
         `/fields/${action.collection}`,
         json(toFieldPayload(action.field, action.sort), 'POST'),
       );
+      return;
+    // Meta only: the column is never touched, and the keys Studio owns
+    // (note, width, group, sort, conditions) are not in the body.
+    case 'realign-choices':
+      await request(
+        fieldPath(action.collection, action.field.field),
+        json({ meta: action.meta }, 'PATCH'),
+      );
   }
 };
 
@@ -197,13 +206,16 @@ const applyRelation = async (
 // Installs the relational data model over REST, idempotently. Missing
 // collections, fields, aliases, relations and single-column constraints are
 // created; unmanaged existing columns are adopted meta-only; relations whose
-// alias, sort, deselect or delete rule diverge are aligned; incompatible
-// existing definitions are refused before any mutation; nothing is deleted
-// and no item is written.
+// alias, sort, deselect or delete rule diverge are aligned; enum fields
+// whose code-owned choices or rule drifted are realigned (`aligned`),
+// unless a live value falls outside the declared choices; incompatible
+// existing definitions and such values are refused before any mutation;
+// nothing is deleted and no item is written.
 export const installDataModel = async (
   request: DirectusRequest,
 ): Promise<InstallSummary> => {
-  const plan = planDataModel(await readState(request));
+  const planned = planDataModel(await readState(request));
+  const plan = withRefusals(planned, await outOfSetRefusals(request, planned));
   if (plan.refusals.length > 0) {
     throw new SchemaRefusalError(plan);
   }

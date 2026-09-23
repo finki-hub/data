@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { CoordinationFacts } from '../directus/extensions/directus-extension-data-operations/src/exports/global-checks.js';
+import type { CoordinationFacts } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-facts.js';
 import type { SourceRead } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 import type { FakeItem } from './migration-test-helpers.js';
 
@@ -11,15 +11,14 @@ import {
   exportsOperationId,
   runExportAction,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/actions.js';
-import {
-  definitionReads,
-  globalReads,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
+import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import {
   type ExportDeps,
   preparePublicFiles,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
+import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { exportsOperation } from '../src/flows/flow-template.js';
 import {
   convertedStore,
@@ -110,7 +109,10 @@ const withoutCourse =
     rows.filter((row) => row['course'] !== course);
 
 const declaredReads = new Set(
-  [...globalReads(), ...exportDefinitions.flatMap(definitionReads)]
+  [
+    ...registryReads(readinessRegistry),
+    ...exportDefinitions.flatMap(definitionReads),
+  ]
     .map(([, read]) => read)
     .map((read) => JSON.stringify(read)),
 );
@@ -160,7 +162,12 @@ describe('the export operation', () => {
         }),
       ),
       revision: 42,
-      warnings: ['equivalency_without_course', 'assignment_review_label'],
+      warnings: [
+        'equivalency_without_course',
+        'equivalency_entry_unresolved',
+        'assignment_review_label',
+        'council_member_unresolved',
+      ],
     });
     expect(JSON.stringify(answer)).not.toMatch(recordText);
   });

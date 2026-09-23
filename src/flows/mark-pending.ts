@@ -2,10 +2,13 @@ import {
   automationId,
   condition,
   coordinateOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   operation,
   raise,
 } from './flow-template.js';
+
+const family = flowFamilyCodes.automation;
 
 export const markPendingFlowId = automationId('03');
 
@@ -40,7 +43,7 @@ export const markPendingFlow: FlowTemplate = {
     // administrator flag like every data operation.
     condition({
       edges: { reject: automationId('55'), resolve: automationId('52') },
-      family: '13',
+      family,
       filter: { $accountability: { admin: { _eq: true } } },
       key: 'admin_only',
       name: 'Administrator?',
@@ -53,7 +56,7 @@ export const markPendingFlow: FlowTemplate = {
         message: 'Only administrators may ask for a recalculation.',
         status: 403,
       },
-      family: '13',
+      family,
       key: 'raise_forbidden',
       name: 'Refuse a non-administrator',
       position: [19, 19],
@@ -61,7 +64,7 @@ export const markPendingFlow: FlowTemplate = {
     }),
     operation({
       edges: { resolve: automationId('53') },
-      family: '13',
+      family,
       key: 'domains',
       name: 'Chosen domains',
       options: { code: chosenDomainsScript },
@@ -71,7 +74,7 @@ export const markPendingFlow: FlowTemplate = {
     }),
     operation({
       edges: { reject: automationId('56'), resolve: automationId('54') },
-      family: '13',
+      family,
       key: 'mark',
       name: 'Mark the domains pending',
       options: { action: 'mark', domains: '{{ domains }}' },
@@ -85,7 +88,7 @@ export const markPendingFlow: FlowTemplate = {
         message: '{{ mark.message }}',
         status: 400,
       },
-      family: '13',
+      family,
       key: 'raise_mark',
       name: 'Report the refused request',
       position: [55, 19],
@@ -93,7 +96,7 @@ export const markPendingFlow: FlowTemplate = {
     }),
     operation({
       edges: { resolve: automationId('57') },
-      family: '13',
+      family,
       key: 'status',
       name: 'Read the status',
       options: { action: 'status' },
@@ -102,7 +105,7 @@ export const markPendingFlow: FlowTemplate = {
       type: coordinateOperation,
     }),
     operation({
-      family: '13',
+      family,
       key: 'answer',
       name: 'Answer what was marked',
       options: {

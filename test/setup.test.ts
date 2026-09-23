@@ -258,7 +258,7 @@ describe('setup command', () => {
   const counts = { adopted: 0, created: 0, refused: 1, skipped: 0 };
   const refusedSummary = {
     collections: counts,
-    fields: counts,
+    fields: { ...counts, aligned: 0 },
     relations: counts,
   };
 

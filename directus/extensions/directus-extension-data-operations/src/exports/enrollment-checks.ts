@@ -1,64 +1,69 @@
-import type { IssueCounts, ReadinessCheck, Row } from './types.js';
+import type { Filter } from '@directus/types';
 
-import { sourceRows } from './values.js';
+import type { IssueCounts, ReadinessCheck, Row, SourceRead } from './types.js';
+
+import { publishedYear } from './key-sources.js';
+import { countIn, sourceRows } from './values.js';
 
 // The enrollment checks of courses.json: counts and rules of every
-// exported course and year, and the mappings and entries behind them, as
-// native reads of ids, keys and states (never a label or a history).
+// course and published year, and the mappings and entries behind them, as
+// bounded counts and native reads of ids, keys and states (never a label
+// or a history).
 
-const pairOf = (row: Row, year = String(row['academic_year'])) =>
-  `${String(row['course'])}/${year}`;
+const pairOf = (row: Row) =>
+  `${String(row['course'])}/${String(row['academic_year'])}`;
 
-const labelOf = (row: Row): string => {
-  const year = row['academic_year'];
-  return typeof year === 'object' && year !== null && 'label' in year
-    ? String(year.label)
-    : '';
+// A bounded count of the rows of a collection the filter matches.
+const counting = (collection: string, filter?: Filter): SourceRead => ({
+  aggregate: 'count',
+  collection,
+  fields: ['id'],
+  ...(filter !== undefined && { filter }),
+  sort: [],
+});
+
+// Every course needs a count row and the rule that produces it for every
+// published academic year; a pair without a rule is never counted. Both
+// are four bounded counts: courses times published years, less the count
+// rows and the rules of published years (one per course and year, by the
+// unique keys), so no row is read.
+export const enrollmentCheck: ReadinessCheck = {
+  evaluate: (sources): IssueCounts => {
+    const expected = countIn(sources, 'courses') * countIn(sources, 'years');
+    return {
+      enrollment_count_missing: expected - countIn(sources, 'counts'),
+      enrollment_rule_missing: expected - countIn(sources, 'rules'),
+    };
+  },
+  reads: {
+    counts: counting('course_enrollments', publishedYear('academic_year')),
+    courses: counting('courses'),
+    rules: counting('course_enrollment_rules', publishedYear('academic_year')),
+    years: counting('academic_years', { published: { _eq: true } }),
+  },
 };
 
-// Every exported course needs a count row and the rule that produces it
-// for every exported year; a pair without a rule is never counted.
-export const enrollmentCheck = (years: readonly string[]): ReadinessCheck => {
-  const exported = { academic_year: { label: { _in: [...years] } } };
-  return {
-    codes: {
-      enrollment_count_missing: {
-        collection: 'course_enrollments',
-        kind: 'blocker',
-      },
-      enrollment_rule_missing: {
-        collection: 'course_enrollment_rules',
-        kind: 'blocker',
-      },
+// Two published academic years sharing a sort have no newest-first order
+// among the year keys of courses.json: the published years with a sort,
+// less their distinct sorts (two bounded counts; a year without a sort is
+// academic_year_unsorted).
+export const yearOrderCheck: ReadinessCheck = {
+  evaluate: (sources): IssueCounts => ({
+    academic_year_sort_shared:
+      countIn(sources, 'sorted') - countIn(sources, 'sorts'),
+  }),
+  reads: {
+    sorted: counting('academic_years', {
+      _and: [{ published: { _eq: true } }, { sort: { _nnull: true } }],
+    }),
+    sorts: {
+      aggregate: 'countDistinct',
+      collection: 'academic_years',
+      fields: ['sort'],
+      filter: { published: { _eq: true } },
+      sort: [],
     },
-    evaluate: (sources): IssueCounts => {
-      const courses = sourceRows(sources, 'courses');
-      const expected = courses.length * years.length;
-      const present = (key: string) =>
-        new Set(
-          sourceRows(sources, key).map((row) => pairOf(row, labelOf(row))),
-        ).size;
-      return {
-        enrollment_count_missing: expected - present('counts'),
-        enrollment_rule_missing: expected - present('rules'),
-      };
-    },
-    reads: {
-      counts: {
-        collection: 'course_enrollments',
-        fields: ['course', 'academic_year.label'],
-        filter: exported,
-        sort: ['id'],
-      },
-      courses: { collection: 'courses', fields: ['id'], sort: ['id'] },
-      rules: {
-        collection: 'course_enrollment_rules',
-        fields: ['course', 'academic_year.label'],
-        filter: exported,
-        sort: ['id'],
-      },
-    },
-  };
+  },
 };
 
 // Mappings whose course and year have no rule are never counted
@@ -66,20 +71,6 @@ export const enrollmentCheck = (years: readonly string[]): ReadinessCheck => {
 // the ones that already carry a mapping. None of this blocks: Moodle lines
 // nobody mapped include administrative ones that belong to no course.
 export const mappingCheck: ReadinessCheck = {
-  codes: {
-    entry_needs_mapping: {
-      collection: 'moodle_course_entries',
-      kind: 'warning',
-    },
-    mapped_entry_awaiting_review: {
-      collection: 'moodle_course_entries',
-      kind: 'warning',
-    },
-    mapping_without_rule: {
-      collection: 'moodle_course_mappings',
-      kind: 'warning',
-    },
-  },
   evaluate: (sources): IssueCounts => {
     const ruled = new Set(
       sourceRows(sources, 'rules').map((rule) => pairOf(rule)),

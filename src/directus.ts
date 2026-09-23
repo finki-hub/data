@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { DirectusConfig } from './config.js';
 import type { FlowTemplate } from './flows/flow-template.js';
 import type { CollectionSpec, MigrationData } from './schema.js';
+import type { WorkbookContent } from './workbook.js';
 
 import { applyBranding } from './branding.js';
 import { derivedDataFlow, derivedDataFlowId } from './derived-data-flow.js';
@@ -166,9 +167,10 @@ const triggerRebuild = async (
 // loadImportConfig) calls it.
 export const importWorkbook = async (
   request: DirectusModeRequest,
-  data: MigrationData,
+  workbook: WorkbookContent,
   io: ImportIo,
 ): Promise<ImportSummary> => {
+  const { data } = workbook;
   const templates: readonly FlowTemplate[] = [
     derivedDataFlow,
     await loadPublicAssetsFlow(),
@@ -200,7 +202,7 @@ export const importWorkbook = async (
       },
     );
     phase = 'converting';
-    conversion = await convertWorkbook(request, data, {
+    conversion = await convertWorkbook(request, workbook, {
       batchSize,
       now: io.now,
       resume: false,

@@ -5,23 +5,15 @@
 // {course, academic_year, count, revision} into the candidate rows of that
 // page. The install-once helpers themselves live in flow-template.ts and
 // install-flows.ts (Tasks 9 and 10) and are reused, not copied.
-import {
-  familyId,
-  operation,
-  type OperationSpec,
-  type OperationTemplate,
-} from './flow-template.js';
+import { familyIds, familyStep, flowFamilyCodes } from './flow-template.js';
 
-export const enrollmentFamily = '11';
+export const enrollmentFamily = flowFamilyCodes.mapped;
 
 // A deterministic UUID of the enrollment count Flow family.
-export const enrollmentId = (suffix: string): string =>
-  familyId(enrollmentFamily, suffix);
+export const enrollmentId = familyIds(enrollmentFamily);
 
 // An operation of the enrollment count family.
-export const enrollmentStep = (
-  spec: Omit<OperationSpec, 'family'>,
-): OperationTemplate => operation({ ...spec, family: enrollmentFamily });
+export const enrollmentStep = familyStep(enrollmentFamily);
 
 // The mapped enrollment Flows: one course/year, one planned rule page.
 export const mappedEnrollmentFlowIds = {
@@ -29,16 +21,13 @@ export const mappedEnrollmentFlowIds = {
   pair: enrollmentId('01'),
 } as const;
 
-export const legacyFamily = '12';
+export const legacyFamily = flowFamilyCodes.legacy;
 
 // A deterministic UUID of the legacy enrollment Flow family.
-export const legacyId = (suffix: string): string =>
-  familyId(legacyFamily, suffix);
+export const legacyId = familyIds(legacyFamily);
 
 // An operation of the legacy enrollment family.
-export const legacyStep = (
-  spec: Omit<OperationSpec, 'family'>,
-): OperationTemplate => operation({ ...spec, family: legacyFamily });
+export const legacyStep = familyStep(legacyFamily);
 
 // The legacy enrollment Flows: the parent, one legacy page (a history page
 // crossed with a legacy rule page), one zero page (a legacy rule page).

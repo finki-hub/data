@@ -1,15 +1,22 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
+import { dataModelCollections } from '../src/data-model/collections.js';
+import { enumChoiceMeta } from '../src/data-model/field-payloads.js';
 import {
   installDataModel,
   SchemaRefusalError,
 } from '../src/data-model/install.js';
-import { modelRelations, relationsOf } from '../src/data-model/relations.js';
+import {
+  aliasesFor,
+  modelRelations,
+  relationsOf,
+} from '../src/data-model/relations.js';
 import {
   fakeDirectus,
   type FakeRelation,
   findCollection,
+  findField,
   installedCollection,
   installedField,
   installedRelation,
@@ -172,12 +179,16 @@ describe('installDataModel adoption', () => {
     expect(postPaths.filter((path) => path === '/relations')).toHaveLength(
       modelRelations.length - 1,
     );
+
+    const years = '/fields/academic_years';
+
     expect(postPaths.filter((path) => path.startsWith('/fields/'))).toEqual([
-      '/fields/academic_years',
+      years,
+      years,
       '/fields/moodle_users',
-      '/fields/academic_years',
-      '/fields/academic_years',
-      '/fields/academic_years',
+      years,
+      years,
+      years,
     ]);
     expect(
       posts
@@ -185,6 +196,7 @@ describe('installDataModel adoption', () => {
         .map(({ body }) => fieldBody.parse(body)),
     ).toEqual([
       { field: 'sort', type: 'integer' },
+      { field: 'published', type: 'boolean' },
       { field: 'history_memberships', type: 'alias' },
       { field: 'mappings', type: 'alias' },
       { field: 'enrollment_rules', type: 'alias' },
@@ -290,5 +302,195 @@ describe('installDataModel relation alignment', () => {
       refused: 0,
       skipped: modelRelations.length,
     });
+  });
+});
+
+// The declared choice meta of an installed enum, as setup writes it.
+const declaredChoices = (collection: string, field: string) => {
+  const declared = findField(collection, field);
+  if (declared.kind !== 'enum') {
+    throw new Error(`${collection}.${field} is not an enum`);
+  }
+  return enumChoiceMeta(declared);
+};
+
+// A Studio user's edits of an enum field's form: the keys setup never
+// writes, and an option of its own.
+const studioEdits = {
+  conditions: [
+    { hidden: true, name: 'Synthetic rule', rule: { id: { _null: true } } },
+  ],
+  group: 'synthetic_group',
+  note: 'Synthetic Studio note',
+  sort: 42,
+  width: 'full',
+};
+
+// An installed project whose teaching_assignments.role still carries an
+// earlier vocabulary (professor and a retired lecturer, unlabelled) and a
+// Studio user's edits.
+const driftedRole = (values: readonly unknown[] = []) => {
+  const state = installedState();
+  const earlier = [
+    { text: 'professor', value: 'professor' },
+    { text: 'lecturer', value: 'lecturer' },
+  ];
+  state.fields['teaching_assignments'] = (
+    state.fields['teaching_assignments'] ?? []
+  ).map((field) =>
+    field.field === 'role'
+      ? {
+          ...field,
+          meta: {
+            ...field.meta,
+            ...studioEdits,
+            display_options: { choices: earlier, showAsDot: true },
+            options: {
+              allowNone: true,
+              allowOther: false,
+              choices: earlier,
+              placeholder: 'Synthetic placeholder',
+            },
+            validation: {
+              _or: [
+                { role: { _null: true } },
+                { role: { _in: ['professor', 'lecturer'] } },
+              ],
+            },
+          },
+        }
+      : field,
+  );
+  state.values = { 'teaching_assignments.role': values };
+  return state;
+};
+
+// Every column and alias of the model, as a rerun counts them.
+const totalFields = dataModelCollections.reduce(
+  (sum, { collection, fields }) =>
+    sum + fields.length + aliasesFor(collection).length,
+  0,
+);
+
+describe('installDataModel enum realignment', () => {
+  test('realigns drifted choices and rule by merge, keeping every key Studio owns', async () => {
+    const { request, requests } = fakeDirectus(
+      driftedRole(['professor', null, 'assistant']),
+    );
+
+    const summary = await installDataModel(request);
+    const declared = declaredChoices('teaching_assignments', 'role');
+
+    expect(mutations(requests)).toEqual([
+      {
+        body: {
+          meta: {
+            display_options: { ...declared.display_options, showAsDot: true },
+            options: {
+              ...declared.options,
+              placeholder: 'Synthetic placeholder',
+            },
+            validation: declared.validation,
+          },
+        },
+        method: 'PATCH',
+        pathname: '/fields/teaching_assignments/role',
+      },
+    ]);
+    expect(declared.options).toMatchObject({
+      choices: [
+        { text: 'Professor', value: 'professor' },
+        { text: 'Assistant', value: 'assistant' },
+      ],
+    });
+    expect(summary.fields).toMatchObject({
+      adopted: 0,
+      aligned: 1,
+      refused: 0,
+      skipped: totalFields - 1,
+    });
+    expect(
+      requests
+        .map(({ pathname }) => pathname)
+        .filter((path) => path.startsWith('/items/')),
+    ).toEqual([
+      '/items/teaching_assignments?aggregate[count]=*&groupBy[]=role&limit=-1',
+    ]);
+  });
+
+  test('writes nothing once the field carries the declared choices, whatever Studio edited', async () => {
+    const state = installedState();
+    state.fields['teaching_assignments'] = (
+      state.fields['teaching_assignments'] ?? []
+    ).map((field) =>
+      field.field === 'role'
+        ? { ...field, meta: { ...field.meta, ...studioEdits } }
+        : field,
+    );
+    const { request, requests } = fakeDirectus(state);
+
+    const summary = await installDataModel(request);
+
+    expect(mutations(requests)).toEqual([]);
+    expect(
+      requests.some(({ pathname }) => pathname.startsWith('/items/')),
+    ).toBe(false);
+    expect(summary.fields).toMatchObject({ aligned: 0, skipped: totalFields });
+  });
+
+  test('refuses, before any write, a field holding a value its declaration no longer accepts', async () => {
+    const { request, requests } = fakeDirectus(
+      driftedRole(['professor', 'lecturer', 'lecturer']),
+    );
+
+    const failure = await failureOf(installDataModel(request));
+
+    expect(failure).toBeInstanceOf(SchemaRefusalError);
+
+    if (!(failure instanceof SchemaRefusalError)) {
+      throw new Error('expected a refusal');
+    }
+
+    expect(mutations(requests)).toEqual([]);
+    expect(failure.refusals).toEqual([
+      {
+        collection: 'teaching_assignments',
+        field: 'role',
+        reason:
+          'Field teaching_assignments.role holds 1 value(s) its declared choices no longer accept ("lecturer"); change or clear them, then run setup again. Its choices were not realigned.',
+      },
+    ]);
+    expect(failure.summary.fields).toMatchObject({ aligned: 0, refused: 1 });
+  });
+
+  test('reads the one value of a singleton field before realigning it', async () => {
+    const state = installedState();
+    state.fields['data_operations'] = (
+      state.fields['data_operations'] ?? []
+    ).map((field) =>
+      field.field === 'publication_state'
+        ? {
+            ...field,
+            meta: {
+              ...field.meta,
+              validation: { publication_state: { _in: ['idle', 'running'] } },
+            },
+          }
+        : field,
+    );
+    state.values = { 'data_operations.publication_state': ['running'] };
+    const { request, requests } = fakeDirectus(state);
+
+    const summary = await installDataModel(request);
+
+    expect(
+      requests
+        .map(({ pathname }) => pathname)
+        .filter((path) => path.startsWith('/items/')),
+    ).toEqual(['/items/data_operations?fields=publication_state']);
+    expect(mutations(requests).map(({ pathname }) => pathname)).toEqual([
+      '/fields/data_operations/publication_state',
+    ]);
+    expect(summary.fields.aligned).toBe(1);
   });
 });

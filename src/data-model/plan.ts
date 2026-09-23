@@ -61,6 +61,7 @@ export const planDataModel = (state: ExistingState): InstallPlan => {
       ...byKind('create-field'),
       ...byKind('adopt-meta'),
       ...byKind('add-flags'),
+      ...byKind('realign-choices'),
       ...byKind('create-alias'),
     ],
     refusals: actions.refusals,

@@ -1,61 +1,30 @@
+import type { ReadinessEntry } from './readiness-types.js';
+
 import { exportError } from './errors.js';
-import { factCodes, globalChecks, readinessChecks } from './global-checks.js';
+import { isKeyed, keySourcesOf } from './field-map.js';
+import { keySources } from './key-sources.js';
+import { readProblems } from './read-rules.js';
+import { readinessRegistry } from './readiness-registry.js';
 import {
-  type ExportDefinition,
-  type IssueCode,
-  publicFilenamePattern,
-  type ReadinessCheck,
-  type SourceRead,
-} from './types.js';
+  type LabelledRead,
+  registryProblems,
+  registryReads,
+} from './registry-rules.js';
+import { type ExportDefinition, publicFilenamePattern } from './types.js';
 
 // The structural rules every export definition obeys, checked before any
 // read so a malformed definition fails at once and names itself: a
 // filename the storage writer accepts and no two files alike, distinct
-// keys, an id field and every source path selected by the read, a
-// grouping field selected by each related read, explicit fields only and
-// no `_some` or `_none` filter (Directus 12.3.1 drops a two-condition
-// `_some` silently and matches two `_some` blocks across different rows).
-// The read rules hold for the global readiness checks too, and every
-// readiness code has one kind and one page wherever it is declared.
-
-const forbiddenOperators: ReadonlySet<string> = new Set(['_none', '_some']);
-
-// Every object key anywhere inside a filter.
-const keysOf = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => keysOf(item));
-  }
-  if (typeof value !== 'object' || value === null) {
-    return [];
-  }
-  return Object.entries(value).flatMap(([key, inner]) => [
-    key,
-    ...keysOf(inner),
-  ]);
-};
-
-const readProblems = (label: string, read: SourceRead): string[] => {
-  const problems: string[] = [];
-  if (read.fields.length === 0) {
-    problems.push(`${label} selects no field`);
-  }
-  if (read.fields.some((field) => field === '*' || field.endsWith('.*'))) {
-    problems.push(`${label} selects a wildcard`);
-  }
-  if (new Set(read.fields).size !== read.fields.length) {
-    problems.push(`${label} selects a field twice`);
-  }
-  if (keysOf(read.filter).some((key) => forbiddenOperators.has(key))) {
-    problems.push(`${label} filters with _some or _none`);
-  }
-  return problems;
-};
+// fixed keys, an id field and every source path selected by the read, a
+// grouping field selected by each related read, a key field selected by
+// each key source, and every read under the read rules (read-rules.ts).
+// The readiness-check registry is checked in the same pass.
 
 const fieldProblems = (definition: ExportDefinition): string[] => {
   const { fields, filename, orderBy, related, rows } = definition;
   const problems: string[] = [];
-  const keys = fields.map(({ key }) => key);
-  if (keys.length === 0 || keys.includes('')) {
+  const keys = fields.flatMap((entry) => (isKeyed(entry) ? [] : [entry.key]));
+  if (fields.length === 0 || keys.includes('')) {
     problems.push(`${filename} declares no key or an empty key`);
   }
   if (new Set(keys).size !== keys.length) {
@@ -64,9 +33,21 @@ const fieldProblems = (definition: ExportDefinition): string[] => {
   if (!rows.fields.includes(orderBy)) {
     problems.push(`${filename} orders by ${orderBy}, which its read omits`);
   }
-  for (const { key, value } of fields) {
-    if (typeof value === 'string' && !rows.fields.includes(value)) {
-      problems.push(`${filename} key ${key} reads ${value}, which is omitted`);
+  for (const entry of fields) {
+    if (
+      !isKeyed(entry) &&
+      typeof entry.value === 'string' &&
+      !rows.fields.includes(entry.value)
+    ) {
+      problems.push(
+        `${filename} key ${entry.key} reads ${entry.value}, which is omitted`,
+      );
+    }
+  }
+  for (const name of keySourcesOf(definition)) {
+    const source = keySources[name];
+    if (!source.fields.includes(source.key)) {
+      problems.push(`${filename} keys ${name} by an omitted field`);
     }
   }
   for (const [name, read] of Object.entries(related)) {
@@ -80,77 +61,36 @@ const fieldProblems = (definition: ExportDefinition): string[] => {
   return problems;
 };
 
-type LabelledRead = readonly [string, SourceRead];
-
-const checkReads = (
-  owner: string,
-  checks: readonly ReadinessCheck[],
-): LabelledRead[] =>
-  checks.flatMap((check, index) =>
-    Object.entries(check.reads).map(([key, read]): LabelledRead => [
-      `${owner} check ${index + 1} read ${key}`,
-      read,
-    ]),
-  );
-
-// Every read a definition and its checks make, labelled for a refusal.
+// Every read a definition makes, labelled for a refusal.
 export const definitionReads = (
   definition: ExportDefinition,
 ): readonly LabelledRead[] => [
+  ...keySourcesOf(definition).map((name): LabelledRead => [
+    `${definition.filename} keys ${name}`,
+    keySources[name],
+  ]),
   [`${definition.filename} read rows`, definition.rows],
   ...Object.entries(definition.related).map(([key, read]): LabelledRead => [
     `${definition.filename} read ${key}`,
     read,
   ]),
-  ...checkReads(definition.filename, definition.checks),
 ];
 
-// Every read of the global readiness checks, labelled for a refusal.
-export const globalReads = (
-  globals: readonly ReadinessCheck[] = globalChecks,
-): readonly LabelledRead[] => checkReads('global', globals);
-
-const issueText = ({ collection, kind }: IssueCode) =>
-  `${kind} of ${collection}`;
-
-// A readiness code is decided by its one declaration: one declared twice
-// with another kind or page would let a warning hide a blocker.
-// Grouped through Map.groupBy: the ESLint autofix for the get-then-set
-// pattern emits Map#getOrInsert, which Node 24 does not ship.
-const codeProblems = (checks: readonly ReadinessCheck[]): string[] =>
-  Map.groupBy(
-    [
-      ...Object.entries(factCodes),
-      ...checks.flatMap(({ codes }) => Object.entries(codes)),
-    ],
-    ([code]) => code,
-  )
-    .entries()
-    .flatMap(([code, declarations]) => {
-      const kinds = new Set(declarations.map(([, issue]) => issueText(issue)));
-      return kinds.size > 1
-        ? [
-            `readiness code ${code} is declared as ${[...kinds].join(' and as ')}`,
-          ]
-        : [];
-    })
-    .toArray();
-
-// Every structural problem of the definitions and of the global checks
-// (the shipped ones unless others are named).
+// Every structural problem of the definitions and of the readiness-check
+// registry (the shipped one unless another is named).
 export const definitionProblems = (
   definitions: readonly ExportDefinition[],
-  globals: readonly ReadinessCheck[] = globalChecks,
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): string[] => {
   const filenames = definitions.map(({ filename }) => filename);
   return [
     ...(new Set(filenames).size === filenames.length
       ? []
       : ['two definitions publish the same filename']),
-    ...globalReads(globals).flatMap(([label, read]) =>
+    ...registryProblems(registry, filenames),
+    ...registryReads(registry).flatMap(([label, read]) =>
       readProblems(label, read),
     ),
-    ...codeProblems(readinessChecks(definitions, globals)),
     ...definitions.flatMap((definition) => [
       ...(publicFilenamePattern.test(definition.filename)
         ? []
@@ -163,11 +103,13 @@ export const definitionProblems = (
   ];
 };
 
-// Refuses a malformed list of definitions before anything is read.
+// Refuses malformed definitions or a malformed registry before anything is
+// read.
 export const checkDefinitions = (
   definitions: readonly ExportDefinition[],
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): void => {
-  const problems = definitionProblems(definitions);
+  const problems = definitionProblems(definitions, registry);
   if (problems.length > 0) {
     throw exportError(
       'INVALID_DEFINITION',

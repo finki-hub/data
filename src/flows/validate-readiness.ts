@@ -1,11 +1,14 @@
 import {
   condition,
   exportsOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   operation,
   publicationId,
   raise,
 } from './flow-template.js';
+
+const family = flowFamilyCodes.publication;
 
 export const validateReadinessFlowId = publicationId('04');
 
@@ -33,7 +36,7 @@ export const adminOnly = (
       reject: publicationId(suffixes[1]),
       resolve: publicationId(suffixes[2]),
     },
-    family: '14',
+    family,
     filter: { $accountability: { admin: { _eq: true } } },
     key: 'admin_only',
     name: 'Administrator?',
@@ -42,7 +45,7 @@ export const adminOnly = (
   }),
   raise({
     error: { code: 'FORBIDDEN', message, status: 403 },
-    family: '14',
+    family,
     key: 'raise_forbidden',
     name: 'Refuse a non-administrator',
     position: [19, 19],
@@ -67,7 +70,7 @@ export const validateReadinessFlow: FlowTemplate = {
       'Only administrators may check the publication readiness.',
     ),
     operation({
-      family: '14',
+      family,
       key: 'readiness',
       name: 'Validate readiness',
       options: { action: 'readiness' },

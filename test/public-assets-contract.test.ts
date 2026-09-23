@@ -4,6 +4,8 @@ import { compileFunction, createContext } from 'node:vm';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
+import { courses as coursesDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
+import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { deriveCourses } from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 import {
   academicYears,
@@ -699,5 +701,77 @@ describe('rebuilt rows through the export projection', () => {
       ),
       channel: 'FALSE',
     });
+  });
+});
+
+// The academic_years rows of the fifteen checkpoint years as the published
+// key source reads them (published, oldest sorting 1), in reverse order to
+// show the engine orders them itself.
+const checkpointYears: readonly string[] = academicYears;
+
+const publishedYearRows = (labels: readonly string[] = checkpointYears) =>
+  labels
+    .map((label) => ({
+      id: 100 + checkpointYears.indexOf(label),
+      label,
+      sort: checkpointYears.length - checkpointYears.indexOf(label),
+    }))
+    .toReversed();
+
+describe('published-year keys of the relational courses definition', () => {
+  test('fill exactly the reference year positions with the fifteen published years', () => {
+    expect(
+      fileKeys(coursesDefinition, {
+        keyRows: { published_years: publishedYearRows() },
+      }),
+    ).toEqual(outputLabels(courseFieldMap));
+  });
+
+  test('leave out an unpublished year and nothing else', () => {
+    const published = academicYears.filter((year) => year !== '2019/2020');
+
+    expect(
+      fileKeys(coursesDefinition, {
+        keyRows: { published_years: publishedYearRows(published) },
+      }),
+    ).toEqual(
+      outputLabels(courseFieldMap).filter((label) => label !== '2019/2020'),
+    );
+  });
+
+  test('list the newer label first when two published years share a sort', () => {
+    const keys = fileKeys(coursesDefinition, {
+      keyRows: {
+        published_years: [
+          { id: 1, label: '2024/2025', sort: 2 },
+          { id: 2, label: '2025/2026', sort: 2 },
+          { id: 3, label: '2023/2024', sort: 1 },
+        ],
+      },
+    });
+
+    expect(keys.filter((key) => key.includes('/'))).toEqual([
+      '2025/2026',
+      '2024/2025',
+      '2023/2024',
+    ]);
+  });
+
+  test('place a newly published later year first among the year keys', () => {
+    const keys = fileKeys(coursesDefinition, {
+      keyRows: {
+        published_years: [
+          ...publishedYearRows(),
+          { id: 99, label: '2026/2027', sort: 16 },
+        ],
+      },
+    });
+    const reference = outputLabels(courseFieldMap);
+
+    expect(keys).toEqual([
+      ...reference.slice(0, 2),
+      '2026/2027',
+      ...reference.slice(2),
+    ]);
   });
 });

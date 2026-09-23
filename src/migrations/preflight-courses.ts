@@ -31,9 +31,14 @@ const nameFindings = (course: CourseRow, name: string): readonly Finding[] => {
   return [];
 };
 
+type CourseContext = {
+  readonly academicYears: readonly string[];
+  readonly indexes: Indexes;
+};
+
 const candidateOf = (
   course: CourseRow,
-  indexes: Indexes,
+  { academicYears, indexes }: CourseContext,
 ): {
   readonly candidate: CourseCandidate;
   readonly findings: readonly Finding[];
@@ -42,7 +47,7 @@ const candidateOf = (
   const current = currentOf(course, indexes);
   const legacy = legacyOf(course, name, indexes);
   const assignment = assignmentOf(name, indexes);
-  const rules = rulesOf(course, name, indexes);
+  const rules = rulesOf(course, { academicYears, indexes, name });
   return {
     candidate: {
       assignment: assignment.value,
@@ -69,13 +74,13 @@ const candidateOf = (
 // enrollment rule per academic year, each with its precedence recorded.
 export const courseCandidates = (
   checkpoint: CheckpointRows,
-  indexes: Indexes,
+  context: CourseContext,
 ): {
   readonly candidates: readonly CourseCandidate[];
   readonly findings: readonly Finding[];
 } => {
   const results = checkpoint.courses.map((course) =>
-    candidateOf(course, indexes),
+    candidateOf(course, context),
   );
   return {
     candidates: results.map(({ candidate }) => candidate),

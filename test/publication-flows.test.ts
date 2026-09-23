@@ -6,16 +6,17 @@ import type { DirectusRequest } from '../src/directus-request.js';
 import { exportsOperationId } from '../directus/extensions/directus-extension-data-operations/src/exports/actions.js';
 import {
   exportsOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   type OperationTemplate,
 } from '../src/flows/flow-template.js';
 import {
-  installPublicationFlows,
   prepareAssetsFlow,
   prepareAssetsFlowId,
   publicationFlows,
 } from '../src/flows/prepare-public-assets.js';
 import { automaticProcessingFlows } from '../src/flows/process-pending.js';
+import { installFlowFamily } from '../src/flows/registry.js';
 import {
   validateReadinessFlow,
   validateReadinessFlowId,
@@ -153,7 +154,9 @@ describe('installation', () => {
   test('installs both Flows once each, inactive until wired', async () => {
     const { posted, request } = recordingDirectus();
 
-    await expect(installPublicationFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.publication),
+    ).resolves.toMatchObject({
       created: ['Data / Validate readiness', 'Publish / Prepare public assets'],
       skipped: [],
     });

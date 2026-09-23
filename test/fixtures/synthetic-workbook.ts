@@ -8,8 +8,10 @@ import type {
   MigrationItem,
   Scalar,
 } from '../../src/schema.js';
+import type { WorkbookContent } from '../../src/workbook.js';
 
 import { collectionSpecs } from '../../src/model.js';
+import { academicYears } from '../../src/specs/public.js';
 import {
   makeSyntheticDataset,
   type SyntheticDataset,
@@ -201,8 +203,14 @@ const writeDiscord = (
   }
 };
 
-const yearsOf = (rows: readonly SyntheticRow[]): readonly string[] => [
-  ...new Set(rows.map((row) => text(row, 'academic_year'))),
+// The year headers of the listener sheet: the given years in order (the
+// fifteen checkpoint years, newest first, unless a test names others),
+// then any year a pattern row names that they lack.
+export const headerYears = (
+  rows: readonly SyntheticRow[],
+  years: readonly string[] = academicYears,
+): readonly string[] => [
+  ...new Set([...years, ...rows.map((row) => text(row, 'academic_year'))]),
 ];
 
 // The listener sheet: year labels in row 1 every third column from C, the
@@ -211,9 +219,9 @@ const yearsOf = (rows: readonly SyntheticRow[]): readonly string[] => [
 const writePatterns = (
   workbook: ExcelJS.Workbook,
   rows: readonly SyntheticRow[],
+  years: readonly string[],
 ): void => {
   const sheet = workbook.addWorksheet('Слушатели');
-  const years = yearsOf(rows);
   setCell(sheet, { column: 1, row: 1 }, 'Предмет');
   setCell(sheet, { column: 2, row: 1 }, 'Код');
   for (const [index, year] of years.entries()) {
@@ -231,11 +239,11 @@ const writePatterns = (
 const writeSource = (
   workbook: ExcelJS.Workbook,
   spec: CollectionSpec,
-  rows: readonly SyntheticRow[],
+  { rows, years }: { rows: readonly SyntheticRow[]; years: readonly string[] },
 ): void => {
   switch (spec.source.kind) {
     case 'course-enrollment-patterns':
-      writePatterns(workbook, rows);
+      writePatterns(workbook, rows, headerYears(rows, years));
       return;
     case 'discord-pairs':
       writeDiscord(workbook, rows);
@@ -249,13 +257,15 @@ const writeSource = (
 };
 
 // An .xlsx workbook laid out the way the checkpoint readers expect, holding
-// the source columns of every row of the dataset (never a derived value).
+// the source columns of every row of the dataset (never a derived value)
+// and a listener sheet headed by the given academic years.
 export const syntheticWorkbook = (
   dataset: SyntheticDataset,
+  years: readonly string[] = academicYears,
 ): ExcelJS.Workbook => {
   const workbook = new ExcelJS.Workbook();
   for (const spec of collectionSpecs) {
-    writeSource(workbook, spec, dataset[spec.key]);
+    writeSource(workbook, spec, { rows: dataset[spec.key], years });
   }
   return workbook;
 };
@@ -284,12 +294,13 @@ const normalized = (value: Scalar | undefined): Scalar => {
 const readingOrder = (
   spec: CollectionSpec,
   rows: readonly SyntheticRow[],
+  headers: readonly string[],
 ): readonly SyntheticRow[] => {
   if (spec.source.kind === 'discord-pairs') {
     return rows.toSorted((left, right) => semesterOf(left) - semesterOf(right));
   }
   if (spec.source.kind === 'course-enrollment-patterns') {
-    const years = yearsOf(rows);
+    const years = headerYears(rows, headers);
     return rows.toSorted(
       (left, right) =>
         years.indexOf(text(left, 'academic_year')) -
@@ -301,7 +312,10 @@ const readingOrder = (
 
 // What the checkpoint readers return for the workbook written from the
 // dataset: the source columns only, in reading order, blanks as null.
-export const workbookData = (dataset: SyntheticDataset): MigrationData => {
+export const workbookData = (
+  dataset: SyntheticDataset,
+  years: readonly string[] = academicYears,
+): MigrationData => {
   const data: Record<CollectionKey, readonly MigrationItem[]> = {
     course_enrollment_patterns: [],
     course_equivalencies: [],
@@ -318,7 +332,7 @@ export const workbookData = (dataset: SyntheticDataset): MigrationData => {
     teaching_assignments: [],
   };
   for (const spec of collectionSpecs) {
-    data[spec.key] = readingOrder(spec, dataset[spec.key]).map((row) =>
+    data[spec.key] = readingOrder(spec, dataset[spec.key], years).map((row) =>
       Object.fromEntries(
         sourceFields(spec).map((field) => [
           field.target,
@@ -329,6 +343,16 @@ export const workbookData = (dataset: SyntheticDataset): MigrationData => {
   }
   return data;
 };
+
+// What the import reads from the workbook written from the dataset: its
+// rows and the academic years its listener sheet names.
+export const workbookContent = (
+  dataset: SyntheticDataset,
+  years: readonly string[] = academicYears,
+): WorkbookContent => ({
+  academicYears: headerYears(dataset.course_enrollment_patterns, years),
+  data: workbookData(dataset, years),
+});
 
 // The rows of parsed workbook data with the ids a fresh table hands out
 // (1, 2, ...), as a populated checkpoint deployment holds them.

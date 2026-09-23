@@ -6,6 +6,7 @@ import {
   automationId,
   condition,
   coordinateOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   operation,
 } from './flow-template.js';
@@ -21,6 +22,8 @@ import {
   mappedEnrollmentFlowIds,
 } from './shared.js';
 
+const family = flowFamilyCodes.automation;
+
 const claimToken = '{{ $trigger.claim }}';
 
 export const dispatcherFlowId = automationId('01');
@@ -31,7 +34,7 @@ type Failure = Omit<ReleaseBranch, 'family' | 'position' | 'token'> & {
 
 const release = ({ column, ...failure }: Failure): ReleaseBranch => ({
   ...failure,
-  family: '13',
+  family,
   position: [column, 19],
   token: claimToken,
 });
@@ -195,7 +198,7 @@ export const dispatcherFlow: FlowTemplate = {
         reject: failStepId(branches.legacy),
         resolve: automationId('18'),
       },
-      family: '13',
+      family,
       filter: { count_legacy: { ok: { _eq: true } } },
       key: 'legacy_ok',
       name: 'Legacy rules counted?',
@@ -213,7 +216,7 @@ export const dispatcherFlow: FlowTemplate = {
       type: coordinateOperation,
     }),
     operation({
-      family: '13',
+      family,
       key: 'answer',
       name: 'Answer the installed counts',
       options: {

@@ -8,15 +8,15 @@ import {
   snapshotFolderId,
   snapshotFolderName,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
-import { claimDomains as modelClaimDomains } from '../src/data-model/operations-collections.js';
-import { insertionOrder } from '../src/flows/flow-template.js';
+import { claimDomains as modelClaimDomains } from '../src/data-model/operations-vocabularies.js';
+import { flowFamilyCodes, insertionOrder } from '../src/flows/flow-template.js';
+import { installFlowFamily } from '../src/flows/registry.js';
 import {
   installSnapshotFolder,
   snapshotFolder,
 } from '../src/flows/snapshot-folder.js';
 import {
   confirmationDescription,
-  installSnapshotImportFlows,
   snapshotFlowId,
   snapshotImportFlow,
 } from '../src/flows/snapshot-import.js';
@@ -132,7 +132,9 @@ describe('snapshot import Flow template', () => {
       return {};
     };
 
-    await expect(installSnapshotImportFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.snapshot),
+    ).resolves.toMatchObject({
       created: [snapshotImportFlow.name],
       skipped: [],
     });
@@ -154,7 +156,9 @@ describe('snapshot import Flow template', () => {
 
     calls.length = 0;
 
-    await expect(installSnapshotImportFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.snapshot),
+    ).resolves.toMatchObject({
       created: [],
       skipped: [snapshotImportFlow.name],
     });

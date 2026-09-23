@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
+import type { ReadinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
 import type {
   ExportDefinition,
-  ReadinessCheck,
+  RowContext,
   SourceRead,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 import type { FakeItem } from './migration-test-helpers.js';
@@ -12,7 +13,6 @@ import {
   checkDefinitions,
   definitionProblems,
   definitionReads,
-  globalReads,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import {
   readFileSources,
@@ -20,8 +20,12 @@ import {
   type SourceReader,
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
-import { conversionCheck } from '../directus/extensions/directus-extension-data-operations/src/exports/global-checks.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import {
+  readinessEntry,
+  readinessRegistry,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { findModelCollection } from '../src/data-model/collections.js';
@@ -41,10 +45,10 @@ import { rowsOf } from './relational-migration-helpers.js';
 const publicRows = (body: string) =>
   z.array(z.record(z.string(), z.string())).parse(JSON.parse(body));
 
-// Every read the export layer makes: the global readiness checks and every
-// definition with its checks.
+// Every read the export layer makes: the readiness registry's and every
+// definition's.
 const everyRead = [
-  ...globalReads(),
+  ...registryReads(readinessRegistry),
   ...exportDefinitions.flatMap((definition) => definitionReads(definition)),
 ];
 
@@ -91,10 +95,10 @@ const filterPaths = (filter: unknown, prefix = ''): string[] => {
 // columns (null allows every field the other rules allow). A dot path is
 // checked at every collection it passes through.
 const readable: Readonly<Record<string, null | readonly string[]>> = {
-  academic_years: ['label'],
+  academic_years: ['id', 'label', 'published', 'sort'],
   course_curricula: null,
-  course_enrollment_rules: ['academic_year', 'course'],
-  course_enrollments: ['academic_year', 'count', 'course'],
+  course_enrollment_rules: ['academic_year', 'course', 'id'],
+  course_enrollments: ['academic_year', 'count', 'course', 'id'],
   course_equivalencies: null,
   courses: null,
   curriculum_entries: null,
@@ -103,6 +107,7 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   moodle_course_mappings: ['academic_year', 'course', 'entry'],
   rooms: null,
   staff: null,
+  student_council: ['id', 'student'],
   students: ['id', 'index_number', 'name'],
   teaching_assignments: null,
 };
@@ -136,6 +141,12 @@ const sha256Pattern = /^[0-9a-f]{64}$/u;
 const namesMoodleField = (path: string): boolean =>
   path.split('.').some((step) => moodleUserFields.has(step));
 
+// The one label the export layer reads: the academic year's, the key of
+// the published-year rule.
+const yearLabel = (read: SourceRead, path: string): boolean =>
+  path === 'academic_year.label' ||
+  (read.collection === 'academic_years' && path === 'label');
+
 // What a read may not touch: a collection or field outside the
 // allowlist, a Moodle user field, the private student grouping, any label
 // but the academic year's, a wildcard or _some/_none.
@@ -149,9 +160,7 @@ const privateReadsOf = ([label, read]: readonly [string, SourceRead]) => {
       .map(([collection, field]) => `${collection}.${field}`),
     ...paths.filter((path) => namesMoodleField(path)),
     ...paths.filter((path) => path.endsWith('source_group')),
-    ...paths.filter(
-      (path) => path.endsWith('label') && path !== 'academic_year.label',
-    ),
+    ...paths.filter((path) => path.endsWith('label') && !yearLabel(read, path)),
     ...(wildcardOrSome.test(JSON.stringify(read)) ? ['* or _some'] : []),
   ].map((problem) => `${label}: ${problem}`);
 };
@@ -184,7 +193,7 @@ describe('the shipped export definitions', () => {
   });
 
   test('never read Moodle users, a private collection or a private field', () => {
-    expect(globalReads().length).toBeGreaterThan(0);
+    expect(registryReads(readinessRegistry).length).toBeGreaterThan(0);
     expect(everyRead.flatMap(privateReadsOf)).toEqual([]);
     // The checker itself sees each kind of private read.
     expect(
@@ -298,7 +307,9 @@ describe('a new file is one definition', () => {
   test('refuses a resolver value outside its rule instead of publishing it', async () => {
     const leaky: ExportDefinition = {
       ...roomCapacity,
-      fields: [{ key: 'room', rule: 'text', value: ({ row }) => row }],
+      fields: [
+        { key: 'room', rule: 'text', value: ({ row }: RowContext) => row },
+      ],
     };
 
     await expect(
@@ -402,53 +413,56 @@ describe('the definition rules', () => {
     expect(broken(change).join('; ')).toContain(problem);
   });
 
+  // The conversion entry with its count read changed.
+  const conversion = readinessEntry('conversion_incomplete');
+  const withRead = (change: Partial<SourceRead>): ReadinessEntry[] =>
+    readinessRegistry.map((entry) =>
+      entry === conversion
+        ? {
+            ...entry,
+            source: {
+              check: {
+                evaluate: () => ({}),
+                reads: {
+                  steps: {
+                    collection: 'migration_ledger',
+                    fields: change.fields ?? ['id'],
+                    sort: ['id'],
+                    ...(change.filter !== undefined && {
+                      filter: change.filter,
+                    }),
+                  },
+                },
+              },
+              kind: 'check',
+            },
+          }
+        : entry,
+    );
+
   test.each<readonly [Partial<SourceRead>, string]>([
-    [{ fields: ['*'] }, 'global check 1 read steps selects a wildcard'],
+    [
+      { fields: ['*'] },
+      'readiness check of conversion_incomplete read steps selects a wildcard',
+    ],
     [
       { filter: { steps: { _some: { status: { _eq: 'failed' } } } } },
-      'global check 1 read steps filters with _some or _none',
+      'readiness check of conversion_incomplete read steps filters with _some or _none',
     ],
-    [{ fields: [] }, 'global check 1 read steps selects no field'],
+    [
+      { fields: [] },
+      'readiness check of conversion_incomplete read steps selects no field',
+    ],
   ])(
-    'applies the read rules to the global checks too: %j',
+    'applies the read rules to the readiness registry too: %j',
     (change, problem) => {
-      const malformed: ReadinessCheck = {
-        ...conversionCheck,
-        reads: {
-          steps: {
-            collection: 'migration_ledger',
-            fields: change.fields ?? ['id'],
-            sort: ['id'],
-            ...(change.filter !== undefined && { filter: change.filter }),
-          },
-        },
-      };
-
-      expect(definitionProblems(exportDefinitions, [malformed])).toContain(
+      expect(conversion).toBeDefined();
+      expect(definitionProblems(exportDefinitions, withRead(change))).toContain(
         problem,
       );
       expect(definitionProblems(exportDefinitions)).toEqual([]);
     },
   );
-
-  test('names a global code a definition redeclares with another kind', () => {
-    const redeclared: ExportDefinition = {
-      ...roomCapacity,
-      checks: [
-        {
-          codes: {
-            conversion_incomplete: { collection: 'rooms', kind: 'warning' },
-          },
-          evaluate: () => ({}),
-          reads: {},
-        },
-      ],
-    };
-
-    expect(definitionProblems([redeclared])).toEqual([
-      'readiness code conversion_incomplete is declared as blocker of migration_ledger and as warning of rooms',
-    ]);
-  });
 
   test('refuses two files of one name before anything is read', () => {
     expect(() => {

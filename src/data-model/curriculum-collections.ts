@@ -5,9 +5,16 @@ import {
   curriculumEntryTemplate,
   provenanceFields,
 } from './checkpoint-collections.js';
-import { enumField, m2o, scalar } from './fields.js';
+import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
 export const generations = ['2018', '2023'] as const;
+
+// Replaced by curriculum_generations rows in Task 25; until then the
+// labels are the codes.
+const generationChoices = labelledChoices(generations, {
+  2_018: '2018',
+  2_023: '2023',
+});
 
 export const academicYearTemplate = '{{label}}';
 
@@ -33,11 +40,18 @@ export const curriculumCollections: readonly ModelCollection[] = [
         nullable: false,
         unique: true,
       }),
-      scalar('sort', 'integer'),
+      scalar('sort', 'integer', {
+        note: 'Chronological order: a later year sorts higher. courses.json lists the published years newest first.',
+      }),
+      scalar('published', 'boolean', {
+        defaultValue: false,
+        note: "Adds this year to courses.json as a key named by its label, valued by each course's enrollment count. A new year stays out until this is set; readiness then requires a count for every course.",
+        nullable: false,
+      }),
     ],
     hidden: false,
     icon: 'calendar_month',
-    note: 'Academic years referenced by enrollment rules, counts and Moodle mappings. A new year is a new row.',
+    note: 'Academic years referenced by enrollment rules, counts and Moodle mappings. A new year is a new row; it reaches courses.json only once published.',
     origin: 'relational',
     singleton: false,
     sort: 14,
@@ -46,7 +60,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
     collection: 'curriculum_entries',
     displayTemplate: curriculumEntryTemplate,
     fields: [
-      enumField('generation', generations, { nullable: false }),
+      enumField('generation', generationChoices, { nullable: false }),
       scalar('name', 'string', { nullable: false }),
       scalar('catalog_order', 'integer'),
       scalar('url', 'text'),
@@ -88,7 +102,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
         nullable: false,
         template: curriculumEntryTemplate,
       }),
-      enumField('generation', generations, {
+      enumField('generation', generationChoices, {
         note: 'Must match the generation of the linked curriculum entry.',
         nullable: false,
       }),

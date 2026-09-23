@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 
 import type { MigrationData } from '../src/schema.js';
+import type { WorkbookContent } from '../src/workbook.js';
 
 import {
   checkpointPreset,
@@ -33,12 +34,18 @@ import {
   publicAssetsFlow,
   publicAssetsFlowId,
 } from '../src/public-assets-flow.js';
-import { config, emptyData, toUrl } from './directus-test-helpers.js';
+import { academicYears } from '../src/specs/public.js';
+import {
+  config,
+  emptyData,
+  emptyWorkbook,
+  toUrl,
+} from './directus-test-helpers.js';
 import { makeSyntheticDataset } from './fixtures/synthetic-data.js';
 import {
   lifecycleDataset,
   withSequentialIds,
-  workbookData,
+  workbookContent,
 } from './fixtures/synthetic-workbook.js';
 import {
   emptyStore,
@@ -88,7 +95,7 @@ const operationBody = z.looseObject({
 });
 const ledgerRow = z.looseObject({ status: z.string(), step: z.string() });
 
-const workbook = (): MigrationData => workbookData(lifecycleDataset());
+const workbook = (): WorkbookContent => workbookContent(lifecycleDataset());
 
 const isItemWrite = ({ method, pathname }: RecordedCall): boolean =>
   method === 'POST' && pathname.startsWith('/items/');
@@ -124,8 +131,8 @@ const installedStore = (): FakeStore => {
   return store;
 };
 
-const importInto = (fake: ImportFake, data: MigrationData = workbook()) =>
-  importWorkbook(fake.request, data, fake.io);
+const importInto = (fake: ImportFake, content: WorkbookContent = workbook()) =>
+  importWorkbook(fake.request, content, fake.io);
 
 const noPublish =
   'Do not run Publish public assets before Rebuild derived data has run over the complete rows.';
@@ -362,6 +369,33 @@ describe('an import interrupted after it began writing', () => {
       { status: 'completed', step: 'preflight' },
       { status: 'failed', step: 'curricula' },
     ]);
+    expect(
+      projected(fake.store, 'academic_years', ['label', 'published']),
+    ).toEqual(academicYears.map((label) => ({ label, published: true })));
+  });
+
+  test('sends an import whose academic years were not seeded back to a fresh import, never to the upgrade path', async () => {
+    const fake = fakeImportDirectus(emptyStore());
+    const failing = failingAt(fake, '/items/academic_years', 1);
+
+    const error = await refusalOf(importWorkbook(failing, workbook(), fake.io));
+
+    expect(error).toMatchObject({
+      progress: { confirmed: 77, conversion: null, phase: 'converting' },
+    });
+
+    const message = String(error);
+
+    expect(message).toContain(
+      'The academic years of the workbook were not all seeded: synthetic outage',
+    );
+    expect(message).toContain(
+      'Every workbook row was written, but not every academic year the workbook names was seeded, so npm run import now refuses this project, and npm run migrate would convert only the years the project holds. Restore the pre-import backup or remove every application record',
+    );
+    expect(message).not.toContain('finish with npm run migrate');
+    expect(message).toContain(noPublish);
+    expect(rowsIn(fake.store, 'academic_years')).toEqual([]);
+    expect(rowsIn(fake.store, ledgerCollection)).toEqual([]);
   });
 
   test('keeps a blocked conversion in view when the rebuild that follows it fails', async () => {
@@ -369,7 +403,7 @@ describe('an import interrupted after it began writing', () => {
     const failing = failingAt(fake, '/flows/trigger/', 1);
 
     const error = await refusalOf(
-      importWorkbook(failing, workbookData(duplicateIndex()), fake.io),
+      importWorkbook(failing, workbookContent(duplicateIndex()), fake.io),
     );
 
     expect(error).toMatchObject({
@@ -424,7 +458,7 @@ describe('workbook rows and their relational conversion', () => {
       })),
     };
 
-    await importInto(fake, data);
+    await importInto(fake, { ...emptyWorkbook, data });
 
     expect(
       fake.calls.filter(
@@ -436,11 +470,11 @@ describe('workbook rows and their relational conversion', () => {
   });
 
   test('converts the workbook rows to exactly the target rows an upgrade of the same checkpoint rows writes', async () => {
-    const data = workbook();
+    const content = workbook();
     const imported = fakeImportDirectus(emptyStore());
-    await importInto(imported, data);
+    await importInto(imported, content);
 
-    const upgraded = storeFromDataset(withSequentialIds(data), {
+    const upgraded = storeFromDataset(withSequentialIds(content.data), {
       installed: true,
     });
     const { request } = fakeItemsDirectus(upgraded);
@@ -475,11 +509,35 @@ describe('workbook rows and their relational conversion', () => {
     ).toEqual(rowsIn(upgraded, ledgerCollection).map((row) => row['id_map']));
   });
 
-  test('imports the rows but leaves the ledger untouched while an ambiguity blocks the conversion', async () => {
-    const data = workbookData(duplicateIndex());
+  test('seeds the academic years the workbook names, a later one included, with their rules', async () => {
+    const years = ['2026/2027', ...academicYears];
     const fake = fakeImportDirectus(emptyStore());
 
-    const summary = await importInto(fake, data);
+    const summary = await importInto(
+      fake,
+      workbookContent(lifecycleDataset(), years),
+    );
+
+    expect(summary.conversion.status).toBe('converted');
+    expect(
+      projected(fake.store, 'academic_years', ['label', 'published', 'sort']),
+    ).toEqual(
+      years.map((label, index) => ({
+        label,
+        published: true,
+        sort: years.length - index,
+      })),
+    );
+    expect(rowsIn(fake.store, 'course_enrollment_rules')).toHaveLength(
+      rowsIn(fake.store, 'courses').length * years.length,
+    );
+  });
+
+  test('imports the rows but leaves the ledger untouched while an ambiguity blocks the conversion', async () => {
+    const content = workbookContent(duplicateIndex());
+    const fake = fakeImportDirectus(emptyStore());
+
+    const summary = await importInto(fake, content);
 
     expect(summary.conversion).toEqual({
       blockers: { ambiguous_student_index: 1 },
@@ -488,6 +546,16 @@ describe('workbook rows and their relational conversion', () => {
     expect(rowsIn(fake.store, 'students')).toHaveLength(4);
     expect(rowsIn(fake.store, ledgerCollection)).toEqual([]);
     expect(rowsIn(fake.store, 'curriculum_entries')).toEqual([]);
+    expect(rowsIn(fake.store, 'course_enrollment_rules')).toEqual([]);
+    expect(
+      projected(fake.store, 'academic_years', ['label', 'published', 'sort']),
+    ).toEqual(
+      academicYears.map((label, index) => ({
+        label,
+        published: true,
+        sort: academicYears.length - index,
+      })),
+    );
     expect(fake.triggers).toHaveLength(1);
   });
 
@@ -762,7 +830,7 @@ describe('the import over the real request', () => {
     );
 
     await expect(
-      importWorkbook(createDirectusRequest(config), emptyData, {
+      importWorkbook(createDirectusRequest(config), emptyWorkbook, {
         now: () => '2026-09-22T12:00:00.000Z',
         runToken: () => 'run',
       }),

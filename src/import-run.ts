@@ -9,7 +9,7 @@ import { WorkbookDataError } from './workbook-values.js';
 import {
   assertStorable,
   countMigrationData,
-  loadMigrationData,
+  loadWorkbook,
 } from './workbook.js';
 
 export type ImportCliIo = ImportIo & {
@@ -37,11 +37,11 @@ export const runImportCli = async (
 ): Promise<number> => {
   try {
     const config = loadImportConfig(arguments_, environment);
-    const data = await loadMigrationData(config.workbookPath);
-    assertStorable(data);
+    const workbook = await loadWorkbook(config.workbookPath);
+    assertStorable(workbook.data);
     if (config.directus === null) {
-      io.stdout(JSON.stringify(countMigrationData(data), null, 2));
-      const blockers = previewBlockers(data);
+      io.stdout(JSON.stringify(countMigrationData(workbook.data), null, 2));
+      const blockers = previewBlockers(workbook);
       if (Object.keys(blockers).length === 0) {
         return exitCodes.ok;
       }
@@ -52,7 +52,7 @@ export const runImportCli = async (
     }
     const summary = await importWorkbook(
       io.createRequest(config.directus),
-      data,
+      workbook,
       io,
     );
     io.stdout(JSON.stringify({ mode: 'import', ...summary }));

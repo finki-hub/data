@@ -1,7 +1,9 @@
+import type { ReadinessEntry } from './readiness-types.js';
 import type { ExportDefinition } from './types.js';
 
 import { checkDefinitions } from './definitions-check.js';
 import {
+  fileKeys,
   type PreparedFile,
   readFileSources,
   serializeFile,
@@ -9,7 +11,11 @@ import {
   validateFile,
 } from './engine.js';
 import { exportError } from './errors.js';
-import { calculationDomains, type CoordinationFacts } from './global-checks.js';
+import {
+  calculationDomains,
+  type CoordinationFacts,
+} from './readiness-facts.js';
+import { readinessRegistry } from './readiness-registry.js';
 import {
   assessReadiness,
   type ReadinessAnswer,
@@ -41,12 +47,15 @@ export type Preparation = {
   readonly warnings: readonly string[];
 };
 
+// Readiness alone, over the readiness-check registry (the shipped one
+// unless a test names another).
 export const readinessAction = async (
   definitions: readonly ExportDefinition[],
   deps: ReadinessDeps,
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): Promise<ReadinessAnswer> => {
-  checkDefinitions(definitions);
-  const { answer } = await assessReadiness(definitions, deps);
+  checkDefinitions(definitions, registry);
+  const { answer } = await assessReadiness(deps, registry);
   return answer;
 };
 
@@ -70,7 +79,12 @@ export const prepareFiles = async (
     lap('read');
     const payload = serializeFile(definition, sources);
     lap('serialize');
-    files.push(validateFile(definition, payload, sources.rows.length));
+    files.push(
+      validateFile(definition, payload, {
+        keys: fileKeys(definition, sources),
+        rows: sources.rows.length,
+      }),
+    );
     lap('validate');
   }
   return { files, spent };
@@ -122,10 +136,11 @@ const rounded = (milliseconds: number): number => Math.round(milliseconds);
 export const preparePublicFiles = async (
   definitions: readonly ExportDefinition[],
   deps: ExportDeps,
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): Promise<Preparation> => {
-  checkDefinitions(definitions);
+  checkDefinitions(definitions, registry);
   const started = deps.now();
-  const { answer, coordination } = await assessReadiness(definitions, deps);
+  const { answer, coordination } = await assessReadiness(deps, registry);
   if (!answer.ready) {
     throw notReady(answer);
   }
@@ -156,8 +171,9 @@ export const preparePublicFiles = async (
 export const prepareAction = async (
   definitions: readonly ExportDefinition[],
   deps: ExportDeps,
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ) => {
-  const prepared = await preparePublicFiles(definitions, deps);
+  const prepared = await preparePublicFiles(definitions, deps, registry);
   return {
     durationMs: prepared.durationMs,
     files: prepared.files.map(({ bytes, filename, rows, sha256 }) => ({

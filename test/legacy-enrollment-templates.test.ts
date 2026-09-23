@@ -8,7 +8,6 @@ import type { DirectusRequest } from '../src/directus-request.js';
 import operationApp from '../directus/extensions/directus-extension-data-operations/src/app.js';
 import { coordinatorActions } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import {
-  installLegacyEnrollmentFlows,
   legacyEnrollmentFlows,
   legacyParentFlow,
 } from '../src/flows/count-legacy-enrollments.js';
@@ -22,6 +21,7 @@ import {
 } from '../src/flows/fill-legacy-zeros.js';
 import {
   coordinateOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   insertionOrder,
 } from '../src/flows/flow-template.js';
@@ -32,6 +32,7 @@ import {
   zeroPageCheckScript,
   zeroPagesCheckScript,
 } from '../src/flows/legacy-scripts.js';
+import { installFlowFamily } from '../src/flows/registry.js';
 import { legacyEnrollmentFlowIds } from '../src/flows/shared.js';
 import { claim, refusalOf, runScript } from './legacy-enrollment-helpers.js';
 
@@ -900,7 +901,9 @@ describe('legacy enrollment Flow installer', () => {
       return {};
     };
 
-    await expect(installLegacyEnrollmentFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.legacy),
+    ).resolves.toMatchObject({
       created: legacyEnrollmentFlows.map(({ name }) => name),
       skipped: [],
     });
@@ -914,7 +917,9 @@ describe('legacy enrollment Flow installer', () => {
 
     calls.length = 0;
 
-    await expect(installLegacyEnrollmentFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.legacy),
+    ).resolves.toMatchObject({
       created: [],
       skipped: legacyEnrollmentFlows.map(({ name }) => name),
     });

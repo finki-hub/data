@@ -14,7 +14,7 @@ import {
   toAliasPayload,
   toFieldPayload,
 } from '../src/data-model/field-payloads.js';
-import { scalar } from '../src/data-model/fields.js';
+import { choiceValues, scalar } from '../src/data-model/fields.js';
 import {
   CollectionLimitError,
   installDataModel,
@@ -62,6 +62,12 @@ const enumOf = (collection: string, field: string) => {
   }
   return found;
 };
+
+// Every enum field of a collection, with the collection's name.
+const enumsOf = ({ collection, fields }: ModelCollection) =>
+  fields.flatMap((field) =>
+    field.kind === 'enum' ? [{ collection, field }] : [],
+  );
 
 const isUnique = (field: ModelField): boolean =>
   field.kind !== 'm2o' && field.kind !== 'enum' && field.unique === true;
@@ -308,6 +314,20 @@ describe('domain keys', () => {
     }
   });
 
+  test('keeps a new academic year out of the public files until it is published', () => {
+    const published = findField('academic_years', 'published');
+
+    expect(published).toMatchObject({
+      defaultValue: false,
+      kind: 'boolean',
+      nullable: false,
+    });
+    expect(toFieldPayload(published, 3)).toMatchObject({
+      schema: { default_value: false, is_nullable: false },
+      type: 'boolean',
+    });
+  });
+
   test('declares composite keys only where the domain table says unique', () => {
     expect(
       compositeKeys.map(({ collection, columns, kind }) => ({
@@ -398,23 +418,27 @@ describe('enumerations', () => {
     for (const collection of ['curriculum_entries', 'course_curricula']) {
       const generation = enumOf(collection, 'generation');
 
-      expect(generation.choices).toEqual(['2018', '2023']);
+      expect(choiceValues(generation)).toEqual(['2018', '2023']);
       expect(generation.nullable).toBe(false);
     }
   });
 
-  test('declares the role, mode, review and operation states', () => {
+  test('declares the role, mode, review and operation states with their labels', () => {
     expect(enumOf('teaching_assignments', 'role').choices).toEqual([
-      'professor',
-      'assistant',
+      { label: 'Professor', value: 'professor' },
+      { label: 'Assistant', value: 'assistant' },
     ]);
     expect(enumOf('teaching_assignments', 'role').nullable).toBeTruthy();
     expect(enumOf('course_enrollment_rules', 'mode').choices).toEqual([
-      'mapped_entries',
-      'legacy_regex',
+      { label: 'Mapped entries', value: 'mapped_entries' },
+      { label: 'Legacy regex', value: 'legacy_regex' },
     ]);
     expect(enumOf('moodle_course_entries', 'review_state')).toMatchObject({
-      choices: ['needs_mapping', 'mapped', 'ignored'],
+      choices: [
+        { label: 'Needs mapping', value: 'needs_mapping' },
+        { label: 'Mapped', value: 'mapped' },
+        { label: 'Ignored', value: 'ignored' },
+      ],
       defaultValue: 'needs_mapping',
       nullable: false,
     });
@@ -422,6 +446,24 @@ describe('enumerations', () => {
     expect(enumOf('data_operations', 'publication_state').defaultValue).toBe(
       'idle',
     );
+  });
+
+  test('gives every enum one distinct value and a label per choice', () => {
+    const enums = dataModelCollections.flatMap(enumsOf);
+
+    expect(enums.length).toBeGreaterThanOrEqual(10);
+
+    for (const { collection, field } of enums) {
+      const values = choiceValues(field);
+
+      expect(new Set(values).size, `${collection}.${field.field}`).toBe(
+        values.length,
+      );
+      expect(
+        field.choices.filter(({ label }) => label.trim() === ''),
+        `${collection}.${field.field}`,
+      ).toEqual([]);
+    }
   });
 
   test('builds server-enforced dropdowns for enums', () => {
@@ -626,7 +668,13 @@ describe('installDataModel on fresh and installed projects', () => {
 
     expect(summary).toEqual({
       collections: { adopted: 0, created: 25, refused: 0, skipped: 0 },
-      fields: { adopted: 0, created: totalFields, refused: 0, skipped: 0 },
+      fields: {
+        adopted: 0,
+        aligned: 0,
+        created: totalFields,
+        refused: 0,
+        skipped: 0,
+      },
       relations: {
         adopted: 0,
         created: modelRelations.length,
@@ -708,7 +756,13 @@ describe('installDataModel on fresh and installed projects', () => {
     expect(mutations(requests)).toEqual([]);
     expect(summary).toEqual({
       collections: { adopted: 0, created: 0, refused: 0, skipped: 25 },
-      fields: { adopted: 0, created: 0, refused: 0, skipped: totalFields },
+      fields: {
+        adopted: 0,
+        aligned: 0,
+        created: 0,
+        refused: 0,
+        skipped: totalFields,
+      },
       relations: {
         adopted: 0,
         created: 0,

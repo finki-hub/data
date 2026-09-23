@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { DirectusRequest } from '../src/directus-request.js';
 
 import { coordinatorActions } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
-import { insertionOrder } from '../src/flows/flow-template.js';
+import { flowFamilyCodes, insertionOrder } from '../src/flows/flow-template.js';
 import { historyFlowIds } from '../src/flows/history-page-flows.js';
 import {
   describeFailureScript,
@@ -12,11 +12,9 @@ import {
   splitEntriesScript,
   summaryScript,
 } from '../src/flows/history-script.js';
-import {
-  historyIndexFlows,
-  installHistoryIndexFlows,
-} from '../src/flows/index-histories.js';
+import { historyIndexFlows } from '../src/flows/index-histories.js';
 import { IncompleteFlowError } from '../src/flows/install-flows.js';
+import { installFlowFamily } from '../src/flows/registry.js';
 
 const coordinateType = 'finki-hub-data-coordinate';
 const triggerClaim = '{{ $trigger.claim }}';
@@ -311,7 +309,9 @@ describe('flow installer', () => {
       return {};
     };
 
-    await expect(installHistoryIndexFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.history),
+    ).resolves.toMatchObject({
       created: historyIndexFlows.map(({ name }) => name),
       skipped: [],
     });
@@ -337,7 +337,9 @@ describe('flow installer', () => {
 
     calls.length = 0;
 
-    await expect(installHistoryIndexFlows(request)).resolves.toEqual({
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.history),
+    ).resolves.toMatchObject({
       created: [],
       skipped: historyIndexFlows.map(({ name }) => name),
     });
@@ -362,10 +364,12 @@ describe('flow installer', () => {
         : [];
     };
 
-    await expect(installHistoryIndexFlows(request)).rejects.toThrow(
-      IncompleteFlowError,
-    );
-    await expect(installHistoryIndexFlows(request)).rejects.toThrow(
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.history),
+    ).rejects.toThrow(IncompleteFlowError);
+    await expect(
+      installFlowFamily(request, flowFamilyCodes.history),
+    ).rejects.toThrow(
       `The Flow "${first.name}" (${first.id}) exists without its entry operation`,
     );
     expect(mutations).toEqual([]);

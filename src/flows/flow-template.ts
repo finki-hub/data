@@ -1,5 +1,5 @@
 // The shape of a Flow the setup installs once, with deterministic ids so a
-// rerun recognises it, and the helpers the history index templates share.
+// rerun recognises it, and the helpers every Flow family shares.
 export const coordinateOperation = 'finki-hub-data-coordinate';
 
 // The export operation of the data-operations extension: readiness and the
@@ -8,29 +8,56 @@ export const exportsOperation = 'finki-hub-exports';
 
 const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 
-// A deterministic UUID: two hex digits name the Flow family, the suffix one
-// Flow or operation inside it.
-export const familyId = (family: string, suffix: string): string =>
+// The two hex digits of every managed Flow family, declared once: an id,
+// an operation and a failure branch accept only these codes, and
+// `flowFamilies` (registry.ts) installs exactly these families. A new
+// family is one code here and one registry entry. The checkpoint family
+// 07 (Rebuild derived data, Publish public assets) stays outside, until
+// the deferred cleanup removes it.
+export const flowFamilyCodes = {
+  automation: '13',
+  history: '09',
+  legacy: '12',
+  mapped: '11',
+  publication: '14',
+  snapshot: '10',
+} as const;
+
+export type FlowFamilyCode =
+  (typeof flowFamilyCodes)[keyof typeof flowFamilyCodes];
+
+const deterministicId = (family: string, suffix: string): string =>
   `${idPrefix}${family}${suffix}`;
 
-// A deterministic UUID of the history index Flow family.
-export const historyId = (suffix: string): string => familyId('09', suffix);
+// A deterministic UUID: two hex digits name the Flow family, the suffix one
+// Flow or operation inside it.
+export const familyId = (family: FlowFamilyCode, suffix: string): string =>
+  deterministicId(family, suffix);
 
-// A deterministic UUID of the Moodle snapshot import Flow family.
-export const snapshotId = (suffix: string): string => familyId('10', suffix);
+// The id maker of one family.
+export const familyIds =
+  (family: FlowFamilyCode) =>
+  (suffix: string): string =>
+    familyId(family, suffix);
+
+// The history index family (Task 9).
+export const historyId = familyIds(flowFamilyCodes.history);
+
+// The Moodle snapshot import family (Task 10).
+export const snapshotId = familyIds(flowFamilyCodes.snapshot);
+
+// The automatic processing family (the enrollment dispatcher, Mark pending
+// and the scheduled Process pending).
+export const automationId = familyIds(flowFamilyCodes.automation);
+
+// The publication family (Data / Validate readiness and Publish / Prepare
+// public assets).
+export const publicationId = familyIds(flowFamilyCodes.publication);
 
 // A deterministic UUID of the checkpoint Flows the workbook import installs
-// (Rebuild derived data, Publish public assets).
+// (Rebuild derived data, Publish public assets); not a managed family.
 export const checkpointFlowId = (suffix: string): string =>
-  familyId('07', suffix);
-
-// A deterministic UUID of the automatic processing Flow family (the
-// enrollment dispatcher, Mark pending and the scheduled Process pending).
-export const automationId = (suffix: string): string => familyId('13', suffix);
-
-// A deterministic UUID of the publication Flow family (Data / Validate
-// readiness and Publish / Prepare public assets).
-export const publicationId = (suffix: string): string => familyId('14', suffix);
+  deterministicId('07', suffix);
 
 export type OperationTemplate = {
   readonly id: string;
@@ -63,9 +90,8 @@ export type OperationEdges = {
 
 export type OperationSpec = {
   readonly edges?: OperationEdges;
-  // The two hex digits of the Flow family; the history index family 09
-  // when absent.
-  readonly family?: string;
+  // The Flow family the operation belongs to; its id carries the code.
+  readonly family: FlowFamilyCode;
   readonly key: string;
   readonly name: string;
   readonly options: Readonly<Record<string, unknown>>;
@@ -75,7 +101,7 @@ export type OperationSpec = {
 };
 
 export const operation = (spec: OperationSpec): OperationTemplate => ({
-  id: familyId(spec.family ?? '09', spec.suffix),
+  id: familyId(spec.family, spec.suffix),
   key: spec.key,
   name: spec.name,
   options: spec.options,
@@ -87,6 +113,13 @@ export const operation = (spec: OperationSpec): OperationTemplate => ({
 });
 
 type StepSpec = Omit<OperationSpec, 'options' | 'type'>;
+
+// The operation maker of one family, so a family's modules never repeat its
+// code.
+export const familyStep =
+  (family: FlowFamilyCode) =>
+  (spec: Omit<OperationSpec, 'family'>): OperationTemplate =>
+    operation({ ...spec, family });
 
 // A Condition operation: resolves when the data chain matches the filter.
 export const condition = ({

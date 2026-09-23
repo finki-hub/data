@@ -3,7 +3,6 @@ import type { LinkCandidate } from './labels.js';
 import type { RowCandidates } from './preflight-rows.js';
 import type { CourseCandidate } from './report.js';
 
-import { academicYears } from '../specs/public.js';
 import { type Existing, existingTargets, key } from './preflight-existing.js';
 import { mergeSourceMap, type SourceMapEntry } from './source-map.js';
 
@@ -155,8 +154,15 @@ const equivalencyEntries = (
 // or link, marked existing where a target row already carries provenance.
 export const buildMappings = (
   inventory: Inventory,
-  courses: readonly CourseCandidate[],
-  rows: RowCandidates,
+  {
+    academicYears,
+    courses,
+    rows,
+  }: {
+    readonly academicYears: readonly string[];
+    readonly courses: readonly CourseCandidate[];
+    readonly rows: RowCandidates;
+  },
 ): readonly SourceMapEntry[] => {
   const existing = existingTargets(inventory.targets);
   const entryRows = (collection: 'curriculum_2018' | 'curriculum_2023') =>

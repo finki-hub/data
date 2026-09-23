@@ -96,6 +96,21 @@ const resolves = (collection: string, path: string): boolean => {
   return related !== undefined && resolves(related, rest.join('.'));
 };
 
+// `collection.field` of every enum field of a collection.
+const enumNames = ({
+  collection,
+  fields,
+}: (typeof dataModelCollections)[number]): string[] =>
+  fields.flatMap(({ field, kind }) =>
+    kind === 'enum' ? [`${collection}.${field}`] : [],
+  );
+
+// Whether a patch writes the meta keys an enum's declaration owns.
+const ownsChoices = (meta: Readonly<Record<string, unknown>>): boolean =>
+  ['display_options', 'options', 'validation'].some((key) =>
+    Object.hasOwn(meta, key),
+  );
+
 const choicesOf = (collection: string, field: string) =>
   z
     .looseObject({
@@ -336,6 +351,17 @@ describe('field presentation', () => {
         ({ collection }) => collection === 'student_council',
       )?.meta.display_template,
     ).toBe('{{year}} - {{student.name}}');
+  });
+
+  test('leaves the choices and rule of every enum to its declaration', () => {
+    const enums = new Set(dataModelCollections.flatMap(enumNames));
+    const owned = presentationFieldPatches.filter(
+      ({ collection, field, meta }) =>
+        enums.has(`${collection}.${field}`) && ownsChoices(meta),
+    );
+
+    expect(enums.size).toBeGreaterThanOrEqual(10);
+    expect(owned).toEqual([]);
   });
 
   test('labels the role and review-state dropdowns', () => {
@@ -585,13 +611,13 @@ describe('installPresentation on a fresh schema', () => {
     );
     editLiveMeta(
       state,
-      { collection: 'teaching_assignments', field: 'role' },
+      { collection: 'courses', field: 'curricula' },
       {
         options: {
           ...options.parse(
-            baselineFieldMeta('teaching_assignments', 'role')['options'],
+            baselineFieldMeta('courses', 'curricula')['options'],
           ),
-          allowNone: false,
+          enableCreate: false,
         },
       },
     );
@@ -602,7 +628,7 @@ describe('installPresentation on a fresh schema', () => {
     const paths = mutations(requests).map(({ pathname }) => pathname);
 
     expect(paths).not.toContain('/fields/course_curricula/entry');
-    expect(paths).not.toContain('/fields/teaching_assignments/role');
+    expect(paths).not.toContain('/fields/courses/curricula');
     expect(paths).toContain('/fields/course_curricula/available');
     expect(summary.fields).toEqual({
       adopted: presentationFieldPatches.length - 2,

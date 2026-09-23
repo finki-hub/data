@@ -65,8 +65,30 @@ const validationRule = (
     : membership;
 };
 
-const choiceLabels = (choices: readonly string[]) =>
-  choices.map((value) => ({ text: value, value }));
+// The code-owned part of an enum field's meta: its choices, as the dropdown
+// offers them and as the labels display shows them, and the server-enforced
+// membership rule. Setup writes exactly these keys when it realigns an
+// installed field; every other meta key (note, width, group, sort,
+// conditions, placeholder) belongs to Studio.
+export type ChoiceMeta = {
+  readonly display_options: Readonly<Record<string, unknown>>;
+  readonly options: Readonly<Record<string, unknown>>;
+  readonly validation: Readonly<Record<string, unknown>>;
+};
+
+export const enumChoiceMeta = (field: ModelEnumField): ChoiceMeta => {
+  const choices = field.choices.map(({ label, value }) => ({
+    text: label,
+    value,
+  }));
+  return {
+    display_options: { choices },
+    options: { allowNone: field.nullable, allowOther: false, choices },
+    validation: validationRule(field, {
+      _in: field.choices.map(({ value }) => value),
+    }),
+  };
+};
 
 const baseMeta = (
   field: ModelField,
@@ -112,15 +134,9 @@ const enumPayload = (field: ModelEnumField, sort: number): FieldPayload => ({
   field: field.field,
   meta: {
     ...baseMeta(field, sort, 'half'),
+    ...enumChoiceMeta(field),
     display: 'labels',
-    display_options: { choices: choiceLabels(field.choices) },
     interface: 'select-dropdown',
-    options: {
-      allowNone: field.nullable,
-      allowOther: false,
-      choices: choiceLabels(field.choices),
-    },
-    validation: validationRule(field, { _in: field.choices }),
   },
   schema: {
     ...(field.defaultValue !== undefined && {

@@ -1,9 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { FakeItem } from './migration-test-helpers.js';
+import type { FakeItem, FakeStore } from './migration-test-helpers.js';
 
-import { exportedYears } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
+import {
+  fileKeys,
+  readFileSources,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import { resolveFields } from '../directus/extensions/directus-extension-data-operations/src/exports/field-map.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import { academicYears } from '../src/specs/public.js';
@@ -104,16 +108,34 @@ const referenceMaps = z
     ]),
   );
 
-const keysOf = (filename: string) =>
-  exportDefinitions
-    .find((definition) => definition.filename === filename)
-    ?.fields.map(({ key }) => key);
+const definitionOf = (filename: string) => {
+  const definition = exportDefinitions.find(
+    (candidate) => candidate.filename === filename,
+  );
+  if (definition === undefined) {
+    throw new Error(`${filename} is not declared`);
+  }
+  return definition;
+};
+
+// The keys a file resolves to over the converted fixture (the published
+// years included), in output order.
+const keysOf = async (filename: string, store?: FakeStore) => {
+  const definition = definitionOf(filename);
+  return fileKeys(
+    definition,
+    await readFileSources(
+      definition,
+      storeReader(store ?? (await convertedStore())),
+    ),
+  );
+};
 
 const labelsOf = (map: ReadonlyArray<readonly [string, string]>) =>
   map.map(([, label]) => label);
 
 const numericKeys = (definition: (typeof exportDefinitions)[number]) =>
-  definition.fields
+  resolveFields(definition)
     .filter(({ rule }) => rule === 'numeric_boolean')
     .map(({ key }) => key);
 
@@ -194,19 +216,23 @@ describe('parity with the legacy serializer', () => {
     expect(assets.staff.map((row) => row['active'])).toContain('0');
   });
 
-  test('declares exactly the keys of the reference serializer, in its order', () => {
+  test('declares exactly the keys of the reference serializer, in its order', async () => {
     expect(exportDefinitions.map(({ filename }) => filename)).toEqual([
       'courses.json',
       'rooms.json',
       'staff.json',
       'students.json',
     ]);
-    expect(keysOf('courses.json')).toEqual(
+    await expect(keysOf('courses.json')).resolves.toEqual(
       labelsOf(referenceMaps.courseFields),
     );
-    expect(keysOf('rooms.json')).toEqual(labelsOf(referenceMaps.roomFields));
-    expect(keysOf('staff.json')).toEqual(labelsOf(referenceMaps.staffFields));
-    expect(keysOf('students.json')).toEqual(
+    await expect(keysOf('rooms.json')).resolves.toEqual(
+      labelsOf(referenceMaps.roomFields),
+    );
+    await expect(keysOf('staff.json')).resolves.toEqual(
+      labelsOf(referenceMaps.staffFields),
+    );
+    await expect(keysOf('students.json')).resolves.toEqual(
       labelsOf(referenceMaps.studentFields),
     );
   });
@@ -377,9 +403,75 @@ describe('every difference from the legacy files blocks readiness', () => {
   );
 });
 
+// The keys of a course row after `professors`, up to the first key that
+// is not an academic year label.
+const yearKeys = (row: Readonly<Record<string, string>> | undefined) => {
+  const keys = Object.keys(row ?? {});
+  const first = keys.indexOf('professors') + 1;
+  return keys.slice(first, keys.indexOf('2023-available'));
+};
+
+// The academic year of the label, unpublished.
+const unpublished =
+  (label: string) =>
+  (rows: FakeItem[]): FakeItem[] =>
+    rows.map((row) =>
+      row['label'] === label ? { ...row, published: false } : row,
+    );
+
+// Every course row without the key.
+const withoutKey = (assets: Assets, key: string) =>
+  assets.courses.map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([name]) => name !== key)),
+  );
+
 describe('year configuration', () => {
-  test('lists the fifteen public years in the courses definition', () => {
-    expect([...exportedYears]).toEqual([...academicYears]);
+  test('publishes the fifteen converted years, newest first, where the reference lists them', async () => {
+    const assets = await projected(await convertedStore());
+
+    expect(yearKeys(assets.courses[0])).toEqual([...academicYears]);
+    expect(
+      rowsOf(await convertedStore(), 'academic_years').every(
+        (year) => year['published'] === true,
+      ),
+    ).toBeTruthy();
+  });
+
+  test('leaves an unpublished year out of every course and changes nothing else', async () => {
+    const store = await convertedStore();
+    const before = await projected(store);
+    edit(store, 'academic_years', unpublished('2014/2015'));
+    const after = await projected(store);
+
+    expect(JSON.stringify(after)).not.toContain('2014/2015');
+    expect(after.courses).toEqual(withoutKey(before, '2014/2015'));
+    expect(after.rooms).toEqual(before.rooms);
+    await expect(keysOf('courses.json', store)).resolves.toHaveLength(
+      labelsOf(referenceMaps.courseFields).length - 1,
+    );
+  });
+
+  test('opting a new year in adds exactly one key per course, at the newest position, and nothing else', async () => {
+    const store = await convertedStore();
+    const before = await projected(store);
+    edit(store, 'academic_years', (rows) => [
+      ...rows,
+      { id: 99, label: '2026/2027', published: true, sort: 16 },
+    ]);
+    edit(store, 'course_enrollments', (rows) => [
+      ...rows,
+      ...countsOf(rowsOf(store, 'courses'), 99),
+    ]);
+    const after = await projected(store);
+
+    expect(after.courses.map((row) => row['2026/2027'])).toEqual(
+      Array.from(before.courses, () => '7'),
+    );
+    expect(withoutKey(after, '2026/2027')).toEqual(before.courses);
+    expect(yearKeys(after.courses[0])).toEqual(['2026/2027', ...academicYears]);
+    expect(
+      sameJson({ ...after, courses: withoutKey(after, '2026/2027') }, before),
+    ).toBeTruthy();
   });
 
   test('a new academic year with counts for every course adds no public key', async () => {
@@ -397,6 +489,19 @@ describe('year configuration', () => {
 
     expect(sameJson(after, before)).toBeTruthy();
     expect(JSON.stringify(after)).not.toContain('2026/2027');
+  });
+
+  test('refuses a published year whose label is another key of the file', async () => {
+    const store = edit(await convertedStore(), 'academic_years', (rows) => [
+      ...rows,
+      { id: 98, label: 'tags', published: true, sort: 20 },
+    ]);
+
+    await expect(refusalOf(() => projected(store))).resolves.toEqual({
+      code: 'EXPORT_UNRESOLVED',
+      message:
+        'courses.json would publish the key tags twice: a key-source row names another key; nothing was prepared.',
+    });
   });
 
   test('refuses a course without a count row for an exported year instead of writing zero', async () => {

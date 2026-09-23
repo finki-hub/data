@@ -1,24 +1,21 @@
-import type { DirectusRequest } from '../directus-request.js';
-
 import { dispatcherFlow, dispatcherFlowId } from './count-enrollments.js';
 import {
   automationId,
   condition,
   coordinateOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   operation,
 } from './flow-template.js';
 import { historyFlowIds } from './history-page-flows.js';
-import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './install-flows.js';
 import { markPendingFlow } from './mark-pending.js';
 import {
   failStepId,
   type ReleaseBranch,
   releaseSteps,
 } from './release-steps.js';
+
+const family = flowFamilyCodes.automation;
 
 export const processPendingFlowId = automationId('02');
 
@@ -33,7 +30,7 @@ const branch = (
     ReleaseBranch,
     'code' | 'message' | 'position' | 'stage' | 'suffixes'
   >,
-): ReleaseBranch => ({ ...spec, family: '13', token: claimToken });
+): ReleaseBranch => ({ ...spec, family, token: claimToken });
 
 // A child that releases the claim itself (complete or fail) needs the
 // scheduler only when it could not: the Trigger Flow step rejected, or the
@@ -94,7 +91,7 @@ export const processPendingFlow: FlowTemplate = {
   operations: [
     operation({
       edges: { reject: automationId('36'), resolve: automationId('32') },
-      family: '13',
+      family,
       key: 'claim',
       name: 'Claim the next pending calculation',
       options: { action: 'claim', domain: 'next_calculation' },
@@ -103,7 +100,7 @@ export const processPendingFlow: FlowTemplate = {
       type: coordinateOperation,
     }),
     operation({
-      family: '13',
+      family,
       key: 'claim_failed',
       name: 'Answer the refused claim',
       options: {
@@ -120,7 +117,7 @@ export const processPendingFlow: FlowTemplate = {
     }),
     condition({
       edges: { reject: automationId('37'), resolve: automationId('33') },
-      family: '13',
+      family,
       filter: { claim: { claimed: { _eq: true } } },
       key: 'claimed',
       name: 'Claimed?',
@@ -128,7 +125,7 @@ export const processPendingFlow: FlowTemplate = {
       suffix: '32',
     }),
     operation({
-      family: '13',
+      family,
       key: 'idle',
       name: 'Nothing to run',
       options: { json: { claimed: false, reason: '{{ claim.reason }}' } },
@@ -138,7 +135,7 @@ export const processPendingFlow: FlowTemplate = {
     }),
     condition({
       edges: { reject: automationId('38'), resolve: automationId('34') },
-      family: '13',
+      family,
       filter: { claim: { domain: { _eq: 'history_index' } } },
       key: 'route',
       name: 'History index?',
@@ -150,7 +147,7 @@ export const processPendingFlow: FlowTemplate = {
         reject: failStepId(historyCrashed),
         resolve: automationId('35'),
       },
-      family: '13',
+      family,
       key: 'refresh',
       name: 'Refresh the history index',
       options: {
@@ -164,7 +161,7 @@ export const processPendingFlow: FlowTemplate = {
     }),
     condition({
       edges: { reject: failStepId(historyMissing) },
-      family: '13',
+      family,
       filter: { refresh: { ok: { _nnull: true } } },
       key: 'refreshed',
       name: 'Answered?',
@@ -173,7 +170,7 @@ export const processPendingFlow: FlowTemplate = {
     }),
     operation({
       edges: { reject: failStepId(countCrashed), resolve: automationId('39') },
-      family: '13',
+      family,
       key: 'count',
       name: 'Count enrollments',
       options: {
@@ -187,7 +184,7 @@ export const processPendingFlow: FlowTemplate = {
     }),
     condition({
       edges: { reject: failStepId(countMissing) },
-      family: '13',
+      family,
       filter: { count: { ok: { _nnull: true } } },
       key: 'counted',
       name: 'Answered?',
@@ -209,10 +206,3 @@ export const automaticProcessingFlows: readonly FlowTemplate[] = [
   markPendingFlow,
   processPendingFlow,
 ];
-
-// Installs the automatic processing Flows once each; a Flow whose id
-// exists keeps every Studio edit (see installFlowTemplates).
-export const installAutomaticProcessingFlows = (
-  request: DirectusRequest,
-): Promise<FlowInstallSummary> =>
-  installFlowTemplates(request, automaticProcessingFlows);

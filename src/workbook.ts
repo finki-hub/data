@@ -7,7 +7,11 @@ import {
   type MigrationData,
   type MigrationItem,
 } from './schema.js';
-import { readCourseEnrollmentPatterns } from './workbook-enrollment-reader.js';
+import { academicYears } from './specs/public.js';
+import {
+  readCourseEnrollmentPatterns,
+  readEnrollmentYears,
+} from './workbook-enrollment-reader.js';
 import { readDiscordPairs, readStudentPairs } from './workbook-pair-reader.js';
 import { readRows } from './workbook-row-reader.js';
 import { WorkbookDataError } from './workbook-values.js';
@@ -63,9 +67,74 @@ export const readMigrationData = (
   return data;
 };
 
-export const loadMigrationData = async (
+// What the one-time import reads from the workbook: the rows of every
+// checkpoint collection and the academic years its enrollment sheet
+// names, in sheet order.
+export type WorkbookContent = {
+  readonly academicYears: readonly string[];
+  readonly data: MigrationData;
+};
+
+// An academic-year header: two consecutive calendar years, such as
+// 2025/2026. Such labels order chronologically as text.
+const yearLabelPattern = /^(?<start>\d{4})\/(?<end>\d{4})$/u;
+
+const isYearLabel = (label: string): boolean => {
+  const groups = yearLabelPattern.exec(label)?.groups;
+  return Number(groups?.['end']) === Number(groups?.['start']) + 1;
+};
+
+// Refuses headers the import could not sort: the import sorts each year by
+// its column group, so the groups must run newest first.
+const assertChronological = (years: readonly string[]): void => {
+  const malformed = years.filter((year) => !isYearLabel(year));
+  if (malformed.length > 0) {
+    throw new WorkbookDataError(
+      `The enrollment sheet heads a column group with ${malformed.map((year) => JSON.stringify(year.slice(0, 40))).join(', ')}, which is not an academic year such as 2025/2026.`,
+    );
+  }
+  for (const [index, year] of years.entries()) {
+    const newer = years[index - 1];
+    if (newer !== undefined && year >= newer) {
+      throw new WorkbookDataError(
+        `The enrollment sheet lists the academic year ${year} after ${newer}; order its column groups newest first, since each year sorts by its position.`,
+      );
+    }
+  }
+};
+
+// The academic years of the enrollment sheet, newest first. Every year the
+// checkpoint counts (its enrollment_* columns) must be among them, so no
+// year disappears silently; a later year is one more column group, placed
+// before the years it follows.
+export const readAcademicYears = (
+  workbook: ExcelJS.Workbook,
+): readonly string[] => {
+  const years = collectionSpecs.flatMap((spec) =>
+    spec.source.kind === 'course-enrollment-patterns'
+      ? readEnrollmentYears(workbook, spec.source)
+      : [],
+  );
+  const missing = academicYears.filter((year) => !years.includes(year));
+  if (missing.length > 0) {
+    throw new WorkbookDataError(
+      `The enrollment sheet names no column group for the academic year(s) ${missing.join(', ')}; every year the checkpoint counts must stay.`,
+    );
+  }
+  assertChronological(years);
+  return years;
+};
+
+export const readWorkbookContent = (
+  workbook: ExcelJS.Workbook,
+): WorkbookContent => ({
+  academicYears: readAcademicYears(workbook),
+  data: readMigrationData(workbook),
+});
+
+export const loadWorkbook = async (
   workbookPath: string,
-): Promise<MigrationData> => {
+): Promise<WorkbookContent> => {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.readFile(workbookPath);
@@ -75,7 +144,7 @@ export const loadMigrationData = async (
       { cause: error },
     );
   }
-  return readMigrationData(workbook);
+  return readWorkbookContent(workbook);
 };
 
 export const countMigrationData = (

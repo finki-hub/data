@@ -354,9 +354,9 @@ describe('course curricula links: rows already present', () => {
   });
 });
 
-describe('enrollment rules', () => {
-  test('seeds the fifteen academic years in chronological sort order and reuses existing ones', () => {
-    const conversion = convertAcademicYears(none);
+describe('academic years', () => {
+  test('seeds the given academic years published, in chronological sort order, and reuses existing ones', () => {
+    const conversion = convertAcademicYears(academicYears, none);
 
     expect(conversion.writes.map(({ record }) => record.label)).toEqual([
       ...academicYears,
@@ -364,6 +364,9 @@ describe('enrollment rules', () => {
     expect(conversion.writes.map(({ record }) => record.sort)).toEqual(
       academicYears.map((_, index) => academicYears.length - index),
     );
+    expect(
+      conversion.writes.every(({ record }) => record.published),
+    ).toBeTruthy();
     expect(conversion.writes[0]?.mappings).toEqual([
       {
         relation: 'label',
@@ -375,9 +378,20 @@ describe('enrollment rules', () => {
       },
     ]);
 
-    const partial = convertAcademicYears(new Map([['2011/2012', 9]]));
+    const partial = convertAcademicYears(
+      academicYears,
+      new Map([['2011/2012', 9]]),
+    );
 
     expect(partial.writes).toHaveLength(14);
+
+    const later = convertAcademicYears(['2026/2027', ...academicYears], none);
+
+    expect(later.writes[0]?.record).toEqual({
+      label: '2026/2027',
+      published: true,
+      sort: 16,
+    });
     expect(partial.settled).toEqual([
       expect.objectContaining({
         sourceId: '2011/2012',
@@ -386,7 +400,9 @@ describe('enrollment rules', () => {
       }),
     ]);
   });
+});
 
+describe('enrollment rules', () => {
   test('seeds one legacy_regex rule per course and year, applying the last ascending override and recording the default literally', async () => {
     const { report } = await prepare(makeSyntheticDataset());
     const yearIds = yearIdsOf();

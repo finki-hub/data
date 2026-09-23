@@ -70,6 +70,9 @@ export type FakeState = {
   fields: Record<string, FakeField[]>;
   presets?: FakePreset[];
   relations: Record<string, FakeRelation[]>;
+  // The stored values of a field, keyed `collection.field`, for the reads
+  // that check a realignment.
+  values?: Record<string, readonly unknown[]>;
 };
 
 export type RecordedRequest = {
@@ -219,6 +222,26 @@ const forbidden = (pathname: string): DirectusRequestError =>
   });
 
 const listPattern = /^\/(?<kind>fields|relations)\/(?<collection>[^/]+)$/u;
+const itemsPattern =
+  /^\/items\/(?<collection>[^/?]+)\?(?:fields=(?<only>[^&]+)$|aggregate\[count\]=\*&groupBy\[\]=(?<grouped>[^&]+)&limit=-1$)/u;
+
+// What `GET /items` answers to the value reads of a realignment: one count
+// per distinct value, or the singleton's one value.
+const itemsAnswer = (state: FakeState, pathname: string): unknown => {
+  const groups = itemsPattern.exec(pathname)?.groups;
+  const collection = groups?.['collection'] ?? '';
+  const field = decodeURIComponent(
+    groups?.['only'] ?? groups?.['grouped'] ?? '',
+  );
+  const values = state.values?.[`${collection}.${field}`] ?? [];
+  if (groups?.['only'] !== undefined) {
+    return { [field]: values[0] ?? null };
+  }
+  return [...new Set(values)].map((value) => ({
+    count: String(values.filter((item) => item === value).length),
+    [field]: value,
+  }));
+};
 
 // A DirectusRequest over an in-memory schema that records every call.
 // Mutations never change the state: the installer must decide from the
@@ -241,6 +264,9 @@ export const fakeDirectus = (
       }
       if (pathname.startsWith('/presets')) {
         return state.presets ?? [];
+      }
+      if (pathname.startsWith('/items/')) {
+        return itemsAnswer(state, pathname);
       }
       const match = listPattern.exec(pathname);
       const collection = match?.groups?.['collection'];

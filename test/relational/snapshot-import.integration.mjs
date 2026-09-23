@@ -14,16 +14,14 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
-import {
-  historyIndexFlows,
-  installHistoryIndexFlows,
-} from '../../src/flows/index-histories.js';
+import { flowFamilyCodes } from '../../src/flows/flow-template.js';
+import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { installFlowFamily } from '../../src/flows/registry.js';
 import {
   installSnapshotFolder,
   snapshotFolder,
 } from '../../src/flows/snapshot-folder.js';
 import {
-  installSnapshotImportFlows,
   snapshotFlowId,
   snapshotImportFlow,
   snapshotImportFlows,
@@ -65,6 +63,9 @@ import {
   withReader,
   writeSnapshot,
 } from './snapshot-import-helpers.mjs';
+
+// The Flows a family install created and skipped.
+const flowLists = ({ created, skipped }) => ({ created, skipped });
 
 const allDomains = ['history_index', 'enrollments', 'publication'];
 const previousRows = 2_000;
@@ -126,13 +127,16 @@ const installsFlow = async (target, directus, state) => {
       .map(({ id }) => id)
       .filter((id) => !present.has(id)),
   });
-  await installHistoryIndexFlows(directus);
-  const first = await installSnapshotImportFlows(directus);
+  await installFlowFamily(directus, flowFamilyCodes.history);
+  const first = await installFlowFamily(directus, flowFamilyCodes.snapshot);
   assert.equal(first.created.length + first.skipped.length, 1);
-  assert.deepEqual(await installSnapshotImportFlows(directus), {
-    created: [],
-    skipped: [snapshotImportFlow.name],
-  });
+  assert.deepEqual(
+    flowLists(await installFlowFamily(directus, flowFamilyCodes.snapshot)),
+    {
+      created: [],
+      skipped: [snapshotImportFlow.name],
+    },
+  );
   const live = await get(
     target,
     `/flows/${snapshotFlowId}?fields=status,trigger,accountability,operation,options`,

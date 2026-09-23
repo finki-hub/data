@@ -1,6 +1,5 @@
 import type { Candidates, CourseCandidate, RuleCandidate } from './report.js';
 
-import { academicYears } from '../specs/public.js';
 import {
   Collector,
   compositeKey,
@@ -12,13 +11,20 @@ import {
 } from './converter-types.js';
 import { finding, listIds, quote } from './labels.js';
 
-export type YearRecord = { readonly label: string; readonly sort: number };
+export type YearRecord = {
+  readonly label: string;
+  readonly published: boolean;
+  readonly sort: number;
+};
 
 const yearCollection = 'academic_years';
 
-// The fifteen academic years the checkpoint counts, sorted chronologically
-// (the oldest year sorts first); a label already present is reused.
+// The academic years the conversion seeds (the workbook's, newest first),
+// sorted chronologically (the oldest year sorts first) and published: the
+// imported years are the ones courses.json carries. A label already present
+// is reused as it is.
 export const convertAcademicYears = (
+  academicYears: readonly string[],
   existingYears: ReadonlyMap<string, number>,
 ): Conversion<YearRecord> => {
   const out = new Collector<YearRecord>();
@@ -26,9 +32,10 @@ export const convertAcademicYears = (
     const source = { collection: yearCollection, id: label, relation: 'label' };
     const id = existingYears.get(label);
     if (id === undefined) {
-      out.write({ label, sort: academicYears.length - index }, [
-        pending(source, yearCollection),
-      ]);
+      out.write(
+        { label, published: true, sort: academicYears.length - index },
+        [pending(source, yearCollection)],
+      );
     } else {
       out.settle(existing(source, yearCollection, id));
     }

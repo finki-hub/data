@@ -2,7 +2,6 @@ import type { CourseRow } from './inventory-schemas.js';
 import type { Part } from './preflight-course-links.js';
 import type { CourseCandidate, Finding, RuleCandidate } from './report.js';
 
-import { academicYears } from '../specs/public.js';
 import { finding, isValidPattern, listIds, nonEmpty, quote } from './labels.js';
 import { type Indexes, patternKey } from './preflight-indexes.js';
 import { assignmentStaff } from './preflight-staff.js';
@@ -42,13 +41,21 @@ const ruleOf = (
   };
 };
 
-// One enrollment rule per academic year: the last ascending pattern override
-// when one exists, else the unescaped `<name>-<year>` default, each compiled
-// in Unicode mode exactly like the checkpoint derivation.
+// One enrollment rule per academic year the conversion seeds: the last
+// ascending pattern override when one exists, else the unescaped
+// `<name>-<year>` default, each compiled in Unicode mode exactly like the
+// checkpoint derivation.
 export const rulesOf = (
   course: CourseRow,
-  name: string,
-  indexes: Indexes,
+  {
+    academicYears,
+    indexes,
+    name,
+  }: {
+    readonly academicYears: readonly string[];
+    readonly indexes: Indexes;
+    readonly name: string;
+  },
 ): Part<'rules'> => {
   const results = academicYears.map((year) => ruleOf(name, year, indexes));
   const invalidYears = results

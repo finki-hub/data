@@ -3,27 +3,25 @@ import { describe, expect, test } from 'vitest';
 import type {
   CoordinationFacts,
   SnapshotFacts,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/global-checks.js';
+} from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-facts.js';
+import type { ReadinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
 import type {
-  ExportDefinition,
+  IssueCounts,
   SourceRead,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 import type { FakeItem, FakeStore } from './migration-test-helpers.js';
 
-import {
-  courses,
-  exportedYears,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { definitionProblems } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import {
   coordinationFacts,
   snapshotFacts,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
-import { enrollmentCheck } from '../directus/extensions/directus-extension-data-operations/src/exports/enrollment-checks.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
-import { decideReadiness } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness.js';
-import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
+import {
+  readinessEntry,
+  readinessRegistry,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import {
   claimNext,
   fail,
@@ -59,17 +57,25 @@ const promoted: SnapshotFacts = {
 
 type Situation = {
   readonly coordination?: CoordinationFacts;
-  readonly definitions?: readonly ExportDefinition[];
+  readonly log?: SourceRead[];
+  readonly registry?: readonly ReadinessEntry[];
   readonly snapshot?: SnapshotFacts;
   readonly store?: FakeStore;
 };
 
 const decide = async (situation: Situation = {}) =>
-  readinessAction(situation.definitions ?? exportDefinitions, {
-    coordination: () => Promise.resolve(situation.coordination ?? current),
-    reader: storeReader(situation.store ?? (await convertedStore())),
-    snapshot: () => Promise.resolve(situation.snapshot ?? promoted),
-  });
+  readinessAction(
+    exportDefinitions,
+    {
+      coordination: () => Promise.resolve(situation.coordination ?? current),
+      reader: storeReader(
+        situation.store ?? (await convertedStore()),
+        situation.log,
+      ),
+      snapshot: () => Promise.resolve(situation.snapshot ?? promoted),
+    },
+    situation.registry,
+  );
 
 const append =
   (rows: readonly FakeItem[]) =>
@@ -117,23 +123,61 @@ const nameOnly = (dataset: SyntheticDataset): SyntheticDataset => ({
   ),
 });
 
+// The warnings of the converted parity fixture: its three equivalencies
+// without a course, its two equivalency labels without an entry (Alpha's
+// decoy 2018 label, the orphan 2023 label), the six review labels of its
+// assignments and its council member whose index matched no student.
 const baselineWarnings = {
   assignment_review_label: 6,
+  council_member_unresolved: 1,
+  equivalency_entry_unresolved: 2,
   equivalency_without_course: 3,
 };
+
+// Every registered code with its count: the given ones, zero otherwise.
+const everyCode = (counts: IssueCounts): IssueCounts =>
+  Object.fromEntries(
+    readinessRegistry.map(({ code }) => [code, counts[code] ?? 0]),
+  );
+
+// The registry with one more entry counted by a check of the test.
+const withCheck = (
+  code: string,
+  evaluate: () => IssueCounts,
+): ReadinessEntry[] => [
+  ...readinessRegistry,
+  {
+    code,
+    description: 'A synthetic check of the test.',
+    gates: [],
+    generationScoped: false,
+    page: 'courses',
+    severity: 'warning',
+    source: { check: { evaluate, reads: {} }, kind: 'check' },
+  },
+];
 
 describe('the readiness decision', () => {
   test('answers ready for current, complete data with its warnings, counts and pages only', async () => {
     await expect(decide()).resolves.toEqual({
+      blockedFiles: [],
       blockers: [],
-      issueCounts: baselineWarnings,
+      issueCounts: everyCode(baselineWarnings),
       links: {
         assignment_review_label: '/admin/content/teaching_assignments',
+        council_member_unresolved: '/admin/content/student_council',
+        equivalency_entry_unresolved: '/admin/content/course_equivalencies',
         equivalency_without_course: '/admin/content/course_equivalencies',
       },
       ready: true,
+      reviews: {},
       revision: 42,
-      warnings: ['equivalency_without_course', 'assignment_review_label'],
+      warnings: [
+        'equivalency_without_course',
+        'equivalency_entry_unresolved',
+        'assignment_review_label',
+        'council_member_unresolved',
+      ],
     });
   });
 
@@ -154,6 +198,7 @@ describe('the readiness decision', () => {
 
     expect(decision.ready).toBeFalsy();
     expect(decision.blockers).toEqual([`${domain}_${state}`]);
+    expect(decision.blockedFiles).toEqual(['courses.json']);
     expect(decision.links[`${domain}_${state}`]).toBe(
       '/admin/content/data_operations',
     );
@@ -273,95 +318,64 @@ describe('the readiness decision', () => {
     [{ declared_code: -1 }],
     [{ declared_code: 0.5 }],
   ])('refuses a check that answers %j', async (counts) => {
-    const definition: ExportDefinition = {
-      ...courses,
-      checks: [
-        {
-          codes: { declared_code: { collection: 'courses', kind: 'warning' } },
-          evaluate: () => counts,
-          reads: {},
-        },
-      ],
-    };
-
-    await expect(decide({ definitions: [definition] })).rejects.toMatchObject({
+    await expect(
+      decide({ registry: withCheck('declared_code', () => counts) }),
+    ).rejects.toMatchObject({
       code: 'EXPORT_INVALID_DEFINITION',
       status: 500,
     });
   });
+
+  test('refuses a calculation state readiness has no code for', async () => {
+    await expect(
+      decide({
+        coordination: {
+          ...current,
+          domains: { ...current.domains, enrollments: 'stuck' },
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'EXPORT_INVALID_READ',
+      message: 'Readiness has no status code for enrollments_stuck',
+    });
+  });
 });
 
-// A fifth file whose one check declares the code as a warning of rooms.
-const redeclaring = (code: string): ExportDefinition => ({
-  ...rooms,
-  checks: [
-    {
-      codes: { [code]: { collection: 'rooms', kind: 'warning' } },
-      evaluate: () => ({ [code]: 0 }),
-      reads: {},
-    },
-  ],
-  filename: 'room-codes.json',
-});
-
-describe('readiness codes across definitions', () => {
+describe('the registry decides every code once', () => {
   test.each(['enrollment_count_missing', 'snapshot_import_failed'])(
-    'refuses a definition that redeclares the blocker %s as a warning, before anything is read',
+    'refuses a registry that declares %s a second time, before anything is read',
     async (code) => {
-      const definitions = [...exportDefinitions, redeclaring(code)];
+      const entry = readinessEntry(code);
+      if (entry === undefined) {
+        throw new Error(`${code} is not registered`);
+      }
+      const registry = [
+        ...readinessRegistry,
+        { ...entry, gates: [], severity: 'warning' as const },
+      ];
       const log: SourceRead[] = [];
 
-      expect(definitionProblems(definitions)).toEqual([
-        `readiness code ${code} is declared as blocker of ${code === 'snapshot_import_failed' ? 'data_operations' : 'course_enrollments'} and as warning of rooms`,
+      expect(definitionProblems(exportDefinitions, registry)).toEqual([
+        `readiness code ${code} is declared twice`,
       ]);
       await expect(
-        readinessAction(definitions, {
-          coordination: () => Promise.resolve(current),
-          reader: storeReader(await convertedStore(), log),
-          snapshot: () => Promise.resolve(promoted),
-        }),
+        decide({ log, registry, store: await convertedStore() }),
       ).rejects.toMatchObject({ code: 'EXPORT_INVALID_DEFINITION' });
       expect(log).toEqual([]);
     },
   );
 
-  test('refuses two findings of one code with different kinds even past the definition rules', () => {
-    expect(() =>
-      decideReadiness(1, [
-        {
-          code: 'shared',
-          count: 1,
-          issue: { collection: 'courses', kind: 'blocker' },
-        },
-        {
-          code: 'shared',
-          count: 0,
-          issue: { collection: 'courses', kind: 'warning' },
-        },
-      ]),
-    ).toThrow('declared with two kinds or pages');
-  });
+  test('runs a check several entries share once', async () => {
+    const log: SourceRead[] = [];
 
-  test('runs and counts a check two definitions share once', async () => {
-    const store = edit(
-      await convertedStore(),
-      'courses',
-      append([{ id: 50, name: 'Synthetic New Course' }]),
-    );
-    const sharing: ExportDefinition = {
-      ...rooms,
-      checks: courses.checks,
-      filename: 'room-copy.json',
-    };
+    await decide({ log });
 
-    const once = await decide({ store });
-    const shared = await decide({
-      definitions: [...exportDefinitions, sharing],
-      store,
-    });
+    const reads = log.map((read) => JSON.stringify(read));
 
-    expect(shared).toEqual(once);
-    expect(shared.issueCounts['enrollment_count_missing']).toBe(15);
+    expect(new Set(reads).size).toBe(reads.length);
+    expect(
+      log.filter(({ collection }) => collection === 'teaching_assignments'),
+    ).toHaveLength(1);
   });
 });
 
@@ -394,17 +408,76 @@ describe('the enrollment and curriculum checks of courses.json', () => {
     });
   });
 
-  test('counts a configured year without an academic_years row as missing for every course', async () => {
-    const extended: ExportDefinition = {
-      ...courses,
-      checks: [enrollmentCheck([...exportedYears, '2026/2027'])],
-    };
-    const decision = await decide({ definitions: [extended] });
+  test('counts a published year without counts or rules as missing for every course', async () => {
+    const decision = await decide({
+      store: edit(
+        await convertedStore(),
+        'academic_years',
+        append([{ id: 99, label: '2026/2027', published: true, sort: 16 }]),
+      ),
+    });
 
     expect(decision.issueCounts).toMatchObject({
       enrollment_count_missing: 8,
       enrollment_rule_missing: 8,
     });
+    expect(decision.blockedFiles).toEqual(['courses.json']);
+  });
+
+  test('blocks nothing for a new year until it is published', async () => {
+    const decision = await decide({
+      store: edit(
+        await convertedStore(),
+        'academic_years',
+        append([{ id: 99, label: '2026/2027', published: false, sort: 16 }]),
+      ),
+    });
+
+    expect(decision.ready).toBeTruthy();
+  });
+
+  test('blocks a published year without a sort, which has no place among the year keys', async () => {
+    const decision = await decide({
+      store: edit(
+        await convertedStore(),
+        'academic_years',
+        withValues(1, { sort: null }),
+      ),
+    });
+
+    expect(decision.blockers).toEqual(['academic_year_unsorted']);
+    expect(decision.issueCounts['academic_year_unsorted']).toBe(1);
+    expect(decision.links['academic_year_unsorted']).toBe(
+      '/admin/content/academic_years',
+    );
+  });
+
+  test('blocks two published years that share a sort, whose keys have no order, but not an unpublished one', async () => {
+    const shared = await decide({
+      store: edit(
+        await convertedStore(),
+        'academic_years',
+        withValues(2, { sort: 15 }),
+      ),
+    });
+
+    expect(shared.blockers).toEqual(['academic_year_sort_shared']);
+    expect(shared.issueCounts['academic_year_sort_shared']).toBe(1);
+    expect(shared.links['academic_year_sort_shared']).toBe(
+      '/admin/content/academic_years',
+    );
+    expect(shared.blockedFiles).toEqual(['courses.json']);
+
+    const unpublished = await decide({
+      store: edit(
+        await convertedStore(),
+        'academic_years',
+        append([{ id: 99, label: '2026/2027', published: false, sort: 15 }]),
+      ),
+    });
+
+    expect(unpublished.issueCounts['academic_year_sort_shared']).toBe(0);
+    expect(unpublished.ready).toBeTruthy();
   });
 
   test('blocks a 2018 entry an equivalency names while the course has neither the link nor an override, and 2018 values without the link', async () => {

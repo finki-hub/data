@@ -96,8 +96,13 @@ const reinstallsWithoutMutation = async (target, directus, state) => {
     skipped: modelRelations.length,
   });
   assert.deepEqual(
-    [summary.fields.adopted, summary.fields.created, summary.fields.refused],
-    [0, 0, 0],
+    [
+      summary.fields.adopted,
+      summary.fields.aligned,
+      summary.fields.created,
+      summary.fields.refused,
+    ],
+    [0, 0, 0, 0],
   );
   assert.deepEqual(await schemaCounts(target), state.installed);
 };

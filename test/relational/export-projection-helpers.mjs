@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 
 import {
+  fileKeys,
   readFileSources,
   serializeFile,
   validateFile,
@@ -144,11 +145,10 @@ export const engineFiles = async (definitions, reader) => {
   for (const definition of definitions) {
     const sources = await readFileSources(definition, reader);
     files.push(
-      validateFile(
-        definition,
-        serializeFile(definition, sources),
-        sources.rows.length,
-      ),
+      validateFile(definition, serializeFile(definition, sources), {
+        keys: fileKeys(definition, sources),
+        rows: sources.rows.length,
+      }),
     );
   }
   return files;

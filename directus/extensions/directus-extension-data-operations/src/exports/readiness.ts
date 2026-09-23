@@ -1,32 +1,33 @@
-import type {
-  ExportDefinition,
-  IssueCode,
-  IssueCounts,
-  ReadinessCheck,
-} from './types.js';
+import type { SourceReader } from './engine.js';
+import type { ReadinessEntry } from './readiness-types.js';
+import type { IssueCounts } from './types.js';
 
-import { rowsOf, sharedReader, type SourceReader } from './engine.js';
-import { exportError } from './errors.js';
 import {
   type CoordinationFacts,
-  coordinationFindings,
-  type Finding,
-  readinessChecks,
+  snapshotCounts,
   type SnapshotFacts,
-  snapshotFindings,
-} from './global-checks.js';
+  statusCounts,
+} from './readiness-facts.js';
+import { readinessRegistry } from './readiness-registry.js';
+import { registryCounts, sharedReader } from './readiness-run.js';
 
 // Whether the public files can be prepared exactly at the current source
-// revision: the calculations current, no snapshot import in flight or
-// failed, the one-time conversion complete, and every check of every
-// export definition. The answer holds codes, counts and Studio pages
-// only, never a name, a label or a record.
+// revision, decided from the readiness-check registry alone: every entry
+// is counted, `issueCounts` holds every registered code, and `ready` is
+// true exactly when every blocker counts zero. The answer holds codes,
+// counts, Studio pages and bookmark names only, never a name, a label or a
+// record.
 
 export type ReadinessAnswer = {
+  // The public files the positive blockers hold back.
+  readonly blockedFiles: readonly string[];
   readonly blockers: readonly string[];
   readonly issueCounts: IssueCounts;
+  // The Studio page of every positive code.
   readonly links: Readonly<Record<string, string>>;
   readonly ready: boolean;
+  // The Needs review bookmark of every positive code that declares one.
+  readonly reviews: Readonly<Record<string, string>>;
   readonly revision: number;
   readonly warnings: readonly string[];
 };
@@ -37,109 +38,59 @@ export type ReadinessDeps = {
   readonly snapshot: () => Promise<SnapshotFacts>;
 };
 
-const checkFindings = (
-  check: ReadinessCheck,
-  counts: IssueCounts,
-): Finding[] => {
-  for (const [code, count] of Object.entries(counts)) {
-    if (
-      !Object.hasOwn(check.codes, code) ||
-      !Number.isSafeInteger(count) ||
-      count < 0
-    ) {
-      throw exportError(
-        'INVALID_DEFINITION',
-        `A readiness check answered ${code}, which it does not declare, or no whole count`,
-      );
-    }
-  }
-  return Object.entries(check.codes).map(([code, issue]) => ({
-    code,
-    count: counts[code] ?? 0,
-    issue,
-  }));
-};
-
-// One decided code: its declaration and the sum of its counts. A code
-// counted by two checks adds up; declared with two kinds or pages it is
-// refused, never decided by whichever came last.
-const decided = (code: string, findings: readonly Finding[]): Finding[] => {
-  const [first] = findings;
-  if (first === undefined) {
-    return [];
-  }
-  const { issue } = first;
-  if (
-    findings.some(
-      (finding) =>
-        finding.issue.kind !== issue.kind ||
-        finding.issue.collection !== issue.collection,
-    )
-  ) {
-    throw exportError(
-      'INVALID_DEFINITION',
-      `The readiness code ${code} is declared with two kinds or pages`,
-    );
-  }
-  const count = findings.reduce((sum, finding) => sum + finding.count, 0);
-  return count > 0 ? [{ code, count, issue }] : [];
-};
-
-// The answer over every finding: codes with a positive count, blockers
-// and warnings each in the order the checks declare them.
+// The answer over the counts of every entry, blockers and warnings each in
+// registry order.
 export const decideReadiness = (
   revision: number,
-  findings: readonly Finding[],
+  counts: ReadonlyMap<string, number>,
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): ReadinessAnswer => {
-  const positive = Map.groupBy(findings, ({ code }) => code)
-    .entries()
-    .flatMap(([code, group]) => decided(code, group))
-    .toArray();
-  const codesOf = (kind: IssueCode['kind']) =>
-    positive.filter(({ issue }) => issue.kind === kind).map(({ code }) => code);
-  const blockers = codesOf('blocker');
+  const positive = registry.filter(({ code }) => (counts.get(code) ?? 0) > 0);
+  const blocking = positive.filter(({ severity }) => severity === 'blocker');
   return {
-    blockers,
+    blockedFiles: [...new Set(blocking.flatMap(({ gates }) => gates))],
+    blockers: blocking.map(({ code }) => code),
     issueCounts: Object.fromEntries(
-      positive.map(({ code, count }) => [code, count]),
+      registry.map(({ code }) => [code, counts.get(code) ?? 0]),
     ),
     links: Object.fromEntries(
-      positive.map(({ code, issue }) => [
-        code,
-        `/admin/content/${issue.collection}`,
-      ]),
+      positive.map(({ code, page }) => [code, `/admin/content/${page}`]),
     ),
-    ready: blockers.length === 0,
+    ready: blocking.length === 0,
+    reviews: Object.fromEntries(
+      positive.flatMap(({ code, review }) =>
+        review === undefined ? [] : [[code, review.bookmark]],
+      ),
+    ),
     revision,
-    warnings: codesOf('warning'),
+    warnings: positive
+      .filter(({ severity }) => severity === 'warning')
+      .map(({ code }) => code),
   };
 };
 
-// Reads the coordinator and snapshot facts first, then runs every distinct
-// check through one reader (a read two checks share is made once);
-// answers the decision and the facts it was taken at.
+// Reads the coordinator and snapshot facts first, then counts every
+// registry entry through one reader (a read two checks share is made
+// once); answers the decision and the facts it was taken at.
 export const assessReadiness = async (
-  definitions: readonly ExportDefinition[],
   deps: ReadinessDeps,
+  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): Promise<{
   readonly answer: ReadinessAnswer;
   readonly coordination: CoordinationFacts;
 }> => {
   const coordination = await deps.coordination();
-  const findings = [
-    ...coordinationFindings(coordination),
-    ...snapshotFindings(await deps.snapshot()),
-  ];
-  const reader = sharedReader(deps.reader);
-  for (const check of readinessChecks(definitions)) {
-    const sources: Record<string, ReturnType<typeof rowsOf>> = {};
-    for (const [key, read] of Object.entries(check.reads)) {
-      sources[key] = rowsOf(`readiness read ${key}`, await reader(read));
-    }
-    findings.push(...checkFindings(check, check.evaluate(sources)));
-  }
+  const facts = {
+    snapshot: snapshotCounts(await deps.snapshot()),
+    status: statusCounts(coordination),
+  };
+  const counts = await registryCounts(
+    registry,
+    facts,
+    sharedReader(deps.reader),
+  );
   return {
-    answer: decideReadiness(coordination.revision, findings),
+    answer: decideReadiness(coordination.revision, counts, registry),
     coordination,
   };
 };

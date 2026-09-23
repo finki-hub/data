@@ -64,3 +64,11 @@ export const idOf = (value: unknown): null | number =>
 // The rows a readiness check read under a key, or none.
 export const sourceRows = (sources: SourceRows, key: string): readonly Row[] =>
   sources[key] ?? [];
+
+// The count an aggregate read of a readiness check answered under a key
+// (readiness hands it over as one row `{ count }`), or 0 when absent.
+export const countIn = (sources: SourceRows, key: string): number => {
+  const [row] = sourceRows(sources, key);
+  const count = row?.['count'];
+  return typeof count === 'number' ? count : 0;
+};

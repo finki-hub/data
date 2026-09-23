@@ -9,15 +9,13 @@ import {
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
 import {
-  installMappedEnrollmentFlows,
   mappedCountQuery,
   mappedEnrollmentFlows,
   mappedPairFlow,
 } from '../../src/flows/count-mapped-enrollments.js';
-import {
-  historyIndexFlows,
-  installHistoryIndexFlows,
-} from '../../src/flows/index-histories.js';
+import { flowFamilyCodes } from '../../src/flows/flow-template.js';
+import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { installFlowFamily } from '../../src/flows/registry.js';
 import { mappedEnrollmentFlowIds } from '../../src/flows/shared.js';
 import { targetFrom } from '../search-integration-helpers.mjs';
 import {
@@ -66,6 +64,9 @@ import {
   seedUsers,
   syntheticFlowIds,
 } from './mapped-enrollments-helpers.mjs';
+
+// The Flows a family install created and skipped.
+const flowLists = ({ created, skipped }) => ({ created, skipped });
 
 const collator = new Intl.Collator('en');
 // Bulk courses with a mapped rule in both years: 6 + 2 * 124 = 254 mapped
@@ -135,16 +136,19 @@ const installsFlows = async (target, directus, state) => {
   state.templatesCreated = [...historyIndexFlows, ...mappedEnrollmentFlows]
     .map(({ id }) => id)
     .filter((id) => !present.has(id));
-  await installHistoryIndexFlows(directus);
-  const first = await installMappedEnrollmentFlows(directus);
+  await installFlowFamily(directus, flowFamilyCodes.history);
+  const first = await installFlowFamily(directus, flowFamilyCodes.mapped);
   assert.equal(
     first.created.length + first.skipped.length,
     mappedEnrollmentFlows.length,
   );
-  assert.deepEqual(await installMappedEnrollmentFlows(directus), {
-    created: [],
-    skipped: mappedEnrollmentFlows.map(({ name }) => name),
-  });
+  assert.deepEqual(
+    flowLists(await installFlowFamily(directus, flowFamilyCodes.mapped)),
+    {
+      created: [],
+      skipped: mappedEnrollmentFlows.map(({ name }) => name),
+    },
+  );
   for (const flow of mappedEnrollmentFlows) {
     const live = await get(
       target,

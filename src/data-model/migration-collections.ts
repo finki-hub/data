@@ -1,8 +1,14 @@
 import type { ModelCollection, ModelCollectionKey } from '../schema.js';
 
-import { enumField, scalar } from './fields.js';
+import { enumField, labelledChoices, scalar } from './fields.js';
 
 export const ledgerStatuses = ['running', 'completed', 'failed'] as const;
+
+const statusChoices = labelledChoices(ledgerStatuses, {
+  completed: 'Completed',
+  failed: 'Failed',
+  running: 'Running',
+});
 
 export type LedgerStatus = (typeof ledgerStatuses)[number];
 
@@ -24,7 +30,10 @@ export const migrationCollections: readonly ModelCollection[] = [
       }),
       scalar('version', 'string', { nullable: false, readOnly: true }),
       scalar('step', 'string', { nullable: false, readOnly: true }),
-      enumField('status', ledgerStatuses, { nullable: false, readOnly: true }),
+      enumField('status', statusChoices, {
+        nullable: false,
+        readOnly: true,
+      }),
       scalar('source_fingerprint', 'string', {
         note: 'Fingerprint of the checkpoint rows and Flows the step was claimed against.',
         nullable: false,

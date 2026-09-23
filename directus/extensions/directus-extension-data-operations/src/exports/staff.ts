@@ -3,7 +3,6 @@ import { defaultMaxBytes, type ExportDefinition } from './types.js';
 // staff.json: one row per staff member in id order; `active` is published
 // as "1"/"0", `courses` as its free text (never linked to course rows).
 export const staff: ExportDefinition = {
-  checks: [],
   fields: [
     { key: 'name', rule: 'text', value: 'name' },
     { key: 'active', rule: 'numeric_boolean', value: 'active' },

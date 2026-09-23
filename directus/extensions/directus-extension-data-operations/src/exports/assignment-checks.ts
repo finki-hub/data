@@ -64,28 +64,6 @@ const mergedCourses = (tally: Tally): number =>
 // The rows a course publishes: its assistants, and its professors unless
 // a professors_override replaces them.
 export const assignmentCheck: ReadinessCheck = {
-  codes: {
-    assignment_order_ambiguous: {
-      collection: 'teaching_assignments',
-      kind: 'warning',
-    },
-    assignment_review_label: {
-      collection: 'teaching_assignments',
-      kind: 'warning',
-    },
-    assignment_role_missing: {
-      collection: 'teaching_assignments',
-      kind: 'blocker',
-    },
-    assignment_source_duplicate: {
-      collection: 'teaching_assignments',
-      kind: 'blocker',
-    },
-    assignment_unresolved: {
-      collection: 'teaching_assignments',
-      kind: 'blocker',
-    },
-  },
   evaluate: (sources): IssueCounts => {
     const overridden = new Set(
       sourceRows(sources, 'courses')

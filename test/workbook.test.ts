@@ -22,13 +22,15 @@ import {
   type MigrationData,
   requiredField,
 } from '../src/schema.js';
+import { academicYears } from '../src/specs/public.js';
 import { readCourseEnrollmentPatterns } from '../src/workbook-enrollment-reader.js';
 import { readRows } from '../src/workbook-row-reader.js';
 import { WorkbookDataError } from '../src/workbook-values.js';
 import {
   assertStorable,
-  loadMigrationData,
+  loadWorkbook,
   readMigrationData,
+  readWorkbookContent,
 } from '../src/workbook.js';
 import { emptyData } from './directus-test-helpers.js';
 import { withMetacharacterCourse } from './fixtures/synthetic-data.js';
@@ -37,6 +39,7 @@ import {
   reloaded,
   syntheticWorkbook,
   withSequentialIds,
+  workbookContent,
   workbookData,
 } from './fixtures/synthetic-workbook.js';
 import {
@@ -239,7 +242,7 @@ describe('generated synthetic workbook', () => {
 
   test('names an unreadable workbook file instead of failing inside the parser', async () => {
     await expect(
-      loadMigrationData(
+      loadWorkbook(
         path.join(os.tmpdir(), 'finki-hub-missing-synthetic-workbook.xlsx'),
       ),
     ).rejects.toThrow(unreadablePattern);
@@ -283,7 +286,7 @@ describe('workbook adapter', () => {
 
   test('previews offline exactly the blockers the preflight of the written rows finds', async () => {
     const base = lifecycleDataset();
-    const ambiguous = workbookData(
+    const ambiguous = workbookContent(
       withMetacharacterCourse({
         ...base,
         students: [
@@ -297,9 +300,9 @@ describe('workbook adapter', () => {
         ],
       }),
     );
-    const live = preflight(await upgradeCheckpoint(ambiguous), null);
+    const live = preflight(await upgradeCheckpoint(ambiguous.data), null);
 
-    expect(previewBlockers(await parsedWorkbook())).toEqual({});
+    expect(previewBlockers(workbookContent(lifecycleDataset()))).toEqual({});
     expect(previewBlockers(ambiguous)).toEqual({
       ambiguous_student_index: 1,
       invalid_regex: 1,
@@ -383,5 +386,134 @@ describe('storable workbook values', () => {
     expect(() => {
       assertStorable(data);
     }).not.toThrow();
+  });
+});
+
+// The lifecycle workbook with a 16th academic year, newer than the rest.
+const laterYear = '2026/2027';
+
+// The academic years a course candidate seeds a rule for, in order.
+const ruleYears = ({
+  rules,
+}: {
+  readonly rules: ReadonlyArray<{ readonly academicYear: string }>;
+}): string[] => rules.map(({ academicYear }) => academicYear);
+const sixteenYears = [laterYear, ...academicYears];
+
+describe('academic years of the enrollment sheet', () => {
+  test('are read in sheet order, newest first, and include the fifteen checkpoint years', async () => {
+    const content = readWorkbookContent(
+      await reloaded(syntheticWorkbook(lifecycleDataset())),
+    );
+
+    expect(content.academicYears).toEqual([...academicYears]);
+    expect(content.data).toEqual(workbookData(lifecycleDataset()));
+  });
+
+  test('carry a 16th year header into the content', async () => {
+    const content = readWorkbookContent(
+      await reloaded(syntheticWorkbook(lifecycleDataset(), sixteenYears)),
+    );
+
+    expect(content.academicYears).toEqual(sixteenYears);
+    expect(content).toEqual(workbookContent(lifecycleDataset(), sixteenYears));
+  });
+
+  test('refuse a workbook that drops a year the checkpoint counts', async () => {
+    const workbook = await reloaded(
+      syntheticWorkbook(
+        { ...lifecycleDataset(), course_enrollment_patterns: [] },
+        academicYears.filter((year) => year !== '2014/2015'),
+      ),
+    );
+
+    expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'The enrollment sheet names no column group for the academic year(s) 2014/2015; every year the checkpoint counts must stay.',
+    );
+  });
+
+  test('refuse a later year appended after the oldest one instead of placed first', async () => {
+    const workbook = await reloaded(
+      syntheticWorkbook(lifecycleDataset(), [...academicYears, laterYear]),
+    );
+
+    expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'The enrollment sheet lists the academic year 2026/2027 after 2011/2012; order its column groups newest first, since each year sorts by its position.',
+    );
+  });
+
+  test('refuse two checkpoint years out of their order', async () => {
+    const swapped = academicYears.map((year) => {
+      if (year === '2020/2021') {
+        return '2019/2020';
+      }
+      return year === '2019/2020' ? '2020/2021' : year;
+    });
+    const workbook = await reloaded(
+      syntheticWorkbook(lifecycleDataset(), swapped),
+    );
+
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'The enrollment sheet lists the academic year 2020/2021 after 2019/2020;',
+    );
+  });
+
+  test('refuse a header that is not an academic year label', async () => {
+    const workbook = await reloaded(
+      syntheticWorkbook(lifecycleDataset(), ['2026/27', ...academicYears]),
+    );
+
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'The enrollment sheet heads a column group with "2026/27", which is not an academic year such as 2025/2026.',
+    );
+  });
+
+  test('refuse a year that heads two column groups', async () => {
+    const workbook = await reloaded(syntheticWorkbook(lifecycleDataset()));
+    const sheet = workbook.getWorksheet('Слушатели');
+    if (sheet === undefined) {
+      throw new Error('The listener sheet is missing');
+    }
+    const next = 3 + academicYears.length * 3;
+    sheet.getRow(1).getCell(next).value = '2025/2026';
+    sheet.getRow(1).getCell(next + 1).value = 'Број';
+    sheet.getRow(1).getCell(next + 2).value = 'Регекс';
+
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'Academic year 2025/2026 heads two column groups of Слушатели',
+    );
+  });
+
+  test('preview a workbook with a 16th year without an unknown-year finding', async () => {
+    const dataset = lifecycleDataset();
+    const withLater = {
+      ...dataset,
+      course_enrollment_patterns: [
+        ...dataset.course_enrollment_patterns,
+        {
+          academic_year: laterYear,
+          course_name: dataset.courses[0]?.['name'] ?? null,
+          id: 90,
+          pattern: 'Synthetic later pattern',
+        },
+      ],
+    };
+    const content = workbookContent(withLater, sixteenYears);
+    const report = preflight(
+      await upgradeCheckpoint(content.data),
+      null,
+      content.academicYears,
+    );
+
+    expect(previewBlockers(content)).toEqual({});
+    expect(report.academicYears).toEqual(sixteenYears);
+    expect(
+      report.warnings.filter(({ code }) => code === 'unknown_academic_year'),
+    ).toEqual([]);
+    expect(report.candidates.courses.map(ruleYears)).toEqual(
+      report.candidates.courses.map(() => sixteenYears),
+    );
   });
 });

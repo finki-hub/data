@@ -1,12 +1,6 @@
-import type { DirectusRequest } from '../directus-request.js';
-
 import { legacyPageFlow } from './count-legacy-rule-page.js';
 import { legacyZerosFlow } from './fill-legacy-zeros.js';
 import { coordinateOperation, type FlowTemplate } from './flow-template.js';
-import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './install-flows.js';
 import {
   legacyPagesCheckScript,
   legacyPagesScript,
@@ -213,10 +207,3 @@ export const legacyEnrollmentFlows: readonly FlowTemplate[] = [
   legacyZerosFlow,
   legacyParentFlow,
 ];
-
-// Installs the legacy enrollment Flows once each; a Flow whose id exists
-// keeps every Studio edit (see installFlowTemplates).
-export const installLegacyEnrollmentFlows = (
-  request: DirectusRequest,
-): Promise<FlowInstallSummary> =>
-  installFlowTemplates(request, legacyEnrollmentFlows);

@@ -5,11 +5,13 @@ import { z } from 'zod';
 
 import type {
   ExportDefinition,
+  RowContext,
   SourceRead,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 import type { FakeItem, FakeStore } from './migration-test-helpers.js';
 
 import {
+  fileKeys,
   readFileSources,
   serializeFile,
   type SourceReader,
@@ -288,14 +290,14 @@ const linked = (place: Place, row: FakeItem, field: string) => {
   return { found, place: { collection: target, store: place.store } };
 };
 
-// The filters the definitions use: _and, plain operators and M2O paths.
+// The filters the definitions and the readiness registry use: _and, _or,
+// plain operators and M2O paths.
 const matches = (place: Place, row: FakeItem, filter: unknown): boolean =>
   Object.entries(record.parse(filter ?? {})).every(([key, test]) => {
-    if (key === '_and') {
-      return z
-        .array(z.unknown())
-        .parse(test)
-        .every((inner) => matches(place, row, inner));
+    if (key === '_and' || key === '_or') {
+      const inner = z.array(z.unknown()).parse(test);
+      const holdsFor = (part: unknown) => matches(place, row, part);
+      return key === '_and' ? inner.every(holdsFor) : inner.some(holdsFor);
     }
     const condition = operators.safeParse(test);
     if (condition.success) {
@@ -329,31 +331,57 @@ const pick = (
   return output;
 };
 
-const compare = (left: unknown, right: unknown): number =>
-  typeof left === 'number' && typeof right === 'number'
+// PostgreSQL's order: NULL sorts last ascending and first descending.
+const compare = (left: unknown, right: unknown): number => {
+  if (!present(left) || !present(right)) {
+    return Number(!present(left)) - Number(!present(right));
+  }
+  return typeof left === 'number' && typeof right === 'number'
     ? left - right
     : String(left).localeCompare(String(right));
+};
+
+const descending = /^-/u;
+
+// The rows in the order of a sort list (`-field` descending).
+const sorted = (rows: FakeItem[], sort: readonly string[]): FakeItem[] =>
+  rows.toSorted((left, right) => {
+    for (const entry of sort) {
+      const field = entry.replace(descending, '');
+      const direction = entry.startsWith('-') ? -1 : 1;
+      const order = compare(left[field], right[field]) * direction;
+      if (order !== 0) {
+        return order;
+      }
+    }
+    return 0;
+  });
+
+// The one row an aggregate read answers, as Directus does: the count as
+// text under the aggregate and its field.
+const aggregated = (read: SourceRead, rows: readonly FakeItem[]) => {
+  const [field = 'id'] = read.fields;
+  const values = rows.map((row) => row[field]).filter(present);
+  const count =
+    read.aggregate === 'countDistinct' ? new Set(values).size : values.length;
+  return [{ [read.aggregate ?? 'count']: { [field]: String(count) } }];
+};
 
 // A reader over a fake store that honours every read exactly as the
-// ItemsService would: the filter, the sort and only the listed fields.
-// Every read it answers is logged.
+// ItemsService would: the filter, the sort, only the listed fields, and
+// aggregate reads. Every read it answers is logged.
 export const storeReader =
   (store: FakeStore, log: SourceRead[] = []): SourceReader =>
   async (read) => {
     log.push(read);
     const place = { collection: read.collection, store };
-    return rowsOf(store, read.collection)
-      .filter((row) => matches(place, row, read.filter))
-      .toSorted((left, right) => {
-        for (const field of read.sort) {
-          const order = compare(left[field], right[field]);
-          if (order !== 0) {
-            return order;
-          }
-        }
-        return 0;
-      })
-      .map((row) => pick(place, row, read.fields));
+    const rows = rowsOf(store, read.collection).filter((row) =>
+      matches(place, row, read.filter),
+    );
+    if (read.aggregate !== undefined) {
+      return aggregated(read, rows);
+    }
+    return sorted(rows, read.sort).map((row) => pick(place, row, read.fields));
   };
 
 const rowList = z.array(z.record(z.string(), z.unknown()));
@@ -386,11 +414,10 @@ export const engineAssets = async (
   const files: Record<string, unknown> = {};
   for (const definition of definitions) {
     const sources = await readFileSources(definition, reader);
-    const file = validateFile(
-      definition,
-      serializeFile(definition, sources),
-      sources.rows.length,
-    );
+    const file = validateFile(definition, serializeFile(definition, sources), {
+      keys: fileKeys(definition, sources),
+      rows: sources.rows.length,
+    });
     files[definition.filename.replace(jsonSuffix, '')] = rowList.parse(
       JSON.parse(file.body),
     );
@@ -411,14 +438,13 @@ export const refusalOf = async (run: () => Promise<unknown>) => {
 // A fifth file declared in the test alone: the room names and capacities,
 // without touching the engine, a Flow or the schema.
 export const roomCapacity: ExportDefinition = {
-  checks: [],
   fields: [
     { key: 'room', rule: 'text', value: 'name' },
     { key: 'seats', rule: 'number', value: 'capacity' },
     {
       key: 'large',
       rule: 'boolean',
-      value: ({ row }) =>
+      value: ({ row }: RowContext) =>
         typeof row['capacity'] === 'number' ? row['capacity'] >= 20 : null,
     },
   ],

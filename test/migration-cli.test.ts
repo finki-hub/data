@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
 import packageJson from '../package.json' with { type: 'json' };
+import { importWorkbook } from '../src/directus.js';
 import { validateBackupReceipt } from '../src/migrations/backup-receipt.js';
 import {
   loadMigrationConfig,
@@ -25,10 +26,16 @@ import {
 } from '../src/migrations/report.js';
 import { runMigrationCli } from '../src/migrations/run.js';
 import { sourceMapEntrySchema } from '../src/migrations/source-map.js';
+import { academicYears } from '../src/specs/public.js';
 import {
   makeSyntheticDataset,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
+import {
+  lifecycleDataset,
+  workbookContent,
+} from './fixtures/synthetic-workbook.js';
+import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 import {
   fakeItemsDirectus,
   type FakeStore,
@@ -642,5 +649,97 @@ describe('migration cli apply', () => {
       written: {},
     });
     expect(ledgerRows(store)).toHaveLength(6);
+  });
+});
+
+// The academic_years rows of a store: label, published flag and sort.
+const yearsOf = (store: FakeStore) =>
+  (store.items.get('academic_years') ?? []).map((row) => ({
+    label: row['label'],
+    published: row['published'],
+    sort: row['sort'],
+  }));
+
+describe('an import its conversion blocked, finished with migrate', () => {
+  test('converts every academic year the workbook named, a later one included', async () => {
+    const years = ['2026/2027', ...academicYears];
+    const base = lifecycleDataset();
+    const other = 'Synthetic Student One (Other List)';
+    const imported = fakeImportDirectus(emptyStore());
+    const summary = await importWorkbook(
+      imported.request,
+      workbookContent(
+        {
+          ...base,
+          students: [
+            ...base.students,
+            {
+              id: 99,
+              index_number: 'SYN-0001',
+              name: other,
+              source_group: 'synthetic:other-list',
+            },
+          ],
+        },
+        years,
+      ),
+      imported.io,
+    );
+    const { store } = imported;
+
+    expect(summary.conversion).toEqual({
+      blockers: { ambiguous_student_index: 1 },
+      status: 'blocked',
+    });
+    expect(yearsOf(store)).toEqual(
+      years.map((label, index) => ({
+        label,
+        published: true,
+        sort: years.length - index,
+      })),
+    );
+    expect(store.items.get('course_enrollment_rules')).toEqual([]);
+
+    // Resolved in Studio: the second record of the shared index is removed.
+    store.items.set(
+      'students',
+      (store.items.get('students') ?? []).filter(
+        (row) => row['name'] !== other,
+      ),
+    );
+    const reportPath = path.join(scratch.directory, reportName);
+    const sourceFingerprint = await dryRunReport(store, reportPath);
+    const report = await readReport(reportPath);
+
+    expect(report.blockers).toEqual([]);
+    expect(report.academicYears).toEqual(years);
+    expect(
+      report.warnings.filter(({ code }) => code === 'unknown_academic_year'),
+    ).toEqual([]);
+
+    const apply = cliContext(store);
+
+    await expect(
+      runMigrationCli(
+        [
+          '--apply',
+          reportFlag,
+          reportPath,
+          receiptFlag,
+          await writeReceipt(sourceFingerprint),
+        ],
+        environment,
+        apply.io,
+      ),
+    ).resolves.toBe(0);
+    expect(apply.stderr).toEqual([]);
+
+    const courses = store.items.get('courses') ?? [];
+
+    expect(courses.length).toBeGreaterThan(0);
+    expect(yearsOf(store)).toHaveLength(years.length);
+    expect(store.items.get('course_enrollment_rules')).toHaveLength(
+      courses.length * years.length,
+    );
   });
 });

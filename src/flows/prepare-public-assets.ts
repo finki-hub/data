@@ -1,20 +1,17 @@
-import type { DirectusRequest } from '../directus-request.js';
-
 import {
   exportsOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   operation,
   publicationId,
 } from './flow-template.js';
 import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './install-flows.js';
-import {
   adminOnly,
   publicationButton,
   validateReadinessFlow,
 } from './validate-readiness.js';
+
+const family = flowFamilyCodes.publication;
 
 export const prepareAssetsFlowId = publicationId('05');
 
@@ -38,7 +35,7 @@ export const prepareAssetsFlow: FlowTemplate = {
       'Only administrators may prepare the public assets.',
     ),
     operation({
-      family: '14',
+      family,
       key: 'prepare',
       name: 'Prepare every public file',
       options: { action: 'prepare' },
@@ -56,10 +53,3 @@ export const publicationFlows: readonly FlowTemplate[] = [
   validateReadinessFlow,
   prepareAssetsFlow,
 ];
-
-// Installs the publication Flows once each; a Flow whose id exists keeps
-// every Studio edit (see installFlowTemplates).
-export const installPublicationFlows = (
-  request: DirectusRequest,
-): Promise<FlowInstallSummary> =>
-  installFlowTemplates(request, publicationFlows);

@@ -2,7 +2,6 @@ import type { CheckpointRows } from './inventory.js';
 import type { Indexes } from './preflight-indexes.js';
 import type { Candidates, Finding } from './report.js';
 
-import { academicYears } from '../specs/public.js';
 import {
   finding,
   type LinkCandidate,
@@ -21,7 +20,6 @@ type Collected<T> = {
   readonly findings: readonly Finding[];
 };
 
-const knownYears: ReadonlySet<string> = new Set(academicYears);
 const linePattern = /\r?\n/u;
 
 const collect = <T>(
@@ -37,6 +35,7 @@ const collect = <T>(
 const patterns = (
   checkpoint: CheckpointRows,
   indexes: Indexes,
+  knownYears: ReadonlySet<string>,
 ): Collected<Candidates['patterns'][number]> =>
   collect(
     checkpoint.course_enrollment_patterns.map((row) => {
@@ -63,7 +62,7 @@ const patterns = (
             collection: 'course_enrollment_patterns',
             ids: [row.id],
             label: year,
-            message: `pattern row ${String(row.id)} names academic year ${quote(year)}, which no course carries an enrollment count for; it is retained but seeds no rule.`,
+            message: `pattern row ${String(row.id)} names academic year ${quote(year)}, which the conversion does not seed; it is retained but seeds no rule.`,
           }),
         );
       }
@@ -177,6 +176,7 @@ const discord = (
 export const rowCandidates = (
   checkpoint: CheckpointRows,
   indexes: Indexes,
+  academicYears: readonly string[],
 ): {
   readonly candidates: RowCandidates;
   readonly findings: readonly Finding[];
@@ -186,7 +186,7 @@ export const rowCandidates = (
     council: council(checkpoint, indexes),
     discord: discord(checkpoint, indexes),
     equivalencies: linkedRows.equivalencies(checkpoint, indexes),
-    patterns: patterns(checkpoint, indexes),
+    patterns: patterns(checkpoint, indexes, new Set(academicYears)),
   };
   return {
     candidates: {

@@ -37,6 +37,22 @@ it. If an earlier run was interrupted after creating a Flow but before
 wiring it, the command stops and names the Flow to delete instead of
 repairing it.
 
+Two things are code-owned and kept in step on every rerun. The choices of
+every enumerated field (their labels and the server-enforced rule that
+only they may be stored) are declared once with the field
+(`src/data-model/*-collections.ts`); when an installed field's choices,
+labels or rule differ, setup rewrites exactly those three meta keys
+(`options`, `display_options`, `validation`, merged: a placeholder or any
+other option stays) and reports the field as `aligned`, while the keys
+Studio owns (note, width, group, sort, conditions) are never sent. Before
+that it reads the field's distinct stored values, and when one of them is
+no longer a declared choice it refuses (exit code 2), names the values and
+changes nothing. And every managed Flow family is registered once in
+`src/flows/registry.ts` (history index, snapshot import, mapped and legacy
+enrollments, publication, automatic processing last); setup installs them
+in one loop and reports `created` and `skipped` per family under
+`flows.families`.
+
 ### Fresh project with the workbook
 
 Requirements: Docker with Compose, Node.js 22 or newer, and npm.
@@ -106,14 +122,23 @@ those Flows. On an accepted project it:
 4. converts those rows into the relational collections with the same
    converters, preflight and migration ledger that `npm run migrate -- --apply`
    uses, so a later `npm run migrate -- --dry-run` reports every step
-   complete under the same source fingerprint;
+   complete under the same source fingerprint. The academic years it seeds
+   are the ones the **Слушатели** sheet heads, in its order (published, the
+   oldest sorting first), with one fallback rule per course and year. The
+   sheet must keep every year the checkpoint counts (its fifteen
+   `enrollment_*` columns) and head its column groups with labels such as
+   `2025/2026`, newest first, or the import stops before contacting
+   Directus; a later year is one more column group, placed first. The years
+   are written before anything else is converted;
 5. runs **Rebuild derived data** once, as before. It never publishes.
 
 If the preflight finds an ambiguous relationship that blocks the relational
 conversion (for example a council index shared by two students), the rows
-stay imported and the derivation still runs, but the relational conversion is
-skipped and the command exits with code 3. Resolve the listed findings in
-Studio, then finish with the upgrade path below.
+and the workbook's academic years stay imported and the derivation still
+runs, but the rest of the relational conversion is skipped and the command
+exits with code 3. Resolve the listed findings in Studio, then finish with
+the upgrade path below, which converts the academic years the project holds
+(so every year the workbook named).
 
 If the import stops after it started writing rows, it exits with code 4
 and the message names the phase and the one way to finish:
@@ -128,7 +153,10 @@ and the message names the phase and the one way to finish:
 - **While converting:** every row was written. Finish with `npm run migrate`
   (dry-run, then apply), whose ledger resumes the conversion, then run
   **Rebuild derived data** from Studio, since the initial rebuild did not
-  run.
+  run. If the academic years themselves were not all written (the message
+  says so), the upgrade would miss the ones not written: restore the
+  pre-import backup or remove every application record, then import
+  again.
 - **While rebuilding:** run **Rebuild derived data** from Studio. If the
   conversion was blocked, the message lists the findings; resolve them and
   finish with `npm run migrate`.
@@ -149,8 +177,10 @@ checkpoint importer) never runs the workbook importer again. Run
 then `npm run migrate -- --dry-run --report <private path>`, take a backup,
 and `npm run migrate -- --apply --report <private path> --backup-receipt
 <private path>`. The upgrade only reads the project itself; the workbook may
-be absent. Old rows and their columns are kept; relational rows are added
-beside them.
+be absent. It converts the fifteen years the checkpoint counts and every
+`academic_years` row the project already holds (newest first by label),
+with one fallback rule per course and year. Old rows and their columns are
+kept; relational rows are added beside them.
 
 `--apply` refuses without a backup receipt: a private JSON file you write
 after taking the backup, next to the backup files. It names the
@@ -523,7 +553,8 @@ managed Flows read and write with `$full`, the schedule without
 accountability, so editing one would lift every other rule). Administrators cannot be restricted
 that way; `snapshotReadiness` in the same file flags active Moodle users
 changed outside the snapshot workflow (the snapshot status's
-`activeMatchesPromotion`).
+`activeMatchesPromotion`) and a failed import, under the readiness-registry
+codes `active_snapshot_edited` and `snapshot_import_failed`.
 
 ## Public files: definitions, readiness and preparation
 
@@ -544,8 +575,13 @@ A definition (`courses.ts`, `rooms.ts`, `staff.ts`, `students.ts`) names
   (`"TRUE"`/`"FALSE"`); every rule omits null, undefined and `''` and keeps
   `false` and `0`, as `directus/flows/serialize-assets.cjs` does. The map is
   the file's whole allowlist: no other key can be published;
-- `maxBytes`, the size bound of the compact JSON, and `checks`, the
-  readiness checks of that file.
+- `maxBytes`, the size bound of the compact JSON.
+
+A key the data decides comes from a key source (`exports/key-sources.ts`, a
+closed list): an entry `{ keys: 'published_years', rule, value }` puts one
+key per row of that source at its position. `published_years` is every
+academic year whose `published` flag is set, newest first (`sort`
+descending, then the label descending), keyed by its label.
 
 `exports/index.ts` lists the definitions in publication order. A generic
 engine (`exports/engine.ts`) reads each definition's sources through the
@@ -567,10 +603,11 @@ one literal review row); `assistants` likewise; the 2023 and
 2018 keys come from the course's curriculum link of that generation and its
 entry (`2018-name` prefers `name_2018_override`), credits and availability
 from the link; `channel` is true when either linked entry has its channel;
-the fifteen year keys come from `course_enrollments` rows of the years in
-`exportedYears` in `courses.ts`, the one place the public years are
-configured: a new `academic_years` row adds no key until its label is listed
-there. Anything the projection cannot resolve (a missing count, two links of
+the year keys follow the published-year rule, one per published academic
+year with the course's `course_enrollments` count of that year: a new
+`academic_years` row adds no key until an editor sets its `published` flag,
+and then readiness blocks until every course has its count (the imported
+fifteen years are published). Anything the projection cannot resolve (a missing count, two links of
 one generation, an assignment without a role or a label) refuses the
 preparation with ids only; nothing is guessed.
 
@@ -578,10 +615,10 @@ preparation with ids only; nothing is guessed.
 
 1. Edit the file's definition module, or add a new module and append it to
    `exports/index.ts`. Declare every read with explicit fields and every
-   key with its rule; add readiness checks when the file needs data that
-   must be complete first. A check that concerns the whole project rather
-   than one file goes into `globalChecks` in `exports/global-checks.ts`;
-   the same read rules and private-read tests cover it.
+   key with its rule. When the file needs data that must be complete
+   first, add an entry to the readiness-check registry
+   (`exports/readiness-registry.ts`) that gates the file; the same read
+   rules and private-read tests cover it.
 2. Update the expected output in the tests: `test/relational-export.test.ts`
    pins the four existing files to the reference serializer, and
    `test/export-definitions.test.ts` shows a new definition end to end.
@@ -597,8 +634,9 @@ Flows only call the export operation, which serves every definition. Task
 (administrators only; once, under stable ids):
 
 - **Data / Validate readiness** answers `{ready, revision, blockers,
-  warnings, issueCounts, links}`: a count per issue code and the Studio page
-  of each, never a name or a row.
+  warnings, issueCounts, links, reviews, blockedFiles}`: a count for every
+  registered code, the Studio page and Needs review bookmark of each positive
+  one and the files the blockers hold back, never a name or a row.
 - **Publish / Prepare public assets** is a dry preparation: readiness, then
   every file read, serialized and validated, then the source revision
   again. It answers `{revision, files: [{filename, rows, bytes, sha256}],
@@ -613,12 +651,28 @@ Both call the `finki-hub-exports` operation (actions `readiness` and
 coordinator step, so neither is part of the calculation fingerprint. The
 checkpoint **Publish public assets** Flow is left as it is.
 
+Every issue is one entry of the readiness-check registry
+(`exports/readiness-registry.ts`): its code, severity (`blocker` or
+`warning`), where its count comes from (a bounded native aggregate, a check
+counted in code, the coordinator status or the snapshot status), the files
+it gates, an optional Needs review bookmark, whether its records each carry
+a curriculum `generation` column (so one view shows and filters by it; no
+entry does yet, since the equivalency and course checks read
+per-generation columns), and a description. `ready` is true exactly when
+every blocker counts zero. The registry is code, not rows, so no Studio edit
+can turn a blocker into a warning; the Needs review bookmarks setup installs
+are the entries that declare one (today **Needs mapping**).
+
 Blockers: `history_index_*` and `enrollments_*` (`pending`, `running`,
 `failed`, from the coordinator status), `snapshot_import_running`,
 `snapshot_import_failed`, `conversion_incomplete` (a step of the one-time
 conversion still running or failed in `migration_ledger`),
-`enrollment_count_missing` (an exported course and year without a count
-row), `enrollment_rule_missing` (without a rule, so it is never counted),
+`academic_year_unsorted` (a published year without a sort, which has no
+place among the year keys), `academic_year_sort_shared` (two published
+years with one sort, whose keys have no newest-first order),
+`enrollment_count_missing` (a course and
+published year without a count row), `enrollment_rule_missing` (without a
+rule, so it is never counted),
 `curriculum_link_unresolved` (an equivalency of the course names a 2018
 entry, or a 2018 label that matched no entry, while the course has neither
 a 2018 link nor a `name_2018_override`), `curriculum_value_unlinked` (a
@@ -633,8 +687,10 @@ course come from two imported assignment rows). Warnings:
 position; the id decides their order), `mapping_without_rule` (mappings
 nothing counts), `mapped_entry_awaiting_review`, `entry_needs_mapping`
 (Moodle lines nobody mapped, administrative ones included),
-`equivalency_without_course`, `snapshot_staged`, `active_snapshot_edited`
-and `snapshot_never_promoted`.
+`equivalency_without_course`, `equivalency_entry_unresolved` (an
+equivalency label linked to no entry of its generation),
+`council_member_unresolved` (a council membership linked to no student),
+`snapshot_staged`, `active_snapshot_edited` and `snapshot_never_promoted`.
 
 Every value the checkpoint files published and the relational rows cannot
 publish blocks, so a first publication never loses or changes text
@@ -652,9 +708,10 @@ silently:
   the first: `assignment_source_duplicate` blocks until the role rows of
   the row that is not wanted are deleted.
 
-A readiness code has one kind and one Studio page: a definition that
-declares an existing code with another kind or page is refused before
-anything is read, and a check two definitions share runs once.
+A readiness code is declared once: a registry with a code twice, a blocker
+gating no published file, a warning gating one, two reviews of one bookmark
+or a filter with `_some`/`_none` is refused before anything is read, and a
+check several codes share runs once.
 
 `data_operations.publication_outcomes` keeps the outcome of each file of the
 last publication, keyed by filename, for any number of files.

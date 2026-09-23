@@ -1,9 +1,10 @@
 import {
   coordinateOperation,
   failureRecord,
+  familyStep,
+  flowFamilyCodes,
   type FlowTemplate,
   historyId,
-  operation,
 } from './flow-template.js';
 import {
   pagesWithTokenScript,
@@ -12,6 +13,9 @@ import {
 } from './history-script.js';
 
 const triggerToken = '{{ $trigger.token }}';
+
+// An operation of the history index family.
+export const historyStep = familyStep(flowFamilyCodes.history);
 
 // The history index family. `03` was the manual runner of Task 9, retired
 // before any deployment: the scheduled Process pending claims the index
@@ -42,7 +46,7 @@ export const pageFlow: FlowTemplate = {
   id: historyFlowIds.page,
   name: 'Data / Index history page',
   operations: [
-    operation({
+    historyStep({
       edges: { reject: historyId('28'), resolve: historyId('21') },
       key: 'check_claim',
       name: 'Check that the claim is still live',
@@ -51,7 +55,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '27',
       type: coordinateOperation,
     }),
-    operation({
+    historyStep({
       key: 'claim_failed',
       name: 'Record the lost claim',
       options: failureRecord({ page: triggerToken, stage: 'claim' }),
@@ -59,7 +63,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '28',
       type: 'transform',
     }),
-    operation({
+    historyStep({
       edges: { reject: historyId('24'), resolve: historyId('22') },
       key: 'read_histories',
       name: 'Read raw histories of the page',
@@ -80,7 +84,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '21',
       type: 'item-read',
     }),
-    operation({
+    historyStep({
       edges: { reject: historyId('25'), resolve: historyId('23') },
       key: 'split_entries',
       name: 'Split exact history entries',
@@ -89,7 +93,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '22',
       type: 'exec',
     }),
-    operation({
+    historyStep({
       edges: { reject: historyId('26') },
       key: 'index_page',
       name: 'Replace the memberships of the page',
@@ -103,7 +107,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '23',
       type: coordinateOperation,
     }),
-    operation({
+    historyStep({
       key: 'read_failed',
       name: 'Record the read failure',
       options: failureRecord({ page: triggerToken, stage: 'read' }),
@@ -111,7 +115,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '24',
       type: 'transform',
     }),
-    operation({
+    historyStep({
       key: 'split_failed',
       name: 'Record the split failure',
       options: failureRecord({ page: triggerToken, stage: 'split' }),
@@ -119,7 +123,7 @@ export const pageFlow: FlowTemplate = {
       suffix: '25',
       type: 'transform',
     }),
-    operation({
+    historyStep({
       key: 'index_failed',
       name: 'Record the index failure',
       options: failureRecord({ page: triggerToken, stage: 'index' }),
@@ -144,7 +148,7 @@ export const runFlow: FlowTemplate = {
   id: historyFlowIds.run,
   name: 'Data / Index Moodle histories',
   operations: [
-    operation({
+    historyStep({
       edges: { reject: historyId('15'), resolve: historyId('12') },
       key: 'plan_pages',
       name: 'Plan history pages',
@@ -157,7 +161,7 @@ export const runFlow: FlowTemplate = {
       suffix: '11',
       type: coordinateOperation,
     }),
-    operation({
+    historyStep({
       edges: { reject: historyId('16'), resolve: historyId('13') },
       key: 'with_token',
       name: 'Attach the claim token to every page',
@@ -166,7 +170,7 @@ export const runFlow: FlowTemplate = {
       suffix: '12',
       type: 'exec',
     }),
-    operation({
+    historyStep({
       edges: { reject: historyId('17'), resolve: historyId('14') },
       key: 'index_pages',
       name: 'Index every page in turn',
@@ -179,7 +183,7 @@ export const runFlow: FlowTemplate = {
       suffix: '13',
       type: 'trigger',
     }),
-    operation({
+    historyStep({
       key: 'summary',
       name: 'Sum the page results',
       options: { code: summaryScript },
@@ -187,7 +191,7 @@ export const runFlow: FlowTemplate = {
       suffix: '14',
       type: 'exec',
     }),
-    operation({
+    historyStep({
       key: 'plan_failed',
       name: 'Record the planning failure',
       options: failureRecord({ pages: '0', stage: 'plan' }),
@@ -195,7 +199,7 @@ export const runFlow: FlowTemplate = {
       suffix: '15',
       type: 'transform',
     }),
-    operation({
+    historyStep({
       key: 'token_failed',
       name: 'Record the token failure',
       options: failureRecord({ pages: '0', stage: 'token' }),
@@ -203,7 +207,7 @@ export const runFlow: FlowTemplate = {
       suffix: '16',
       type: 'transform',
     }),
-    operation({
+    historyStep({
       key: 'pages_failed',
       name: 'Record the page-run failure',
       options: failureRecord({ pages: '0', stage: 'pages' }),

@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 
 import {
+  fileKeys,
   readFileSources,
   serializeFile,
   validateFile,
@@ -231,11 +232,10 @@ export const measureEngine = async (definitions, reader) => {
   const afterRead = process.memoryUsage().heapUsed;
   const built = performance.now();
   const files = definitions.map((definition, index) =>
-    validateFile(
-      definition,
-      serializeFile(definition, sources[index]),
-      sources[index].rows.length,
-    ),
+    validateFile(definition, serializeFile(definition, sources[index]), {
+      keys: fileKeys(definition, sources[index]),
+      rows: sources[index].rows.length,
+    }),
   );
   const buildMs = performance.now() - built;
   const peak = process.memoryUsage().heapUsed;

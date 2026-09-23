@@ -3,9 +3,21 @@ import type { ModelCollection } from '../schema.js';
 import { privateCollectionSpecs } from '../specs/private.js';
 import { courseTemplate } from './checkpoint-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
-import { enumField, fromCheckpointField, m2o, scalar } from './fields.js';
+import {
+  enumField,
+  fromCheckpointField,
+  labelledChoices,
+  m2o,
+  scalar,
+} from './fields.js';
 
 export const reviewStates = ['needs_mapping', 'mapped', 'ignored'] as const;
+
+const reviewChoices = labelledChoices(reviewStates, {
+  ignored: 'Ignored',
+  mapped: 'Mapped',
+  needs_mapping: 'Needs mapping',
+});
 
 export const moodleUserTemplate = '{{Name}}';
 export const historyEntryTemplate = '{{label}}';
@@ -34,7 +46,7 @@ export const moodleCollections: readonly ModelCollection[] = [
         readOnly: true,
         unique: true,
       }),
-      enumField('review_state', reviewStates, {
+      enumField('review_state', reviewChoices, {
         defaultValue: 'needs_mapping',
         nullable: false,
       }),

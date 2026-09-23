@@ -53,44 +53,6 @@ const baselineOptions = (
   return typeof options === 'object' && options !== null ? { ...options } : {};
 };
 
-// Dropdown choices in the order the model declares them, with a label each.
-const choices = (
-  collection: string,
-  field: string,
-  labels: Readonly<Record<string, string>>,
-) => {
-  const column = findModelCollection(collection)?.fields.find(
-    (candidate) => candidate.field === field,
-  );
-  if (column?.kind !== 'enum') {
-    throw new Error(`Field ${collection}.${field} is not an enum`);
-  }
-  return column.choices.map((value) => ({
-    text: labels[value] ?? value,
-    value,
-  }));
-};
-
-const labelled = (
-  collection: string,
-  field: string,
-  labels: Readonly<Record<string, string>>,
-): FieldPresentation => ({
-  collection,
-  field,
-  meta: {
-    display: 'labels',
-    display_options: {
-      choices: choices(collection, field, labels),
-      showAsDot: false,
-    },
-    options: {
-      ...baselineOptions(collection, field),
-      choices: choices(collection, field, labels),
-    },
-  },
-});
-
 // Rendered by Studio with the link row's own live `generation` value before
 // the entry picker queries, so only entries of that generation are offered.
 // The database trigger from the schema constraints rejects the rest.
@@ -131,10 +93,6 @@ export const fieldPresentations: readonly FieldPresentation[] = [
     },
   },
   { collection: 'course_curricula', field: 'sort', meta: { hidden: true } },
-  labelled('teaching_assignments', 'role', {
-    assistant: 'Assistant',
-    professor: 'Professor',
-  }),
   { collection: 'teaching_assignments', field: 'sort', meta: { hidden: true } },
   {
     collection: 'teaching_assignments',
@@ -155,16 +113,7 @@ export const fieldPresentations: readonly FieldPresentation[] = [
       readonly: true,
     },
   },
-  labelled('moodle_course_entries', 'review_state', {
-    ignored: 'Ignored',
-    mapped: 'Mapped',
-    needs_mapping: 'Needs mapping',
-  }),
   ...moodleFieldPresentations,
-  labelled('course_enrollment_rules', 'mode', {
-    legacy_regex: 'Legacy regex',
-    mapped_entries: 'Mapped entries',
-  }),
 ];
 
 // The columns of a relation list. An editable list ordered by a sort field

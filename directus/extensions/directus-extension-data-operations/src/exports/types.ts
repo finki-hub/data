@@ -28,13 +28,24 @@ export type RowContext = {
 
 // One native read: a collection, an explicit field list (relational dot
 // paths through M2O relations allowed, never `*`), a sort and optionally a
-// filter (plain field and M2O paths only, never `_some` or `_none`).
+// filter (plain field and M2O paths only, never `_some` or `_none`). An
+// aggregate read answers one bounded count over its one field instead of
+// rows (`count` of the matching rows, `countDistinct` of their values).
 export type SourceRead = {
+  readonly aggregate?: Aggregate;
   readonly collection: string;
   readonly fields: readonly string[];
   readonly filter?: Filter;
   readonly sort: readonly string[];
 };
+
+export const aggregates = ['count', 'countDistinct'] as const;
+
+export type Aggregate = (typeof aggregates)[number];
+
+// A read whose rows each name one public key, in read order: the key is
+// the text of the row's `key` field.
+export type KeySource = SourceRead & { readonly key: string };
 
 // The closed vocabulary of public value forms, as the reference serializer
 // (directus/flows/serialize-assets.cjs) writes them: text as is, a number
@@ -49,8 +60,6 @@ export const valueRules = [
 ] as const;
 
 export type ExportDefinition = {
-  // What must hold before the file can be prepared exactly.
-  readonly checks: readonly ReadinessCheck[];
   // The ordered field map: output key order and the file's allowlist.
   readonly fields: readonly FieldEntry[];
   // A root-level JSON filename the publish-json storage writer accepts.
@@ -64,29 +73,36 @@ export type ExportDefinition = {
   readonly rows: SourceRead;
 };
 
+export type FieldEntry = FixedEntry | KeyedEntry;
+
 // One public key: its value is a source path of the main row (for example
 // `name`, or `entry.code` when that dot path is read) or a resolver.
-export type FieldEntry = {
+export type FixedEntry = {
   readonly key: string;
   readonly rule: ValueRule;
   readonly value: Resolver | string;
 };
 
-// A readiness issue code: whether it blocks preparation, and the Studio
-// collection page that lists the records behind it.
-export type IssueCode = {
-  readonly collection: string;
-  readonly kind: IssueKind;
-};
-
 export type IssueCounts = Readonly<Record<string, number>>;
 
-export type IssueKind = 'blocker' | 'warning';
+// One public key per row of a key source (key-sources.ts), in the source's
+// order and at this entry's position: the key is the row's key text, the
+// value the resolver's answer for the file row and that key row. A row the
+// source does not read adds no key.
+export type KeyedEntry = {
+  readonly keys: KeySourceName;
+  readonly rule: ValueRule;
+  readonly value: (context: RowContext, keyRow: Row) => unknown;
+};
 
-// A readiness check of a file: its own native reads and a pure evaluation
-// that counts records per declared code. Counts only, never a record.
+// The closed vocabulary of key sources (key-sources.ts).
+export type KeySourceName = 'published_years';
+
+// A readiness check counted in code: its native reads (rows of ids and
+// keys, or bounded counts) and a pure evaluation answering a whole count
+// for each registry code whose source names it. Counts only, never a
+// record.
 export type ReadinessCheck = {
-  readonly codes: Readonly<Record<string, IssueCode>>;
   readonly evaluate: (sources: SourceRows) => IssueCounts;
   readonly reads: Readonly<Record<string, SourceRead>>;
 };

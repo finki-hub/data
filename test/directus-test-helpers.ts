@@ -3,6 +3,9 @@ import { z } from 'zod';
 
 import type { DirectusConfig } from '../src/config.js';
 import type { MigrationData } from '../src/schema.js';
+import type { WorkbookContent } from '../src/workbook.js';
+
+import { academicYears } from '../src/specs/public.js';
 
 export type RequestRecord = {
   readonly body: unknown;
@@ -29,6 +32,12 @@ export const emptyData: MigrationData = {
   student_council: [],
   students: [],
   teaching_assignments: [],
+};
+
+// An empty workbook: no rows, the checkpoint's academic years.
+export const emptyWorkbook: WorkbookContent = {
+  academicYears,
+  data: emptyData,
 };
 
 export const toUrl = (input: Parameters<typeof fetch>[0]): URL => {

@@ -44,19 +44,8 @@ const linkedPairs = (sources: SourceRows): ReadonlySet<string> =>
 // or through a 2018 label that matched no entry, while the course has
 // neither a 2018 link nor a name_2018_override: the checkpoint derivation
 // published the 2018 name of that equivalency, the link that would carry
-// it is missing. An equivalency without a course is unused historical
-// metadata.
+// it is missing.
 export const curriculumCheck: ReadinessCheck = {
-  codes: {
-    curriculum_link_unresolved: {
-      collection: 'course_equivalencies',
-      kind: 'blocker',
-    },
-    equivalency_without_course: {
-      collection: 'course_equivalencies',
-      kind: 'warning',
-    },
-  },
   evaluate: (sources): IssueCounts => {
     const linked = linkedPairs(sources);
     const overridden = new Set(
@@ -73,7 +62,6 @@ export const curriculumCheck: ReadinessCheck = {
             !overridden.has(course) && !linked.has(pairOf(course, '2018')),
         ),
       ).size,
-      equivalency_without_course: sourceRows(sources, 'orphans').length,
     };
   },
   reads: {
@@ -98,12 +86,6 @@ export const curriculumCheck: ReadinessCheck = {
       sort: ['id'],
     },
     links,
-    orphans: {
-      collection: 'course_equivalencies',
-      fields: ['id'],
-      filter: { course: { _null: true } },
-      sort: ['id'],
-    },
     overridden: {
       collection: 'courses',
       fields: ['id'],
@@ -138,9 +120,6 @@ const labelled = importColumns.flatMap(({ label }) =>
 // projection has nothing to publish it from. Linking the entry, or
 // clearing the imported value once the loss is intended, resolves it.
 export const importedValuesCheck: ReadinessCheck = {
-  codes: {
-    curriculum_value_unlinked: { collection: 'courses', kind: 'blocker' },
-  },
   evaluate: (sources): IssueCounts => {
     const linked = linkedPairs(sources);
     const unlinked = new Set<unknown>();

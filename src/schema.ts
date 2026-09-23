@@ -138,8 +138,12 @@ export type ModelScalarField = ModelFieldBase & {
   readonly unique?: true;
 };
 
+// One choice of a code-owned vocabulary: the stored value and the label
+// Studio shows for it. Setup keeps both in step on an installed project.
+export type EnumChoice = { readonly label: string; readonly value: string };
+
 export type ModelEnumField = ModelFieldBase & {
-  readonly choices: readonly string[];
+  readonly choices: readonly EnumChoice[];
   readonly defaultValue?: string;
   readonly kind: 'enum';
 };

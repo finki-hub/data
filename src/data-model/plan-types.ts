@@ -1,9 +1,11 @@
 import type {
   ModelCollection,
+  ModelEnumField,
   ModelField,
   ModelRelation,
   ModelRelationAlias,
 } from '../schema.js';
+import type { ChoiceMeta } from './field-payloads.js';
 
 export type Refusal = {
   readonly collection: string;
@@ -25,6 +27,13 @@ export type FieldAction =
     }
   | {
       readonly collection: string;
+      readonly field: ModelEnumField;
+      readonly kind: 'realign-choices';
+      readonly meta: ChoiceMeta;
+      readonly singleton: boolean;
+    }
+  | {
+      readonly collection: string;
       readonly field: ModelField;
       readonly kind: 'adopt-meta';
       readonly sort: number;
@@ -35,6 +44,9 @@ export type FieldAction =
       readonly kind: 'create-field';
       readonly sort: number;
     }
+  // An installed enum field whose choices or rule differ from the
+  // declaration: the merged meta setup writes, once no live value falls
+  // outside the declared choices.
   | {
       readonly collection: string;
       readonly field: string;
@@ -54,9 +66,13 @@ export type Counts = {
   readonly skipped: number;
 };
 
+// Fields also count the enum fields whose code-owned choices and rule were
+// realigned.
+export type FieldCounts = Counts & { readonly aligned: number };
+
 export type InstallSummary = {
   readonly collections: Counts;
-  readonly fields: Counts;
+  readonly fields: FieldCounts;
   readonly relations: Counts;
 };
 
@@ -70,18 +86,31 @@ export type InstallPlan = {
 
 type Outcome = keyof Counts;
 
+const zero = (): Record<Outcome, number> => ({
+  adopted: 0,
+  created: 0,
+  refused: 0,
+  skipped: 0,
+});
+
 export class Tally {
+  #aligned = 0;
   readonly #counts: Record<keyof InstallSummary, Record<Outcome, number>> = {
-    collections: { adopted: 0, created: 0, refused: 0, skipped: 0 },
-    fields: { adopted: 0, created: 0, refused: 0, skipped: 0 },
-    relations: { adopted: 0, created: 0, refused: 0, skipped: 0 },
+    collections: zero(),
+    fields: zero(),
+    relations: zero(),
   };
 
   public add(kind: keyof InstallSummary, outcome: Outcome, amount = 1): void {
     this.#counts[kind][outcome] += amount;
   }
 
+  public align(): void {
+    this.#aligned += 1;
+  }
+
   public summary(): InstallSummary {
-    return structuredClone(this.#counts);
+    const counts = structuredClone(this.#counts);
+    return { ...counts, fields: { ...counts.fields, aligned: this.#aligned } };
   }
 }

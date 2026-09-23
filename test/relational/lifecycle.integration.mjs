@@ -13,13 +13,8 @@ import { findModelCollection } from '../../src/data-model/collections.js';
 import { derivedDataFlowId } from '../../src/derived-data-flow.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { toApiField } from '../../src/directus.js';
-import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.js';
-import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
-import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
-import { publicationFlows } from '../../src/flows/prepare-public-assets.js';
-import { automaticProcessingFlows } from '../../src/flows/process-pending.js';
-import { snapshotImportFlows } from '../../src/flows/snapshot-import.js';
+import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
 import { exitCodes } from '../../src/lifecycle.js';
@@ -28,7 +23,7 @@ import { runMigrationCli } from '../../src/migrations/run.js';
 import { collectionSpecs } from '../../src/model.js';
 import { publicAssetsFlowId } from '../../src/public-assets-flow.js';
 import { runSetup } from '../../src/setup.js';
-import { countMigrationData, loadMigrationData } from '../../src/workbook.js';
+import { countMigrationData, loadWorkbook } from '../../src/workbook.js';
 import {
   lifecycleDataset,
   syntheticWorkbook,
@@ -58,14 +53,8 @@ const stepNames = [
   'equivalencies',
 ];
 const checkpointFlowIds = [derivedDataFlowId, publicAssetsFlowId];
-const setupFlows = [
-  ...historyIndexFlows,
-  ...snapshotImportFlows,
-  ...mappedEnrollmentFlows,
-  ...legacyEnrollmentFlows,
-  ...publicationFlows,
-  ...automaticProcessingFlows,
-];
+// Every Flow setup installs: the registered families, in install order.
+const setupFlows = flowTemplates();
 const templateFlowIds = new Set([
   ...checkpointFlowIds,
   ...setupFlows.map(({ id }) => id),
@@ -513,10 +502,16 @@ const setupPreservesStudioEdits = async (target, directus) => {
   const before = await studioSnapshot(target);
   const recorder = recording(directus);
   const summary = await runSetup(recorder.request);
-  assert.deepEqual(summary.flows, {
-    created: [],
-    skipped: setupFlows.map(({ name }) => name),
-  });
+  const { created, families, skipped } = summary.flows;
+  assert.deepEqual(
+    { created, skipped },
+    { created: [], skipped: setupFlows.map(({ name }) => name) },
+  );
+  assert.deepEqual(
+    families.map(({ code, created: none }) => [code, none]),
+    flowFamilies.map(({ code }) => [code, []]),
+  );
+  assert.equal(summary.fields.aligned, 0);
   assert.deepEqual(summary.presets, { created: 0, skipped: 14 });
   assert.ok(
     recorder
@@ -754,9 +749,10 @@ test('separates fresh setup, the one-time workbook import and populated upgrades
         index === 1 ? { ...row, active: 'maybe' } : row,
       ),
     }).xlsx.writeFile(files.malformed);
+    const { data } = await loadWorkbook(files.workbook);
     const context = {
       ...files,
-      data: await loadMigrationData(files.workbook),
+      data,
       directory,
       runs,
     };

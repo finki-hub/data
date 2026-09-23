@@ -12,6 +12,7 @@ import {
   type ExistingState,
 } from './directus-schema.js';
 import { expectedColumnType } from './fields.js';
+import { realignedChoices } from './plan-choices.js';
 import { planRelation } from './plan-relations.js';
 import { aliasesFor, relationsOf } from './relations.js';
 
@@ -85,13 +86,42 @@ const missingFlags = (
   };
 };
 
+type ColumnTarget = {
+  readonly existing: ExistingField | undefined;
+  readonly field: ModelField;
+  readonly singleton: boolean;
+  readonly sort: number;
+};
+
+// An installed enum field whose code-owned choices or rule drifted from the
+// declaration is realigned; whether a live value falls outside the new set
+// is checked before anything is written (install.ts).
+const planChoices = (
+  collection: string,
+  { existing, field, singleton }: ColumnTarget,
+  context: PlanContext,
+): boolean => {
+  const live = existing?.meta ?? null;
+  if (field.kind !== 'enum' || live === null) {
+    return false;
+  }
+  const meta = realignedChoices(field, live);
+  if (meta === null) {
+    return false;
+  }
+  context.actions.fields.push({
+    collection,
+    field,
+    kind: 'realign-choices',
+    meta,
+    singleton,
+  });
+  return true;
+};
+
 const planColumn = (
   collection: string,
-  target: {
-    readonly existing: ExistingField | undefined;
-    readonly field: ModelField;
-    readonly sort: number;
-  },
+  target: ColumnTarget,
   context: PlanContext,
 ): void => {
   const { existing, field, sort } = target;
@@ -132,10 +162,14 @@ const planColumn = (
       schema: flags,
     });
   }
-  context.tally.add(
-    'fields',
-    existing.meta === null || flags !== null ? 'adopted' : 'skipped',
-  );
+  const realigned = planChoices(collection, target, context);
+  if (existing.meta === null || flags !== null) {
+    context.tally.add('fields', 'adopted');
+  } else if (realigned) {
+    context.tally.align();
+  } else {
+    context.tally.add('fields', 'skipped');
+  }
 };
 
 const planAliases = (
@@ -184,7 +218,12 @@ export const planExistingCollection = (
   for (const [index, field] of collection.fields.entries()) {
     planColumn(
       name,
-      { existing: byName.get(field.field), field, sort: index + 1 },
+      {
+        existing: byName.get(field.field),
+        field,
+        singleton: collection.singleton,
+        sort: index + 1,
+      },
       context,
     );
   }

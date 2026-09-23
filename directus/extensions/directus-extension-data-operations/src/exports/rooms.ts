@@ -3,7 +3,6 @@ import { defaultMaxBytes, type ExportDefinition } from './types.js';
 // rooms.json: one row per room in id order with the seven public room
 // fields; a floor or capacity of 0 is kept, an empty text is omitted.
 export const rooms: ExportDefinition = {
-  checks: [],
   fields: [
     { key: 'name', rule: 'text', value: 'name' },
     { key: 'type', rule: 'text', value: 'type' },

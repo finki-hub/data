@@ -1,18 +1,17 @@
-import type { DirectusRequest } from '../directus-request.js';
-
 import {
   condition,
   coordinateOperation,
+  flowFamilyCodes,
   type FlowTemplate,
   historyId,
-  operation,
 } from './flow-template.js';
-import { historyFlowIds, pageFlow, runFlow } from './history-page-flows.js';
-import { describeFailureScript } from './history-script.js';
 import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './install-flows.js';
+  historyFlowIds,
+  pageFlow,
+  runFlow,
+  historyStep as step,
+} from './history-page-flows.js';
+import { describeFailureScript } from './history-script.js';
 import {
   failStepId,
   type ReleaseBranch,
@@ -23,7 +22,11 @@ const claimToken = '{{ $trigger.claim }}';
 
 const branch = (
   spec: Omit<ReleaseBranch, 'family' | 'token'>,
-): ReleaseBranch => ({ ...spec, family: '09', token: claimToken });
+): ReleaseBranch => ({
+  ...spec,
+  family: flowFamilyCodes.history,
+  token: claimToken,
+});
 
 // Every way the refresh can fail: the page run itself (the Trigger Flow
 // step rejected), a page that failed (the described summary), the
@@ -77,7 +80,7 @@ export const refreshFlow: FlowTemplate = {
     // The Trigger Flow step never rejects for a failed child (an unknown
     // child answers null, a failed page a record), so the condition after
     // it is where a failed run is detected.
-    operation({
+    step({
       edges: { reject: failStepId(crashed), resolve: historyId('52') },
       key: 'index',
       name: 'Index every history page',
@@ -92,13 +95,14 @@ export const refreshFlow: FlowTemplate = {
     }),
     condition({
       edges: { reject: historyId('53'), resolve: historyId('5c') },
+      family: flowFamilyCodes.history,
       filter: { index: { ok: { _eq: true } } },
       key: 'index_ok',
       name: 'Every page indexed?',
       position: [37, 1],
       suffix: '52',
     }),
-    operation({
+    step({
       edges: { reject: failStepId(undescribed), resolve: failStepId(failed) },
       key: 'describe',
       name: 'Describe the first failure',
@@ -107,7 +111,7 @@ export const refreshFlow: FlowTemplate = {
       suffix: '53',
       type: 'exec',
     }),
-    operation({
+    step({
       edges: { reject: failStepId(refused), resolve: historyId('5d') },
       key: 'complete',
       name: 'Complete the claim',
@@ -116,7 +120,7 @@ export const refreshFlow: FlowTemplate = {
       suffix: '5c',
       type: coordinateOperation,
     }),
-    operation({
+    step({
       key: 'answer',
       name: 'Answer the refreshed index',
       options: {
@@ -147,10 +151,3 @@ export const historyIndexFlows: readonly FlowTemplate[] = [
   runFlow,
   refreshFlow,
 ];
-
-// Installs the history index Flows once each; a Flow whose id exists keeps
-// every Studio edit (see installFlowTemplates).
-export const installHistoryIndexFlows = (
-  request: DirectusRequest,
-): Promise<FlowInstallSummary> =>
-  installFlowTemplates(request, historyIndexFlows);

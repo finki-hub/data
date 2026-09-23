@@ -3,6 +3,7 @@ import type { Inventory } from './inventory.js';
 import { findModelCollection } from '../data-model/collections.js';
 import { legacyOperationTypes } from '../legacy-flows.js';
 import { type CollectionKey, collectionKeys } from '../schema.js';
+import { academicYears as checkpointYears } from '../specs/public.js';
 import { isBlocker, sortFindings } from './findings.js';
 import { fingerprintInventory } from './fingerprint.js';
 import { finding, listIds, quote } from './labels.js';
@@ -144,15 +145,37 @@ const targetCounts = (
         curriculum_entries: targets.curriculum_entries.length,
       };
 
+// The academic years a populated project converts, newest first: every
+// year its checkpoint counts and every academic_years row it holds. The
+// one-time import seeds its workbook's years before converting, so
+// `npm run migrate`, finishing a blocked or interrupted import, converts
+// exactly the years the import would have; a year added in Studio since is
+// converted like them. Labels such as 2025/2026 order chronologically.
+export const projectYears = (targets: Inventory['targets']): string[] =>
+  [
+    ...new Set([
+      ...checkpointYears,
+      ...(targets?.academic_years ?? []).flatMap(({ label }) =>
+        label === null ? [] : [label],
+      ),
+    ]),
+  ].toSorted((left, right) => Number(left < right) - Number(left > right));
+
 // Pure: inspects an inventory and reports every candidate decision, blocker,
-// warning and planned mapping without touching the network.
+// warning and planned mapping without touching the network. The academic
+// years to seed, newest first, are the workbook's for the one-time import
+// and, for a populated project, the years it holds (projectYears).
 export const preflight = (
   inventory: Inventory,
   ledger: LedgerSummary | null,
+  academicYears: readonly string[] = projectYears(inventory.targets),
 ): MigrationReport => {
   const indexes = buildIndexes(inventory.checkpoint);
-  const courses = courseCandidates(inventory.checkpoint, indexes);
-  const rows = rowCandidates(inventory.checkpoint, indexes);
+  const courses = courseCandidates(inventory.checkpoint, {
+    academicYears,
+    indexes,
+  });
+  const rows = rowCandidates(inventory.checkpoint, indexes, academicYears);
   const flows = flowSummaries(inventory);
   const findings = sortFindings([
     ...courses.findings,
@@ -165,6 +188,7 @@ export const preflight = (
   const blockers = findings.filter(({ code }) => isBlocker(code));
   const { checkpoint } = inventory;
   return {
+    academicYears,
     blockers,
     candidates: { courses: courses.candidates, ...rows.candidates },
     counts: {
@@ -190,7 +214,11 @@ export const preflight = (
     fields: inventory.fields,
     flows: flows.flows,
     ledger,
-    mappings: buildMappings(inventory, courses.candidates, rows.candidates),
+    mappings: buildMappings(inventory, {
+      academicYears,
+      courses: courses.candidates,
+      rows: rows.candidates,
+    }),
     migratable: blockers.length === 0,
     sourceFingerprint: fingerprintInventory(inventory),
     targets: targetCounts(inventory.targets),

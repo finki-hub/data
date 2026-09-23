@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
-import type {
-  ExportDefinition,
-  FieldEntry,
-  Row,
-  RowContext,
-  SourceRead,
-} from './types.js';
+import type { ExportDefinition, Row, RowContext, SourceRead } from './types.js';
 
 import { exportError } from './errors.js';
-import { idOf, isAbsent, pathValue, publicForm } from './values.js';
+import {
+  type KeyRows,
+  keySourcesOf,
+  type ResolvedField,
+  resolveFields,
+} from './field-map.js';
+import { keySources } from './key-sources.js';
+import { idOf, isAbsent, publicForm } from './values.js';
 
 // The generic export engine: it reads the sources of every definition,
 // serializes each file with its field map and value rules and validates
@@ -18,6 +19,8 @@ import { idOf, isAbsent, pathValue, publicForm } from './values.js';
 // validation are pure; only the reader touches Directus.
 
 export type FileSources = {
+  // The rows of each key source the definition places.
+  readonly keyRows: KeyRows;
   readonly related: Readonly<Record<string, readonly Row[]>>;
   readonly rows: readonly Row[];
 };
@@ -79,19 +82,14 @@ const grouped = (
     ]),
   );
 
-const fieldValue = (entry: FieldEntry, context: RowContext): unknown =>
-  typeof entry.value === 'string'
-    ? pathValue(context.row, entry.value)
-    : entry.value(context);
-
 const publicRow = (
   definition: ExportDefinition,
-  id: number,
-  context: RowContext,
+  fields: readonly ResolvedField[],
+  { context, id }: { readonly context: RowContext; readonly id: number },
 ): PublicRow => {
   const output: Record<string, string> = {};
-  for (const entry of definition.fields) {
-    const value = fieldValue(entry, context);
+  for (const entry of fields) {
+    const value = entry.value(context);
     if (isAbsent(value)) {
       continue;
     }
@@ -108,24 +106,36 @@ const publicRow = (
 };
 
 // One public file from its sources: a row per main row in id order, each
-// with the declared keys only, in declaration order.
+// with the declared keys only (keyed entries expanded by their key
+// sources), in declaration order.
 export const serializeFile = (
   definition: ExportDefinition,
   sources: FileSources,
 ): PublicRow[] => {
+  const fields = resolveFields(definition, sources.keyRows);
   const groups = grouped(definition, sources.related);
   return ordered(definition, sources.rows).map(({ id, row }) =>
-    publicRow(definition, id, {
-      related: Object.fromEntries(
-        Object.keys(definition.related).map((key) => [
-          key,
-          groups.get(key)?.get(id) ?? [],
-        ]),
-      ),
-      row,
+    publicRow(definition, fields, {
+      context: {
+        related: Object.fromEntries(
+          Object.keys(definition.related).map((key) => [
+            key,
+            groups.get(key)?.get(id) ?? [],
+          ]),
+        ),
+        row,
+      },
+      id,
     }),
   );
 };
+
+// The keys a file may carry for these sources, in output order.
+export const fileKeys = (
+  definition: ExportDefinition,
+  sources: Pick<FileSources, 'keyRows'>,
+): readonly string[] =>
+  resolveFields(definition, sources.keyRows).map(({ key }) => key);
 
 const payloadSchema = z.array(z.record(z.string(), z.string().min(1)));
 
@@ -142,10 +152,9 @@ const refusePayload = (
 // Every key of a row is declared, once and in declaration order.
 const checkKeys = (
   definition: ExportDefinition,
-  row: PublicRow,
-  index: number,
+  declared: readonly string[],
+  { index, row }: { readonly index: number; readonly row: PublicRow },
 ): void => {
-  const declared = definition.fields.map(({ key }) => key);
   let position = -1;
   for (const key of Object.keys(row)) {
     const next = declared.indexOf(key);
@@ -162,6 +171,12 @@ const checkKeys = (
   }
 };
 
+// What a payload must hold: a row per read row, and the keys the
+// definition resolved to for its sources (fileKeys). A bare row count
+// stands for a definition without key sources.
+export type FileShape =
+  number | { readonly keys: readonly string[]; readonly rows: number };
+
 // Validates a payload against its definition, independently of how it was
 // built: an array of one object per read row, every key declared by the
 // definition and in its order, every value non-empty text, and the compact
@@ -169,8 +184,12 @@ const checkKeys = (
 export const validateFile = (
   definition: ExportDefinition,
   payload: unknown,
-  expectedRows: number,
+  shape: FileShape,
 ): PreparedFile => {
+  const { keys, rows: expectedRows } =
+    typeof shape === 'number'
+      ? { keys: fileKeys(definition, { keyRows: {} }), rows: shape }
+      : shape;
   const parsed = payloadSchema.safeParse(payload);
   if (!parsed.success) {
     return refusePayload(definition, 'is not a list of rows of text values');
@@ -182,7 +201,7 @@ export const validateFile = (
     );
   }
   for (const [index, row] of parsed.data.entries()) {
-    checkKeys(definition, row, index);
+    checkKeys(definition, keys, { index, row });
   }
   const body = JSON.stringify(parsed.data);
   const bytes = Buffer.byteLength(body, 'utf8');
@@ -201,32 +220,21 @@ export const validateFile = (
   };
 };
 
-// Answers each distinct read once per run, whichever definition or check
-// asks for it.
-export const sharedReader = (reader: SourceReader): SourceReader => {
-  const answers = new Map<string, Promise<readonly unknown[]>>();
-  return (read) => {
-    const key = JSON.stringify(read);
-    const known = answers.get(key);
-    if (known !== undefined) {
-      return known;
-    }
-    const answer = reader(read);
-    answers.set(key, answer);
-    return answer;
-  };
-};
-
-// The sources of one definition through the reader.
+// The sources of one definition through the reader: its key sources
+// first, then its rows and related rows.
 export const readFileSources = async (
   definition: ExportDefinition,
   reader: SourceReader,
 ): Promise<FileSources> => {
   const label = (key: string) => `${definition.filename} read ${key}`;
+  const keyRows: Partial<Record<keyof typeof keySources, readonly Row[]>> = {};
+  for (const name of keySourcesOf(definition)) {
+    keyRows[name] = rowsOf(label(name), await reader(keySources[name]));
+  }
   const rows = rowsOf(label('rows'), await reader(definition.rows));
   const related: Record<string, readonly Row[]> = {};
   for (const [key, read] of Object.entries(definition.related)) {
     related[key] = rowsOf(label(key), await reader(read));
   }
-  return { related, rows };
+  return { keyRows, related, rows };
 };

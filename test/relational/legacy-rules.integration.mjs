@@ -8,18 +8,11 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
-import {
-  installLegacyEnrollmentFlows,
-  legacyEnrollmentFlows,
-} from '../../src/flows/count-legacy-enrollments.js';
-import {
-  installMappedEnrollmentFlows,
-  mappedEnrollmentFlows,
-} from '../../src/flows/count-mapped-enrollments.js';
-import {
-  historyIndexFlows,
-  installHistoryIndexFlows,
-} from '../../src/flows/index-histories.js';
+import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.js';
+import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
+import { flowFamilyCodes } from '../../src/flows/flow-template.js';
+import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { installFlowFamily } from '../../src/flows/registry.js';
 import {
   legacyEnrollmentFlowIds,
   mappedEnrollmentFlowIds,
@@ -77,6 +70,9 @@ import {
   installDriverFlow,
   removeAll,
 } from './mapped-enrollments-helpers.mjs';
+
+// The Flows a family install created and skipped.
+const flowLists = ({ created, skipped }) => ({ created, skipped });
 
 const collator = new Intl.Collator('en');
 const byKey = (left, right) => collator.compare(left.key, right.key);
@@ -141,17 +137,20 @@ const installsFlows = async (target, directus, state) => {
   ]
     .map(({ id }) => id)
     .filter((id) => !present.has(id));
-  await installHistoryIndexFlows(directus);
-  await installMappedEnrollmentFlows(directus);
-  const first = await installLegacyEnrollmentFlows(directus);
+  await installFlowFamily(directus, flowFamilyCodes.history);
+  await installFlowFamily(directus, flowFamilyCodes.mapped);
+  const first = await installFlowFamily(directus, flowFamilyCodes.legacy);
   assert.equal(
     first.created.length + first.skipped.length,
     legacyEnrollmentFlows.length,
   );
-  assert.deepEqual(await installLegacyEnrollmentFlows(directus), {
-    created: [],
-    skipped: legacyEnrollmentFlows.map(({ name }) => name),
-  });
+  assert.deepEqual(
+    flowLists(await installFlowFamily(directus, flowFamilyCodes.legacy)),
+    {
+      created: [],
+      skipped: legacyEnrollmentFlows.map(({ name }) => name),
+    },
+  );
   for (const flow of [...mappedEnrollmentFlows, ...legacyEnrollmentFlows]) {
     const live = await get(
       target,

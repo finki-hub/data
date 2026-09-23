@@ -199,6 +199,8 @@ export const ledgerSummarySchema = z.object({
 export type LedgerSummary = z.infer<typeof ledgerSummarySchema>;
 
 export const migrationReportSchema = z.object({
+  // The academic years the conversion seeds, newest first.
+  academicYears: z.array(z.string()).readonly(),
   blockers: z.array(findingSchema).readonly(),
   candidates: candidatesSchema,
   counts: z.object({

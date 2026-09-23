@@ -1,34 +1,28 @@
-import type { DirectusRequest } from '../directus-request.js';
-
 import {
   condition,
+  familyStep,
+  flowFamilyCodes,
   type FlowTemplate,
-  operation,
-  type OperationSpec,
   raise,
   snapshotId,
 } from './flow-template.js';
-import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './install-flows.js';
 
-const family = '10';
+const family = flowFamilyCodes.snapshot;
 export const snapshotImportOperation = 'finki-hub-snapshot-import';
 export const snapshotPromoteOperation = 'finki-hub-snapshot-promote';
 export const snapshotFlowId = snapshotId('01');
 
-type Step = Omit<OperationSpec, 'family'>;
+const step = familyStep(family);
 
-const step = (spec: Step) => operation({ ...spec, family });
-
-const check = (spec: Parameters<typeof condition>[0]) =>
+const check = (spec: Omit<Parameters<typeof condition>[0], 'family'>) =>
   condition({ ...spec, family });
 
 // A failure branch that answers the refusal of the operation it follows
 // with that operation's own code, status and bounded message.
 const relay = (
-  spec: Omit<Parameters<typeof raise>[0], 'error'> & { readonly from: string },
+  spec: Omit<Parameters<typeof raise>[0], 'error' | 'family'> & {
+    readonly from: string;
+  },
 ) => {
   const { from, ...rest } = spec;
   return raise({
@@ -220,10 +214,3 @@ export const snapshotImportFlow: FlowTemplate = {
 export const snapshotImportFlows: readonly FlowTemplate[] = [
   snapshotImportFlow,
 ];
-
-// Installs the snapshot import Flow once; a Flow whose id exists keeps
-// every Studio edit (see installFlowTemplates).
-export const installSnapshotImportFlows = (
-  request: DirectusRequest,
-): Promise<FlowInstallSummary> =>
-  installFlowTemplates(request, snapshotImportFlows);

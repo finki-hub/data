@@ -62,12 +62,15 @@ const curricula: Run = async (context, { inventory, options, report }) => {
   return [...entries.mappings, ...links.mappings];
 };
 
-// The fifteen academic years, then one legacy_regex rule per course and
-// year.
+// The academic years of the preflight (the workbook's for the one-time
+// import), then one legacy_regex rule per course and year.
 const rules: Run = async (context, { options, report }) => {
   const years = await applyCreates(context, options, {
     collection: 'academic_years',
-    conversion: convertAcademicYears(await readYearIds(context.request)),
+    conversion: convertAcademicYears(
+      report.academicYears,
+      await readYearIds(context.request),
+    ),
     key: ['label'],
   });
   const yearIds = await readYearIds(context.request);

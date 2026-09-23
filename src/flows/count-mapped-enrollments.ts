@@ -1,14 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { DirectusRequest } from '../directus-request.js';
-
 import { mappedPageFlow } from './count-mapped-enrollment-page.js';
 import { coordinateOperation, type FlowTemplate } from './flow-template.js';
-import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './install-flows.js';
 import {
   countFailure,
   enrollmentId,
@@ -138,10 +132,3 @@ export const mappedEnrollmentFlows: readonly FlowTemplate[] = [
   mappedPairFlow,
   mappedPageFlow,
 ];
-
-// Installs the mapped enrollment Flows once each; a Flow whose id exists
-// keeps every Studio edit (see installFlowTemplates).
-export const installMappedEnrollmentFlows = (
-  request: DirectusRequest,
-): Promise<FlowInstallSummary> =>
-  installFlowTemplates(request, mappedEnrollmentFlows);

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { readinessRegistry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import curriculumEntries from '../../../directus/presets/curriculum-entries.json' with { type: 'json' };
 import { findModelCollection } from '../collections.js';
 
@@ -54,34 +55,44 @@ const defaultView = (
   user: null,
 });
 
-// The shared "Needs mapping" bookmark: every history entry the index run
-// created that nobody has mapped or ignored yet.
-export const needsMappingBookmark: PresetDefinition = {
-  bookmark: 'Needs mapping',
-  collection: 'moodle_course_entries',
-  filter: { review_state: { _eq: 'needs_mapping' } },
-  icon: 'alt_route',
-  layout: 'tabular',
-  layout_options: { tabular: { spacing: 'comfortable' } },
-  layout_query: {
-    tabular: {
-      fields: ['label', 'review_reason'],
-      limit: 50,
-      page: 1,
-      sort: ['label'],
-    },
-  },
-  role: null,
-  search: null,
-  user: null,
-};
+// The shared Needs review bookmarks: one per readiness-registry entry
+// that declares a review view, on the collection whose records it counts
+// (today "Needs mapping": every history entry the index run created that
+// nobody has mapped or ignored yet). A check that declares a view gets its
+// bookmark from setup; nothing here names a check.
+export const reviewBookmarks: readonly PresetDefinition[] =
+  readinessRegistry.flatMap(({ page, review }) =>
+    review === undefined
+      ? []
+      : [
+          presetSchema.parse({
+            bookmark: review.bookmark,
+            collection: page,
+            filter: review.filter,
+            icon: review.icon ?? findModelCollection(page)?.icon ?? 'rule',
+            layout: 'tabular',
+            layout_options: { tabular: { spacing: 'comfortable' } },
+            layout_query: {
+              tabular: {
+                fields: [...review.fields],
+                limit: 50,
+                page: 1,
+                sort: [...review.sort],
+              },
+            },
+            role: null,
+            search: null,
+            user: null,
+          }),
+        ],
+  );
 
 // Default table views for the relational collections and for the checkpoint
 // collections that gained relations. A populated deployment keeps the views
 // its importer created; these only fill the gaps.
 export const presetDefinitions: readonly PresetDefinition[] = [
   ...curriculumBookmarks,
-  needsMappingBookmark,
+  ...reviewBookmarks,
   defaultView(
     'courses',
     [
@@ -104,7 +115,8 @@ export const presetDefinitions: readonly PresetDefinition[] = [
     ['course', 'generation', 'entry', 'credits', 'available'],
     ['course', 'generation'],
   ),
-  defaultView('academic_years', ['label', 'sort'], ['sort']),
+  // Newest first, as courses.json lists the published years.
+  defaultView('academic_years', ['label', 'published', 'sort'], ['-sort']),
   defaultView(
     'teaching_assignments',
     ['course', 'role', 'staff', 'display_override'],
