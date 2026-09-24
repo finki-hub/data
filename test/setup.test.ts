@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
+import { guardedDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
+import { writeGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/coordination/write-guards.js';
 import {
   executeMigration,
   isAdminRequest,
@@ -200,22 +202,24 @@ describe('schema constraints', () => {
 
     expect(count).toBe(schemaConstraints.statements.length);
     expect(executed).toEqual([...schemaConstraints.statements]);
-    // Twelve keys, indexes and generation guards, then the membership
-    // write guard and the snapshot staging write guard (each a function
-    // and its statement trigger).
-    expect(count).toBe(16);
-    expect(executed.slice(12)).toEqual([
-      expect.stringContaining(
-        'CREATE OR REPLACE FUNCTION "finki_hub_history_membership_guard"()',
-      ),
-      'CREATE OR REPLACE TRIGGER "moodle_history_memberships_write_guard" BEFORE INSERT OR UPDATE OR DELETE ON "moodle_history_memberships" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_history_membership_guard"()',
-      expect.stringContaining(
-        'CREATE OR REPLACE FUNCTION "finki_hub_snapshot_staging_guard"()',
-      ),
-      'CREATE OR REPLACE TRIGGER "moodle_import_rows_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_import_rows" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_snapshot_staging_guard"()',
-    ]);
+    // Twelve keys, indexes and generation guards, then the write guards
+    // of the collection-role registry: one shared function and a statement
+    // trigger per derived, candidate and staging table.
+    expect(count).toBe(12 + writeGuardStatements().length);
+    expect(executed.slice(12)).toEqual([...writeGuardStatements()]);
+
+    const guardTriggers = executed.slice(13);
+
+    expect(guardTriggers).toHaveLength(guardedDeclarations.length);
+
+    for (const [index, { collection }] of guardedDeclarations.entries()) {
+      expect(guardTriggers[index]).toContain(
+        `CREATE OR REPLACE TRIGGER "${collection}_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "${collection}"`,
+      );
+    }
+
     expect(executed[12]).toContain(
-      "pg_trigger_depth() < 2 AND current_setting('finki_hub.history_writer', true) IS DISTINCT FROM 'on'",
+      "pg_trigger_depth() < 2 AND current_setting(TG_ARGV[0], true) IS DISTINCT FROM 'on'",
     );
   });
 });

@@ -2,18 +2,27 @@ import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
 import type { DirectusRequest } from '../src/directus-request.js';
+import type { ModelCollectionKey } from '../src/schema.js';
 
+import {
+  collectionDeclarations,
+  collectionRoleNames,
+  isSource,
+  type RegisteredCollection,
+  sourceDeclarations,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import {
   calculationDomains,
   domainDeclarations,
+  normaliseDomains,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
-import { sourceTableDomains } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import { statusAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/status.js';
 import { dataModelCollectionKeys } from '../src/data-model/collections.js';
 import { derivedDataFlowId } from '../src/derived-data-flow.js';
 import { importWorkbook } from '../src/directus.js';
 import {
   editorForbiddenGrants,
+  forbiddenByRole,
   forbiddenGrantsIn,
   readSnapshotReadiness,
   snapshotReadiness,
@@ -72,46 +81,54 @@ const marks = (
   return fake.data.dirtyDomains;
 };
 
+// True when the fake's statement triggers refuse a write to the table,
+// as they do for every table that is no registered source.
+const refused = (table: string): boolean => {
+  try {
+    marks(table, 'insert');
+    return false;
+  } catch {
+    return true;
+  }
+};
+
+// Compile-time proof that the registry names exactly the model collections.
+type Same<Left, Right> = [Left] extends [Right]
+  ? [Right] extends [Left]
+    ? true
+    : false
+  : false;
+const registryIsTheModel: Same<RegisteredCollection, ModelCollectionKey> = true;
+
 describe('source invalidation of the completed source model', () => {
-  test('marks the right domains for every editable source table', () => {
-    const expected: Readonly<Record<string, readonly string[]>> = {
-      academic_years: [enrollments, publication],
-      course_curricula: [publication],
-      course_enrollment_patterns: [publication],
-      course_enrollment_rules: [enrollments, publication],
-      course_equivalencies: [publication],
-      courses: [publication],
-      curriculum_2018: [publication],
-      curriculum_2023: [publication],
-      curriculum_entries: [publication],
-      deans_office: [publication],
-      discord_channels: [publication],
-      moodle_course_entries: [enrollments, publication],
-      moodle_course_mappings: [enrollments, publication],
-      moodle_users: [history, enrollments, publication],
-      rooms: [publication],
-      staff: [publication],
-      student_council: [publication],
-      students: [publication],
-      teaching_assignments: [publication],
-    };
-
-    expect(sourceTableDomains).toEqual(expected);
-
-    // Every model collection is a source table or a derived, staging,
-    // status or migration collection that must never mark anything.
-    const unmarked = dataModelCollectionKeys.filter(
-      (collection) => !Object.hasOwn(expected, collection),
+  test('declares exactly one role for every model collection', () => {
+    const registered = collectionDeclarations.map(
+      ({ collection }) => collection,
     );
 
-    expect(unmarked.toSorted(byText)).toEqual([
-      'course_enrollments',
-      'data_operation_results',
-      'data_operations',
-      'migration_ledger',
-      'moodle_history_memberships',
-      'moodle_import_rows',
-    ]);
+    expect(registryIsTheModel).toBeTruthy();
+    expect(new Set(registered).size).toBe(registered.length);
+    expect(registered.toSorted(byText)).toEqual(
+      dataModelCollectionKeys.toSorted(byText),
+    );
+    expect(
+      [...new Set(collectionDeclarations.map(({ role }) => role))].toSorted(
+        byText,
+      ),
+    ).toEqual([...collectionRoleNames].toSorted(byText));
+  });
+
+  test('marks the declared domains for a statement on every source and refuses any other table', () => {
+    for (const { collection, invalidates } of sourceDeclarations) {
+      expect(marks(collection, 'insert')).toEqual(
+        normaliseDomains(invalidates),
+      );
+    }
+    for (const declaration of collectionDeclarations) {
+      const guarded = isSource(declaration) || refused(declaration.collection);
+
+      expect(guarded).toBeTruthy();
+    }
   });
 
   test('covers the old and the new pair of a moved or deleted mapping or rule by marking the whole domain', () => {
@@ -225,20 +242,35 @@ describe('checkpoint Flows of an old deployment (follow-ups 26 and 27)', () => {
 
 describe('the editor policy template and the snapshot readiness check', () => {
   test('forbids the native snapshot shortcut and every derived write, and nothing an editor needs', () => {
+    const withheld = collectionDeclarations.flatMap((declaration) =>
+      isSource(declaration) ? [] : [declaration],
+    );
+
+    // Every collection that is no source is withheld by its role; the
+    // snapshot-owned Moodle users, the Flows and the access tables stay
+    // literal rows of the deny-list.
     expect(editorForbiddenGrants.map(({ collection }) => collection)).toEqual([
       'moodle_users',
-      'moodle_import_rows',
-      'moodle_history_memberships',
-      'course_enrollments',
-      'data_operation_results',
-      'data_operations',
-      'migration_ledger',
+      ...withheld.map(({ collection }) => collection),
       'directus_flows',
       'directus_operations',
       'directus_permissions',
       'directus_policies',
       'directus_access',
     ]);
+
+    for (const { collection, role } of withheld) {
+      expect(
+        editorForbiddenGrants.find((grant) => grant.collection === collection)
+          ?.actions,
+      ).toEqual(forbiddenByRole[role]);
+    }
+    for (const { collection, editorWrites } of sourceDeclarations) {
+      expect(
+        forbiddenGrantsIn([{ action: 'update', collection }]).length > 0,
+      ).toBe(editorWrites === false);
+    }
+
     expect(
       forbiddenGrantsIn([
         { action: 'read', collection: 'moodle_users' },

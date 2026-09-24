@@ -2,6 +2,14 @@ import { z } from 'zod';
 
 import type { DirectusRequest } from './directus-request.js';
 
+import {
+  type BookkeepingDeclaration,
+  collectionDeclarations,
+  type CollectionRole,
+  type GuardedDeclaration,
+  isGuarded,
+  isSource,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import { readinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 
 export type PermissionAction = 'create' | 'delete' | 'read' | 'update';
@@ -26,14 +34,55 @@ export type ForbiddenGrant = {
 // snapshot import: the native Import / Export sidebar needs create and
 // update on the collection, so withholding them hides that shortcut, and a
 // hand edit of a history would be overwritten by the next snapshot anyway.
-// Derived and staging rows are written by the coordinator alone. The
-// managed Flows run with $full and, on the schedule, without any
-// accountability, so writing a Flow or an operation (or a permission,
-// policy or its assignment) would lift every rule above.
+// Every collection that is no source is withheld by its role in the
+// collection-role registry: derived rows and the migration ledger are
+// read-only, candidate, staging and status rows are private. The managed
+// Flows run with $full and, on the schedule, without any accountability,
+// so writing a Flow or an operation (or a permission, policy or its
+// assignment) would lift every rule above.
 const flowsReason =
   'The managed Flows read and write with $full, the schedule without accountability: editing them grants full data access and changes the calculation fingerprint.';
 const accessReason =
   'Permissions, policies and their assignments decide every grant this template withholds.';
+
+// What each role withholds from an editor.
+export const forbiddenByRole: Readonly<
+  Record<Exclude<CollectionRole, 'source'>, readonly PermissionAction[]>
+> = {
+  candidate: allActions,
+  derived: writes,
+  migration: writes,
+  staging: allActions,
+  status: allActions,
+};
+
+const capitalized = (text: string): string =>
+  `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+
+const roleReason = (
+  declaration: BookkeepingDeclaration | GuardedDeclaration,
+): string => {
+  const what = capitalized(declaration.description);
+  if (isGuarded(declaration)) {
+    return `${what}, written by ${declaration.guard.writtenBy} only.`;
+  }
+  return declaration.role === 'status'
+    ? `${what}; its Flows and status are for administrators.`
+    : `${what}: a completed step is never run again, so a hand edit could skip or repeat a migration.`;
+};
+
+const roleGrants: readonly ForbiddenGrant[] = collectionDeclarations.flatMap(
+  (declaration) =>
+    isSource(declaration)
+      ? []
+      : [
+          {
+            actions: forbiddenByRole[declaration.role],
+            collection: declaration.collection,
+            reason: roleReason(declaration),
+          },
+        ],
+);
 
 export const editorForbiddenGrants: readonly ForbiddenGrant[] = [
   {
@@ -42,38 +91,7 @@ export const editorForbiddenGrants: readonly ForbiddenGrant[] = [
     reason:
       'Snapshots replace Moodle users only through Data / Import Moodle snapshot; the native CSV import alters raw values and replaces nothing atomically.',
   },
-  {
-    actions: allActions,
-    collection: 'moodle_import_rows',
-    reason: 'Private staging of the snapshot import.',
-  },
-  {
-    actions: writes,
-    collection: 'moodle_history_memberships',
-    reason: 'Derived index, written by the history index run only.',
-  },
-  {
-    actions: writes,
-    collection: 'course_enrollments',
-    reason: 'Derived counts, installed by the enrollment claim only.',
-  },
-  {
-    actions: allActions,
-    collection: 'data_operation_results',
-    reason: 'Candidate counts of a running claim.',
-  },
-  {
-    actions: allActions,
-    collection: 'data_operations',
-    reason:
-      'The coordination singleton; its Flows and status are for administrators.',
-  },
-  {
-    actions: writes,
-    collection: 'migration_ledger',
-    reason:
-      'Migration bookkeeping: a completed step is never run again, so a hand edit could skip or repeat a migration.',
-  },
+  ...roleGrants,
   { actions: writes, collection: 'directus_flows', reason: flowsReason },
   { actions: writes, collection: 'directus_operations', reason: flowsReason },
   { actions: writes, collection: 'directus_permissions', reason: accessReason },

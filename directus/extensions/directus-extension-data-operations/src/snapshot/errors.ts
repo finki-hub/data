@@ -21,7 +21,6 @@ export const snapshotErrorCodes = {
   PROMOTION_FAILED: 500,
   PROMOTION_RUNNING: 409,
   STAGING_CHANGED: 409,
-  STAGING_GUARDED: 403,
 } as const;
 
 export type SnapshotErrorCode = keyof typeof snapshotErrorCodes;

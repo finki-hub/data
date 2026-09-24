@@ -313,18 +313,30 @@ const recordsSourceStatements = async (target, state) => {
   );
   assert.equal(duplicate.status, 400);
   assert.equal(errorCode(await duplicate.json()), 'RECORD_NOT_UNIQUE');
-  await createItem(target, 'course_enrollments', {
-    academic_year: yearB,
-    computed_at: '2026-09-22T00:00:00Z',
-    computed_revision: 0,
-    count: 42,
-    course: courseB,
-  });
+  // Derived counts are guarded: the REST write is refused before any
+  // statement runs, and derived tables carry no invalidation trigger.
+  const derived = await request(
+    target,
+    '/items/course_enrollments',
+    json(
+      'POST',
+      {
+        academic_year: yearB,
+        computed_at: '2026-09-22T00:00:00Z',
+        computed_revision: 0,
+        count: 42,
+        course: courseB,
+      },
+      target.token,
+    ),
+  );
+  assert.equal(derived.status, 403);
+  assert.equal(errorCode(await derived.json()), 'COORDINATION_WRITE_GUARDED');
   report = await status(target);
   assert.equal(
     report.revisions.source,
     8,
-    'a rejected statement and a derived-table write mark nothing',
+    'a rejected statement and a refused derived-table write mark nothing',
   );
   await patch(target, `/items/courses/${courseB}`, {
     name: 'Synthetic Coordination Course B (renamed)',
@@ -893,12 +905,8 @@ const cleansUp = async (target, state) => {
       'the QA flow is gone',
     );
   }
-  for (const collection of ['course_enrollments', 'data_operation_results']) {
-    const rows = await get(target, `/items/${collection}?fields=id&limit=-1`);
-    for (const row of rows) {
-      await remove(target, `/items/${collection}/${row.id}`);
-    }
-  }
+  // Installed counts and candidates are guarded; they go with their
+  // courses and years (a foreign key cascade passes the guard).
   for (const [collection, id] of state.items) {
     await remove(target, `/items/${collection}/${id}`);
   }

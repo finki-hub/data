@@ -5,6 +5,7 @@ import type {
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/port.js';
 import type { EnrollmentSources } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
 
+import { sourceDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import {
   type CalculationDomain,
   type ClaimDomain,
@@ -23,9 +24,6 @@ import {
 import {
   type OperationsState,
   type PageSource,
-  sourceColumnDomains,
-  sourceTableDeletionDomains,
-  sourceTableDomains,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
   type CountRow,
@@ -172,25 +170,30 @@ export class FakeCoordination {
     return true;
   }
 
-  // What the statement-level triggers do inside a source transaction; a
-  // DELETE or TRUNCATE marks the deletion domains of the table as well,
-  // and an UPDATE naming a watched column (an entry label) its domains.
+  // What the statement-level triggers generated from the collection-role
+  // registry do inside a source transaction; a DELETE or TRUNCATE marks the
+  // deletion domains of the table as well, and an UPDATE naming a refined
+  // column (an entry label) its domains. A table that is no registered
+  // source carries no trigger, so writing it here is a test bug.
   public sourceWrite(
     table: string,
     operation: 'delete' | 'insert' | 'update' = 'insert',
     columns: readonly string[] = [],
   ): void {
-    const watched = sourceColumnDomains[table] ?? {};
-    const domains = [
-      ...(sourceTableDomains[table] ?? []),
-      ...(operation === 'delete'
-        ? (sourceTableDeletionDomains[table] ?? [])
-        : []),
+    const source = sourceDeclarations.find(
+      ({ collection }) => collection === table,
+    );
+    if (source === undefined) {
+      throw new Error(`${table} is no registered source table`);
+    }
+    const refined = source.columns ?? {};
+    this.#mark([
+      ...source.invalidates,
+      ...(operation === 'delete' ? (source.onDelete ?? []) : []),
       ...(operation === 'update'
-        ? columns.flatMap((column) => watched[column] ?? [])
+        ? columns.flatMap((column) => refined[column]?.domains ?? [])
         : []),
-    ];
-    this.#mark(domains);
+    ]);
   }
 
   // What the trigger function and markSql both write: the next source

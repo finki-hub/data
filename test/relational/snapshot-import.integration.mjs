@@ -271,7 +271,7 @@ const refusesDirectAndUnauthorised = async (target, state, t) => {
       method,
     });
     assert.equal(outcome.status, 403, `${method} ${url}`);
-    assert.equal(codeOf(outcome.body), 'SNAPSHOT_STAGING_GUARDED');
+    assert.equal(codeOf(outcome.body), 'COORDINATION_WRITE_GUARDED');
   }
   const form = new FormData();
   form.append(

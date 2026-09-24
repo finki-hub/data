@@ -1,4 +1,5 @@
 import { claimClear } from '../coordination/sql-state.js';
+import { openGuardSql } from '../coordination/write-guards.js';
 import {
   activeTable,
   integerFields,
@@ -64,7 +65,7 @@ WHERE "claim_token" = ? AND "claim_owner" = ? AND "claim_domain" = 'snapshot'
 
 // Transaction-local: admits this transaction past the staging write guard
 // of the schema-constraints migration, and ends with it.
-export const openStagingWriterSql = `SELECT set_config('finki_hub.snapshot_writer', 'on', true)`;
+export const openStagingWriterSql = openGuardSql(stagingTable);
 
 // Bindings: milliseconds.
 export const statementTimeoutSql = `SELECT set_config('statement_timeout', ?, true)`;

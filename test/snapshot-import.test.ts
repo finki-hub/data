@@ -31,7 +31,6 @@ import {
   warningsOf,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/rows.js';
 import { clearStagingSql } from '../directus/extensions/directus-extension-data-operations/src/snapshot/sql.js';
-import { registerStagingGuard } from '../directus/extensions/directus-extension-data-operations/src/staging-guard.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { privateCollectionSpecs } from '../src/specs/private.js';
 import {
@@ -974,27 +973,5 @@ describe('snapshot promotion failures', () => {
     expect(rowsOf(world.data.active)).toEqual([edited, previous[1]]);
     expect(world.data.staging).toHaveLength(1);
     expect(world.data.state.state).toBe('failed');
-  });
-});
-
-describe('staging write guard', () => {
-  test('refuses every item write on the staging table with a readable 403', () => {
-    const handlers = new Map<string, () => never>();
-    registerStagingGuard((event, handler) => handlers.set(event, handler));
-
-    expect(handlers.keys().toArray()).toEqual([
-      'moodle_import_rows.items.create',
-      'moodle_import_rows.items.update',
-      'moodle_import_rows.items.delete',
-    ]);
-
-    for (const handler of handlers.values()) {
-      expect(handler).toThrow(
-        expect.objectContaining({
-          code: 'SNAPSHOT_STAGING_GUARDED',
-          status: 403,
-        }),
-      );
-    }
   });
 });

@@ -31,7 +31,7 @@ import {
   splitHistoryEntries,
   splitHistoryLines,
 } from '../directus/extensions/directus-extension-data-operations/src/history-contract.js';
-import { registerMembershipGuard } from '../directus/extensions/directus-extension-data-operations/src/history-guard.js';
+import { registerWriteGuards } from '../directus/extensions/directus-extension-data-operations/src/write-guard.js';
 import {
   describeFailureScript,
   pagesWithTokenScript,
@@ -812,8 +812,10 @@ describe('index guards', () => {
 describe('derived index guards', () => {
   test('refuse every Directus item write on the memberships with a 403', () => {
     const registered: Array<{ event: string; handler: () => never }> = [];
-    registerMembershipGuard((event, handler) => {
-      registered.push({ event, handler });
+    registerWriteGuards((event, handler) => {
+      if (event.startsWith('moodle_history_memberships.')) {
+        registered.push({ event, handler });
+      }
     });
 
     expect(registered.map(({ event }) => event)).toEqual([
@@ -825,7 +827,7 @@ describe('derived index guards', () => {
     for (const { handler } of registered) {
       expect(() => handler()).toThrow(
         expect.objectContaining({
-          code: 'COORDINATION_DERIVED_INDEX',
+          code: 'COORDINATION_WRITE_GUARDED',
           status: 403,
         }),
       );

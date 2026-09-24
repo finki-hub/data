@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { schemaConstraints } from '../../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import { applySchemaConstraints } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
 import { modelRelations } from '../../src/data-model/relations.js';
 import { targetFrom } from '../search-integration-helpers.mjs';
+import { databaseContainer, psql } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
   assertMarkerPresent,
@@ -28,11 +30,20 @@ const missingUrlPattern = /DIRECTUS_SEARCH_TEST_URL/u;
 const loopbackPattern = /loopback-only/u;
 const migrationsPath = '/finki-hub-data-operations/migrations';
 const courseLinkPath = '/relations/course_curricula/course';
-// Keys, indexes and generation guards (12) plus the membership write guard
-// and the snapshot staging write guard (each a function and its statement
-// trigger).
-const expectedStatements = 16;
+// Keys, indexes and generation guards (12), then the shared write guard
+// function and one statement trigger per guarded table of the
+// collection-role registry.
+const expectedStatements = schemaConstraints.statements.length;
 const longLabel = `Synthetic history entry ${'x'.repeat(300)}`;
+const needsDatabase =
+  databaseContainer === undefined
+    ? 'DIRECTUS_AUTOMATIC_DATABASE_CONTAINER is not set'
+    : false;
+// Read-only catalog reads of the constraints behind the derived counts.
+const enrollmentKeySql =
+  "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'course_enrollments_course_academic_year_unique'";
+const enrollmentCheckSql =
+  "SELECT pg_get_constraintdef(oid), convalidated FROM pg_constraint WHERE conrelid = 'course_enrollments'::regclass AND conname = 'course_enrollments_count_nonnegative'";
 
 const relationState = (body) => ({
   on_delete: body.data.schema?.on_delete ?? null,
@@ -250,6 +261,9 @@ const guardsCurriculumLinks = async (target, state) => {
   state.course = course.data.id;
 };
 
+// Enrollment counts are derived rows: the collection-role registry guards
+// them, so a REST write is refused before the unique key or the count
+// check could answer, and the table stays empty.
 const guardsEnrollmentCounts = async (target, state) => {
   const year = await createItem(target, 'academic_years', {
     label: '2025/2026',
@@ -269,23 +283,49 @@ const guardsEnrollmentCounts = async (target, state) => {
     count: 3,
     course: state.course,
   };
-  await createItem(target, 'course_enrollments', count);
-  assert.equal(
-    await rejectedItem(target, 'course_enrollments', count),
-    'RECORD_NOT_UNIQUE',
-  );
-  assert.equal(
-    await rejectedItem(target, 'course_enrollments', { ...count, count: -1 }),
-    'FAILED_VALIDATION',
-    'a negative count must be rejected as a validation failure',
-  );
+  for (const item of [count, { ...count, count: -1 }]) {
+    const refused = await read(
+      await request(
+        target,
+        '/items/course_enrollments',
+        json('POST', item, target.token),
+      ),
+      403,
+    );
+    assert.equal(errorCode(refused), 'COORDINATION_WRITE_GUARDED');
+  }
   const rows = await read(
     await request(target, '/items/course_enrollments?fields=count', {
       token: target.token,
     }),
     200,
   );
-  assert.deepEqual(rows.data, [{ count: 3 }]);
+  assert.deepEqual(rows.data, []);
+};
+
+// The guard answers every REST write before the unique course-year key or
+// the count check could, so their presence is read instead: the field's
+// validation over REST, the index and the check from the catalog. The
+// completion's install writes through both.
+const keepsEnrollmentValidation = async (target) => {
+  const field = await read(
+    await request(target, '/fields/course_enrollments/count', {
+      token: target.token,
+    }),
+    200,
+  );
+  assert.deepEqual(field.data.meta.validation, { count: { _gte: 0 } });
+};
+
+const keepsEnrollmentConstraints = async () => {
+  assert.deepEqual(await psql(enrollmentKeySql), [
+    [
+      'CREATE UNIQUE INDEX course_enrollments_course_academic_year_unique ON public.course_enrollments USING btree (course, academic_year)',
+    ],
+  ]);
+  assert.deepEqual(await psql(enrollmentCheckSql), [
+    ['CHECK ((count >= 0))', 't'],
+  ]);
 };
 
 const keepsExactHistoryLabels = async (target) => {
@@ -397,9 +437,16 @@ test('installs the relational model idempotently and enforces its domain keys', 
       'rejects mismatched generations and duplicate curriculum links',
       () => guardsCurriculumLinks(target, state),
     );
+    await t.test('refuses direct writes to the derived enrollment counts', () =>
+      guardsEnrollmentCounts(target, state),
+    );
+    await t.test('validates the derived counts as non-negative', () =>
+      keepsEnrollmentValidation(target),
+    );
     await t.test(
-      'rejects duplicate course-year counts and negative counts',
-      () => guardsEnrollmentCounts(target, state),
+      'keeps the course-year key and the count check of the derived counts',
+      { skip: needsDatabase },
+      () => keepsEnrollmentConstraints(),
     );
     await t.test('keeps history entry labels exact, unbounded and unique', () =>
       keepsExactHistoryLabels(target),

@@ -115,6 +115,19 @@ const removeMany = async (target, collection, ids) => {
   );
 };
 
+// Directus records a Flow run once its last operation finished, so the
+// dispatcher's run lands a moment after the status its child wrote (a
+// failure, a completion). Waits briefly for the expected count.
+const dispatcherRuns = async (target, since, expected) => {
+  const started = Date.now();
+  let runs = await runsSince(target, dispatcherFlowId, since);
+  while (runs < expected && Date.now() - started < 10_000) {
+    await sleep(250);
+    runs = await runsSince(target, dispatcherFlowId, since);
+  }
+  return runs;
+};
+
 const failedAfter = (at) => (report) =>
   report.claim === null &&
   report.domains.enrollments.state === 'failed' &&
@@ -143,7 +156,7 @@ const blocksFailedWork = async (t, target, state) => {
   assert.ok(error.message.includes(`Rule ${rule} (course `), error.message);
   assert.equal(failed.report.domains.enrollments.current, false);
   assert.deepEqual(await countsOf(target, state), before, 'counts stay');
-  assert.equal(await runsSince(target, dispatcherFlowId, since), 1);
+  assert.equal(await dispatcherRuns(target, since, 1), 1);
   t.diagnostic(`failure recorded ${JSON.stringify(error)}`);
 
   const ticksBefore = await runsSince(target, processPendingFlowId, since);
@@ -160,7 +173,7 @@ const blocksFailedWork = async (t, target, state) => {
   const marked = await markPending(target, ['enrollments']);
   assert.equal(marked.domains.enrollments.state, 'pending');
   await waitForStatus(target, failedAfter(error.at));
-  assert.equal(await runsSince(target, dispatcherFlowId, since), 2);
+  assert.equal(await dispatcherRuns(target, since, 2), 2);
 
   await patch(target, `/items/course_enrollment_rules/${rule}`, {
     pattern: lines.legacy,
@@ -422,7 +435,7 @@ const discardsOvertakenRuns = async (t, target, state) => {
   assert.equal(discarded.report.lastError.blocking, false);
   assert.equal(discarded.report.domains.enrollments.current, false);
   const rerun = await settle(target);
-  assert.equal(await runsSince(target, dispatcherFlowId, since), 2);
+  assert.equal(await dispatcherRuns(target, since, 2), 2);
   t.diagnostic(
     `rerun after SOURCE_CHANGED: ${JSON.stringify(rerun.report.lastRun)}`,
   );
@@ -460,7 +473,7 @@ const keepsRunThroughPublicationEdit = async (t, target, state) => {
   assert.ok(during.revisions.source > claimRevision, 'the room edit committed');
   assert.equal(during.revisions.inputs.enrollments, claimRevision);
   const done = await settle(target);
-  assert.equal(await runsSince(target, dispatcherFlowId, since), 1, 'kept');
+  assert.equal(await dispatcherRuns(target, since, 1), 1, 'kept');
   assert.equal(done.report.revisions.completed, claimRevision);
   assert.deepEqual(done.report.pending, ['publication']);
   assert.equal(done.report.lastError?.at, before.lastError?.at, 'no failure');
@@ -505,7 +518,7 @@ const rerunsInterruptedRun = async (t, target, state) => {
   assert.equal(done.report.lastError.blocking, false);
   assert.equal(done.report.lastError.domain, 'enrollments');
   assert.equal(done.report.revisions.completed, done.report.revisions.source);
-  assert.ok((await runsSince(target, dispatcherFlowId, since)) >= 1);
+  assert.ok((await dispatcherRuns(target, since, 1)) >= 1);
 };
 
 // Work pending when Directus restarts is processed by the restarted

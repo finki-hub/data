@@ -10,6 +10,7 @@ import {
 import { installDataModel } from '../../src/data-model/install.js';
 import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.js';
 import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
+import { legacySumsQuery } from '../../src/flows/fill-legacy-zeros.js';
 import { flowFamilyCodes } from '../../src/flows/flow-template.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { installFlowFamily } from '../../src/flows/registry.js';
@@ -68,7 +69,6 @@ import {
   drive,
   driverFlowId,
   installDriverFlow,
-  removeAll,
 } from './mapped-enrollments-helpers.mjs';
 
 // The Flows a family install created and skipped.
@@ -409,9 +409,33 @@ const refusesOneFamily = async (target, state) => {
   await expectParity(target, state);
 };
 
-// The zero page sums its own legacy pages of its own claim only: a
-// foreign claim's rows on the same page token and its own earlier zero
-// rows never enter the sum, and the completion ignores foreign claims.
+// The native sum the zero page reads (legacySumsQuery, its templates
+// filled in), over REST: the pairs one claim's rows of the given legacy
+// pages count.
+const sumsOf = (target, claim, cells) => {
+  const values = new Map([
+    ['{{ check_zeros.cells }}', cells],
+    ['{{ check_zeros.claim }}', claim],
+  ]);
+  const filter = JSON.stringify(legacySumsQuery.filter, (_key, value) =>
+    values.has(value) ? values.get(value) : value,
+  );
+  const query = new URLSearchParams({
+    aggregate: JSON.stringify(legacySumsQuery.aggregate),
+    filter,
+    groupBy: legacySumsQuery.groupBy.join(','),
+    limit: String(legacySumsQuery.limit),
+  });
+  return get(target, `${resultsPath}?${query}`);
+};
+
+// The zero page sums its own legacy pages of its own claim only: its own
+// earlier zero rows never enter the sum, and the sum is filtered by claim.
+// A foreign claim's rows cannot exist beside it any more (candidates are
+// guarded, only the coordinator writes them, under the one live claim, and
+// every release discards them; a REST write is refused), so the filter is
+// shown the other way round: the same sum under another claim's token
+// finds none of this claim's staged rows.
 const sumsOwnPagesOnly = async (target, state) => {
   await act(target, { action: 'mark', domains: ['enrollments'] });
   const run = await claimAndPlan(target);
@@ -421,27 +445,41 @@ const sumsOwnPagesOnly = async (target, state) => {
     pages.every((page) => page.ok !== false),
     JSON.stringify(pages),
   );
+  const nonzero = pages.reduce((total, page) => total + page.staged, 0);
+  const cells = run.cells.map(({ token }) => token);
+  const own = await sumsOf(target, run.claim.token, cells);
+  assert.ok(nonzero > 0, 'the legacy pages counted some pairs');
+  assert.equal(own.length, nonzero, JSON.stringify(own));
+  assert.deepEqual(await sumsOf(target, randomUUID(), cells), []);
   const zeroPair = {
     academic_year: state.yearIds.get('2011/2012'),
     course: state.courseIds.get('c1'),
   };
   assert.equal(state.expected['c1/2011/2012'], 0);
-  const foreign = await post(target, resultsPath, [
-    {
-      ...zeroPair,
-      claim_token: randomUUID(),
-      count: 77,
-      page_token: run.cells[0].token,
-      revision: run.claim.revision,
-    },
-  ]);
-  Object.assign(state, { foreignRows: foreign.data.map(({ id }) => id) });
+  const foreign = await request(
+    target,
+    resultsPath,
+    json(
+      'POST',
+      [
+        {
+          ...zeroPair,
+          claim_token: randomUUID(),
+          count: 77,
+          page_token: run.cells[0].token,
+          revision: run.claim.revision,
+        },
+      ],
+      target.token,
+    ),
+  );
+  assert.equal(foreign.status, 403);
+  assert.equal(errorCode(await foreign.json()), 'COORDINATION_WRITE_GUARDED');
   const [filled] = await drive(
     target,
     legacyEnrollmentFlowIds.zeros,
     run.zeros,
   );
-  const nonzero = pages.reduce((total, page) => total + page.staged, 0);
   assert.deepEqual(filled, {
     counted: nonzero,
     page: run.zeros[0].token,
@@ -461,8 +499,6 @@ const sumsOwnPagesOnly = async (target, state) => {
   });
   assert.equal(completed.installed, 122);
   await expectParity(target, state);
-  await removeAll(target, resultsPath, state.foreignRows);
-  Object.assign(state, { foreignRows: [] });
 };
 
 // A Studio-equivalent edit of one pattern (no source code, no Flow edit)
@@ -740,7 +776,6 @@ const refusesAnonymousTriggers = async (target) => {
 };
 
 const cleansUp = async (target, state) => {
-  await removeAll(target, resultsPath, state.foreignRows);
   for (const id of [...state.flows, ...state.templatesCreated]) {
     const response = await request(target, `/flows/${id}`, {
       method: 'DELETE',
@@ -776,7 +811,6 @@ test('counts legacy regex enrollment rules in bounded native Flows', async (t) =
     courseKeys: new Map(),
     expected: null,
     flows: [],
-    foreignRows: [],
     items: [],
     rules: new Map(),
     seed: baseSeed(),

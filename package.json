@@ -31,6 +31,7 @@
     "check": "tsc --noEmit && npm run check:sfc",
     "check:sfc": "vue-tsc --noEmit --project tsconfig.sfc.json",
     "format": "eslint . --cache --fix",
+    "generate:invalidation": "node --import tsx src/source-invalidation-snapshot.ts",
     "import": "node --import tsx src/cli.ts",
     "import:dry-run": "node --import tsx src/cli.ts --dry-run",
     "lint": "eslint . --cache",

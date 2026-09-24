@@ -3,7 +3,6 @@ import { z } from 'zod';
 export const coordinationErrorCodes = [
   'CLAIM_MISMATCH',
   'COMPLETION_RACED',
-  'DERIVED_INDEX',
   'DOMAIN_MISMATCH',
   'DUPLICATE_ROWS',
   'FINGERPRINT_CHANGED',
@@ -17,6 +16,7 @@ export const coordinationErrorCodes = [
   'SOURCE_CHANGED',
   'UNKNOWN_FILE',
   'UNKNOWN_RULE_MODE',
+  'WRITE_GUARDED',
 ] as const;
 
 export type CoordinationError = DirectusError;

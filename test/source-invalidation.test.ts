@@ -1,6 +1,14 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
+import {
+  type CollectionDeclaration,
+  collectionDeclarations,
+  type ColumnRefinement,
+  type SourceDeclaration,
+  sourceDeclarations,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import {
   coordinationDomains,
   coordinatorActionNames,
@@ -14,6 +22,7 @@ import {
   fingerprintsOfGraph,
   type GraphRow,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/fingerprint.js';
+import { sqlArray } from '../directus/extensions/directus-extension-data-operations/src/coordination/invalidation-function.js';
 import {
   coordinatorActions,
   parseCoordinatorInput,
@@ -21,11 +30,11 @@ import {
 import {
   excludedTables,
   optionalSourceTables,
-  pageSize,
   sourceColumnDomains,
   sourceTableDeletionDomains,
   sourceTableDomains,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/source-tables.js';
+import { pageSize } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
   migrations,
   sourceInvalidation,
@@ -39,11 +48,14 @@ import {
   stagedWith,
 } from '../directus/extensions/directus-extension-data-operations/src/page-state.js';
 import {
+  invalidationSql,
   sourceInvalidationSql,
   splitSqlStatements,
 } from '../directus/extensions/directus-extension-data-operations/src/source-invalidation-sql.js';
-import { dataModelCollections } from '../src/data-model/collections.js';
-import { migrationCollectionKeys } from '../src/data-model/migration-collections.js';
+import {
+  dataModelCollectionKeys,
+  dataModelCollections,
+} from '../src/data-model/collections.js';
 import { claimChoices } from '../src/data-model/operations-vocabularies.js';
 
 const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
@@ -53,6 +65,60 @@ const statementStartPattern = /^(?:CREATE|DO)\b/u;
 const dropPattern = /\bDROP\b/u;
 const doBlockPattern = /^DO \$\$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
+const armPattern = /^ {4}WHEN '/gmu;
+const sha256 = (text: string): string =>
+  createHash('sha256').update(text).digest('hex');
+
+// The declarations the generator was first proven on: from them it
+// reproduced, byte for byte, the hand-written migration Task 23 left
+// (src/migrations/source-invalidation.sql at that commit, sha256 below).
+// Frozen on purpose: a later collection only adds to the registry, so these
+// declarations keep generating that file, and a change to one of them or
+// to the generator shows here as a changed migration.
+const task23Collections: ReadonlySet<string> = new Set([
+  'academic_years',
+  'course_curricula',
+  'course_enrollment_patterns',
+  'course_enrollment_rules',
+  'course_enrollments',
+  'course_equivalencies',
+  'courses',
+  'curriculum_2018',
+  'curriculum_2023',
+  'curriculum_entries',
+  'data_operation_results',
+  'data_operations',
+  'deans_office',
+  'discord_channels',
+  'migration_ledger',
+  'moodle_course_entries',
+  'moodle_course_mappings',
+  'moodle_history_memberships',
+  'moodle_import_rows',
+  'moodle_users',
+  'rooms',
+  'staff',
+  'student_council',
+  'students',
+  'teaching_assignments',
+]);
+const task23Sha256 =
+  '806e0ba67170f73d52ab3ff95532ef3fc7ceabe57ecbde1ad8fd4a207011ae32';
+
+// The statements the migration of a registry holds: the singleton row, its
+// index and the trigger function, the triggers of every required source
+// (its own and one per refined column), then one to_regclass-guarded block
+// per optional source.
+const statementCount = (sources: readonly SourceDeclaration[]): number =>
+  sources.reduce(
+    (total, { columns = {}, optional }) =>
+      total + (optional === true ? 1 : 1 + Object.keys(columns).length),
+    3,
+  );
+
+// Compile-time: whether a declared domain list may be empty.
+type AcceptsEmpty<List> = [readonly []] extends [List] ? true : false;
+
 const collator = new Intl.Collator('en');
 const sorted = (values: readonly string[]): string[] =>
   values.toSorted((left, right) => collator.compare(left, right));
@@ -134,17 +200,18 @@ const graphRow = (options: unknown, key = 'coordinate'): GraphRow => ({
 });
 
 const statements = sourceInvalidation.statements;
-const triggerTables = statements.flatMap((statement) =>
-  statement
-    .matchAll(triggerPattern)
-    .map((match) => match.groups?.['table'] ?? '')
-    .toArray(),
-);
-// The migration ledger is private CLI bookkeeping, never a source table.
-const modelTables = dataModelCollections
-  .map(({ collection }) => collection)
-  .filter((collection) => !migrationCollectionKeys.includes(collection));
+const triggerTablesOf = (sql: readonly string[]): string[] =>
+  sql.flatMap((statement) =>
+    statement
+      .matchAll(triggerPattern)
+      .map((match) => match.groups?.['table'] ?? '')
+      .toArray(),
+  );
+const triggerTables = triggerTablesOf(statements);
 const tableDomains = Object.entries(sourceTableDomains);
+const functionOf = (sql: readonly string[]): string =>
+  sql.find((statement) => statement.startsWith('CREATE OR REPLACE FUNCTION')) ??
+  '';
 
 describe('option contract', () => {
   test('enumerates the actions and accepts each shape with unused options blank', () => {
@@ -324,7 +391,24 @@ describe('option contract', () => {
 });
 
 describe('source-invalidation migration', () => {
-  test('embeds the SQL file verbatim and is the second bundled migration', () => {
+  test('generates the pre-change migration byte for byte from the declarations it was proven on', () => {
+    const proven = collectionDeclarations.filter(({ collection }) =>
+      task23Collections.has(collection),
+    );
+    const golden = invalidationSql(proven);
+    const goldenStatements = splitSqlStatements(golden);
+
+    expect(proven).toHaveLength(task23Collections.size);
+    expect(sha256(golden)).toBe(task23Sha256);
+    expect(goldenStatements).toHaveLength(23);
+
+    for (const statement of goldenStatements) {
+      expect(statement).not.toMatch(dropPattern);
+    }
+  });
+
+  test('keeps the SQL snapshot fresh and is the second bundled migration', () => {
+    // npm run generate:invalidation rewrites the snapshot.
     expect(sourceInvalidationSql).toBe(
       readFileSync('src/migrations/source-invalidation.sql', 'utf8'),
     );
@@ -333,7 +417,7 @@ describe('source-invalidation migration', () => {
       'source-invalidation',
     ]);
     expect(statements).toEqual(splitSqlStatements(sourceInvalidationSql));
-    expect(statements).toHaveLength(23);
+    expect(statements).toHaveLength(statementCount(sourceDeclarations));
 
     for (const statement of statements) {
       expect(statement).toMatch(statementStartPattern);
@@ -341,65 +425,50 @@ describe('source-invalidation migration', () => {
     }
   });
 
-  test('installs one statement-level trigger per editable source table and none on derived, staging or status tables', () => {
-    expect(sorted(triggerTables)).toEqual(
-      sorted(Object.keys(sourceTableDomains)),
-    );
+  test('installs one statement-level trigger per registered source and none on any other role', () => {
+    const sources = sourceDeclarations.map(({ collection }) => collection);
+
+    expect(sorted(triggerTables)).toEqual(sorted(sources));
     expect(new Set(triggerTables).size).toBe(triggerTables.length);
-    expect(sorted(triggerTables)).toEqual(
-      sorted(modelTables.filter((table) => !excludedTables.includes(table))),
+    expect(sorted(Object.keys(sourceTableDomains))).toEqual(sorted(sources));
+    expect(sorted([...sources, ...excludedTables])).toEqual(
+      sorted(dataModelCollectionKeys),
     );
 
     for (const table of excludedTables) {
-      expect(modelTables).toContain(table);
-      expect(triggerTables).not.toContain(table);
       expect(sourceInvalidationSql).not.toContain(`TRUNCATE ON "${table}"`);
-    }
-
-    // The exemption of the migration collections is explicit and bounded:
-    // each is a model collection that no trigger and no domain mapping names.
-    expect(migrationCollectionKeys).toEqual(['migration_ledger']);
-
-    for (const table of migrationCollectionKeys) {
-      expect(
-        dataModelCollections.map(({ collection }) => collection),
-      ).toContain(table);
-      expect(triggerTables).not.toContain(table);
-      expect(Object.keys(sourceTableDomains)).not.toContain(table);
-      expect(sourceInvalidationSql).not.toContain(`ON "${table}"`);
+      expect(sourceInvalidationSql).not.toContain(`WHEN '${table}'`);
     }
     for (const table of optionalSourceTables) {
-      const guarded = statements.find((statement) =>
+      const guarded = statements.filter((statement) =>
         statement.includes(`ON "${table}"`),
       );
 
-      expect(guarded).toMatch(doBlockPattern);
-      expect(guarded).toContain(`to_regclass('"${table}"') IS NOT NULL`);
+      expect(guarded).toHaveLength(1);
+      expect(guarded[0]).toMatch(doBlockPattern);
+      expect(guarded[0]).toContain(`to_regclass('"${table}"') IS NOT NULL`);
     }
   });
 
   test('marks the history index when a history entry is deleted or its label edited, never when it is reviewed', () => {
-    const functionStatement = statements[2];
+    const functionStatement = functionOf(statements);
 
-    expect(Object.keys(sourceTableDeletionDomains)).toEqual([
-      'moodle_course_entries',
-    ]);
+    expect(sourceTableDeletionDomains).toEqual({
+      moodle_course_entries: ['history_index'],
+    });
     expect(sourceColumnDomains).toEqual({
       moodle_course_entries: { label: ['history_index'] },
     });
 
     for (const [table, domains] of Object.entries(sourceTableDeletionDomains)) {
-      const list = domains.map((domain) => `'${domain}'`).join(', ');
-
       for (const domain of domains) {
         expect(sourceTableDomains[table]).not.toContain(domain);
       }
-
-      expect(functionStatement).toContain(
-        `  IF TG_TABLE_NAME = '${table}' AND (TG_OP IN ('DELETE', 'TRUNCATE') OR TG_NAME = 'finki_hub_entry_label_invalidation') THEN\n    affected := affected || ARRAY[${list}];\n  END IF;`,
-      );
     }
 
+    expect(functionStatement).toContain(
+      "  IF TG_TABLE_NAME = 'moodle_course_entries' AND (TG_OP IN ('DELETE', 'TRUNCATE') OR TG_NAME = 'finki_hub_entry_label_invalidation') THEN\n    affected := affected || ARRAY['history_index'];\n  END IF;",
+    );
     // The label trigger fires only for an UPDATE that names the column (a
     // review edit names review_state or review_reason) and runs the same
     // function, which adds the history index by the trigger's name.
@@ -412,10 +481,11 @@ describe('source-invalidation migration', () => {
     ]);
   });
 
-  test('maps every table to its domains inside the trigger function, publication being the default', () => {
-    const functionStatement = statements[2];
-    const multi = tableDomains.filter(([, domains]) => domains.length > 1);
-    const single = tableDomains.filter(([, domains]) => domains.length === 1);
+  test('maps every source to its domains inside the trigger function, publication being the default', () => {
+    const functionStatement = functionOf(statements);
+    const listed = tableDomains.filter(
+      ([, domains]) => domains.join(',') !== 'publication',
+    );
 
     expect(functionStatement).toContain(
       'CREATE OR REPLACE FUNCTION "finki_hub_source_invalidation"() RETURNS trigger',
@@ -428,23 +498,23 @@ describe('source-invalidation migration', () => {
     );
     expect(functionStatement).toContain("ELSE ARRAY['publication']");
     expect(functionStatement).toContain('RAISE EXCEPTION');
-    expect(multi.map(([table]) => table)).toEqual([
-      'academic_years',
-      'course_enrollment_rules',
-      'moodle_course_entries',
-      'moodle_course_mappings',
-      'moodle_users',
-    ]);
+    // One arm per source whose domains differ from the default, no other.
+    expect(functionStatement.match(armPattern) ?? []).toHaveLength(
+      listed.length,
+    );
 
-    for (const [table, domains] of multi) {
+    const defaults = tableDomains.filter(
+      ([, domains]) => domains.join(',') === 'publication',
+    );
+
+    for (const [table, domains] of listed) {
       const list = domains.map((domain) => `'${domain}'`).join(', ');
 
       expect(functionStatement).toContain(
         `WHEN '${table}' THEN ARRAY[${list}]`,
       );
     }
-    for (const [table, domains] of single) {
-      expect(domains).toEqual(['publication']);
+    for (const [table] of defaults) {
       expect(functionStatement).not.toContain(`WHEN '${table}'`);
     }
 
@@ -486,6 +556,84 @@ describe('source-invalidation migration', () => {
     ]) {
       expect(fields).toContain(column);
     }
+  });
+});
+
+// The statements of the migration generated for the registry and one more
+// test-only declaration.
+const withExtra = (declaration: CollectionDeclaration): readonly string[] =>
+  splitSqlStatements(invalidationSql([...collectionDeclarations, declaration]));
+
+describe('a registry that declares one more collection', () => {
+  test('gives a test-only extra source exactly one more trigger and nothing else', () => {
+    const plain = withExtra({
+      collection: 'synthetic_extra_source',
+      invalidates: ['publication'],
+      role: 'source',
+    });
+
+    expect(plain).toHaveLength(statements.length + 1);
+    expect(triggerTablesOf(plain)).toEqual([
+      ...triggerTables.slice(0, -optionalSourceTables.length),
+      'synthetic_extra_source',
+      ...triggerTables.slice(-optionalSourceTables.length),
+    ]);
+    expect(functionOf(plain)).toBe(functionOf(statements));
+    expect(
+      plain.filter((statement) => !statements.includes(statement)),
+    ).toEqual([
+      'CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "synthetic_extra_source" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()',
+    ]);
+
+    // A source that feeds a calculation gets its arm in the function too,
+    // and an optional one a to_regclass-guarded block.
+    const counted = withExtra({
+      collection: 'synthetic_extra_input',
+      invalidates: ['enrollments', 'publication'],
+      optional: true,
+      role: 'source',
+    });
+
+    expect(counted).toHaveLength(statements.length + 1);
+    expect(functionOf(counted)).toContain(
+      "WHEN 'synthetic_extra_input' THEN ARRAY['enrollments', 'publication']",
+    );
+    expect(counted.at(-1)).toMatch(doBlockPattern);
+    expect(counted.at(-1)).toContain(
+      `to_regclass('"synthetic_extra_input"') IS NOT NULL`,
+    );
+
+    // A collection of any other role adds no trigger.
+    expect(
+      withExtra({
+        collection: 'synthetic_extra_status',
+        description: 'a synthetic status table',
+        role: 'status',
+      }),
+    ).toHaveLength(statements.length);
+  });
+});
+
+describe('a declaration with an empty domain list', () => {
+  test('is refused by the types and by the generator, never installed as an untyped ARRAY[]', () => {
+    // An empty list would generate ARRAY[], which PostgreSQL cannot type;
+    // the lazily planned trigger function would then fail the first
+    // statement on the source, not the migration. The declaration types
+    // hold at least one domain (npm run check fails otherwise) ...
+    const emptyAccepted: readonly [
+      AcceptsEmpty<SourceDeclaration['invalidates']>,
+      AcceptsEmpty<NonNullable<SourceDeclaration['onDelete']>>,
+      AcceptsEmpty<ColumnRefinement['domains']>,
+    ] = [false, false, false];
+
+    expect(emptyAccepted).toEqual([false, false, false]);
+
+    // ... and the generator refuses one that reaches it untyped.
+    expect(() => sqlArray([])).toThrow('untyped ARRAY[]');
+    expect(sqlArray(['enrollments', 'publication'])).toBe(
+      "ARRAY['enrollments', 'publication']",
+    );
+    expect(sourceInvalidationSql).not.toContain('ARRAY[]');
   });
 });
 

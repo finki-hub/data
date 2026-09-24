@@ -15,6 +15,7 @@ import { touchesInputs } from './failures.js';
 import { fingerprintsOfGraph, graphRowsSchema } from './fingerprint.js';
 import { historySqlPort } from './history-sql.js';
 import { releasedPublicationState } from './outcomes.js';
+import { affected, first, json, matched, openGuard, run } from './sql-run.js';
 import { stateRow, toState } from './sql-state.js';
 import {
   claimSql,
@@ -50,11 +51,6 @@ export type SqlDatabase = SqlClient & {
   readonly transaction: <T>(work: (trx: SqlClient) => Promise<T>) => Promise<T>;
 };
 
-const resultSchema = z.object({
-  rowCount: z.number().nullable().optional(),
-  rows: z.array(z.unknown()),
-});
-
 const countRow = z.object({ count: z.coerce.number().int().nonnegative() });
 const idRows = z.array(z.object({ id: z.coerce.number().int() }));
 const ruleModeRows = z.array(
@@ -74,44 +70,6 @@ const markRow = z.object({
   dirty_domains: z.array(z.string()).nullable(),
   source_revision: z.number().int(),
 });
-const missingRowMessage =
-  'The data_operations status row is missing; run npm run setup.';
-
-const run = async (
-  client: SqlClient,
-  sql: string,
-  bindings: SqlBinding[] = [],
-) => resultSchema.parse(await client.raw(sql, bindings));
-
-const affected = async (
-  client: SqlClient,
-  sql: string,
-  bindings: SqlBinding[] = [],
-): Promise<number> => {
-  const result = await run(client, sql, bindings);
-  return result.rowCount ?? 0;
-};
-
-const matched = async (
-  client: SqlClient,
-  sql: string,
-  bindings: SqlBinding[],
-): Promise<boolean> => (await affected(client, sql, bindings)) > 0;
-
-const first = async (
-  client: SqlClient,
-  sql: string,
-  bindings: SqlBinding[] = [],
-): Promise<unknown> => {
-  const result = await run(client, sql, bindings);
-  const [row] = result.rows;
-  if (row === undefined) {
-    throw new Error(missingRowMessage);
-  }
-  return row;
-};
-
-const json = (value: unknown): string => JSON.stringify(value);
 
 export const sqlPort = (client: SqlClient): CoordinationPort => ({
   adoptOwnRevision: (token, owner) =>
@@ -132,12 +90,14 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
     const result = await run(client, graphSql, [operationId]);
     return fingerprintsOfGraph(graphRowsSchema.parse(result.rows));
   },
-  discardCandidates: (token, page) =>
-    affected(
+  discardCandidates: async (token, page) => {
+    await openGuard(client, 'data_operation_results');
+    return affected(
       client,
       `DELETE FROM "data_operation_results" WHERE "claim_token" = ?${page === undefined ? '' : ' AND "page_token" = ?'}`,
       page === undefined ? [token] : [token, page],
-    ),
+    );
+  },
   enrollmentSources: async () => {
     const rules = await run(client, ruleModesSql);
     const users = await run(client, historySizesSql);
@@ -165,14 +125,19 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   heartbeat: (token, owner, leaseMs = 0) =>
     matched(client, heartbeatSql, [leaseMs, token, owner]),
   history: historySqlPort(client),
-  insertCandidates: (input: StagedRows) =>
-    affected(client, insertSql, [
+  insertCandidates: async (input: StagedRows) => {
+    await openGuard(client, 'data_operation_results');
+    return affected(client, insertSql, [
       input.token,
       input.page,
       input.revision,
       json(input.rows),
-    ]),
+    ]);
+  },
+  // The install replaces every count row: the coordinator is the writer of
+  // the derived counts and opens their guard first.
   installEnrollments: async (token, revision) => {
+    await openGuard(client, 'course_enrollments');
     await run(client, 'DELETE FROM "course_enrollments"');
     return affected(client, installSql, [revision, token]);
   },

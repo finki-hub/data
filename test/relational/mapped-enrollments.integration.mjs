@@ -417,12 +417,22 @@ const pageFailure = async (target, state, { code, extra, stage }) => {
   return result;
 };
 
+// The installed rows with their identity: a completion deletes every row
+// and inserts new ones, so equal ids and revisions tell kept rows apart
+// from a completion that reinstalled the same counts.
+const installedRows = (target) =>
+  get(
+    target,
+    `${enrollmentsPath}?fields=id,course,academic_year,count,computed_revision,computed_at&sort=id&limit=-1`,
+  );
+
 // A `rules` plan of an enrollments claim that holds a legacy_regex rule is
 // refused before any page runs: staging the mapped rules alone would let
 // the completion, which replaces every installed row, drop the legacy
 // pair's count. The run fails without a completion, the claim is released
-// and the legacy pair's installed row survives. (An `enrollments` plan,
-// Task 12, plans the two families on separate pages instead.)
+// and every installed row survives, the same rows and not a recount.
+// (An `enrollments` plan, Task 12, plans the two families on separate
+// pages instead.)
 const refusesLegacyRulePage = async (target, state) => {
   const legacy = await create(target, state, [
     'course_enrollment_rules',
@@ -433,17 +443,12 @@ const refusesLegacyRulePage = async (target, state) => {
       pattern: 'Mapped Unlisted',
     },
   ]);
-  const before = await status(target);
-  // Stands in for the count a legacy-aware run installed earlier.
-  const kept = await post(target, enrollmentsPath, {
-    academic_year: state.ids.get('y1'),
-    computed_at: '2081-09-01T00:00:00.000Z',
-    computed_revision: before.revisions.completed,
-    count: 1,
-    course: state.ids.get('d'),
-  });
-  const installed = { ...firstCounts, 'd/y1': 1 };
+  // The installed counts are derived rows only a completion writes, so
+  // the rows of the first run stand for what a refused run must keep.
+  const installed = firstCounts;
   assert.deepEqual(await enrollmentCounts(target, state), installed);
+  const kept = await installedRows(target);
+  assert.equal(kept.length, Object.keys(installed).length);
   const run = await runCounts(target);
   assert.equal(run.status, 500, JSON.stringify(run.body));
   assert.equal(errorCode(run.body), 'PLAN_REFUSED');
@@ -452,12 +457,16 @@ const refusesLegacyRulePage = async (target, state) => {
   assert.doesNotMatch(JSON.stringify(run.body), privateText);
   assert.deepEqual(await candidates(target), [], 'nothing was staged');
   assert.deepEqual(await enrollmentCounts(target, state), installed);
+  assert.deepEqual(
+    await installedRows(target),
+    kept,
+    'the refused run replaced no installed row',
+  );
   const after = await status(target);
   assert.equal(after.claim, null);
   assert.equal(after.lastError.code, 'PLAN_FAILED');
-  // The legacy rule and its row go again; the later runs count the mapped
-  // rules alone.
-  await remove(target, `${enrollmentsPath}/${kept.data.id}`);
+  // The legacy rule goes again; the later runs count the mapped rules
+  // alone.
   await remove(target, `/items/course_enrollment_rules/${legacy}`);
   state.items = state.items.filter(
     ([collection, id]) =>

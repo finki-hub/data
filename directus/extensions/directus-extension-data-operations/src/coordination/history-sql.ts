@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import type { HistoryIndexPort, HistorySummary } from './history-port.js';
 
+import { openGuardSql } from './write-guards.js';
+
 // The raw statement runner of the coordinator's transaction, narrowed so
 // this module needs nothing from the port that embeds it.
 export type RawClient = {
@@ -34,9 +36,8 @@ export const membershipInsertSql = `INSERT INTO "moodle_history_memberships" ("m
 SELECT rows."moodle_user", rows."entry", rows."sort"
 FROM json_to_recordset(?::json) AS rows("moodle_user" integer, "entry" integer, "sort" integer)`;
 
-// Transaction-local: the setting ends with the writer's transaction, so a
-// pooled connection never carries it into another statement.
-export const openWriterSql = `SELECT set_config('finki_hub.history_writer', 'on', true)`;
+// Opens the write guard of the memberships for the writer's transaction.
+export const openWriterSql = openGuardSql('moodle_history_memberships');
 
 // Bindings: first id, last id.
 export const userIdsSql = `SELECT "id" FROM "moodle_users" WHERE "id" BETWEEN ? AND ? ORDER BY "id"`;
