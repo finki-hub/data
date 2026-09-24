@@ -39,6 +39,7 @@
     "test": "vitest run",
     "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs",
     "test:relational": "node test/relational/run-scenarios.mjs",
+    "test:s3": "node --import tsx --test test/publish-flow.integration.mjs",
     "test:search": "node --test test/search.integration.mjs"
   },
   "type": "module",

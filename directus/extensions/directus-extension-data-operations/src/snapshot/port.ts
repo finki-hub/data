@@ -1,10 +1,6 @@
+import type { ImportState } from '../coordination/domains.js';
 import type { CoordinationPort } from '../coordination/port.js';
-import type {
-  activeTable,
-  ImportState,
-  SnapshotRow,
-  stagingTable,
-} from './contract.js';
+import type { activeTable, SnapshotRow, stagingTable } from './contract.js';
 
 export type BackupRecord = SnapshotSummary & { readonly file: string };
 

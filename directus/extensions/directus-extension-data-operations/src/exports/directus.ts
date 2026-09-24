@@ -4,11 +4,11 @@ import type { SourceReader } from './engine.js';
 import type { ExportDeps } from './prepare.js';
 
 import { coordinationContext, sqlDatabase } from '../coordinate.js';
+import { calculationDomains } from '../coordination/domains.js';
 import { statusAction, type StatusReport } from '../coordination/status.js';
 import { snapshotReport, type SnapshotReport } from '../snapshot/report.js';
 import { snapshotStore } from '../snapshot/sql-port.js';
 import {
-  calculationDomains,
   type CoordinationFacts,
   type SnapshotFacts,
 } from './readiness-facts.js';
@@ -49,7 +49,10 @@ export const itemsReader = async (
 export const coordinationFacts = (report: StatusReport): CoordinationFacts => ({
   calculation: report.fingerprints.calculation,
   domains: Object.fromEntries(
-    calculationDomains.map((domain) => [domain, report.domains[domain].state]),
+    calculationDomains.map((domain) => [
+      domain,
+      report.domains[domain]?.state ?? 'unknown',
+    ]),
   ),
   revision: report.revisions.source,
 });

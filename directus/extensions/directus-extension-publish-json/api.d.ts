@@ -38,11 +38,22 @@ type PublishOptions = {
   readonly storage: string;
 };
 
+// What one call answers: the filenames written, in order, the UTF-8 bytes
+// of their bodies and the content type they were stored with. A refusal
+// is a DirectusError-shaped error with `code` PUBLISH_INVALID_OPTIONS
+// (400) or PUBLISH_UPLOAD_FAILED (502, `extensions.filename` and
+// `extensions.published`).
+type PublishResult = {
+  readonly bytes: number;
+  readonly contentType: string;
+  readonly published: readonly string[];
+};
+
 declare const operation: {
   readonly handler: (
     options: PublishOptions,
     context: PublishContext,
-  ) => Promise<{ readonly published: readonly string[] }>;
+  ) => Promise<PublishResult>;
   readonly id: string;
 };
 

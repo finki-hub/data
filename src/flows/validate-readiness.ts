@@ -1,6 +1,8 @@
 import {
   condition,
   exportsOperation,
+  familyIds,
+  type FlowFamilyCode,
   flowFamilyCodes,
   type FlowTemplate,
   operation,
@@ -26,32 +28,35 @@ export const publicationButton = {
 
 // Any user who may read data_operations could trigger a manual Flow on it;
 // the export operation reads with system rights, so the Flow is gated on
-// the administrator flag (the operation checks it again).
+// the administrator flag (the operation checks it again). The suffixes are
+// those of the gate, its refusal and the step it lets through, in the
+// given family (publication unless named).
 export const adminOnly = (
   suffixes: readonly [string, string, string],
   message: string,
-): Array<ReturnType<typeof condition>> => [
-  condition({
-    edges: {
-      reject: publicationId(suffixes[1]),
-      resolve: publicationId(suffixes[2]),
-    },
-    family,
-    filter: { $accountability: { admin: { _eq: true } } },
-    key: 'admin_only',
-    name: 'Administrator?',
-    position: [19, 1],
-    suffix: suffixes[0],
-  }),
-  raise({
-    error: { code: 'FORBIDDEN', message, status: 403 },
-    family,
-    key: 'raise_forbidden',
-    name: 'Refuse a non-administrator',
-    position: [19, 19],
-    suffix: suffixes[1],
-  }),
-];
+  code: FlowFamilyCode = family,
+): Array<ReturnType<typeof condition>> => {
+  const id = familyIds(code);
+  return [
+    condition({
+      edges: { reject: id(suffixes[1]), resolve: id(suffixes[2]) },
+      family: code,
+      filter: { $accountability: { admin: { _eq: true } } },
+      key: 'admin_only',
+      name: 'Administrator?',
+      position: [19, 1],
+      suffix: suffixes[0],
+    }),
+    raise({
+      error: { code: 'FORBIDDEN', message, status: 403 },
+      family: code,
+      key: 'raise_forbidden',
+      name: 'Refuse a non-administrator',
+      position: [19, 19],
+      suffix: suffixes[1],
+    }),
+  ];
+};
 
 // The readiness check on demand. Its logic lives in the export operation
 // (the same code the preparation runs first), so this Flow only gates and

@@ -120,10 +120,11 @@ export const operationsCollections: readonly ModelCollection[] = [
       }),
       enumField('publication_state', publicationChoices, {
         defaultValue: 'idle',
+        note: 'Published only when every declared file was uploaded; partly published when some were; the per-file outcomes say which.',
         nullable: false,
       }),
       scalar('publication_outcomes', 'json', {
-        note: 'Outcome of each file of the last publication, keyed by its filename (courses.json, ...).',
+        note: 'One outcome per declared public file of the last publication that recorded one, keyed by filename: uploaded, failed or skipped, its failure code, the bytes written and the source revision attempted.',
         readOnly: true,
       }),
       // Coordination status written by the finki-hub-data-coordinate

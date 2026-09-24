@@ -10,27 +10,30 @@ import type {
   StagedRows,
 } from './port.js';
 
+import { normaliseDomains } from './domains.js';
 import { touchesInputs } from './failures.js';
-import { fingerprintOfGraph } from './fingerprint.js';
+import { fingerprintsOfGraph, graphRowsSchema } from './fingerprint.js';
 import { historySqlPort } from './history-sql.js';
+import { releasedPublicationState } from './outcomes.js';
 import { stateRow, toState } from './sql-state.js';
 import {
   claimSql,
   finishSql,
   graphSql,
+  heartbeatSql,
   historySizesSql,
   insertSql,
   installSql,
   lockWaitSql,
   markSql,
   planSql,
+  recordSql,
   releaseSql,
   ruleModesSql,
   stagedSql,
   stateSql,
 } from './sql-statements.js';
 import {
-  normaliseDomains,
   operationId,
   type OperationsState,
   type PageSource,
@@ -65,20 +68,6 @@ const historySizeRows = z.array(
   z.object({
     bytes: z.coerce.number().int().nonnegative(),
     id: z.coerce.number().int(),
-  }),
-);
-const graphRows = z.array(
-  z.object({
-    entry: z.string().nullable(),
-    flow: z.string(),
-    flow_options: z.unknown(),
-    key: z.string().nullable(),
-    operation: z.string().nullable(),
-    options: z.unknown(),
-    reject: z.string().nullable(),
-    resolve: z.string().nullable(),
-    trigger: z.string().nullable(),
-    type: z.string().nullable(),
   }),
 );
 const markRow = z.object({
@@ -139,9 +128,9 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
     );
     return countRow.parse(row).count;
   },
-  currentFingerprint: async () => {
+  currentFingerprints: async () => {
     const result = await run(client, graphSql, [operationId]);
-    return fingerprintOfGraph(graphRows.parse(result.rows));
+    return fingerprintsOfGraph(graphRowsSchema.parse(result.rows));
   },
   discardCandidates: (token, page) =>
     affected(
@@ -170,14 +159,11 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
       input.token,
       input.owner,
       input.claimRevision,
+      input.superseded,
       input.fingerprint,
     ]),
-  heartbeat: (token, owner) =>
-    matched(
-      client,
-      'UPDATE "data_operations" SET "claim_heartbeat_at" = clock_timestamp() WHERE "claim_token" = ? AND "claim_owner" = ?',
-      [token, owner],
-    ),
+  heartbeat: (token, owner, leaseMs = 0) =>
+    matched(client, heartbeatSql, [leaseMs, token, owner]),
   history: historySqlPort(client),
   insertCandidates: (input: StagedRows) =>
     affected(client, insertSql, [
@@ -208,15 +194,29 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   },
   readState: async (lock): Promise<OperationsState> =>
     toState(stateRow.parse(await first(client, stateSql(lock)))),
+  recordOutcomes: (token, owner, files) =>
+    matched(client, recordSql, [json(files), token, owner]),
   recordStagedPage: (token, owner, page) =>
     matched(client, stagedSql, [page, token, owner]),
-  release: (input: ReleaseInput) =>
-    matched(client, releaseSql, [
+  // Every caller holds the singleton lock: the row read here is the one
+  // the release updates.
+  release: async (input: ReleaseInput) => {
+    const { claim, publicationOutcomes } = toState(
+      stateRow.parse(await first(client, stateSql(false))),
+    );
+    const files = input.files ?? null;
+    return matched(client, releaseSql, [
       input.code,
       input.message ?? null,
-      input.failed ? 'failed' : 'idle',
+      releasedPublicationState(
+        input.failed,
+        files ?? publicationOutcomes,
+        claim?.revision ?? null,
+      ),
+      files === null ? null : json(files),
       input.token,
-    ]),
+    ]);
+  },
   ruleModes: async () => {
     const rules = await run(client, ruleModesSql);
     return ruleModeRows.parse(rules.rows);

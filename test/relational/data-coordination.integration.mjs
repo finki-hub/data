@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
+import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import {
   applySchemaConstraints,
@@ -48,6 +49,9 @@ const optionKeys = [
   'code',
   'retry',
   'files',
+  'filename',
+  'outcome',
+  'bytes',
 ];
 const blankBody = Object.fromEntries(optionKeys.map((key) => [key, null]));
 const templatedOptions = Object.fromEntries(
@@ -56,6 +60,7 @@ const templatedOptions = Object.fromEntries(
 const restartContainer = process.env.DIRECTUS_COORDINATION_RESTART_CONTAINER;
 const claimMismatch = 'COORDINATION_CLAIM_MISMATCH';
 const pageUnplanned = 'COORDINATION_PAGE_UNPLANNED';
+const unrecordedUpload = /without being recorded/u;
 
 const get = async (target, path) => {
   const body = await read(
@@ -115,11 +120,18 @@ const act = async (target, body) => {
 };
 
 // Invalid options and duplicate rows are 400s; every other refusal is a 409.
-const statusOfCode = (code) =>
-  code === 'COORDINATION_INVALID_OPTIONS' ||
-  code === 'COORDINATION_DUPLICATE_ROWS'
-    ? 400
-    : 409;
+// A publication completes with every declared file uploaded.
+const everyFileUploaded = Object.fromEntries(
+  publicFiles.map((filename) => [filename, { outcome: 'uploaded' }]),
+);
+
+const badRequestCodes = new Set([
+  'COORDINATION_DUPLICATE_ROWS',
+  'COORDINATION_INVALID_OPTIONS',
+  'COORDINATION_UNKNOWN_FILE',
+]);
+
+const statusOfCode = (code) => (badRequestCodes.has(code) ? 400 : 409);
 
 const refused = async (target, body, code) => {
   const outcome = await invoke(target, body);
@@ -234,7 +246,9 @@ const installsFlow = async (target, state) => {
     requested: 0,
     source: 0,
   });
-  assert.match(report.fingerprints.current, sha256Pattern);
+  // The probe's templated coordinate step roots both graphs.
+  assert.match(report.fingerprints.current.calculation, sha256Pattern);
+  assert.match(report.fingerprints.current.publication, sha256Pattern);
   assert.equal(report.fingerprints.calculation, null);
   assert.equal(report.lastError, null);
   const viaFlow = await act(target, { action: 'status' });
@@ -407,7 +421,10 @@ const claimsOnce = async (target, state) => {
   report = await status(target);
   assert.equal(report.claim, null);
   assert.deepEqual(report.dirty, ['enrollments', 'publication']);
-  assert.equal(report.fingerprints.calculation, report.fingerprints.current);
+  assert.equal(
+    report.fingerprints.calculation,
+    report.fingerprints.current.calculation,
+  );
   assert.equal(report.revisions.completed, 10);
   assert.deepEqual(await claimNow(target, 'publication'), {
     blocking: ['enrollments'],
@@ -634,14 +651,15 @@ const refusesGraphChange = async (target) => {
     'a changed graph makes every domain pending again',
   );
   assert.equal(report.lastError.code, 'FINGERPRINT_CHANGED');
-  assert.notEqual(report.fingerprints.current, claim.fingerprint);
+  // A publication claim runs under the publication fingerprint.
+  assert.notEqual(report.fingerprints.current.publication, claim.fingerprint);
   assert.equal(report.publication.state, 'idle');
   await patch(target, `/operations/${operationId}`, {
     options: templatedOptions,
   });
   report = await status(target);
   assert.equal(
-    report.fingerprints.current,
+    report.fingerprints.current.publication,
     claim.fingerprint,
     'the fingerprint is deterministic over the graph',
   );
@@ -661,6 +679,7 @@ const retriesFailure = async (target) => {
       code: 'SYNTHETIC_PUBLISH_FAILURE',
       domain: 'publication',
       failed: true,
+      publication: 'failed',
       revision: 11,
     },
   );
@@ -677,29 +696,92 @@ const retriesFailure = async (target) => {
   });
   const retried = await claimNow(target, 'publication', true);
   assert.equal(retried.claimed, true);
-  const files = {
-    'courses.json': 'published',
-    'rooms.json': 'published',
-    'staff.json': 'published',
-    'students.json': 'skipped',
-  };
+  // The publish loop keeps the claim with a heartbeat right before each
+  // upload, which leases it for the upload, and records each file's
+  // outcome as soon as it is known, which ends the lease.
+  assert.deepEqual(
+    await act(target, { action: 'heartbeat', token: retried.token }),
+    { heartbeat: true },
+  );
+  report = await status(target);
+  assert.ok(report.claim.heartbeatAgeMs < 0, 'the upload lease runs');
+  assert.equal(report.claim.stale, false);
+  const [firstFile] = publicFiles;
+  assert.deepEqual(
+    await act(target, {
+      action: 'record',
+      bytes: 2,
+      filename: firstFile,
+      outcome: 'uploaded',
+      token: retried.token,
+    }),
+    { filename: firstFile, outcome: 'uploaded', revision: 11 },
+  );
+  report = await status(target);
+  assert.ok(report.claim.heartbeatAgeMs >= 0, 'the record ended the lease');
+  assert.equal(report.publication.state, 'running');
+  assert.deepEqual(report.publication.files, {
+    [firstFile]: { bytes: 2, code: null, outcome: 'uploaded', revision: 11 },
+  });
+  await refused(
+    target,
+    {
+      action: 'record',
+      filename: 'undeclared.json',
+      outcome: 'uploaded',
+      token: retried.token,
+    },
+    'COORDINATION_UNKNOWN_FILE',
+  );
+  // A completion needs every declared file uploaded; the coordinator
+  // keeps each outcome with the claimed revision.
+  const files = Object.fromEntries(
+    publicFiles.map((filename, index) => [
+      filename,
+      { bytes: index + 2, outcome: 'uploaded' },
+    ]),
+  );
+  const recorded = Object.fromEntries(
+    publicFiles.map((filename, index) => [
+      filename,
+      { bytes: index + 2, code: null, outcome: 'uploaded', revision: 11 },
+    ]),
+  );
+  await refused(
+    target,
+    {
+      action: 'complete',
+      files: { ...files, 'undeclared.json': { outcome: 'uploaded' } },
+      token: retried.token,
+    },
+    'COORDINATION_UNKNOWN_FILE',
+  );
   assert.deepEqual(
     await act(target, { action: 'complete', files, token: retried.token }),
-    { completed: true, domain: 'publication', installed: 0, revision: 11 },
+    {
+      completed: true,
+      domain: 'publication',
+      installed: 0,
+      pendingRevision: null,
+      revision: 11,
+    },
   );
   report = await status(target);
   assert.equal(report.publication.state, 'completed');
-  assert.deepEqual(report.publication.files, files);
+  assert.deepEqual(report.publication.files, recorded);
   assert.deepEqual(report.pending, []);
   assert.deepEqual(report.dirty, []);
-  assert.equal(report.fingerprints.publication, report.fingerprints.current);
+  assert.equal(
+    report.fingerprints.publication,
+    report.fingerprints.current.publication,
+  );
   assert.deepEqual(await claimNow(target, 'publication'), {
     claimed: false,
     reason: 'nothing_pending',
   });
   const raw = await get(target, '/items/data_operations');
   assert.equal(raw.publication_state, 'completed');
-  assert.deepEqual(raw.publication_outcomes, files);
+  assert.deepEqual(raw.publication_outcomes, recorded);
   assert.equal(raw.claim_token, null);
   assert.notEqual(raw.finished_at, null);
 };
@@ -708,6 +790,8 @@ const retriesFailure = async (target) => {
 // restart it is still busy (a timeout alone steals nothing); once its
 // heartbeat is older than the window the next claim attempt releases it as
 // abandoned, keeps the failure details, and an explicit retry succeeds.
+// The publish loop had recorded one file before the restart: the status
+// keeps it and calls the publication partial, never "no file uploaded".
 const recoversAfterRestart = async (target, state) => {
   await create(target, state, [
     'discord_channels',
@@ -720,6 +804,14 @@ const recoversAfterRestart = async (target, state) => {
   const claim = await claimNow(target, 'publication');
   assert.equal(claim.claimed, true);
   assert.equal(claim.revision, 12);
+  const [firstFile, secondFile] = publicFiles;
+  await act(target, {
+    action: 'record',
+    bytes: 3,
+    filename: firstFile,
+    outcome: 'uploaded',
+    token: claim.token,
+  });
   const attempts = await restartDirectus(target);
   Object.assign(state, { restart: { attempts, owner: claim.owner } });
   let report = await status(target);
@@ -759,14 +851,33 @@ const recoversAfterRestart = async (target, state) => {
   assert.equal(report.lastError.code, 'CLAIM_ABANDONED');
   assert.equal(report.lastError.domain, 'publication');
   assert.equal(report.lastError.revision, 12);
-  assert.equal(report.publication.state, 'failed');
+  assert.match(report.lastError.message, unrecordedUpload);
+  assert.equal(report.publication.state, 'partial');
+  assert.deepEqual(report.publication.files[firstFile], {
+    bytes: 3,
+    code: null,
+    outcome: 'uploaded',
+    revision: 12,
+  });
+  // A file the run never reached keeps the earlier run's entry.
+  assert.equal(report.publication.files[secondFile].revision, 11);
   const fresh = await claimNow(target, 'publication', true);
   assert.equal(fresh.claimed, true);
   assert.notEqual(fresh.owner, claim.owner);
   assert.equal(fresh.owner, report.process);
   assert.deepEqual(
-    await act(target, { action: 'complete', token: fresh.token }),
-    { completed: true, domain: 'publication', installed: 0, revision: 12 },
+    await act(target, {
+      action: 'complete',
+      files: everyFileUploaded,
+      token: fresh.token,
+    }),
+    {
+      completed: true,
+      domain: 'publication',
+      installed: 0,
+      pendingRevision: null,
+      revision: 12,
+    },
   );
   report = await status(target);
   assert.deepEqual(report.pending, []);

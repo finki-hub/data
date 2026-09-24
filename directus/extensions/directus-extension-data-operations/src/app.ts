@@ -3,24 +3,23 @@ import { defineOperationApp } from '@directus/extensions-sdk';
 import {
   claimTargets,
   coordinationDomains,
-  operationId,
-  planSources,
-} from './coordination/state.js';
+  coordinatorActionNames,
+  domainLabel,
+  fileOutcomes,
+  isDomain,
+  nextCalculation,
+} from './coordination/domains.js';
+import { operationId, planSources } from './coordination/state.js';
 
 const choices = (values: readonly string[]) =>
   values.map((value) => ({ text: value, value }));
 
-const actions = [
-  'mark',
-  'claim',
-  'plan_pages',
-  'stage_page',
-  'index_page',
-  'complete',
-  'fail',
-  'heartbeat',
-  'status',
-];
+// A domain choice shows its declared label.
+const domainChoices = (values: readonly string[]) =>
+  values.map((value) => ({
+    text: isDomain(value) ? domainLabel(value) : value,
+    value,
+  }));
 
 const text = (value: unknown): string =>
   typeof value === 'string' && value !== '' ? value : '--';
@@ -36,7 +35,7 @@ export default defineOperationApp({
       field: 'action',
       meta: {
         interface: 'select-dropdown',
-        options: { allowNone: false, choices: choices(actions) },
+        options: { allowNone: false, choices: choices(coordinatorActionNames) },
         required: true,
         width: 'half',
       },
@@ -47,8 +46,8 @@ export default defineOperationApp({
       field: 'domain',
       meta: {
         interface: 'select-dropdown',
-        note: 'claim: the domain to run, or next_calculation for the first pending calculation domain in dependency order (history_index, then enrollments; never publication).',
-        options: { allowNone: true, choices: choices(claimTargets) },
+        note: `claim: the domain to run, or ${nextCalculation} for the first pending calculation domain in dependency order (never publication).`,
+        options: { allowNone: true, choices: domainChoices(claimTargets) },
         width: 'half',
       },
       name: 'Domain',
@@ -59,7 +58,7 @@ export default defineOperationApp({
       meta: {
         interface: 'select-multiple-checkbox',
         note: 'mark: the domains to mark pending.',
-        options: { choices: choices(coordinationDomains) },
+        options: { choices: domainChoices(coordinationDomains) },
         width: 'half',
       },
       name: 'Domains',
@@ -118,10 +117,41 @@ export default defineOperationApp({
       type: 'json',
     },
     {
+      field: 'filename',
+      meta: {
+        interface: 'input',
+        note: 'record: the published file whose outcome is recorded, for example {{ $trigger.filename }}.',
+        width: 'half',
+      },
+      name: 'Published file',
+      type: 'string',
+    },
+    {
+      field: 'outcome',
+      meta: {
+        interface: 'select-dropdown',
+        note: 'record: what happened to the file (skipped: not attempted).',
+        options: { allowNone: true, choices: choices(fileOutcomes) },
+        width: 'half',
+      },
+      name: 'File outcome',
+      type: 'string',
+    },
+    {
+      field: 'bytes',
+      meta: {
+        interface: 'input',
+        note: 'record: the bytes written, for example {{ upload.bytes }}.',
+        width: 'half',
+      },
+      name: 'Bytes written',
+      type: 'string',
+    },
+    {
       field: 'code',
       meta: {
         interface: 'input',
-        note: 'fail: a short failure code kept in the status.',
+        note: 'fail: a short failure code kept in the status; record: the code of a failed or skipped file, for example {{ upload.code }}.',
         width: 'half',
       },
       name: 'Failure code',
@@ -141,7 +171,7 @@ export default defineOperationApp({
       field: 'files',
       meta: {
         interface: 'input-code',
-        note: 'complete (publication): the outcome of each published file keyed by its filename, for example { "courses.json": "uploaded", "rooms.json": "uploaded" }; replaces the previous outcomes.',
+        note: 'complete and fail (publication): the outcome of each declared file keyed by its filename, for example { "courses.json": { "outcome": "uploaded", "bytes": 5439 }, "rooms.json": { "outcome": "failed", "code": "PUBLISH_UPLOAD_FAILED" } }; complete needs every declared file uploaded, fail records partial when some were.',
         options: { language: 'json' },
         width: 'full',
       },

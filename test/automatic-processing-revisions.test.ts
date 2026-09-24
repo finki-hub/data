@@ -4,6 +4,7 @@ import type { ActionContext } from '../directus/extensions/directus-extension-da
 
 import { runAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/actions.js';
 import { verifyClaim } from '../directus/extensions/directus-extension-data-operations/src/coordination/decisions.js';
+import { type Domain } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
   abandonedCode,
   interruptedCode,
@@ -27,7 +28,6 @@ import {
 import {
   claimLockWaitMs,
   claimStaleAfterMs,
-  type Domain,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
   sourceInvalidationSql,
@@ -39,7 +39,7 @@ import {
   context,
   fail,
   finish,
-  graphFingerprint,
+  graphFingerprints,
   settled,
   stateRowOf,
   status,
@@ -71,7 +71,7 @@ const afterStatement = (
       stateRow.parse(
         stateRowOf({
           claim_domain: domain,
-          claim_fingerprint: graphFingerprint,
+          claim_fingerprint: graphFingerprints.calculation,
           claim_heartbeat_age_ms: 10,
           claim_owner: 'process-a',
           claim_revision: 7,
@@ -236,7 +236,7 @@ describe('input revisions and interruptions', () => {
 
     const report = await status(fake);
 
-    expect(report.domains.enrollments.state).toBe('failed');
+    expect(report.domains['enrollments']?.state).toBe('failed');
     expect(report.lastError).toMatchObject({
       blocking: true,
       code: abandonedCode,

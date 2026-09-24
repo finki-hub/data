@@ -1,6 +1,7 @@
 import type { ReadinessEntry } from './readiness-types.js';
 import type { ExportDefinition } from './types.js';
 
+import { calculationDomains } from '../coordination/domains.js';
 import { checkDefinitions } from './definitions-check.js';
 import {
   fileKeys,
@@ -11,10 +12,7 @@ import {
   validateFile,
 } from './engine.js';
 import { exportError } from './errors.js';
-import {
-  calculationDomains,
-  type CoordinationFacts,
-} from './readiness-facts.js';
+import { type CoordinationFacts } from './readiness-facts.js';
 import { readinessRegistry } from './readiness-registry.js';
 import {
   assessReadiness,

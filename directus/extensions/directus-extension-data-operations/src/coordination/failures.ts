@@ -1,12 +1,14 @@
+import type { Fingerprints } from './fingerprint.js';
+
 import {
   type CalculationDomain,
-  type Claim,
   type ClaimDomain,
   coordinationDomains,
   type Domain,
-  type LastError,
-  type OperationsState,
-} from './state.js';
+  isCalculation,
+  kindOf,
+} from './domains.js';
+import { type Claim, type LastError, type OperationsState } from './state.js';
 
 // The source revision of the last change a run of this domain depends on.
 // A calculation reads only the tables that mark it or an upstream domain,
@@ -16,9 +18,7 @@ export const inputRevision = (
   state: OperationsState,
   domain: ClaimDomain | null,
 ): number =>
-  domain === 'history_index' || domain === 'enrollments'
-    ? state.inputRevisions[domain]
-    : state.sourceRevision;
+  isCalculation(domain) ? state.inputRevisions[domain] : state.sourceRevision;
 
 // A run overtaken by a source or graph change was discarded, not failed:
 // it never blocks the rerun that the overtaking asks for.
@@ -57,14 +57,15 @@ const describesCurrentInputs = (
 
 // The failure that keeps a domain from running on its own: a genuine
 // failure (not an overtaking or a first interruption) of that domain at
-// its current inputs and graph fingerprint. A change to its inputs (an
-// edit of a table it reads, or mark, which is the explicit retry of the
-// scheduled path), a changed graph or `retry` lifts it; an edit that only
-// marks publication does not, and time alone never does.
+// its current inputs and at the current fingerprint of its kind. A change
+// to its inputs (an edit of a table it reads, or mark, which is the
+// explicit retry of the scheduled path), a changed graph of its kind or
+// `retry` lifts it; an edit that only marks publication does not, and time
+// alone never does.
 export const blockingFailure = (
   state: OperationsState,
   domain: Domain,
-  currentFingerprint: string,
+  current: Fingerprints,
 ): LastError | null => {
   const error = state.lastError;
   if (
@@ -72,7 +73,7 @@ export const blockingFailure = (
     rerunCodes.has(error.code) ||
     !describesCurrentInputs(state, error, {
       domain,
-      fingerprint: currentFingerprint,
+      fingerprint: current[kindOf(domain)],
     })
   ) {
     return null;
@@ -89,8 +90,7 @@ export const abandonmentCode = (
   claim: Claim,
 ): string => {
   const error = state.lastError;
-  const calculation =
-    claim.domain === 'history_index' || claim.domain === 'enrollments';
+  const calculation = isCalculation(claim.domain);
   const repeated =
     error?.code === interruptedCode &&
     describesCurrentInputs(state, error, claim);

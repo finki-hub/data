@@ -1,3 +1,4 @@
+import type { Fingerprints } from '../directus/extensions/directus-extension-data-operations/src/coordination/fingerprint.js';
 import type {
   CoordinationPort,
   CoordinationStore,
@@ -5,15 +6,21 @@ import type {
 import type { EnrollmentSources } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
 
 import {
+  type CalculationDomain,
+  type ClaimDomain,
+  type Domain,
+  normaliseDomains,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import {
   abandonmentCode,
   inputRevision,
   touchesInputs,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
 import {
-  type CalculationDomain,
-  type ClaimDomain,
-  type Domain,
-  normaliseDomains,
+  releasedPublicationState,
+  type StoredOutcomes,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
+import {
   type OperationsState,
   type PageSource,
   sourceColumnDomains,
@@ -64,7 +71,7 @@ export type FakeData = {
   inputRevisions: Record<CalculationDomain, number>;
   lastError: OperationsState['lastError'];
   publicationFingerprint: null | string;
-  publicationOutcomes: null | Readonly<Record<string, string>>;
+  publicationOutcomes: null | StoredOutcomes;
   publicationState: string;
   requestedRevision: number;
   sourceRevision: number;
@@ -96,8 +103,17 @@ const stamp = (ms: null | number): null | string =>
 // An in-memory stand-in for the SQL port: the same guards, the same
 // rollback on a thrown transaction, one transaction at a time, and a
 // clock the test advances to age a heartbeat.
+// The same fingerprint for both graphs, as a test that changes a
+// calculation step sees them (a publication-only change moves only the
+// publication fingerprint).
+export const bothGraphs = (fingerprint: string): Fingerprints => ({
+  calculation: fingerprint,
+  publication: fingerprint,
+});
+
 export class FakeCoordination {
-  public fingerprint = 'graph-a';
+  // The current fingerprint of each graph.
+  public graphs: Fingerprints = bothGraphs('graph-a');
   // The lock flag of every state read, in order, so a test can check that
   // a writing transaction locked the singleton before anything else.
   public readLocks: boolean[] = [];
@@ -254,6 +270,7 @@ export class FakeCoordination {
     input: {
       readonly code: string;
       readonly failed: boolean;
+      readonly files?: null | StoredOutcomes;
       readonly message?: null | string;
     },
   ): void {
@@ -268,7 +285,13 @@ export class FakeCoordination {
       };
     }
     if (claim.domain === 'publication') {
-      this.#data.publicationState = input.failed ? 'failed' : 'idle';
+      this.#data.publicationOutcomes =
+        input.files ?? this.#data.publicationOutcomes;
+      this.#data.publicationState = releasedPublicationState(
+        input.failed,
+        this.#data.publicationOutcomes,
+        claim.revision,
+      );
     }
     this.#data.claim = null;
   }
@@ -305,7 +328,7 @@ export class FakeCoordination {
       },
       candidateCount: async (token) =>
         data().candidates.filter((row) => row.token === token).length,
-      currentFingerprint: async () => this.fingerprint,
+      currentFingerprints: async () => this.graphs,
       discardCandidates: async (token, page) => {
         const before = data().candidates.length;
         data().candidates = data().candidates.filter(
@@ -317,7 +340,9 @@ export class FakeCoordination {
       enrollmentSources: async () => this.enrollmentSources,
       ensureSingleton: async () => {},
       finish: async (input) => {
-        const claim = this.#liveClaim(input.token, input.owner, true);
+        const superseded =
+          input.superseded && data().claim?.domain === 'publication';
+        const claim = this.#liveClaim(input.token, input.owner, !superseded);
         if (
           claim?.revision !== input.claimRevision ||
           claim.fingerprint !== input.fingerprint
@@ -338,12 +363,12 @@ export class FakeCoordination {
         data().claim = null;
         return true;
       },
-      heartbeat: async (token, owner) => {
+      heartbeat: async (token, owner, leaseMs = 0) => {
         const claim = this.#liveClaim(token, owner, false);
         if (claim === null) {
           return false;
         }
-        claim.heartbeatAtMs = this.#now;
+        claim.heartbeatAtMs = this.#now + leaseMs;
         return true;
       },
       history: fakeHistoryPort(
@@ -405,6 +430,15 @@ export class FakeCoordination {
       readState: async (lock) => {
         this.readLocks.push(lock);
         return this.#state();
+      },
+      recordOutcomes: async (token, owner, files) => {
+        const claim = this.#liveClaim(token, owner, false);
+        if (claim?.domain !== 'publication') {
+          return false;
+        }
+        data().publicationOutcomes = files;
+        claim.heartbeatAtMs = this.#now;
+        return true;
       },
       recordStagedPage: async (token, owner, page) => {
         const claim = this.#liveClaim(token, owner, true);

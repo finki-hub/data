@@ -9,6 +9,7 @@ import {
   flowFamilyCodes,
   type FlowTemplate,
 } from '../src/flows/flow-template.js';
+import { publishFlows } from '../src/flows/publish-public-assets.js';
 import {
   flowFamilies,
   type FlowFamily,
@@ -33,14 +34,27 @@ const installedFlowIds = [
   '1201',
   '1404',
   '1405',
+  // Task 15: the publish family, the child before its parent.
+  '1502',
+  '1501',
   '1301',
   '1303',
   '1302',
 ];
 
-// The 171 operation ids of those Flows, sorted and hashed.
+// The 171 operation ids the fixture held before Task 15, sorted and
+// hashed.
 const operationIdsSha256 =
   '6858e870a5fb769ab5e64a027b3d56deb9364915d519cdf3161a950b08173ee8';
+
+// What Task 15 added: every operation of the publish family, and the
+// schedule's enrollment route and unknown-domain branch.
+const addedOperationIds = new Set([
+  ...publishFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
+  familyId('13', '3a'),
+  familyId('13', '4a'),
+  familyId('13', '49'),
+]);
 
 const codeOf = (id: string): string =>
   id.startsWith(idPrefix) ? id.slice(idPrefix.length, idPrefix.length + 2) : '';
@@ -101,11 +115,14 @@ describe('the Flow family registry', () => {
     const templates = flowTemplates();
     const operations = templates.flatMap(operationIds).toSorted(byText);
 
+    const kept = operations.filter((id) => !addedOperationIds.has(id));
+
     expect(templates.map(({ id }) => id.slice(-4))).toEqual(installedFlowIds);
-    expect(operations).toHaveLength(171);
-    expect(
-      createHash('sha256').update(operations.join(',')).digest('hex'),
-    ).toBe(operationIdsSha256);
+    expect(kept).toHaveLength(171);
+    expect(createHash('sha256').update(kept.join(',')).digest('hex')).toBe(
+      operationIdsSha256,
+    );
+    expect(operations).toHaveLength(171 + addedOperationIds.size);
     expect(templates.map(({ id }) => id)).toContain(familyId('14', '04'));
     expect(templates.map(({ id }) => id)).toContain(familyId('14', '05'));
   });

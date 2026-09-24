@@ -208,7 +208,7 @@ describe('the readiness decision', () => {
     const fake = settled();
 
     expect(coordinationFacts(await status(fake))).toEqual({
-      calculation: fake.fingerprint,
+      calculation: fake.graphs.calculation,
       domains: { enrollments: 'current', history_index: 'current' },
       revision: 0,
     });

@@ -1,37 +1,6 @@
 import type { PageRange } from '../page-state.js';
-
-// The enumerated work domains, in dependency order: the history index feeds
-// the enrollment counts, and publication reads everything.
-export const coordinationDomains = [
-  'history_index',
-  'enrollments',
-  'publication',
-] as const;
-
-export type Domain = (typeof coordinationDomains)[number];
-
-// What a claim may run: a work domain, or the promotion of a staged Moodle
-// snapshot. A snapshot claim is never pending, never dirty and never
-// completed through `complete`; the promotion takes and clears it itself.
-export const claimDomains = [...coordinationDomains, 'snapshot'] as const;
-
-export type ClaimDomain = (typeof claimDomains)[number];
-
-const calculationDomainList = ['history_index', 'enrollments'] as const;
-
-export type CalculationDomain = (typeof calculationDomainList)[number];
-
-export const calculationDomains: readonly Domain[] = calculationDomainList;
-
-// What a claim may name: one domain, or `next_calculation`, the first
-// pending calculation domain in dependency order. The scheduled Flow
-// claims `next_calculation` every tick; publication is never picked that
-// way, only its own Flow claims it.
-export const nextCalculation = 'next_calculation';
-
-export const claimTargets = [...coordinationDomains, nextCalculation] as const;
-
-export type ClaimTarget = (typeof claimTargets)[number];
+import type { CalculationDomain, ClaimDomain, Domain } from './domains.js';
+import type { StoredOutcomes } from './outcomes.js';
 
 // A failure message kept in the status is cut to this many characters, so
 // a caller can pass a whole failure record without a size check of its own.
@@ -64,9 +33,22 @@ export const operationId = 'finki-hub-data-coordinate';
 
 // A claim whose heartbeat is older than this is abandoned: its process died
 // or its Flow stopped without calling fail. A running job refreshes the
-// heartbeat with every plan_pages, stage_page or heartbeat call, so a live
-// claim is never taken away by time alone.
+// heartbeat with every plan_pages, stage_page, heartbeat or record call, so
+// a live claim is never taken away by time alone.
 export const claimStaleAfterMs = 60_000;
+
+// A heartbeat of a publication claim leases it for the upload that follows
+// (the claim counts as alive until the lease ends), so recovery never
+// releases a claim whose upload may still write its object: a later
+// publication would otherwise be overwritten by the older body without a
+// trace. Directus replaces a file through three S3 calls before the object
+// itself is written (PutObject of a temp object, ListObjectsV2 of the id
+// prefix, CopyObject), each tried three times by the SDK with the S3
+// driver's 5 s connection and 120 s socket timeouts: about 19 minutes at
+// worst. The `record` of the file's outcome ends the lease. A Directus that
+// dies in the middle of an upload therefore holds every claim until the
+// lease and the stale window have passed.
+export const publicationUploadLeaseMs = 20 * 60_000;
 
 // How long a claim waits for the singleton row lock. A source transaction
 // holds that lock from its first statement to its commit (a long import
@@ -184,6 +166,8 @@ export type Claim = {
   // abandoned.
   readonly domain: ClaimDomain | null;
   readonly fingerprint: string;
+  // Negative while a publication's upload lease runs: the heartbeat is
+  // dated to the end of the lease.
   readonly heartbeatAgeMs: number;
   readonly heartbeatAt: string;
   readonly owner: string;
@@ -223,23 +207,12 @@ export type OperationsState = {
   readonly inputRevisions: Readonly<Record<CalculationDomain, number>>;
   readonly lastError: LastError | null;
   readonly publicationFingerprint: null | string;
-  // The outcome of each file of the last completed publication, keyed by
-  // filename; null when none was recorded.
-  readonly publicationOutcomes: null | Readonly<Record<string, string>>;
+  // The outcome of each declared file of the last publication that
+  // recorded one (a completion, a failed run that attempted its files, or
+  // an overtaken one), keyed by filename; null when none was recorded.
+  readonly publicationOutcomes: null | StoredOutcomes;
   readonly publicationState: string;
   readonly requestedRevision: number;
   readonly sourceRevision: number;
   readonly startedAt: null | string;
 };
-
-export const isDomain = (value: unknown): value is Domain =>
-  typeof value === 'string' &&
-  (coordinationDomains as readonly string[]).includes(value);
-
-export const isClaimDomain = (value: unknown): value is ClaimDomain =>
-  typeof value === 'string' &&
-  (claimDomains as readonly string[]).includes(value);
-
-// Keeps only known domains, once each, in dependency order.
-export const normaliseDomains = (values: readonly unknown[]): Domain[] =>
-  coordinationDomains.filter((domain) => values.includes(domain));

@@ -14,7 +14,7 @@ import {
   mappingCheck,
   yearOrderCheck,
 } from './enrollment-checks.js';
-import { calculationDomains, notCurrentStates } from './readiness-facts.js';
+import { notCurrentCalculations } from './readiness-facts.js';
 
 // The readiness-check registry: every issue readiness reports, in answer
 // order, declared once (a new check is one entry, with a check or an
@@ -60,15 +60,13 @@ const assignments = checkedBy(assignmentCheck);
 const mappings = checkedBy(mappingCheck);
 
 export const readinessRegistry: readonly ReadinessEntry[] = [
-  ...calculationDomains.flatMap((domain) =>
-    notCurrentStates.map((state) =>
-      blocker({
-        code: `${domain}_${state}`,
-        description: `The ${domain.replace('_', ' ')} calculation is ${state}: the derived rows are not those of the current source revision. Data / Process pending runs it; Data / Mark pending retries a failure.`,
-        page: 'data_operations',
-        source: status,
-      }),
-    ),
+  ...notCurrentCalculations.map(({ domain, state }) =>
+    blocker({
+      code: `${domain}_${state}`,
+      description: `The ${domain.replace('_', ' ')} calculation is ${state}: the derived rows are not those of the current source revision. Data / Process pending runs it; Data / Mark pending retries a failure.`,
+      page: 'data_operations',
+      source: status,
+    }),
   ),
   blocker({
     code: 'snapshot_import_running',

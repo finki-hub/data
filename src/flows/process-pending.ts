@@ -1,3 +1,5 @@
+import type { CalculationDomain } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+
 import { dispatcherFlow, dispatcherFlowId } from './count-enrollments.js';
 import {
   automationId,
@@ -10,10 +12,11 @@ import {
 import { historyFlowIds } from './history-page-flows.js';
 import { markPendingFlow } from './mark-pending.js';
 import {
-  failStepId,
-  type ReleaseBranch,
-  releaseSteps,
-} from './release-steps.js';
+  branch,
+  type CalculationRoute,
+  routeSteps,
+  unknownDomainSteps,
+} from './process-routes.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -25,46 +28,63 @@ export const processPendingCron = '*/15 * * * * *';
 
 const claimToken = '{{ claim.token }}';
 
-const branch = (
-  spec: Pick<
-    ReleaseBranch,
-    'code' | 'message' | 'position' | 'stage' | 'suffixes'
-  >,
-): ReleaseBranch => ({ ...spec, family, token: claimToken });
-
-// A child that releases the claim itself (complete or fail) needs the
-// scheduler only when it could not: the Trigger Flow step rejected, or the
-// child answered nothing because it is inactive or deleted.
-const historyCrashed = branch({
-  code: 'INDEX_FAILED',
-  message: '{{ refresh.message }}',
-  position: [73, 19],
-  stage: 'history_run',
-  suffixes: ['41', '42'],
-});
-const historyMissing = branch({
-  code: 'INDEX_FAILED',
-  message:
-    '"Data / Refresh history index" answered nothing (inactive or deleted); the claim was released without a run.',
-  position: [91, 19],
-  stage: 'history_missing',
-  suffixes: ['43', '44'],
-});
-const countCrashed = branch({
-  code: 'ENROLLMENTS_FAILED',
-  message: '{{ count.message }}',
-  position: [73, 73],
-  stage: 'enrollments_run',
-  suffixes: ['45', '46'],
-});
-const countMissing = branch({
-  code: 'ENROLLMENTS_FAILED',
-  message:
-    '"Data / Count enrollments" answered nothing (inactive or deleted); the claim was released without a run.',
-  position: [91, 73],
-  stage: 'enrollments_missing',
-  suffixes: ['47', '48'],
-});
+// One explicit route per declared calculation domain, keyed by the domain
+// so a new calculation domain names its child here or does not compile.
+// Each child releases the claim itself (complete or fail); the scheduler
+// fails it only when the child could not.
+const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
+  {
+    enrollments: {
+      answered: { key: 'counted', suffix: '39' },
+      child: dispatcherFlowId,
+      crashed: branch({
+        code: 'ENROLLMENTS_FAILED',
+        message: '{{ count.message }}',
+        position: [73, 73],
+        stage: 'enrollments_run',
+        suffixes: ['45', '46'],
+      }),
+      missing: branch({
+        code: 'ENROLLMENTS_FAILED',
+        message:
+          '"Data / Count enrollments" answered nothing (inactive or deleted); the claim was released without a run.',
+        position: [91, 73],
+        stage: 'enrollments_missing',
+        suffixes: ['47', '48'],
+      }),
+      payload: { claim: claimToken, revision: '{{ claim.revision }}' },
+      route: {
+        key: 'route_enrollments',
+        name: 'Enrollment counts?',
+        suffix: '3a',
+      },
+      row: 55,
+      run: { key: 'count', name: 'Count enrollments', suffix: '38' },
+    },
+    history_index: {
+      answered: { key: 'refreshed', suffix: '35' },
+      child: historyFlowIds.refresh,
+      crashed: branch({
+        code: 'INDEX_FAILED',
+        message: '{{ refresh.message }}',
+        position: [73, 19],
+        stage: 'history_run',
+        suffixes: ['41', '42'],
+      }),
+      missing: branch({
+        code: 'INDEX_FAILED',
+        message:
+          '"Data / Refresh history index" answered nothing (inactive or deleted); the claim was released without a run.',
+        position: [91, 19],
+        stage: 'history_missing',
+        suffixes: ['43', '44'],
+      }),
+      payload: { claim: claimToken },
+      route: { key: 'route', name: 'History index?', suffix: '33' },
+      row: 1,
+      run: { key: 'refresh', name: 'Refresh the history index', suffix: '34' },
+    },
+  };
 
 // The native scheduler of automatic processing. Every tick goes through
 // the coordinator's atomic claim, which also releases a claim whose
@@ -133,67 +153,8 @@ export const processPendingFlow: FlowTemplate = {
       suffix: '37',
       type: 'transform',
     }),
-    condition({
-      edges: { reject: automationId('38'), resolve: automationId('34') },
-      family,
-      filter: { claim: { domain: { _eq: 'history_index' } } },
-      key: 'route',
-      name: 'History index?',
-      position: [55, 1],
-      suffix: '33',
-    }),
-    operation({
-      edges: {
-        reject: failStepId(historyCrashed),
-        resolve: automationId('35'),
-      },
-      family,
-      key: 'refresh',
-      name: 'Refresh the history index',
-      options: {
-        flow: historyFlowIds.refresh,
-        iterationMode: 'serial',
-        payload: { claim: claimToken },
-      },
-      position: [73, 1],
-      suffix: '34',
-      type: 'trigger',
-    }),
-    condition({
-      edges: { reject: failStepId(historyMissing) },
-      family,
-      filter: { refresh: { ok: { _nnull: true } } },
-      key: 'refreshed',
-      name: 'Answered?',
-      position: [91, 1],
-      suffix: '35',
-    }),
-    operation({
-      edges: { reject: failStepId(countCrashed), resolve: automationId('39') },
-      family,
-      key: 'count',
-      name: 'Count enrollments',
-      options: {
-        flow: dispatcherFlowId,
-        iterationMode: 'serial',
-        payload: { claim: claimToken, revision: '{{ claim.revision }}' },
-      },
-      position: [73, 55],
-      suffix: '38',
-      type: 'trigger',
-    }),
-    condition({
-      edges: { reject: failStepId(countMissing) },
-      family,
-      filter: { count: { ok: { _nnull: true } } },
-      key: 'counted',
-      name: 'Answered?',
-      position: [91, 55],
-      suffix: '39',
-    }),
-    ...[historyCrashed, historyMissing, countCrashed, countMissing].flatMap(
-      (entry) => releaseSteps(entry),
-    ),
+    ...routeSteps(calculationRoutes),
+    ...unknownDomainSteps(),
   ],
   options: { cron: processPendingCron },
   trigger: 'schedule',

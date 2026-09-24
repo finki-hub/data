@@ -400,7 +400,7 @@ const withInvalidAggregate = async (target, body) => {
   const restored = await get(target, `${path}?fields=options`);
   assert.deepEqual(restored.options, readCount.options);
   const after = await status(target);
-  assert.equal(after.fingerprints.current, before.fingerprints.current);
+  assert.deepEqual(after.fingerprints.current, before.fingerprints.current);
 };
 
 const pageFailure = async (target, state, { code, extra, stage }) => {

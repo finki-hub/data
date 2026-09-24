@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
 import {
+  calculationDomains,
   coordinationDomains,
   isClaimDomain,
   normaliseDomains,
-  type OperationsState,
-} from './state.js';
+} from './domains.js';
+import { storedOutcomeSchema } from './outcomes.js';
+import { type OperationsState } from './state.js';
 
 const isoText = (column: string, alias: string): string =>
   `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "${alias}"`;
@@ -60,7 +62,12 @@ export const claimClear = [
 // The input revision of the claimed domain, as inputRevision computes it:
 // a calculation's own column (the source revision while it was never
 // written), the source revision for publication and a snapshot claim.
-export const claimInputRevision = `CASE "claim_domain" WHEN 'history_index' THEN COALESCE("history_index_input_revision", "source_revision") WHEN 'enrollments' THEN COALESCE("enrollments_input_revision", "source_revision") ELSE "source_revision" END`;
+export const claimInputRevision = `CASE "claim_domain" ${calculationDomains
+  .map(
+    (domain) =>
+      `WHEN '${domain}' THEN COALESCE("${domain}_input_revision", "source_revision")`,
+  )
+  .join(' ')} ELSE "source_revision" END`;
 
 // The union of the current dirty domains with the marked ones, in the
 // canonical domain order. The trigger function computes the same thing.
@@ -115,8 +122,12 @@ export const stateRow = z.object({
   last_failed_fingerprint: optionalString,
   last_failed_revision: optionalInt,
   publication_fingerprint: optionalString,
-  // A value edited out of shape by hand is reported as no outcome.
-  publication_outcomes: z.record(z.string(), z.string()).nullable().catch(null),
+  // A value edited out of shape by hand (or an outcome map of an earlier
+  // shape) is reported as no outcome.
+  publication_outcomes: z
+    .record(z.string(), storedOutcomeSchema)
+    .nullable()
+    .catch(null),
   publication_state: z.string(),
   requested_revision: z.number().int(),
   source_revision: z.number().int(),

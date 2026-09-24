@@ -1,4 +1,8 @@
 import {
+  calculationDomains,
+  domainDeclarations,
+} from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import {
   automationId,
   condition,
   coordinateOperation,
@@ -12,13 +16,18 @@ const family = flowFamilyCodes.automation;
 
 export const markPendingFlowId = automationId('03');
 
-// The domains a request names in the confirmation dialog, or the two
+const quoted = (value: string): string => `'${value}'`;
+
+// The calculation domains as a script literal, in declaration order.
+const calculationList = `[${calculationDomains.map(quoted).join(', ')}]`;
+
+// The domains a request names in the confirmation dialog, or the declared
 // calculation domains when it names none (a REST call without a body).
 // The coordinator validates the names.
 export const chosenDomainsScript = `module.exports = function (data) {
   const body = data.$trigger !== null && typeof data.$trigger === 'object' ? data.$trigger.body : null;
   const chosen = body !== null && typeof body === 'object' && Array.isArray(body.domains) ? body.domains : [];
-  return chosen.length > 0 ? chosen : ['history_index', 'enrollments'];
+  return chosen.length > 0 ? chosen : ${calculationList};
 };`;
 
 // The explicit recalculation request, and the explicit retry of a failed
@@ -132,12 +141,12 @@ export const markPendingFlow: FlowTemplate = {
         field: 'domains',
         meta: {
           interface: 'select-multiple-checkbox',
+          // One choice per declared domain, with its label.
           options: {
-            choices: [
-              { text: 'Moodle history index', value: 'history_index' },
-              { text: 'Enrollment counts', value: 'enrollments' },
-              { text: 'Publication', value: 'publication' },
-            ],
+            choices: domainDeclarations.map(({ label, name }) => ({
+              text: label,
+              value: name,
+            })),
           },
           width: 'full',
         },

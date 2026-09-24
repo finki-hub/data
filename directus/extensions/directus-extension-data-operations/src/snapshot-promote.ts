@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { BackupRecord, SnapshotPorts } from './snapshot/port.js';
 
 import { recoverInside } from './coordination/action-support.js';
-import { verifyOwnership } from './coordination/decisions.js';
+import { currentFor, verifyOwnership } from './coordination/decisions.js';
 import { ClaimKeeper, writeBackup } from './snapshot/backup.js';
 import { snapshotDeps } from './snapshot/context.js';
 import {
@@ -156,7 +156,10 @@ export const runSnapshotPromotion = async (
     const taken = await coordination.takeClaim({
       dirtyDomains: state.dirtyDomains,
       domain: 'snapshot',
-      fingerprint: await coordination.currentFingerprint(),
+      fingerprint: currentFor(
+        await coordination.currentFingerprints(),
+        'snapshot',
+      ),
       owner: deps.owner,
       sourceRevision: state.sourceRevision,
       token: claimToken,

@@ -1,7 +1,7 @@
 import type { Inventory } from './inventory.js';
 
 import { findModelCollection } from '../data-model/collections.js';
-import { legacyOperationTypes } from '../legacy-flows.js';
+import { isLegacyFlow } from '../legacy-flows.js';
 import { type CollectionKey, collectionKeys } from '../schema.js';
 import { academicYears as checkpointYears } from '../specs/public.js';
 import { isBlocker, sortFindings } from './findings.js';
@@ -36,7 +36,7 @@ const flowSummaries = (
   }));
   const findings = flows.map((flow) => {
     const base = { collection: 'directus_flows', ids: [], label: flow.id };
-    return flow.operationTypes.some((type) => legacyOperationTypes.has(type))
+    return isLegacyFlow(flow.id, flow.operationTypes)
       ? finding('legacy_flow_present', {
           ...base,
           message: `Flow ${quote(flow.name)} (${flow.status}) runs the checkpoint derivation or publication (${flow.operationTypes.join(', ')}); it must be retired or re-pointed at cutover, never overwritten by the migration.`,

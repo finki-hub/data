@@ -20,6 +20,7 @@ export const flowFamilyCodes = {
   legacy: '12',
   mapped: '11',
   publication: '14',
+  publish: '15',
   snapshot: '10',
 } as const;
 
@@ -53,6 +54,14 @@ export const automationId = familyIds(flowFamilyCodes.automation);
 // The publication family (Data / Validate readiness and Publish / Prepare
 // public assets).
 export const publicationId = familyIds(flowFamilyCodes.publication);
+
+// The publish family (Publish / Public assets (relational) and its
+// per-file child Publish / One file).
+export const publishId = familyIds(flowFamilyCodes.publish);
+
+// The storage writer every published file goes through: the existing
+// publish-json operation, one single-entry filename map per call.
+export const publishJsonOperation = 'finki-hub-publish-json';
 
 // A deterministic UUID of the checkpoint Flows the workbook import installs
 // (Rebuild derived data, Publish public assets); not a managed family.

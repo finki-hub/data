@@ -6,13 +6,13 @@ import { splitHistory } from '../directus/extensions/directus-extension-course-s
 import { type ActionContext } from '../directus/extensions/directus-extension-data-operations/src/coordination/action-support.js';
 import { runAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/actions.js';
 import { decideCompletion } from '../directus/extensions/directus-extension-data-operations/src/coordination/decisions.js';
+import { type Domain } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
   coordinatorActions,
   parseCoordinatorInput,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import {
   claimStaleAfterMs,
-  type Domain,
   maxRowsPerPage,
   type OperationsState,
   pageSize,
@@ -727,7 +727,7 @@ describe('index guards', () => {
 
   test('refuses a page under an enrollment claim', async () => {
     const fake = new FakeCoordination();
-    fake.fingerprint = graphA;
+    fake.graphs = { calculation: graphA, publication: graphA };
     fake.data.calculationFingerprint = graphA;
     fake.sourceIds.history = [1];
     fake.sourceIds.rules = [1];

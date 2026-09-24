@@ -1,9 +1,17 @@
 import { describe, expect, test } from 'vitest';
-
-import type { OperationTemplate } from '../src/flows/flow-template.js';
+import { z } from 'zod';
 
 import { runAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/actions.js';
 import { decideClaim } from '../directus/extensions/directus-extension-data-operations/src/coordination/decisions.js';
+import {
+  calculationDomains,
+  coordinatorActionNames,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import {
+  graphKindsOf,
+  neutralActions,
+  pageStepActions,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/fingerprint.js';
 import { parseCoordinatorInput } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import {
   stateRow,
@@ -17,27 +25,38 @@ import {
 import { dispatcherFlow } from '../src/flows/count-enrollments.js';
 import { legacyEnrollmentFlows } from '../src/flows/count-legacy-enrollments.js';
 import { mappedEnrollmentFlows } from '../src/flows/count-mapped-enrollments.js';
+import {
+  coordinateOperation,
+  type FlowTemplate,
+  type OperationTemplate,
+} from '../src/flows/flow-template.js';
 import { historyIndexFlows } from '../src/flows/index-histories.js';
+import { markPendingFlow } from '../src/flows/mark-pending.js';
+import { publicationFlows } from '../src/flows/prepare-public-assets.js';
 import {
   automaticProcessingFlows,
   processPendingCron,
   processPendingFlow,
 } from '../src/flows/process-pending.js';
+import { publishFileFlow } from '../src/flows/publish-one-file.js';
+import { publishFlows } from '../src/flows/publish-public-assets.js';
 import { snapshotImportFlows } from '../src/flows/snapshot-import.js';
 import {
   claimNext,
   context,
   fail,
   finish,
-  graphFingerprint,
-  managedFlowIds,
+  graphFingerprints,
+  graphFlowIds,
   recordingDatabase,
   settled,
   stateRowOf,
   status,
   tablesOf,
+  templateFingerprints,
   tick,
 } from './automatic-processing-helpers.js';
+import { bothGraphs } from './data-coordination-helpers.js';
 import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
 
 const boundedCode = /^[A-Z][A-Z_]{0,63}$/u;
@@ -54,7 +73,7 @@ const stateOf = (overrides: Parameters<typeof stateRowOf>[0] = {}) =>
 describe('the scheduled claim', () => {
   test('picks the first pending calculation domain in dependency order and never publication', () => {
     const request = {
-      currentFingerprint: graphFingerprint,
+      currentFingerprints: graphFingerprints,
       domain: next,
       retry: false,
     } as const;
@@ -123,7 +142,7 @@ describe('the scheduled claim', () => {
       stateRowOf(),
       stateRowOf({
         claim_domain: enrollments,
-        claim_fingerprint: graphFingerprint,
+        claim_fingerprint: graphFingerprints.calculation,
         claim_heartbeat_age_ms: 1_000,
         claim_owner: 'process-b',
         claim_revision: 7,
@@ -134,7 +153,7 @@ describe('the scheduled claim', () => {
         dirty_domains: [enrollments, publication],
         last_error_code: 'LEGACY_COUNT_FAILED',
         last_failed_domain: enrollments,
-        last_failed_fingerprint: graphFingerprint,
+        last_failed_fingerprint: graphFingerprints.calculation,
         last_failed_revision: 7,
       }),
     ];
@@ -165,7 +184,7 @@ describe('the scheduled claim', () => {
         reason: 'failed',
       }),
     ]);
-    // The recursive graph query names its own CTE "managed".
+    // The recursive graph query names its own CTEs "roots" and "managed".
     expect(
       [...read].toSorted((left, right) => collator.compare(left, right)),
     ).toEqual([
@@ -173,6 +192,7 @@ describe('the scheduled claim', () => {
       'directus_flows',
       'directus_operations',
       'managed',
+      'roots',
     ]);
   });
 });
@@ -218,7 +238,7 @@ describe('failures and changes during a run', () => {
     await fail(fake, marked.token, 'again');
 
     // A graph change queues the calculations again, history first.
-    fake.fingerprint = 'graph-b';
+    fake.graphs = bothGraphs('graph-b');
     const regraphed = await claimNext(fake);
 
     expect(regraphed.domain).toBe(history);
@@ -251,7 +271,7 @@ describe('failures and changes during a run', () => {
 
     expect(rerun.domain).toBe(enrollments);
 
-    fake.fingerprint = 'graph-b';
+    fake.graphs = bothGraphs('graph-b');
 
     await expect(finish(fake, rerun.token)).rejects.toMatchObject({
       code: 'COORDINATION_FINGERPRINT_CHANGED',
@@ -265,17 +285,17 @@ describe('status', () => {
     const fake = settled('moodle_users');
     let report = await status(fake);
 
-    expect(report.domains.history_index).toMatchObject({
+    expect(report.domains['history_index']).toMatchObject({
       current: false,
       state: 'pending',
       waitingFor: [],
     });
-    expect(report.domains.enrollments).toMatchObject({
+    expect(report.domains['enrollments']).toMatchObject({
       current: false,
       state: 'pending',
       waitingFor: [history],
     });
-    expect(report.domains.publication).toMatchObject({
+    expect(report.domains['publication']).toMatchObject({
       current: false,
       state: 'pending',
       waitingFor: [history, enrollments],
@@ -284,7 +304,7 @@ describe('status', () => {
     const run = await claimNext(fake);
     report = await status(fake);
 
-    expect(report.domains.history_index).toMatchObject({
+    expect(report.domains['history_index']).toMatchObject({
       current: false,
       running: true,
       state: 'running',
@@ -304,7 +324,7 @@ describe('status', () => {
     report = await status(fake);
 
     // A failed history run leaves the index stale, and blocking.
-    expect(report.domains.history_index).toMatchObject({
+    expect(report.domains['history_index']).toMatchObject({
       current: false,
       failed: true,
       state: 'failed',
@@ -320,14 +340,14 @@ describe('status', () => {
     fake.sourceWrite('moodle_users');
     report = await status(fake);
 
-    expect(report.domains.history_index.state).toBe('pending');
+    expect(report.domains['history_index']?.state).toBe('pending');
     expect(report.lastError?.blocking).toBe(false);
 
     const retried = await claimNext(fake);
     await finish(fake, retried.token);
     report = await status(fake);
 
-    expect(report.domains.history_index).toEqual({
+    expect(report.domains['history_index']).toEqual({
       current: true,
       failed: false,
       pending: false,
@@ -350,6 +370,68 @@ const allTemplates = [
   ...legacyEnrollmentFlows,
   ...automaticProcessingFlows,
 ];
+
+// Every template setup installs, for the fingerprint partition.
+const installedTemplates = [
+  ...allTemplates,
+  ...publicationFlows,
+  ...publishFlows,
+];
+
+const byText = (left: string, right: string): number =>
+  collator.compare(left, right);
+
+const idsOf = (templates: readonly FlowTemplate[]): string[] =>
+  templates.map(({ id }) => id).toSorted(byText);
+
+// The ids of these templates that are part of a graph.
+const inGraph = (
+  graph: ReadonlySet<string>,
+  templates: readonly FlowTemplate[],
+): string[] => idsOf(templates).filter((id) => graph.has(id));
+
+const calculationFlows = [
+  ...historyIndexFlows,
+  ...mappedEnrollmentFlows,
+  ...legacyEnrollmentFlows,
+  dispatcherFlow,
+  processPendingFlow,
+];
+
+const ungraphedFlows = [
+  markPendingFlow,
+  ...snapshotImportFlows,
+  ...publicationFlows,
+];
+
+// The templates with one Flow replaced by an edited copy.
+const replaced = (
+  templates: readonly FlowTemplate[],
+  flow: FlowTemplate,
+): FlowTemplate[] =>
+  templates.map((candidate) => (candidate.id === flow.id ? flow : candidate));
+
+// A Flow with more options on the step of a key, as a Studio edit leaves it.
+const withOptions = (
+  flow: FlowTemplate,
+  key: string,
+  options: Readonly<Record<string, unknown>>,
+): FlowTemplate => ({
+  ...flow,
+  operations: flow.operations.map((operation) =>
+    operation.key === key
+      ? { ...operation, options: { ...operation.options, ...options } }
+      : operation,
+  ),
+});
+
+const quoted = (value: string): string => `'${value}'`;
+
+const routeFilter = z.object({
+  filter: z.object({
+    claim: z.object({ domain: z.object({ _eq: z.string() }) }),
+  }),
+});
 
 const step = (key: string): OperationTemplate | undefined =>
   processPendingFlow.operations.find((operation) => operation.key === key);
@@ -395,7 +477,11 @@ describe('the scheduled Flow', () => {
       filter: { claim: { domain: { _eq: 'history_index' } } },
     });
     expect(keyOf(step('route')?.resolve)).toBe('refresh');
-    expect(keyOf(step('route')?.reject)).toBe('count');
+    expect(keyOf(step('route')?.reject)).toBe('route_enrollments');
+    expect(step('route_enrollments')?.options).toEqual({
+      filter: { claim: { domain: { _eq: 'enrollments' } } },
+    });
+    expect(keyOf(step('route_enrollments')?.resolve)).toBe('count');
     expect(step('refresh')?.options).toEqual({
       flow: historyIndexFlows[2]?.id,
       iterationMode: 'serial',
@@ -422,41 +508,173 @@ describe('the scheduled Flow', () => {
       });
     }
   });
+
+  test('has one explicit route per declared calculation domain and fails a claim of any other domain', () => {
+    const routes = processPendingFlow.operations.filter(
+      ({ options }) => routeFilter.safeParse(options).success,
+    );
+
+    expect(
+      routes.map(
+        ({ options }) => routeFilter.parse(options).filter.claim.domain._eq,
+      ),
+    ).toEqual([...calculationDomains]);
+
+    // The last route's reject is the unknown-domain branch: it fails the
+    // claim with its own code, then answers the failure record.
+    const unknown = step(keyOf(routes.at(-1)?.reject) ?? '');
+
+    expect(unknown).toMatchObject({
+      options: {
+        action: 'fail',
+        code: 'DOMAIN_UNKNOWN',
+        token: '{{ claim.token }}',
+      },
+      type: coordinateOperation,
+    });
+    expect(String(unknown?.options['message'])).toContain('{{ claim.domain }}');
+    expect(step(keyOf(unknown?.resolve) ?? '')).toMatchObject({
+      options: { json: { code: 'DOMAIN_UNKNOWN', ok: false } },
+      type: 'transform',
+    });
+  });
+});
+
+describe('the Flow-graph fingerprints', () => {
+  test('partition the templates: calculation Flows, publish Flows, and neither', () => {
+    const calculation = graphFlowIds(installedTemplates, 'calculation');
+    const published = graphFlowIds(installedTemplates, 'publication');
+
+    // History, mapped, legacy, the dispatcher and the schedule.
+    expect(inGraph(calculation, calculationFlows)).toEqual(
+      idsOf(calculationFlows),
+    );
+    expect(inGraph(published, calculationFlows)).toEqual([]);
+    // The publish parent and the child it reaches.
+    expect(inGraph(published, publishFlows)).toEqual(idsOf(publishFlows));
+    expect(inGraph(calculation, publishFlows)).toEqual([]);
+    // Mark pending (mark and status only), the snapshot import and the
+    // readiness and preparation buttons belong to neither.
+    expect(inGraph(calculation, ungraphedFlows)).toEqual([]);
+    expect(inGraph(published, ungraphedFlows)).toEqual([]);
+  });
+
+  test('change as their graph changes: a dialog never, a publish step only publication, a calculation step both', () => {
+    const base = templateFingerprints(installedTemplates);
+    // Rewording the Mark pending dialog and its confirmation.
+    const dialog = templateFingerprints(
+      replaced(installedTemplates, {
+        ...markPendingFlow,
+        options: {
+          ...markPendingFlow.options,
+          confirmationDescription: 'Synthetic reworded confirmation.',
+          fields: [],
+        },
+      }),
+    );
+    // A Studio edit of a publish step (the storage location).
+    const publishEdit = templateFingerprints(
+      replaced(
+        installedTemplates,
+        withOptions(publishFileFlow, 'upload', { storage: 'local' }),
+      ),
+    );
+    // An option of a calculation step.
+    const calculationEdit = templateFingerprints(
+      replaced(
+        installedTemplates,
+        withOptions(dispatcherFlow, 'plan', { extra: true }),
+      ),
+    );
+
+    expect(dialog).toEqual(base);
+    expect(publishEdit.calculation).toBe(base.calculation);
+    expect(publishEdit.publication).not.toBe(base.publication);
+    expect(calculationEdit.calculation).not.toBe(base.calculation);
+    expect(calculationEdit.publication).not.toBe(base.publication);
+  });
+
+  test('root a Flow by what its coordinate step does, and a templated claim in both graphs', () => {
+    const both = ['calculation', 'publication'];
+
+    expect(graphKindsOf({ action: 'claim', domain: next })).toEqual([
+      'calculation',
+    ]);
+    expect(
+      calculationDomains.map((domain) =>
+        graphKindsOf({ action: 'claim', domain }),
+      ),
+    ).toEqual(calculationDomains.map(() => ['calculation']));
+    expect(graphKindsOf({ action: 'claim', domain: publication })).toEqual([
+      'publication',
+    ]);
+    expect(pageStepActions.map((action) => graphKindsOf({ action }))).toEqual(
+      pageStepActions.map(() => ['calculation']),
+    );
+    expect(
+      neutralActions.map((action) =>
+        graphKindsOf({ action, domain: publication }),
+      ),
+    ).toEqual(neutralActions.map(() => []));
+    expect(
+      [
+        { action: 'claim', domain: '{{ $trigger.domain }}' },
+        { action: 'claim' },
+        { action: '{{ $trigger.action }}' },
+        {},
+        null,
+      ].map((options) => graphKindsOf(options)),
+    ).toEqual([both, both, both, both, both]);
+    // Every declared action is placed once.
+    expect(
+      [...neutralActions, ...pageStepActions, 'claim'].toSorted(byText),
+    ).toEqual([...coordinatorActionNames].toSorted(byText));
+  });
+
+  test('are read by one query over system tables that applies the same rule', () => {
+    expect(graphSql).toContain('WITH RECURSIVE "roots"');
+    expect(graphSql).toContain('"managed"("graph", "flow")');
+    expect(graphSql).toContain(`o."type" = 'trigger'`);
+    expect(graphSql).toContain(`o."options"->>'flow'`);
+    expect(graphSql).toContain(
+      `WHEN o."options"->>'action' IN ('mark', 'status', 'heartbeat', 'record', 'complete', 'fail') THEN false`,
+    );
+    expect(graphSql).toContain(
+      `WHEN o."options"->>'action' IN (${pageStepActions.map(quoted).join(', ')}) THEN kinds."graph" = 'calculation'`,
+    );
+    expect(graphSql).toContain(
+      `o."options"->>'domain' IN ('history_index', 'enrollments', 'next_calculation')`,
+    );
+    expect(graphSql).toContain(
+      `o."options"->>'domain' IN ('publication') THEN kinds."graph" = 'publication'`,
+    );
+    // It hashes no name, description, icon, colour, position, status or
+    // accountability.
+    expect(
+      [
+        'name',
+        'description',
+        'icon',
+        'color',
+        'position_x',
+        'position_y',
+        'status',
+        'accountability',
+      ].filter((column) => graphSql.includes(`."${column}"`)),
+    ).toEqual([]);
+    expect(tablesOf(graphSql).toSorted(byText)).toEqual([
+      'directus_flows',
+      'directus_operations',
+      'directus_operations',
+      'directus_operations',
+      'managed',
+      'managed',
+      'roots',
+    ]);
+  });
 });
 
 describe('every template the scheduler reaches', () => {
-  test('is part of the managed graph the fingerprint covers', () => {
-    const managed = managedFlowIds(allTemplates);
-    const reached = [
-      ...historyIndexFlows,
-      ...mappedEnrollmentFlows,
-      ...legacyEnrollmentFlows,
-      ...automaticProcessingFlows,
-    ].map(({ id }) => id);
-
-    expect(reached.every((id) => managed.has(id))).toBeTruthy();
-    // The snapshot import runs no calculation and holds no coordinate step.
-    expect(snapshotImportFlows.some(({ id }) => managed.has(id))).toBeFalsy();
-    // The installed graph query follows Trigger Flow steps and hashes no
-    // name, description, icon, colour, position, status or accountability.
-    expect(graphSql).toContain('WITH RECURSIVE "managed"');
-    expect(graphSql).toContain(`o."type" = 'trigger'`);
-    expect(graphSql).toContain(`o."options"->>'flow'`);
-
-    for (const column of [
-      'name',
-      'description',
-      'icon',
-      'color',
-      'position_x',
-      'position_y',
-      'status',
-      'accountability',
-    ]) {
-      expect(graphSql).not.toContain(`."${column}"`);
-    }
-  });
-
   test('runs children serially, reads with $full and without events, and fails with bounded codes', () => {
     const operations = allTemplates.flatMap((flow) => flow.operations);
 

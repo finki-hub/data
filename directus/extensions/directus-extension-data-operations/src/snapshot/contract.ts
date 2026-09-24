@@ -96,17 +96,8 @@ export const boundedLength = 255;
 
 export const maxInteger = 2_147_483_647;
 
-export const importStates = [
-  'idle',
-  'importing',
-  'validating',
-  'ready',
-  'promoting',
-  'completed',
-  'failed',
-] as const;
-
-export type ImportState = (typeof importStates)[number];
+// The import states are declared once with the coordinator's other
+// vocabularies (coordination/domains.ts).
 
 export const stagingTable = 'moodle_import_rows';
 export const activeTable = 'moodle_users';

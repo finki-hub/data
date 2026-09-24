@@ -3,12 +3,11 @@ import { z } from 'zod';
 import { publicFilenamePattern } from '../exports/types.js';
 import { historyRowProblem } from '../history-contract.js';
 import { pageTokenPattern } from '../page-state.js';
+import { claimTargets, coordinationDomains, fileOutcomes } from './domains.js';
 import { coordinationError } from './errors.js';
+import { filesSchema } from './outcomes.js';
 import {
-  claimTargets,
-  coordinationDomains,
   errorMessageLength,
-  maxPublishedFiles,
   maxRowsPerPage,
   pageSize,
   planSources,
@@ -52,7 +51,6 @@ export const flag = (value: unknown): unknown => {
 
 const domain = z.enum(coordinationDomains);
 const token = z.preprocess(blank, z.uuid());
-const outcome = z.string().max(120);
 
 // A failure message never refuses the fail it rides on: text is cut to the
 // kept length, anything else (a whole failure record resolved by an exact
@@ -95,18 +93,43 @@ export const historyRowSchema = z
     }
   });
 
-// Per-file publication outcomes keyed by the published filename, as many
-// as the publication has files.
-const filesSchema = z
-  .record(z.string().regex(publicFilenamePattern), outcome)
-  .refine((files) => Object.keys(files).length <= maxPublishedFiles, {
-    message: `At most ${maxPublishedFiles} files`,
-  });
+// Per-file publication outcomes keyed by the published filename
+// (outcomes.ts), as many as the export definitions declare files.
+const files = z.preprocess(jsonish, filesSchema.optional());
+
+// The bytes a writer reports, as a number or its text; anything else is
+// unknown, which never refuses the record it rides on.
+const reportedBytes = z.preprocess((value) => {
+  const present = blank(value);
+  const bytes = typeof present === 'string' ? Number(present) : present;
+  return Number.isSafeInteger(bytes) && Number(bytes) >= 0 ? bytes : undefined;
+}, z.number().int().nonnegative().optional());
+
+// One published file's outcome as the publish loop reports it: an uploaded
+// file carries no code; the code of a failed or skipped one is whatever
+// its step answered (a code that is not bounded is recorded as
+// unboundedCode, outcomes.ts).
+const recordOptions = z
+  .object({
+    action: z.literal('record'),
+    bytes: reportedBytes,
+    code: z.preprocess(blank, z.string().max(200).optional()),
+    filename: z.preprocess(blank, z.string().regex(publicFilenamePattern)),
+    outcome: z.preprocess(blank, z.enum(fileOutcomes)),
+    token,
+  })
+  .refine(
+    ({ code, outcome }) => outcome !== 'uploaded' || code === undefined,
+    'an uploaded file carries no code',
+  );
 
 export const coordinatorInputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark'),
-    domains: z.preprocess(jsonish, z.array(domain).min(1).max(3)),
+    domains: z.preprocess(
+      jsonish,
+      z.array(domain).min(1).max(coordinationDomains.length),
+    ),
   }),
   z.object({
     action: z.literal('claim'),
@@ -132,20 +155,18 @@ export const coordinatorInputSchema = z.discriminatedUnion('action', [
     rows: z.preprocess(jsonish, z.array(historyRowSchema).max(pageSize)),
     token,
   }),
-  z.object({
-    action: z.literal('complete'),
-    files: z.preprocess(jsonish, filesSchema.optional()),
-    token,
-  }),
+  z.object({ action: z.literal('complete'), files, token }),
   z.object({
     action: z.literal('fail'),
     code: z
       .preprocess(blank, z.string().regex(/^[A-Za-z]\w{0,63}$/u))
       .transform((value) => value.toUpperCase()),
+    files,
     message: failureMessage,
     token,
   }),
   z.object({ action: z.literal('heartbeat'), token }),
+  recordOptions,
   z.object({ action: z.literal('status') }),
 ]);
 

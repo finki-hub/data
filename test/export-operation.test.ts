@@ -6,9 +6,10 @@ import type { CoordinationFacts } from '../directus/extensions/directus-extensio
 import type { SourceRead } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 import type { FakeItem } from './migration-test-helpers.js';
 
+import { exportActions } from '../directus/extensions/directus-extension-data-operations/src/exports/action-names.js';
 import {
-  exportActions,
   exportsOperationId,
+  parsedActions,
   runExportAction,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/actions.js';
 import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
@@ -118,9 +119,16 @@ const declaredReads = new Set(
 );
 
 describe('the export operation', () => {
-  test('is the operation the publication Flows call, with two actions', () => {
+  test('is the operation the publication Flows call, with four actions', () => {
     expect(exportsOperationId).toBe(exportsOperation);
-    expect(exportActions).toEqual(['readiness', 'prepare']);
+    expect(exportActions).toEqual([
+      'readiness',
+      'prepare',
+      'stage',
+      'outcomes',
+    ]);
+    // The Studio form's zod-free list is the schema's.
+    expect(parsedActions).toEqual([...exportActions]);
   });
 
   test('serves administrators only, before it builds a reader', async () => {

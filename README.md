@@ -491,11 +491,25 @@ revision of the last statement that touched its inputs
 (`history_index_input_revision`, `enrollments_input_revision`; a Moodle
 user touches both, an entry, mapping, rule or academic year the counts):
 an edit of a room, staff member, course or any other publication-only
-collection never discards a running calculation or retries a failed one. A change to a managed Flow (its
-trigger, an operation's type, options or edges, in any Flow that holds a
-coordinator step or that such a Flow reaches through a Trigger Flow step)
-marks both calculations; a name, description, icon, position or status
-does not.
+collection never discards a running calculation or retries a failed one.
+
+The coordinator fingerprints two Flow graphs. A Flow belongs to the
+**calculation graph** when one of its coordinator steps claims a
+calculation domain or `next_calculation`, or plans, stages or indexes
+pages; to the **publication graph** when one claims `publication`; and in
+either case so does every Flow it reaches through a Trigger Flow step. A
+claim whose domain (or a step whose action) is templated or unknown counts
+for both. Flows whose coordinator steps only mark, read the status,
+heartbeat, complete or fail (**Data / Mark pending** and its dialog) belong
+to neither. A change to a Flow of a graph (its trigger, an operation's
+type, options or edges) makes the domains of that graph pending: a
+calculation change marks both calculations and publication (the
+publication fingerprint includes the calculation fingerprint), a change to
+the publish Flows marks only publication, and rewording the Mark pending
+dialog marks nothing. A name, description, icon, position or status never
+counts. The status reports both as `fingerprints.current.calculation` and
+`fingerprints.current.publication`, beside the accepted ones of the last
+completed calculation and publication.
 
 A change reaches `course_enrollments` within one interval plus the run: on
 the fixture, 13 to 15 seconds after an edit, of which the count run took
@@ -519,7 +533,19 @@ runs the domain again, with no button. If that rerun is interrupted too, at
 the same inputs and Flow graph, it is released as `CLAIM_ABANDONED`, a
 failure that waits for **Data / Mark pending**, so a run that brings the
 process down stops after one automatic retry. An abandoned publication
-claim is always `CLAIM_ABANDONED`.
+claim is always `CLAIM_ABANDONED`. The heartbeat **Publish / One file**
+sends right before each upload leases the publication claim for 20
+minutes (the status shows a negative heartbeat age meanwhile), and
+recording the file's outcome ends the lease: Directus's S3 driver can still
+be writing an object that long after the upload started (a replacement
+makes three S3 calls before the object is written, each tried three times
+with a 5 second connection and a 120 second socket timeout), so recovery
+never releases a claim whose upload could later overwrite a newer
+publication. A Directus that dies in the middle of an upload therefore
+holds every claim for up to 21 minutes. Raising the publish location's
+S3 timeouts (`STORAGE_PUBLISH_SOCKET_TIMEOUT`,
+`STORAGE_PUBLISH_CONNECTION_TIMEOUT`) needs a longer lease
+(`publicationUploadLeaseMs` in `coordination/state.ts`).
 
 `GET /finki-hub-data-operations/status` (administrators) reports each
 domain under `domains` with `state` (`current`, `pending`, `running` or
@@ -624,9 +650,11 @@ preparation with ids only; nothing is guessed.
    `test/export-definitions.test.ts` shows a new definition end to end.
 3. `npm run build:operations`, then restart Directus.
 
-No Flow, no schema change and no Studio edit is involved: both publication
-Flows only call the export operation, which serves every definition. Task
-15's publication uploads every defined file in the listed order.
+No Flow, no schema change and no Studio edit is involved: the publication
+Flows only call the export operation, which serves every definition, and
+**Publish / Public assets (relational)** uploads whatever the definitions
+declare, one file after another in the listed order, recording one outcome
+per file.
 
 ### The Flows
 
@@ -648,8 +676,72 @@ Flows only call the export operation, which serves every definition. Task
 
 Both call the `finki-hub-exports` operation (actions `readiness` and
 `prepare`), which checks the administrator flag again. Neither holds a
-coordinator step, so neither is part of the calculation fingerprint. The
-checkpoint **Publish public assets** Flow is left as it is.
+coordinator step, so neither is part of a Flow-graph fingerprint. The
+checkpoint **Publish public assets** Flow is left as it is (its removal is
+deferred cleanup).
+
+### Publishing
+
+`npm run setup` also installs, once under stable ids (a Studio edit of
+either Flow survives every later setup):
+
+- **Publish / Public assets (relational)**, a manual Flow on **Data
+  Operations** for administrators, with a confirmation. It claims
+  `publication` (the button is an explicit request, so it also retries a
+  failed publication; it answers 409 `PUBLICATION_NOT_CLAIMED` when
+  another run holds the claim, when the calculations are still pending, or
+  when nothing is pending: mark publication pending with **Data / Mark
+  pending** to publish the current files again). The export operation's
+  `stage` action then checks readiness (refusing with the blocker codes),
+  reads, serializes and validates every declared file before the first
+  upload, and refuses (`EXPORT_UNSTABLE_PREPARATION`) when the source moved
+  since the claim. A native Trigger Flow step runs **Publish / One file**
+  once per file, serially, in definition order.
+- **Publish / One file** keeps the claim alive (a heartbeat that leases
+  the claim for the upload), then writes its file through the existing
+  **Publish JSON files** operation (`finki-hub-publish-json`, a
+  single-entry filename map, content type `application/json`, an existing
+  file replaced under its id) into the storage location its upload step
+  names (`publish`, editable in Studio), and records the file's outcome
+  right away with the coordinator's `record` action (`uploaded` with its
+  bytes, or `failed` with the writer's code). It answers `{ok, filename,
+  outcome, code}` and never rejects, so every declared file is attempted
+  even after an earlier one failed; a claim it cannot keep skips the
+  upload (`skipped`, with the heartbeat's own code).
+
+The `outcomes` action folds the answers into one outcome per declared
+file. When every file was uploaded, the Flow completes the claim: the
+revision it prepared (never a later edit) is recorded as published,
+`publication_state` becomes `completed` and the Flow answers the outcome
+map. Otherwise it fails the claim with `PUBLICATION_PARTIAL` (some files
+uploaded; state `partial`) or `PUBLICATION_FAILED` (none; state
+`failed`), records the map and answers 502 naming the files not uploaded
+with their codes; publication stays pending. Nothing is retried and
+nothing uploads in parallel: publish again. A source edit that commits
+while the files upload does not change them, since every file was
+prepared and validated at the claimed revision before the first upload:
+when every file was uploaded, that prepared revision is recorded as
+published, the Flow answers `pendingRevision` with the newer source
+revision, and publication stays pending for it. There is no multi-object
+transaction: a file uploaded before a later failure stays uploaded.
+
+`data_operations.publication_outcomes` holds one entry per declared file,
+keyed by filename: `{outcome, code, bytes, revision}` with `outcome`
+`uploaded`, `failed` or `skipped` (not attempted because the claim could
+not be kept), and `revision` the source revision of the run that attempted
+it. The publish loop records each entry as soon as the file's upload
+answered; the run's final complete or fail then records the whole map. A
+run that stops early (a Directus restart, a refused step) therefore still
+shows which files it uploaded, and its state is `partial` when a file was
+recorded uploaded at its own revision, `failed` when none was; the entries
+of files it never reached keep an earlier run's revision. An abandoned
+publication says in its message that an upload running at that moment may
+have finished without being recorded. The coordinator
+refuses a filename no export definition declares (`UNKNOWN_FILE`) and a
+completion without every declared file uploaded (`OUTCOMES_INCOMPLETE`),
+so a new definition adds an outcome, never a column or a Flow step.
+`GET /finki-hub-data-operations/status` reports it as
+`publication.files`.
 
 Every issue is one entry of the readiness-check registry
 (`exports/readiness-registry.ts`): its code, severity (`blocker` or
@@ -713,8 +805,9 @@ gating no published file, a warning gating one, two reviews of one bookmark
 or a filter with `_some`/`_none` is refused before anything is read, and a
 check several codes share runs once.
 
-`data_operations.publication_outcomes` keeps the outcome of each file of the
-last publication, keyed by filename, for any number of files.
+`data_operations.publication_outcomes` keeps the outcome of each declared
+file of the last publication, keyed by filename, for any number of files
+(see Publishing).
 
 ## Branding
 
@@ -814,6 +907,8 @@ Configure the `STORAGE_PUBLISH_*` variables shown in `.env.example`. For Cloudfl
 
 To publish, open any of the four public collections in Content, open the Flows action, and run **Publish public assets**. A confirmation is shown before all four files are replaced. The Flow is also visible and editable under **Settings → Flows**.
 
+The relational model publishes through **Publish / Public assets (relational)** on **Data Operations** instead (see Publishing above): the same four files, formats and storage location, one upload per declared file with one recorded outcome each. The checkpoint Flow stays until the deferred cleanup.
+
 ## Development checks
 
 ```sh
@@ -829,3 +924,30 @@ npm run test:csv
 ```
 
 This integration check creates a uniquely named temporary collection, imports generated Cyrillic, CJK, and emoji text across CSV read boundaries, verifies exact field values, and deletes that test collection in cleanup. It does not read or modify the migrated collections and contains no spreadsheet or scraper data.
+
+`npm run test:s3` exercises the publish Flows against a disposable local S3
+target (`test/publish-flow.integration.mjs`). It needs the fixture target
+of the other suites (`DIRECTUS_SEARCH_TEST_*`, a loopback Directus whose
+`publish` storage location points at the target), `DIRECTUS_S3_TEST_ENDPOINT`
+(plain `http://` on `127.0.0.1` or `[::1]` only), `DIRECTUS_S3_TEST_BUCKET`
+(`synthetic-…`), `DIRECTUS_S3_TEST_CONTAINER`, the Docker container that
+publishes that endpoint's port (the suite makes its bucket folder read-only
+for a moment to inject a storage failure, and restores it), and
+`DIRECTUS_S3_TEST_DIRECTUS_CONTAINER`, the Docker container of the fixture
+Directus. The harness refuses `https`, any other host, any other bucket
+name and any value naming `amazonaws.com` or `r2.cloudflarestorage.com`.
+Those variables only say where the suite reads objects back; Directus
+uploads wherever its own `publish` location points. So before anything is
+uploaded the suite checks that location: the Directus container must
+publish the fixture target's port, and its `STORAGE_LOCATIONS`,
+`STORAGE_PUBLISH_DRIVER`, `STORAGE_PUBLISH_ENDPOINT`,
+`STORAGE_PUBLISH_BUCKET` and `STORAGE_PUBLISH_ROOT` (read with `docker exec
+printenv`, never a key or secret) must name the s3 driver, plain `http://`
+on a name the S3 container has on a network the two share, at the port it
+serves, the synthetic bucket and no root, with no `_FILE` variant. A
+canary file written through the publish location must then appear in the
+bucket through the loopback endpoint, and is deleted. Otherwise the suite
+stops before the first declared file is written, so a Directus configured
+for the production bucket is never written to. It also refuses to start
+while any file is in the publish location, reads objects back through the
+endpoint, and deletes only what it published.

@@ -448,6 +448,25 @@ describe('enumerations', () => {
     );
   });
 
+  test('records publication outcomes in one map and knows the partial state', () => {
+    const operations = findCollection('data_operations');
+    const fields = operations.fields.map(({ field }) => field);
+
+    expect(enumOf('data_operations', 'publication_state').choices).toEqual([
+      { label: 'Idle', value: 'idle' },
+      { label: 'Running', value: 'running' },
+      { label: 'Published (every file)', value: 'completed' },
+      { label: 'Partly published', value: 'partial' },
+      { label: 'Failed (no file uploaded)', value: 'failed' },
+    ]);
+    // One JSON map keyed by filename; no column per published file, so a
+    // new export definition changes no schema.
+    expect(fields.filter((field) => field.startsWith('publish_'))).toEqual([]);
+    expect(
+      operations.fields.find(({ field }) => field === 'publication_outcomes'),
+    ).toMatchObject({ kind: 'json', readOnly: true });
+  });
+
   test('gives every enum one distinct value and a label per choice', () => {
     const enums = dataModelCollections.flatMap(enumsOf);
 

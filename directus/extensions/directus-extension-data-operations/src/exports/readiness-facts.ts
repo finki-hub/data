@@ -1,14 +1,20 @@
 import type { IssueCounts } from './types.js';
 
+import { calculationDomains } from '../coordination/domains.js';
+
 // The readiness facts that come from the coordinator and the snapshot
 // status rather than from a read: the counts of the registry entries whose
 // source is `status` or `snapshot` (readiness-registry.ts).
 
-export const calculationDomains = ['history_index', 'enrollments'] as const;
-
 // The states of a calculation domain that is not current; each is one
 // blocker code `<domain>_<state>`.
 export const notCurrentStates = ['pending', 'running', 'failed'] as const;
+
+// Every calculation domain in every state that is not current, in that
+// order: one blocker code each.
+export const notCurrentCalculations = calculationDomains.flatMap((domain) =>
+  notCurrentStates.map((state) => ({ domain, state })),
+);
 
 // The coordinator facts readiness reads: the source revision, the
 // fingerprint of the last accepted calculation and the state of each

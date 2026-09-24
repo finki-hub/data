@@ -2,18 +2,39 @@ import { z } from 'zod';
 
 import type { ExportDefinition } from './types.js';
 
+import { maxPublishedFiles } from '../coordination/state.js';
+import { exportActions } from './action-names.js';
 import { exportError } from './errors.js';
 import { exportDefinitions } from './index.js';
 import { type ExportDeps, prepareAction, readinessAction } from './prepare.js';
+import { outcomesAction, stageAction } from './publication.js';
 
 export const exportsOperationId = 'finki-hub-exports';
 
-// readiness answers whether the public files can be prepared now;
-// prepare also reads, serializes and validates every file and answers
-// their sizes and digests. Neither uploads anything.
-export const exportActions = ['readiness', 'prepare'] as const;
+// readiness answers whether the public files can be prepared now; prepare
+// also reads, serializes and validates every file and answers their sizes
+// and digests; stage does the same for the publication that holds the
+// claim of this revision and hands one upload per file to the publish
+// loop; outcomes folds the loop's answers into one outcome per file. None
+// uploads anything.
+const optionsSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('readiness') }),
+  z.object({ action: z.literal('prepare') }),
+  z.object({
+    action: z.literal('stage'),
+    revision: z.coerce.number().int().nonnegative(),
+    token: z.uuid(),
+  }),
+  z.object({
+    action: z.literal('outcomes'),
+    results: z.array(z.unknown()).max(maxPublishedFiles),
+  }),
+]);
 
-const optionsSchema = z.object({ action: z.enum(exportActions) });
+// The Studio form and the schema name the same actions.
+export const parsedActions = optionsSchema.options.map(
+  (option) => option.shape.action.value,
+);
 
 const adminAccountability = z.object({ admin: z.literal(true) });
 
@@ -23,7 +44,7 @@ export const requireAdmin = (accountability: unknown): void => {
   if (!adminAccountability.safeParse(accountability).success) {
     throw exportError(
       'FORBIDDEN',
-      'Only administrators may check or prepare the public files.',
+      'Only administrators may check, prepare or publish the public files.',
     );
   }
 };
@@ -54,8 +75,15 @@ export const runExportAction = async (
   { accountability, definitions = exportDefinitions, deps }: ExportCaller,
 ) => {
   requireAdmin(accountability);
-  const { action } = parseExportOptions(options);
-  return action === 'readiness'
-    ? readinessAction(definitions, await deps())
-    : prepareAction(definitions, await deps());
+  const parsed = parseExportOptions(options);
+  if (parsed.action === 'outcomes') {
+    return outcomesAction(definitions, parsed.results);
+  }
+  const built = await deps();
+  if (parsed.action === 'stage') {
+    return stageAction({ claim: parsed, definitions, deps: built });
+  }
+  return parsed.action === 'readiness'
+    ? readinessAction(definitions, built)
+    : prepareAction(definitions, built);
 };

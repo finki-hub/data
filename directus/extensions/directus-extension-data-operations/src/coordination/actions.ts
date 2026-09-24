@@ -9,17 +9,18 @@ import {
   recoverInside,
   unreachable,
 } from './action-support.js';
-import { decideClaim } from './decisions.js';
+import { currentFor, decideClaim } from './decisions.js';
+import { type Domain } from './domains.js';
 import { isLockUnavailable } from './errors.js';
 import { planEnrollmentsAction } from './plan-enrollments.js';
+import { completeAction, failAction } from './release-actions.js';
 import {
-  completeAction,
-  failAction,
   heartbeatAction,
   planPagesAction,
+  recordAction,
   stagePageAction,
 } from './run-actions.js';
-import { claimLockWaitMs, type Domain } from './state.js';
+import { claimLockWaitMs } from './state.js';
 import { statusAction } from './status.js';
 
 export const recoverAction = (context: ActionContext) =>
@@ -48,9 +49,9 @@ const takeClaim = async (
 ) => {
   await port.ensureSingleton();
   const { state } = await recoverInside(port, context);
-  const fingerprint = await port.currentFingerprint();
+  const fingerprints = await port.currentFingerprints();
   const decision = decideClaim(state, {
-    currentFingerprint: fingerprint,
+    currentFingerprints: fingerprints,
     domain: input.domain,
     retry: input.retry,
   });
@@ -64,6 +65,8 @@ const takeClaim = async (
       };
     case 'claim': {
       const token = randomUUID();
+      // A claim runs under the fingerprint of its domain's kind.
+      const fingerprint = currentFor(fingerprints, decision.domain);
       const taken = await port.takeClaim({
         dirtyDomains: decision.dirtyDomains,
         domain: decision.domain,
@@ -152,6 +155,8 @@ export const runAction = (
             { source: input.source, token: input.token },
             context,
           );
+    case 'record':
+      return recordAction(input, context);
     case 'stage_page':
       return stagePageAction(input, context);
     case 'status':

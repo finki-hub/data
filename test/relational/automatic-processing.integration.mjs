@@ -109,7 +109,7 @@ const installsTemplates = async ({ directus, state, t, target }) => {
   );
   const settled = await settle(target);
   assert.deepEqual(settled.report.pending, ['publication']);
-  state.fingerprint = settled.report.fingerprints.current;
+  state.fingerprint = settled.report.fingerprints.current.calculation;
   t.diagnostic(`fresh project settled after ${settled.elapsedMs} ms`);
 };
 

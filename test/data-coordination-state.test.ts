@@ -81,7 +81,7 @@ describe('status row mapping', () => {
   test('sees a row whose token survived its other claim columns as an abandoned claim', () => {
     const malformed = toState(stateRow.parse(statusRow({ claim_token: uuid })));
     const request = {
-      currentFingerprint: graphA,
+      currentFingerprints: { calculation: graphA, publication: graphA },
       domain: publication,
       retry: false,
     } as const;

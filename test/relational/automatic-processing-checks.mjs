@@ -34,6 +34,10 @@ import {
 } from './automatic-processing-helpers.mjs';
 import { errorCode, json, request } from './data-model-helpers.mjs';
 import {
+  partitionsFingerprints,
+  storesClaimOptions,
+} from './fingerprint-partition-checks.mjs';
+import {
   count,
   get,
   patch,
@@ -196,12 +200,14 @@ const gatesMarkPending = async (target) => {
 // schedule recalculates both domains on its own, twice (change, restore).
 const followsGraphChanges = async (t, target, state) => {
   const original = state.fingerprint;
+  const before = await status(target);
+  const publishedGraph = before.fingerprints.current.publication;
   await editOperation(target, state, {
     body: { name: 'Synthetic rename' },
     step: shapeCount,
   });
   let report = await status(target);
-  assert.equal(report.fingerprints.current, original);
+  assert.equal(report.fingerprints.current.calculation, original);
   assert.deepEqual(report.pending, ['publication']);
   await patch(target, `/operations/${shapeCount.id}`, {
     name: shapeCount.name,
@@ -215,7 +221,9 @@ const followsGraphChanges = async (t, target, state) => {
   });
   const edited = wallClock();
   report = await status(target);
-  assert.notEqual(report.fingerprints.current, original);
+  assert.notEqual(report.fingerprints.current.calculation, original);
+  // The publication fingerprint includes the calculation fingerprint.
+  assert.notEqual(report.fingerprints.current.publication, publishedGraph);
   assert.deepEqual(report.pending, [
     'history_index',
     'enrollments',
@@ -239,22 +247,24 @@ const followsGraphChanges = async (t, target, state) => {
   );
   assert.equal(
     counted.report.fingerprints.calculation,
-    counted.report.fingerprints.current,
+    counted.report.fingerprints.current.calculation,
   );
 
   await restoreOperation(target, state, shapeCount);
   const restored = await settle(target);
-  assert.equal(restored.report.fingerprints.current, original);
+  assert.equal(restored.report.fingerprints.current.calculation, original);
   assert.equal(restored.report.fingerprints.calculation, original);
 };
 
 // A Flow that holds no coordinate step is managed once a managed Flow
 // reaches it through a Trigger Flow step; its descriptions, icons and
-// operation names still are not part of the fingerprint.
+// operation names still are not part of the fingerprint. A Flow is managed
+// by what its coordinate step does: a claim of a calculation roots the
+// calculation graph, a status read roots nothing.
 const followsReachableChildren = async (target, state) => {
   const fingerprint = async () => {
     const report = await status(target);
-    return report.fingerprints.current;
+    return report.fingerprints.current.calculation;
   };
   const original = await fingerprint();
   state.flows.push(childFlowId);
@@ -315,6 +325,14 @@ const followsReachableChildren = async (target, state) => {
       }),
     ],
   );
+  // A parent that only reads the status roots no graph (Task 15), so its
+  // child is still unmanaged; one that claims a calculation roots the
+  // calculation graph, and its child with it.
+  assert.equal(await fingerprint(), original, 'a status step roots nothing');
+  await patch(target, `/operations/${syntheticId('21')}`, {
+    key: 'claim',
+    options: { action: 'claim', domain: 'enrollments' },
+  });
   const managed = await fingerprint();
   assert.notEqual(managed, original);
   await patch(target, `/operations/${syntheticId('11')}`, {
@@ -686,6 +704,20 @@ export const checksAfterSeeding = async (t, target, state) => {
     followsReachableChildren(target, state),
   );
   await t.test(
+    'partitions the fingerprints: a dialog edit changes neither, a publish-step edit only publication',
+    () => partitionsFingerprints(t, target),
+  );
+  await t.test(
+    'stores the claim action and domain where the fingerprint reads them',
+    {
+      skip: skipUnless(
+        databaseContainer,
+        'DIRECTUS_AUTOMATIC_DATABASE_CONTAINER',
+      ),
+    },
+    () => storesClaimOptions(t, target),
+  );
+  await t.test(
     'discards a run overtaken by an edit or a graph change and reruns it',
     () => discardsOvertakenRuns(t, target, state),
   );
@@ -766,7 +798,7 @@ export const cleansUp = async (target, state) => {
   const settled = await status(target);
   if (state.fingerprint !== undefined) {
     assert.equal(
-      settled.fingerprints.current,
+      settled.fingerprints.current.calculation,
       state.fingerprint,
       'the managed graph is as it was',
     );

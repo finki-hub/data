@@ -7,6 +7,7 @@ import type {
   SnapshotStore,
 } from './port.js';
 
+import { importStates } from '../coordination/domains.js';
 import { openWriterSql } from '../coordination/history-sql.js';
 import {
   type SqlBinding,
@@ -14,7 +15,7 @@ import {
   type SqlDatabase,
   sqlPort,
 } from '../coordination/sql-port.js';
-import { importStates, snapshotFields, type SnapshotRow } from './contract.js';
+import { snapshotFields, type SnapshotRow } from './contract.js';
 import { summarySql } from './fingerprint.js';
 import {
   activeDeletionSql,

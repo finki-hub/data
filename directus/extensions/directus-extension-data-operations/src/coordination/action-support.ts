@@ -1,5 +1,6 @@
+import type { StoredOutcomes } from './outcomes.js';
 import type { CoordinationPort, CoordinationStore } from './port.js';
-import type { OperationsState } from './state.js';
+import type { Claim, OperationsState } from './state.js';
 
 import { abandonedClaim } from './decisions.js';
 import { type CoordinationError, coordinationError } from './errors.js';
@@ -7,6 +8,9 @@ import { abandonmentCode, interruptedCode } from './failures.js';
 
 export type ActionContext = {
   readonly owner: string;
+  // The filenames a publication may report outcomes for, in publication
+  // order; the export definitions' (declaredFilenames) when absent.
+  readonly publishedFiles?: readonly string[];
   readonly staleAfterMs: number;
   readonly store: CoordinationStore;
 };
@@ -19,11 +23,34 @@ export const abandonedMessage =
 export const interruptedMessage =
   'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded and the domain runs once more on its own. A second interruption at the same inputs waits for Mark pending.';
 
+// An upload cannot be discarded: the status keeps the outcome each file
+// recorded, and says what it cannot know.
+export const abandonedPublicationMessage =
+  'The publication claim stopped heartbeating for longer than the stale window, after any upload lease (a Directus restart or a Flow that ended without fail). The files recorded uploaded at this revision hold it; an upload running at that moment may have finished without being recorded. The source revision is not recorded as published: publish again.';
+
+const abandonmentMessage = (code: string, claim: Claim): string => {
+  if (code === interruptedCode) {
+    return interruptedMessage;
+  }
+  return claim.domain === 'publication'
+    ? abandonedPublicationMessage
+    : abandonedMessage;
+};
+
 const overtakenMessages: Readonly<Record<Overtaking, string>> = {
   fingerprint_changed:
     'The managed Flow graph changed during the run; its output was discarded and the domain stays pending.',
   source_changed:
     'A source change committed during the run; its output was discarded and the domain stays pending.',
+};
+
+// An upload cannot be discarded: an overtaken publication keeps the
+// outcome of each file it uploaded, and the revision stays unpublished.
+const overtakenPublicationMessages: Readonly<Record<Overtaking, string>> = {
+  fingerprint_changed:
+    'The publication Flow graph changed during the publication; the uploaded files are recorded, the source revision is not recorded as published and publication stays pending. Publish again.',
+  source_changed:
+    'A source change committed during the publication; the uploaded files hold the prepared source revision, which is not recorded as published, and publication stays pending. Publish again.',
 };
 
 export type Mismatch = 'claim_mismatch' | 'owner_mismatch';
@@ -32,6 +59,8 @@ export type Outcome<T> =
   Overtaken | { readonly kind: 'done'; readonly value: T };
 
 export type Overtaken = {
+  // The outcomes of an overtaken publication, kept with its release.
+  readonly files?: StoredOutcomes;
   readonly kind: 'overtaken';
   readonly reason: Overtaking;
   readonly token: string;
@@ -41,11 +70,14 @@ export type Overtaking = 'fingerprint_changed' | 'source_changed';
 
 export const done = <T>(value: T): Outcome<T> => ({ kind: 'done', value });
 
-export const overtaken = (reason: Overtaking, token: string): Overtaken => ({
-  kind: 'overtaken',
-  reason,
-  token,
-});
+export const overtaken = (
+  reason: Overtaking,
+  token: string,
+  files?: StoredOutcomes,
+): Overtaken =>
+  files === undefined
+    ? { kind: 'overtaken', reason, token }
+    : { files, kind: 'overtaken', reason, token };
 
 export const unreachable = (value: never): never => {
   throw new TypeError(`Unexpected coordination case: ${String(value)}`);
@@ -72,6 +104,7 @@ export const releaseClaim = async (
   release: {
     readonly code: string;
     readonly failed: boolean;
+    readonly files?: StoredOutcomes;
     readonly message: null | string;
     readonly token: string;
   },
@@ -95,9 +128,18 @@ export const guarded = async <T>(
     outcome.reason === 'source_changed'
       ? 'SOURCE_CHANGED'
       : 'FINGERPRINT_CHANGED';
-  const message = overtakenMessages[outcome.reason];
+  const { files, token } = outcome;
+  const message =
+    files === undefined
+      ? overtakenMessages[outcome.reason]
+      : overtakenPublicationMessages[outcome.reason];
   await context.store.transaction((port) =>
-    releaseClaim(port, { code, failed: false, message, token: outcome.token }),
+    releaseClaim(
+      port,
+      files === undefined
+        ? { code, failed: false, message, token }
+        : { code, failed: false, files, message, token },
+    ),
   );
   throw coordinationError(code, message);
 };
@@ -120,7 +162,7 @@ export const recoverInside = async (
   await releaseClaim(port, {
     code,
     failed: true,
-    message: code === interruptedCode ? interruptedMessage : abandonedMessage,
+    message: abandonmentMessage(code, stale),
     token: stale.token,
   });
   return { released: true, state: await port.readState(true) };

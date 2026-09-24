@@ -2,12 +2,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
 import {
+  coordinationDomains,
+  coordinatorActionNames,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import {
   DirectusError,
   isCoordinationError,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/errors.js';
 import {
   canonicalJson,
-  fingerprintOfGraph,
+  fingerprintsOfGraph,
   type GraphRow,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/fingerprint.js';
 import {
@@ -15,7 +19,6 @@ import {
   parseCoordinatorInput,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import {
-  coordinationDomains,
   excludedTables,
   optionalSourceTables,
   pageSize,
@@ -41,7 +44,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/source-invalidation-sql.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { migrationCollectionKeys } from '../src/data-model/migration-collections.js';
-import { coordinationDomains as modelDomains } from '../src/data-model/operations-vocabularies.js';
+import { claimChoices } from '../src/data-model/operations-vocabularies.js';
 
 const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
 const triggerPattern =
@@ -76,13 +79,30 @@ const invalidOptions: readonly unknown[] = [
     token: uuid,
   },
   { action: 'complete' },
-  { action: 'complete', files: { courses: 'published' }, token: uuid },
-  { action: 'complete', files: { '../x.json': 'published' }, token: uuid },
-  { action: 'complete', files: { 'a.json': 'x'.repeat(121) }, token: uuid },
+  {
+    action: 'complete',
+    files: { courses: { outcome: 'uploaded' } },
+    token: uuid,
+  },
+  {
+    action: 'complete',
+    files: { '../x.json': { outcome: 'uploaded' } },
+    token: uuid,
+  },
+  {
+    action: 'fail',
+    code: 'X',
+    files: { 'a.json': { code: 'X'.repeat(65), outcome: 'failed' } },
+    token: uuid,
+  },
+  { action: 'complete', files: { 'a.json': 'uploaded' }, token: uuid },
   {
     action: 'complete',
     files: Object.fromEntries(
-      Array.from({ length: 65 }, (_, index) => [`f${index}.json`, 'ok']),
+      Array.from({ length: 65 }, (_, index) => [
+        `f${index}.json`,
+        { outcome: 'uploaded' },
+      ]),
     ),
     token: uuid,
   },
@@ -103,6 +123,7 @@ const graphRow = (options: unknown, key = 'coordinate'): GraphRow => ({
   entry: 'op-1',
   flow: 'flow-1',
   flow_options: { collections: ['data_operations'] },
+  graph: 'calculation',
   key,
   operation: 'op-1',
   options,
@@ -136,14 +157,20 @@ describe('option contract', () => {
       'complete',
       'fail',
       'heartbeat',
+      'record',
       'status',
     ]);
+    // The Studio form lists the zod-free declaration; both are one list.
+    expect(coordinatorActions).toEqual([...coordinatorActionNames]);
 
     const blanks = {
+      bytes: '',
       code: null,
       domain: null,
       domains: null,
+      filename: null,
       files: '',
+      outcome: null,
       page: null,
       retry: null,
       rows: null,
@@ -202,12 +229,18 @@ describe('option contract', () => {
       parseCoordinatorInput({
         ...blanks,
         action: 'complete',
-        files: { 'courses.json': 'published', 'rooms.json': 'skipped' },
+        files: {
+          'courses.json': { bytes: 2, outcome: 'uploaded' },
+          'rooms.json': { code: 'PUBLISH_UPLOAD_FAILED', outcome: 'failed' },
+        },
         token: uuid,
       }),
     ).toEqual({
       action: 'complete',
-      files: { 'courses.json': 'published', 'rooms.json': 'skipped' },
+      files: {
+        'courses.json': { bytes: 2, outcome: 'uploaded' },
+        'rooms.json': { code: 'PUBLISH_UPLOAD_FAILED', outcome: 'failed' },
+      },
       token: uuid,
     });
     expect(
@@ -226,6 +259,38 @@ describe('option contract', () => {
     expect(
       parseCoordinatorInput({ ...blanks, action: 'heartbeat', token: uuid }),
     ).toEqual({ action: 'heartbeat', token: uuid });
+    expect(
+      parseCoordinatorInput({
+        ...blanks,
+        action: 'record',
+        bytes: 5_439,
+        filename: 'courses.json',
+        outcome: 'uploaded',
+        token: uuid,
+      }),
+    ).toEqual({
+      action: 'record',
+      bytes: 5_439,
+      filename: 'courses.json',
+      outcome: 'uploaded',
+      token: uuid,
+    });
+    expect(
+      parseCoordinatorInput({
+        ...blanks,
+        action: 'record',
+        code: 'PUBLISH_UPLOAD_FAILED',
+        filename: 'rooms.json',
+        outcome: 'failed',
+        token: uuid,
+      }),
+    ).toEqual({
+      action: 'record',
+      code: 'PUBLISH_UPLOAD_FAILED',
+      filename: 'rooms.json',
+      outcome: 'failed',
+      token: uuid,
+    });
   });
 
   test('rejects unknown actions, arbitrary names, malformed tokens and bad rows as a 400', () => {
@@ -392,7 +457,12 @@ describe('source-invalidation migration', () => {
   });
 
   test('shares the domain enumeration and the status columns with the data model', () => {
-    expect([...coordinationDomains]).toEqual([...modelDomains]);
+    // One declaration: the model's claim domains are the extension's
+    // declared domains (and the snapshot claim), with their labels.
+    expect(claimChoices.map(({ value }) => value)).toEqual([
+      ...coordinationDomains,
+      'snapshot',
+    ]);
 
     const operations = dataModelCollections.find(
       ({ collection }) => collection === 'data_operations',
@@ -425,30 +495,30 @@ describe('graph fingerprint', () => {
       '{"a":[{"c":null}],"b":1}',
     );
 
-    const base = fingerprintOfGraph([
+    const base = fingerprintsOfGraph([
       graphRow({ action: 'claim', domain: 'enrollments' }),
-    ]);
+    ]).calculation;
 
     expect(base).toMatch(sha256Pattern);
     expect(
-      fingerprintOfGraph([
+      fingerprintsOfGraph([
         graphRow({ domain: 'enrollments', action: 'claim' }),
-      ]),
+      ]).calculation,
     ).toBe(base);
     expect(
-      fingerprintOfGraph([
+      fingerprintsOfGraph([
         graphRow({ action: 'claim', domain: 'publication' }),
-      ]),
+      ]).calculation,
     ).not.toBe(base);
     expect(
-      fingerprintOfGraph([
+      fingerprintsOfGraph([
         {
           ...graphRow({ action: 'claim', domain: 'enrollments' }),
           resolve: 'op-2',
         },
-      ]),
+      ]).calculation,
     ).not.toBe(base);
-    expect(fingerprintOfGraph([])).not.toBe(base);
+    expect(fingerprintsOfGraph([]).calculation).not.toBe(base);
   });
 });
 

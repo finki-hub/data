@@ -15,17 +15,18 @@ import {
   pendingDomains,
   verifyClaim,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/decisions.js';
+import { type Domain } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
   abandonedCode,
   interruptedCode,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
+import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import {
   claimStaleAfterMs,
-  type Domain,
   type OperationsState,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import { statusAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/status.js';
-import { FakeCoordination } from './data-coordination-helpers.js';
+import { bothGraphs, FakeCoordination } from './data-coordination-helpers.js';
 
 const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
 const otherUuid = '0f8a1d2c-3b4e-4f5a-8b6c-7d8e9f0a1b2c';
@@ -34,6 +35,7 @@ const enrollments = 'enrollments';
 const publication = 'publication';
 const graphA = 'graph-a';
 const graphB = 'graph-b';
+const [graphsA, graphsB] = [bothGraphs(graphA), bothGraphs(graphB)];
 const processA = 'process-a';
 const processB = 'process-b';
 const oldProcess = 'process-old';
@@ -191,29 +193,29 @@ describe('claim decisions', () => {
           calculationFingerprint: null,
           publicationFingerprint: null,
         }),
-        graphA,
+        graphsA,
       ),
     ).toEqual([history, enrollments, publication]);
-    expect(pendingDomains(baseState(), graphA)).toEqual([]);
-    expect(pendingDomains(baseState(), graphB)).toEqual([
+    expect(pendingDomains(baseState(), graphsA)).toEqual([]);
+    expect(pendingDomains(baseState(), graphsB)).toEqual([
       history,
       enrollments,
       publication,
     ]);
     expect(
-      pendingDomains(baseState({ dirtyDomains: [publication] }), graphA),
+      pendingDomains(baseState({ dirtyDomains: [publication] }), graphsA),
     ).toEqual([publication]);
     expect(
       pendingDomains(
         baseState({ publicationFingerprint: 'graph-old' }),
-        graphA,
+        graphsA,
       ),
     ).toEqual([publication]);
   });
 
   test('claims one job only, in dependency order, and blocks a failed revision until retried', () => {
     const request = {
-      currentFingerprint: graphA,
+      currentFingerprints: graphsA,
       domain: publication,
       retry: false,
     } as const;
@@ -233,7 +235,7 @@ describe('claim decisions', () => {
     expect(
       decideClaim(baseState({ dirtyDomains: [enrollments] }), {
         ...request,
-        currentFingerprint: graphB,
+        currentFingerprints: graphsB,
         domain: enrollments,
       }),
     ).toEqual({ blocking: [history], kind: 'upstream_dirty' });
@@ -283,12 +285,12 @@ describe('claim decisions', () => {
       'claim',
     );
     expect(
-      decideClaim(failed, { ...request, currentFingerprint: graphB }),
+      decideClaim(failed, { ...request, currentFingerprints: graphsB }),
     ).toEqual({ blocking: [history, enrollments], kind: 'upstream_dirty' });
     expect(
       decideClaim(baseState(), {
         ...request,
-        currentFingerprint: graphB,
+        currentFingerprints: graphsB,
         domain: history,
       }),
     ).toEqual({
@@ -509,7 +511,7 @@ describe('claims over the persistence port', () => {
     await settleHistory(fake);
     fake.sourceWrite('academic_years');
     const token = await claimToken(fake, enrollments);
-    fake.fingerprint = graphB;
+    fake.graphs = graphsB;
 
     await expect(complete(fake, token)).rejects.toMatchObject({
       code: 'COORDINATION_FINGERPRINT_CHANGED',
@@ -817,21 +819,18 @@ describe('failures and recovery over the persistence port', () => {
     });
 
     const retried = await claimToken(fake, publication, { retry: true });
-    // Keyed by filename, as many as the publication has.
-    const files = { 'courses.json': 'published', 'extra.json': 'skipped' };
+    const files = Object.fromEntries(
+      declaredFilenames.map((name) => [name, { outcome: 'uploaded' as const }]),
+    );
 
     await expect(
-      runAction(
-        {
-          action: 'complete',
-          files,
-          token: retried,
-        },
-        context(fake),
-      ),
+      runAction({ action: 'complete', files, token: retried }, context(fake)),
     ).resolves.toMatchObject({ completed: true, domain: publication });
     expect(fake.data.publicationState).toBe('completed');
-    expect(fake.data.publicationOutcomes).toEqual(files);
+
+    expect(Object.keys(fake.data.publicationOutcomes ?? {})).toEqual(
+      declaredFilenames,
+    );
     expect(fake.data.publicationFingerprint).toBe(graphA);
     expect(fake.data.dirtyDomains).toEqual([]);
     await expect(claim(fake, publication)).resolves.toEqual({
@@ -982,7 +981,11 @@ describe('status over the persistence port', () => {
         stale: false,
       },
       dirty: [history, enrollments, publication],
-      fingerprints: { calculation: null, current: graphA, publication: null },
+      fingerprints: {
+        calculation: null,
+        current: graphsA,
+        publication: null,
+      },
       lastError: null,
       pending: [history, enrollments, publication],
       process: processA,

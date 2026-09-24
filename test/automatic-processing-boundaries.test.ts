@@ -3,7 +3,12 @@ import { z } from 'zod';
 
 import type { DirectusRequest } from '../src/directus-request.js';
 
+import {
+  calculationDomains,
+  domainDeclarations,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import { sourceTableDomains } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
+import { statusAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/status.js';
 import { dataModelCollectionKeys } from '../src/data-model/collections.js';
 import { derivedDataFlowId } from '../src/derived-data-flow.js';
 import { importWorkbook } from '../src/directus.js';
@@ -361,6 +366,44 @@ describe('Mark pending', () => {
     expect(refusalOf(() => runScript('module.exports = 1;', {}))).toContain(
       'module.exports',
     );
+  });
+});
+
+const dialogChoices = z.object({
+  fields: z.tuple([
+    z.object({
+      field: z.literal('domains'),
+      meta: z.object({
+        options: z.object({
+          choices: z.array(z.object({ text: z.string(), value: z.string() })),
+        }),
+      }),
+    }),
+  ]),
+});
+
+describe('the declared domains', () => {
+  test('are the status domains and the Mark pending choices, with their labels and default', async () => {
+    const names = domainDeclarations.map(({ name }) => name);
+    const report = await statusAction({
+      owner: 'process-a',
+      staleAfterMs: 60_000,
+      store: new FakeCoordination().store,
+    });
+
+    expect(Object.keys(report.domains)).toEqual(names);
+    expect(
+      dialogChoices.parse(markPendingFlow.options).fields[0].meta.options
+        .choices,
+    ).toEqual(
+      domainDeclarations.map(({ label, name }) => ({
+        text: label,
+        value: name,
+      })),
+    );
+    expect(runScript(chosenDomainsScript, { $trigger: { body: {} } })).toEqual([
+      ...calculationDomains,
+    ]);
   });
 });
 

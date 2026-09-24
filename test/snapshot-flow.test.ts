@@ -3,12 +3,15 @@ import { z } from 'zod';
 
 import type { DirectusRequest } from '../src/directus-request.js';
 
-import { claimDomains } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
+import {
+  claimDomains,
+  domainLabel,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
   snapshotFolderId,
   snapshotFolderName,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
-import { claimDomains as modelClaimDomains } from '../src/data-model/operations-vocabularies.js';
+import { claimChoices } from '../src/data-model/operations-vocabularies.js';
 import { flowFamilyCodes, insertionOrder } from '../src/flows/flow-template.js';
 import { installFlowFamily } from '../src/flows/registry.js';
 import {
@@ -222,6 +225,10 @@ describe('snapshot claim domain', () => {
       'publication',
       'snapshot',
     ]);
-    expect([...modelClaimDomains]).toEqual([...claimDomains]);
+    // One declaration: the model builds its choices from the extension's
+    // list, each with its declared label.
+    expect(claimChoices).toEqual(
+      claimDomains.map((value) => ({ label: domainLabel(value), value })),
+    );
   });
 });

@@ -1,5 +1,4 @@
 import type { CoordinatorInput } from './options.js';
-import type { PageSource } from './state.js';
 
 import { duplicatePairs, planPages } from '../page-state.js';
 import {
@@ -8,17 +7,17 @@ import {
   guarded,
   mismatch,
   overtaken,
-  releaseClaim,
 } from './action-support.js';
-import {
-  decideCompletion,
-  decideStage,
-  dirtyAfterCompletion,
-  verifyClaim,
-  verifyOwnership,
-} from './decisions.js';
+import { decideStage, verifyClaim, verifyOwnership } from './decisions.js';
 import { coordinationError } from './errors.js';
+import {
+  boundedCode,
+  checkReportedFiles,
+  declaredFilenames,
+  mergedOutcomes,
+} from './outcomes.js';
 import { checkPlanSource } from './plan-enrollments.js';
+import { type PageSource, publicationUploadLeaseMs } from './state.js';
 
 type Input<Action extends CoordinatorInput['action']> = Extract<
   CoordinatorInput,
@@ -115,98 +114,8 @@ export const stagePageAction = (
     return done({ page: input.page, replaced, staged });
   });
 
-export const completeAction = (
-  input: Input<'complete'>,
-  context: ActionContext,
-) =>
-  guarded(context, async (port) => {
-    const state = await port.readState(true);
-    const fingerprint = await port.currentFingerprint();
-    const decision = decideCompletion(state, {
-      currentFingerprint: fingerprint,
-      owner: context.owner,
-      token: input.token,
-    });
-    if (
-      decision.kind === 'source_changed' ||
-      decision.kind === 'fingerprint_changed'
-    ) {
-      return overtaken(decision.kind, input.token);
-    }
-    if (decision.kind === 'unplanned' || decision.kind === 'pages_missing') {
-      throw coordinationError(
-        'PAGES_MISSING',
-        decision.kind === 'unplanned'
-          ? 'A history index or enrollment run must plan its pages (plan_pages) before it can complete.'
-          : `Pages not staged yet: ${decision.missing.join(', ')}.`,
-        {
-          details: {
-            missing:
-              decision.kind === 'pages_missing' ? decision.missing : null,
-          },
-        },
-      );
-    }
-    if (decision.kind !== 'ok' || state.claim === null) {
-      throw mismatch(decision.kind === 'ok' ? 'claim_mismatch' : decision.kind);
-    }
-    const { claim } = state;
-    const installed =
-      claim.domain === 'enrollments'
-        ? await port.installEnrollments(input.token, claim.revision)
-        : 0;
-    await port.discardCandidates(input.token);
-    const finished = await port.finish({
-      claimRevision: claim.revision,
-      dirtyDomains: dirtyAfterCompletion(state, claim.domain),
-      files: input.files ?? null,
-      fingerprint,
-      owner: context.owner,
-      token: input.token,
-    });
-    if (!finished) {
-      // Unreachable while the singleton is locked; kept as the last guard
-      // of the install rather than trusted.
-      throw coordinationError(
-        'COMPLETION_RACED',
-        'The claim changed while its output was being installed; nothing was installed.',
-      );
-    }
-    return done({
-      completed: true,
-      domain: claim.domain,
-      installed,
-      revision: claim.revision,
-    });
-  });
-
-export const failAction = (input: Input<'fail'>, context: ActionContext) =>
-  context.store.transaction(async (port) => {
-    const state = await port.readState(true);
-    const verdict = verifyOwnership(state, {
-      owner: context.owner,
-      token: input.token,
-    });
-    if (verdict === 'claim_mismatch' || state.claim === null) {
-      return { failed: false, reason: 'claim_mismatch' };
-    }
-    if (verdict === 'owner_mismatch') {
-      throw mismatch(verdict);
-    }
-    await releaseClaim(port, {
-      code: input.code,
-      failed: true,
-      message: input.message,
-      token: input.token,
-    });
-    return {
-      code: input.code,
-      domain: state.claim.domain,
-      failed: true,
-      revision: state.claim.revision,
-    };
-  });
-
+// A heartbeat of a publication claim comes right before an upload and
+// leases the claim until that upload can no longer write (state.ts).
 export const heartbeatAction = (token: string, context: ActionContext) =>
   context.store.transaction(async (port) => {
     const state = await port.readState(true);
@@ -214,8 +123,45 @@ export const heartbeatAction = (token: string, context: ActionContext) =>
     if (verdict !== 'ok') {
       throw mismatch(verdict);
     }
-    if (!(await port.heartbeat(token, context.owner))) {
+    const leaseMs =
+      state.claim?.domain === 'publication' ? publicationUploadLeaseMs : 0;
+    if (!(await port.heartbeat(token, context.owner, leaseMs))) {
       throw mismatch('claim_mismatch');
     }
     return { heartbeat: true };
+  });
+
+// The outcome of one published file, recorded as soon as the publish loop
+// knows it, at the claimed revision, so a run that stops before its final
+// complete or fail (a restart, a refused step) still shows every file it
+// uploaded. A source change does not refuse it: an upload cannot be taken
+// back. It refreshes the heartbeat, which ends the upload lease.
+export const recordAction = (input: Input<'record'>, context: ActionContext) =>
+  context.store.transaction(async (port) => {
+    const state = await port.readState(true);
+    const verdict = verifyOwnership(state, {
+      owner: context.owner,
+      token: input.token,
+    });
+    if (verdict !== 'ok' || state.claim === null) {
+      throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);
+    }
+    const { revision } = state.claim;
+    const code = input.outcome === 'uploaded' ? null : boundedCode(input.code);
+    const entry = { bytes: input.bytes ?? null, code, outcome: input.outcome };
+    const declared = context.publishedFiles ?? declaredFilenames;
+    checkReportedFiles(
+      { [input.filename]: entry },
+      state.claim.domain,
+      declared,
+    );
+    const files = mergedOutcomes(
+      state.publicationOutcomes,
+      { [input.filename]: { ...entry, revision } },
+      declared,
+    );
+    if (!(await port.recordOutcomes(input.token, context.owner, files))) {
+      throw mismatch('claim_mismatch');
+    }
+    return { filename: input.filename, outcome: input.outcome, revision };
   });

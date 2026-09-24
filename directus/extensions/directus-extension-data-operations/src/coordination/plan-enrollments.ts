@@ -9,12 +9,9 @@ import {
   overtaken,
 } from './action-support.js';
 import { verifyClaim } from './decisions.js';
+import { type ClaimDomain } from './domains.js';
 import { coordinationError } from './errors.js';
-import {
-  type ClaimDomain,
-  type PageSource,
-  pageSourceDomains,
-} from './state.js';
+import { type PageSource, pageSourceDomains } from './state.js';
 
 // A table source is planned only under its own claim domain, and `rules`
 // only while every rule is mapped_entries: the completion of an

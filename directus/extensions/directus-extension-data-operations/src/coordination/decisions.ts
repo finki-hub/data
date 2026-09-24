@@ -1,42 +1,47 @@
-import { blockingFailure, inputRevision } from './failures.js';
+import type { Fingerprints } from './fingerprint.js';
+
 import {
   calculationDomains,
-  type Claim,
   type ClaimDomain,
   type ClaimTarget,
   coordinationDomains,
   type Domain,
-  type LastError,
+  kindOf,
   nextCalculation,
-  type OperationsState,
-} from './state.js';
+} from './domains.js';
+import { blockingFailure, inputRevision } from './failures.js';
+import { type Claim, type LastError, type OperationsState } from './state.js';
 
 // The fingerprint of the last successful run of the domain's kind.
 export const fingerprintFor = (
   state: OperationsState,
   domain: Domain,
 ): null | string =>
-  domain === 'publication'
+  kindOf(domain) === 'publication'
     ? state.publicationFingerprint
     : state.calculationFingerprint;
 
+// The current fingerprint a claim of this domain runs under.
+export const currentFor = (
+  current: Fingerprints,
+  domain: ClaimDomain | null,
+): string => current[kindOf(domain)];
+
 // A domain is pending while it is marked dirty or while the managed Flow
-// graph no longer matches the graph its last successful run used.
+// graph of its kind no longer matches the graph its last successful run
+// used.
 export const pendingDomains = (
   state: OperationsState,
-  currentFingerprint: string,
+  current: Fingerprints,
 ): Domain[] =>
   coordinationDomains.filter(
     (domain) =>
       state.dirtyDomains.includes(domain) ||
-      fingerprintFor(state, domain) !== currentFingerprint,
+      fingerprintFor(state, domain) !== currentFor(current, domain),
   );
 
 export const upstreamOf = (domain: Domain): readonly Domain[] =>
   coordinationDomains.slice(0, coordinationDomains.indexOf(domain));
-
-export const isCalculation = (domain: Domain): boolean =>
-  calculationDomains.includes(domain);
 
 export const isClaimStale = (claim: Claim, staleAfterMs: number): boolean =>
   claim.heartbeatAgeMs > staleAfterMs;
@@ -67,7 +72,7 @@ export type ClaimDecision =
   | { readonly kind: 'nothing_pending' };
 
 export type ClaimRequest = {
-  readonly currentFingerprint: string;
+  readonly currentFingerprints: Fingerprints;
   readonly domain: ClaimTarget;
   readonly retry: boolean;
 };
@@ -101,7 +106,7 @@ export const decideClaim = (
   if (state.claim !== null) {
     return { claim: state.claim, kind: 'busy' };
   }
-  const pending = pendingDomains(state, request.currentFingerprint);
+  const pending = pendingDomains(state, request.currentFingerprints);
   const domain = requestedDomain(pending, request.domain);
   if (domain === null) {
     return { kind: 'nothing_pending' };
@@ -114,7 +119,7 @@ export const decideClaim = (
   }
   const error = request.retry
     ? null
-    : blockingFailure(state, domain, request.currentFingerprint);
+    : blockingFailure(state, domain, request.currentFingerprints);
   if (error !== null) {
     return { domain, error, kind: 'failed' };
   }
@@ -179,27 +184,36 @@ export type CompletionDecision =
   | { readonly kind: 'fingerprint_changed' }
   | { readonly kind: 'ok' }
   | { readonly kind: 'pages_missing'; readonly missing: readonly string[] }
+  | { readonly kind: 'superseded' }
   | { readonly kind: 'unplanned' }
   | { readonly kind: Exclude<ClaimVerdict, 'ok'> };
 
 // Output is accepted only when the claimed domain's inputs and the graph
-// fingerprint still match the claim and a calculation run (history index
+// fingerprint of its kind (the caller passes it, currentFor) still match
+// the claim and a calculation run (history index
 // or enrollments) planned its pages and staged every one of them; a
 // partial batch, or a run that never planned, is never labelled current.
-// A source without rows plans no page and completes.
+// A source without rows plans no page and completes. A publication's files
+// were prepared and validated at its claimed revision before the first
+// upload (the export stage refuses otherwise), so a source change that
+// commits while they upload leaves them a complete publication of that
+// revision: it is superseded, recorded as published at the claimed
+// revision, and the newer revision stays pending.
 export const decideCompletion = (
   state: OperationsState,
   check: ClaimCheck & { readonly currentFingerprint: string },
 ): CompletionDecision => {
   const verdict = verifyClaim(state, check);
-  if (verdict !== 'ok' || state.claim === null) {
+  const superseded =
+    verdict === 'source_changed' && state.claim?.domain === 'publication';
+  if ((verdict !== 'ok' && !superseded) || state.claim === null) {
     return { kind: verdict === 'ok' ? 'claim_mismatch' : verdict };
   }
   if (state.claim.fingerprint !== check.currentFingerprint) {
     return { kind: 'fingerprint_changed' };
   }
   if (state.claim.domain === 'publication') {
-    return { kind: 'ok' };
+    return { kind: superseded ? 'superseded' : 'ok' };
   }
   if (state.claim.pages === null) {
     return { kind: 'unplanned' };

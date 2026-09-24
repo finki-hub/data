@@ -6,7 +6,12 @@ import type { FlowTemplate } from '../src/flows/flow-template.js';
 
 import { runAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/actions.js';
 import {
-  fingerprintOfGraph,
+  type DomainKind,
+  domainKinds,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import {
+  fingerprintsOfGraph,
+  graphKindsOf,
   type GraphRow,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/fingerprint.js';
 import {
@@ -63,20 +68,22 @@ export const status = (fake: FakeCoordination) => statusAction(context(fake));
 // source tables written since.
 export const settled = (...tables: string[]): FakeCoordination => {
   const fake = new FakeCoordination();
-  fake.data.calculationFingerprint = fake.fingerprint;
-  fake.data.publicationFingerprint = fake.fingerprint;
+  fake.data.calculationFingerprint = fake.graphs.calculation;
+  fake.data.publicationFingerprint = fake.graphs.publication;
   for (const table of tables) {
     fake.sourceWrite(table);
   }
   return fake;
 };
 
-// One managed operation of the graph the recording database answers.
+// One managed operation of the graph the recording database answers: the
+// scheduler's claim, a root of the calculation graph.
 export const graphRows: readonly GraphRow[] = [
   {
     entry: 'op-1',
     flow: 'flow-1',
     flow_options: { cron: '*/15 * * * * *' },
+    graph: 'calculation',
     key: 'claim',
     operation: 'op-1',
     options: { action: 'claim', domain: 'next_calculation' },
@@ -87,12 +94,12 @@ export const graphRows: readonly GraphRow[] = [
   },
 ];
 
-export const graphFingerprint = fingerprintOfGraph(graphRows);
+export const graphFingerprints = fingerprintsOfGraph(graphRows);
 
 // The coordination singleton as the SQL port reads it: nothing dirty, the
 // last calculation at the current graph, no claim, unless overridden.
 export const stateRowOf = (overrides: Partial<StateRow> = {}): StateRow => ({
-  calculation_fingerprint: graphFingerprint,
+  calculation_fingerprint: graphFingerprints.calculation,
   claim_domain: null,
   claim_fingerprint: null,
   claim_heartbeat_age_ms: null,
@@ -115,7 +122,7 @@ export const stateRowOf = (overrides: Partial<StateRow> = {}): StateRow => ({
   last_failed_domain: null,
   last_failed_fingerprint: null,
   last_failed_revision: null,
-  publication_fingerprint: graphFingerprint,
+  publication_fingerprint: graphFingerprints.publication,
   publication_outcomes: null,
   publication_state: 'idle',
   requested_revision: 7,
@@ -143,7 +150,7 @@ export const recordingDatabase = (row: StateRow) => {
     if (sql.startsWith('SELECT') && sql.includes('FROM "data_operations"')) {
       return { rowCount: 1, rows: [row] };
     }
-    if (sql.startsWith('WITH RECURSIVE "managed"')) {
+    if (sql.startsWith('WITH RECURSIVE "roots"')) {
       return { rowCount: graphRows.length, rows: graphRows };
     }
     return { rowCount: 1, rows: [] };
@@ -162,17 +169,20 @@ export const recordingDatabase = (row: StateRow) => {
   };
 };
 
-// Every Flow a template set reaches from its Flows that hold a coordinate
-// operation, following Trigger Flow operations: the graph the fingerprint
-// covers once the templates are installed.
-export const managedFlowIds = (
+// The Flows of one graph over a template set, as graphSql partitions the
+// installed ones: the Flows a coordinate step roots in the graph
+// (graphKindsOf), and every Flow they reach through Trigger Flow steps.
+export const graphFlowIds = (
   templates: readonly FlowTemplate[],
+  kind: DomainKind,
 ): Set<string> => {
-  const managed = new Set(
+  const graph = new Set(
     templates
       .filter((flow) =>
         flow.operations.some(
-          ({ type }) => type === 'finki-hub-data-coordinate',
+          ({ options, type }) =>
+            type === 'finki-hub-data-coordinate' &&
+            graphKindsOf(options).includes(kind),
         ),
       )
       .map(({ id }) => id),
@@ -186,13 +196,51 @@ export const managedFlowIds = (
     }),
   );
   let size = 0;
-  while (size !== managed.size) {
-    size = managed.size;
+  while (size !== graph.size) {
+    size = graph.size;
     for (const { child, parent } of edges) {
-      if (managed.has(parent)) {
-        managed.add(child);
+      if (graph.has(parent)) {
+        graph.add(child);
       }
     }
   }
-  return managed;
+  return graph;
 };
+
+// Every Flow either fingerprint covers.
+export const managedFlowIds = (
+  templates: readonly FlowTemplate[],
+): Set<string> =>
+  new Set(domainKinds.flatMap((kind) => [...graphFlowIds(templates, kind)]));
+
+const byId = (left: { readonly id: string }, right: { readonly id: string }) =>
+  left.id < right.id ? -1 : 1;
+
+// The rows graphSql answers for a template set once it is installed, in
+// its order (graph, Flow id, operation id).
+export const graphRowsOf = (templates: readonly FlowTemplate[]): GraphRow[] =>
+  domainKinds.flatMap((kind) => {
+    const ids = graphFlowIds(templates, kind);
+    return templates
+      .filter(({ id }) => ids.has(id))
+      .toSorted(byId)
+      .flatMap((flow) =>
+        flow.operations.toSorted(byId).map((step) => ({
+          entry: flow.entry,
+          flow: flow.id,
+          flow_options: flow.options,
+          graph: kind,
+          key: step.key,
+          operation: step.id,
+          options: step.options,
+          reject: step.reject,
+          resolve: step.resolve,
+          trigger: flow.trigger,
+          type: step.type,
+        })),
+      );
+  });
+
+// The two fingerprints a template set installs.
+export const templateFingerprints = (templates: readonly FlowTemplate[]) =>
+  fingerprintsOfGraph(graphRowsOf(templates));

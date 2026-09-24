@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { DirectusRequest } from './directus-request.js';
 
 import { derivedDataFlowId } from './derived-data-flow.js';
+import { flowTemplates } from './flows/registry.js';
 import { publicAssetsFlowId } from './public-assets-flow.js';
 
 // The operation types of the checkpoint derivation and publication: the
@@ -23,6 +24,20 @@ export const checkpointTemplateIds: ReadonlySet<string> = new Set([
   derivedDataFlowId,
   publicAssetsFlowId,
 ]);
+
+// The Flows setup installs under stable ids (every registered family). The
+// relational publish child writes through the same storage operation as
+// the checkpoint Publish public assets Flow, but it is setup's own, never
+// a checkpoint Flow of an old deployment.
+export const managedTemplateIds: ReadonlySet<string> = new Set(
+  flowTemplates().map(({ id }) => id),
+);
+
+// Whether a Flow runs the checkpoint derivation or publication: one of its
+// operations has a legacy type and setup does not own its id.
+export const isLegacyFlow = (id: string, types: readonly string[]): boolean =>
+  !managedTemplateIds.has(id) &&
+  types.some((type) => legacyOperationTypes.has(type));
 
 const operationRows = z.array(
   z.object({ flow: z.string().nullable(), type: z.string() }),
@@ -51,7 +66,7 @@ export const findLegacyFlows = async (
   for (const { flow, type } of operations) {
     if (
       flow === null ||
-      !legacyOperationTypes.has(type) ||
+      !isLegacyFlow(flow, [type]) ||
       checkpointTemplateIds.has(flow)
     ) {
       continue;

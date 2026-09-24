@@ -1,11 +1,22 @@
 import type { ActionContext } from './action-support.js';
+import type { Fingerprints } from './fingerprint.js';
 import type { HistorySummary } from './history-port.js';
 
 import { isClaimStale, pendingDomains, upstreamOf } from './decisions.js';
+import { coordinationDomains, type Domain, isDomain } from './domains.js';
 import { blockingFailure } from './failures.js';
-import { type Domain, isDomain, type OperationsState } from './state.js';
+import { type OperationsState } from './state.js';
 
 export type DomainState = 'current' | 'failed' | 'pending' | 'running';
+
+export type DomainStatus = {
+  readonly current: boolean;
+  readonly failed: boolean;
+  readonly pending: boolean;
+  readonly running: boolean;
+  readonly state: DomainState;
+  readonly waitingFor: readonly Domain[];
+};
 
 // One domain as an operator needs it: `current` is true only while the
 // domain is neither dirty nor behind the managed Flow graph, so its derived
@@ -16,7 +27,7 @@ export type DomainState = 'current' | 'failed' | 'pending' | 'running';
 // after. A failed or interrupted history run leaves history_index not
 // current: its index is stale until a run completes.
 type DomainView = {
-  readonly fingerprint: string;
+  readonly fingerprints: Fingerprints;
   readonly pending: readonly Domain[];
   readonly state: OperationsState;
 };
@@ -24,17 +35,17 @@ type DomainView = {
 type StatusInput = {
   readonly candidates: number;
   readonly context: ActionContext;
-  readonly fingerprint: string;
+  readonly fingerprints: Fingerprints;
   readonly historyIndex: HistorySummary;
   readonly state: OperationsState;
 };
 
 const domainStatus = (
-  { fingerprint, pending, state }: DomainView,
+  { fingerprints, pending, state }: DomainView,
   domain: Domain,
-) => {
+): DomainStatus => {
   const running = state.claim?.domain === domain;
-  const failed = blockingFailure(state, domain, fingerprint) !== null;
+  const failed = blockingFailure(state, domain, fingerprints) !== null;
   const isPending = pending.includes(domain);
   let status: DomainState = 'current';
   if (running) {
@@ -59,7 +70,7 @@ const domainStatus = (
 // The last failure with its revision, message and whether it still blocks
 // its domain; it stays recorded after a later success, so `blocking` (not
 // its mere presence) says whether it matters now.
-const lastErrorOf = (state: OperationsState, fingerprint: string) => {
+const lastErrorOf = (state: OperationsState, fingerprints: Fingerprints) => {
   const error = state.lastError;
   if (error === null) {
     return null;
@@ -68,7 +79,7 @@ const lastErrorOf = (state: OperationsState, fingerprint: string) => {
     at: error.at,
     blocking:
       isDomain(error.domain) &&
-      blockingFailure(state, error.domain, fingerprint) !== null,
+      blockingFailure(state, error.domain, fingerprints) !== null,
     code: error.code,
     domain: error.domain,
     message: error.message,
@@ -79,12 +90,12 @@ const lastErrorOf = (state: OperationsState, fingerprint: string) => {
 const statusOf = ({
   candidates,
   context,
-  fingerprint,
+  fingerprints,
   historyIndex,
   state,
 }: StatusInput) => {
-  const pending = pendingDomains(state, fingerprint);
-  const view = { fingerprint, pending, state };
+  const pending = pendingDomains(state, fingerprints);
+  const view = { fingerprints, pending, state };
   return {
     candidates,
     claim:
@@ -103,14 +114,15 @@ const statusOf = ({
             startedAt: state.claim.startedAt,
           },
     dirty: state.dirtyDomains,
-    domains: {
-      enrollments: domainStatus(view, 'enrollments'),
-      history_index: domainStatus(view, 'history_index'),
-      publication: domainStatus(view, 'publication'),
-    },
+    // One entry per declared domain, in dependency order.
+    domains: Object.fromEntries(
+      coordinationDomains.map((domain) => [domain, domainStatus(view, domain)]),
+    ),
+    // The accepted fingerprint of each kind (the last completed run's) and
+    // the current one of each graph.
     fingerprints: {
       calculation: state.calculationFingerprint,
-      current: fingerprint,
+      current: fingerprints,
       publication: state.publicationFingerprint,
     },
     // The derived index against the raw snapshot: users whose distinct
@@ -118,7 +130,7 @@ const statusOf = ({
     // counted, never listed, and the scraper field is never rewritten.
     historyIndex,
     importState: state.importState,
-    lastError: lastErrorOf(state, fingerprint),
+    lastError: lastErrorOf(state, fingerprints),
     lastRun: { finishedAt: state.finishedAt, startedAt: state.startedAt },
     pending,
     process: context.owner,
@@ -147,9 +159,9 @@ export const statusAction = (context: ActionContext): Promise<StatusReport> =>
   context.store.transaction(async (port) => {
     await port.ensureSingleton();
     const state = await port.readState(false);
-    const fingerprint = await port.currentFingerprint();
+    const fingerprints = await port.currentFingerprints();
     const candidates =
       state.claim === null ? 0 : await port.candidateCount(state.claim.token);
     const historyIndex = await port.history.summary();
-    return statusOf({ candidates, context, fingerprint, historyIndex, state });
+    return statusOf({ candidates, context, fingerprints, historyIndex, state });
   });

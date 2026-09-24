@@ -815,13 +815,13 @@ describe('snapshot promotion failures', () => {
   test('never lifts the explicit retry of a failed work domain when it fails itself', async () => {
     const { world } = await prepared();
     const { coordination } = world;
-    coordination.data.calculationFingerprint = coordination.fingerprint;
+    coordination.data.calculationFingerprint = coordination.graphs.calculation;
     coordination.data.dirtyDomains = ['publication'];
     await world.store.transaction(({ coordination: port }) =>
       port.takeClaim({
         dirtyDomains: ['publication'],
         domain: 'publication',
-        fingerprint: coordination.fingerprint,
+        fingerprint: coordination.graphs.publication,
         owner,
         sourceRevision: coordination.data.sourceRevision,
         token: 'publish',
@@ -840,7 +840,7 @@ describe('snapshot promotion failures', () => {
           port.readState(false),
         ),
         {
-          currentFingerprint: coordination.fingerprint,
+          currentFingerprints: coordination.graphs,
           domain: 'publication',
           retry: false,
         },
