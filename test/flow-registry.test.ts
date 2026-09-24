@@ -5,11 +5,13 @@ import { z } from 'zod';
 import type { DirectusRequest } from '../src/directus-request.js';
 
 import { runnerFlowIds } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
+import { enrollmentRuleFlows } from '../src/flows/add-enrollment-rules.js';
 import { mappedPagesFlow } from '../src/flows/count-mapped-enrollment-pages.js';
 import {
   familyId,
   flowFamilyCodes,
   type FlowTemplate,
+  type OperationTemplate,
 } from '../src/flows/flow-template.js';
 import { publishFlows } from '../src/flows/publish-public-assets.js';
 import {
@@ -42,6 +44,9 @@ const installedFlowIds = [
   // Task 15: the publish family, the child before its parent.
   '1502',
   '1501',
+  // Task 16: the rule seeding family, the batch child before its parent.
+  '1602',
+  '1601',
   // Task 26: the one runner every planned family goes through.
   '1304',
   '1301',
@@ -56,14 +61,15 @@ const operationIdsSha256 =
 
 // What Task 15 added: every operation of the publish family, and the
 // schedule's enrollment route and unknown-domain branch. What Task 26
-// added: every operation of the two runner Flows.
+// added: every operation of the two runner Flows. What Task 16 added:
+// every operation of the rule seeding family.
 const addedOperationIds = new Set([
   ...publishFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
   familyId('13', '3a'),
   familyId('13', '4a'),
   familyId('13', '49'),
-  ...[familyRunnerFlow, mappedPagesFlow].flatMap(({ operations }) =>
-    operations.map(({ id }) => id),
+  ...[familyRunnerFlow, mappedPagesFlow, ...enrollmentRuleFlows].flatMap(
+    ({ operations }) => operations.map(({ id }) => id),
   ),
 ]);
 
@@ -110,6 +116,12 @@ const byText = (left: string, right: string): number =>
   left.localeCompare(right);
 
 const nameOf = ({ name }: FlowTemplate): string => name;
+
+const rejectOf = ({ reject }: OperationTemplate): string[] =>
+  reject === null ? [] : [reject];
+
+const resolveOf = ({ resolve }: OperationTemplate): string[] =>
+  resolve === null ? [] : [resolve];
 
 const operationIds = ({ operations }: FlowTemplate): string[] =>
   operations.map(({ id }) => id);
@@ -182,6 +194,20 @@ describe('the Flow family registry', () => {
     ]);
 
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // directus_operations keeps each of resolve and reject unique: two steps
+  // that reject to one refusal fail the install with RECORD_NOT_UNIQUE
+  // (one step may resolve and reject to the same target).
+  test('points at most one resolve and one reject edge at each operation', () => {
+    const operations = flowTemplates().flatMap(
+      (template) => template.operations,
+    );
+    const rejects = operations.flatMap(rejectOf);
+    const resolves = operations.flatMap(resolveOf);
+
+    expect(new Set(rejects).size).toBe(rejects.length);
+    expect(new Set(resolves).size).toBe(resolves.length);
   });
 
   test('gives every id of a family its family code', () => {

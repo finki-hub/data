@@ -1,4 +1,8 @@
-import type { NestedDeepQuery, OperationContext, Query } from '@directus/types';
+import type {
+  ApiExtensionContext,
+  NestedDeepQuery,
+  Query,
+} from '@directus/types';
 
 import type { SourceReader } from './engine.js';
 import type { ExportDeps } from './prepare.js';
@@ -14,7 +18,8 @@ import {
   type SnapshotFacts,
 } from './readiness-facts.js';
 
-// The Directus side of the export operation: native reads through the
+// The Directus side of the export operation (and of the status endpoint,
+// which counts readiness the same way): native reads through the
 // ItemsService, the coordinator status and the snapshot status.
 
 // The deep query that reads every relation a field path steps through
@@ -58,11 +63,12 @@ export const readQuery = (read: SourceRead): Query => {
 };
 
 // Reads as the system (accountability null): the operation checks the
-// caller's administrator flag itself before anything else, and every read
-// names its fields explicitly, so no private column is ever selected.
+// caller's administrator flag itself before anything else (the status
+// endpoint its administrator flag or editor policy), and every read names
+// its fields explicitly, so no private column is ever selected.
 // Events are not emitted and the whole result is read at once.
 export const itemsReader = async (
-  context: OperationContext,
+  context: ApiExtensionContext,
 ): Promise<SourceReader> => {
   const schema = await context.getSchema({ database: context.database });
   return (read) => {
@@ -93,7 +99,7 @@ export const snapshotFacts = (report: SnapshotReport): SnapshotFacts => ({
 });
 
 export const exportDeps = async (
-  context: OperationContext,
+  context: ApiExtensionContext,
 ): Promise<ExportDeps> => ({
   coordination: async () =>
     coordinationFacts(

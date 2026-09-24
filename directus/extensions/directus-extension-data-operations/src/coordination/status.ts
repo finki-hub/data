@@ -45,8 +45,11 @@ const domainStatus = (
   domain: Domain,
 ): DomainStatus => {
   const running = state.claim?.domain === domain;
-  const failed = blockingFailure(state, domain, fingerprints) !== null;
   const isPending = pending.includes(domain);
+  // A failure holds back pending work only: once a later run (an explicit
+  // retry at the same revision) completed the domain, it is current.
+  const failed =
+    isPending && blockingFailure(state, domain, fingerprints) !== null;
   let status: DomainState = 'current';
   if (running) {
     status = 'running';
@@ -69,8 +72,9 @@ const domainStatus = (
 
 // The last failure with its revision, message and whether it still blocks
 // its domain; it stays recorded after a later success, so `blocking` (not
-// its mere presence) says whether it matters now.
-const lastErrorOf = (state: OperationsState, fingerprints: Fingerprints) => {
+// its mere presence) says whether it matters now: only while its domain
+// is pending.
+const lastErrorOf = ({ fingerprints, pending, state }: DomainView) => {
   const error = state.lastError;
   if (error === null) {
     return null;
@@ -79,6 +83,7 @@ const lastErrorOf = (state: OperationsState, fingerprints: Fingerprints) => {
     at: error.at,
     blocking:
       isDomain(error.domain) &&
+      pending.includes(error.domain) &&
       blockingFailure(state, error.domain, fingerprints) !== null,
     code: error.code,
     domain: error.domain,
@@ -130,7 +135,7 @@ const statusOf = ({
     // counted, never listed, and the scraper field is never rewritten.
     historyIndex,
     importState: state.importState,
-    lastError: lastErrorOf(state, fingerprints),
+    lastError: lastErrorOf(view),
     lastRun: { finishedAt: state.finishedAt, startedAt: state.startedAt },
     pending,
     process: context.owner,

@@ -21,6 +21,7 @@ export const flowFamilyCodes = {
   mapped: '11',
   publication: '14',
   publish: '15',
+  rules: '16',
   snapshot: '10',
 } as const;
 
@@ -58,6 +59,11 @@ export const publicationId = familyIds(flowFamilyCodes.publication);
 // The publish family (Publish / Public assets (relational) and its
 // per-file child Publish / One file).
 export const publishId = familyIds(flowFamilyCodes.publish);
+
+// The enrollment-rules family (Data / Add enrollment rules and its batch
+// child); the Data operations dashboard and the editor policy setup
+// installs carry the same code in their ids.
+export const rulesId = familyIds(flowFamilyCodes.rules);
 
 // The storage writer every published file goes through: the existing
 // publish-json operation, one single-entry filename map per call.

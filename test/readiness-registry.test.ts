@@ -25,7 +25,7 @@ import { reviewBookmarks } from '../src/data-model/presentation/presets.js';
 import {
   activeSnapshotEdited,
   snapshotImportFailed,
-} from '../src/editor-policy.js';
+} from '../src/snapshot-readiness.js';
 import {
   convertedStore,
   edit,

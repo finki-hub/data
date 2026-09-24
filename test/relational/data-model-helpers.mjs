@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
+import { editorPolicy } from '../../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
+import { operationsDashboardId } from '../../src/data-model/operations-dashboard.js';
 import { folders } from '../../src/data-model/presentation/navigation.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { modelRelations } from '../../src/data-model/relations.js';
@@ -160,6 +162,24 @@ const destroyFolders = async (target) => {
   }
 };
 
+// The Data operations dashboard (its panels go with it) and the editor
+// policy (its permissions and assignments go with it) that `npm run
+// setup` installs; nothing when they are absent.
+const destroyOperations = async (target) => {
+  for (const [collection, id] of [
+    ['dashboards', operationsDashboardId],
+    ['policies', editorPolicy.id],
+  ]) {
+    const present = await read(
+      await request(target, `/${collection}?fields=id&filter[id][_eq]=${id}`, {
+        token: target.token,
+      }),
+      200,
+    );
+    if (present.data.length > 0) await remove(target, `/${collection}/${id}`);
+  }
+};
+
 // Removes everything `installPresentation` adds beside the model
 // collections, so a fixture that ran `npm run setup` returns to marker-only.
 export const destroyPresentation = async (target) => {
@@ -168,6 +188,7 @@ export const destroyPresentation = async (target) => {
 };
 
 export const destroyDataModel = async (target) => {
+  await destroyOperations(target);
   await destroyPresets(target);
   const present = new Set(await userCollections(target));
   const failures = [];

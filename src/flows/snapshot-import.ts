@@ -6,6 +6,7 @@ import {
   raise,
   snapshotId,
 } from './flow-template.js';
+import { snapshotFolder } from './snapshot-folder.js';
 
 const family = flowFamilyCodes.snapshot;
 export const snapshotImportOperation = 'finki-hub-snapshot-import';
@@ -37,7 +38,7 @@ const relay = (
 };
 
 export const confirmationDescription =
-  'Replace the WHOLE active Moodle snapshot (moodle_users) with the private CSV named below. Every Directus-only edit to Moodle users is replaced and the history memberships are cleared; course mappings, history entries, curricula, staff, students and every other maintained collection are never touched. Before anything is replaced, a verified private backup of the current Moodle users is written into the File Library folder "Moodle snapshots (private)" as "moodle-users-backup-<time>.csv"; restoring it is an explicit run of this Flow with that file. Upload the CSV into that folder first (local storage), then paste its id. History index, enrollment counts and publication become pending and are processed by their own runs.';
+  'Replace the WHOLE active Moodle snapshot (moodle_users) with the private CSV named below. Every Directus-only edit to Moodle users is replaced and the history memberships are cleared; course mappings, history entries, curricula, staff, students and every other maintained collection are never touched. Before anything is replaced, a verified private backup of the current Moodle users is written into the File Library folder "Moodle snapshots (private)" as "moodle-users-backup-<time>.csv"; restoring it is an explicit run of this Flow with that file. Upload the CSV into that folder first (local storage), then choose it below. History index, enrollment counts and publication become pending and are processed by their own runs.';
 
 // The manual entry point on the data_operations singleton: an
 // administrator names the uploaded CSV, confirms the replacement (and,
@@ -183,13 +184,22 @@ export const snapshotImportFlow: FlowTemplate = {
       {
         field: 'file',
         meta: {
-          interface: 'input',
-          note: 'The id of the CSV in the File Library folder "Moodle snapshots (private)" (open the file: the id is in its address and info panel).',
+          // The native item picker over the File Library: the dialog has
+          // no relation to directus_files, so Studio's file interface
+          // cannot keep a pick (Task 16 probe); the import accepts the
+          // picked { key, collection } or a plain id.
+          interface: 'collection-item-dropdown',
+          note: `The CSV in the File Library folder "${snapshotFolder.name}": upload it there first, then choose it here.`,
+          options: {
+            filter: { folder: { _eq: snapshotFolder.id } },
+            selectedCollection: 'directus_files',
+            template: '{{ title }}',
+          },
           required: true,
           width: 'full',
         },
-        name: 'Private CSV file id',
-        type: 'string',
+        name: 'Private CSV file',
+        type: 'json',
       },
       {
         field: 'confirm_replace',

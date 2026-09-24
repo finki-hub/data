@@ -629,3 +629,47 @@ describe('the fake keeps both fingerprints', () => {
     expect(bothGraphs('g')).toEqual({ calculation: 'g', publication: 'g' });
   });
 });
+
+// Task 16: the dashboard shows a publication retried at the same revision
+// as done, not failed; the failure stays recorded without blocking.
+describe('a publication retried at the same revision', () => {
+  test('is current again once the retry completed, and its failure no longer blocks', async () => {
+    const fake = pendingPublication();
+    const failedRun = await claimPublication(fake);
+    await runAction(
+      {
+        action: 'fail',
+        code: 'PUBLICATION_PARTIAL',
+        files: outcomesOf(declaredFilenames, [second]),
+        message: `${second} was not uploaded`,
+        token: failedRun,
+      },
+      context(fake),
+    );
+    const failedStatus = await statusAction(context(fake));
+
+    expect(failedStatus.domains[publication]?.state).toBe('failed');
+    expect(failedStatus.lastError?.blocking).toBeTruthy();
+
+    const retry = await claimPublication(fake);
+    await runAction(
+      {
+        action: 'complete',
+        files: outcomesOf(declaredFilenames),
+        token: retry,
+      },
+      context(fake),
+    );
+    const retried = await statusAction(context(fake));
+
+    expect(retried.domains[publication]).toMatchObject({
+      failed: false,
+      pending: false,
+      state: 'current',
+    });
+    expect(retried.lastError).toMatchObject({
+      blocking: false,
+      code: 'PUBLICATION_PARTIAL',
+    });
+  });
+});

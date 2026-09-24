@@ -6,6 +6,9 @@
   },
   "include": [
     "directus/extensions/directus-extension-course-search/src/**/*.ts",
-    "directus/extensions/directus-extension-course-search/src/**/*.vue"
+    "directus/extensions/directus-extension-course-search/src/**/*.vue",
+    "directus/extensions/directus-extension-data-operations/src/panel.ts",
+    "directus/extensions/directus-extension-data-operations/src/status-panel.ts",
+    "directus/extensions/directus-extension-data-operations/src/**/*.vue"
   ]
 }

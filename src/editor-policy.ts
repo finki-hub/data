@@ -1,16 +1,15 @@
-import { z } from 'zod';
-
-import type { DirectusRequest } from './directus-request.js';
-
 import {
   type BookkeepingDeclaration,
+  type CollectionDeclaration,
   collectionDeclarations,
   type CollectionRole,
   type GuardedDeclaration,
   isGuarded,
   isSource,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
-import { readinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { findModelCollection } from './data-model/collections.js';
+import { aliasesFor } from './data-model/relations.js';
+import { keyedFields } from './editor-policy-keys.js';
 
 export type PermissionAction = 'create' | 'delete' | 'read' | 'update';
 
@@ -28,13 +27,13 @@ export type ForbiddenGrant = {
   readonly reason: string;
 };
 
-// What a normal editing role must never hold, for Task 16 to apply when it
-// creates the first non-administrator role (none exists yet; this task
-// creates no role). Moodle users change only through the controlled
-// snapshot import: the native Import / Export sidebar needs create and
-// update on the collection, so withholding them hides that shortcut, and a
-// hand edit of a history would be overwritten by the next snapshot anyway.
-// Every collection that is no source is withheld by its role in the
+// What a normal editing role must never hold: the literal deny-list the
+// derived editor policy below is checked against (forbiddenGrantsIn).
+// Moodle users change only through the controlled snapshot import: the
+// native Import / Export sidebar needs create and update on the
+// collection, so withholding them hides that shortcut, and a hand edit of
+// a history would be overwritten by the next snapshot anyway. Every
+// collection that is no source is withheld by its role in the
 // collection-role registry: derived rows and the migration ledger are
 // read-only, candidate, staging and status rows are private. The managed
 // Flows run with $full and, on the schedule, without any accountability,
@@ -104,8 +103,8 @@ export type PermissionGrant = {
   readonly collection: string;
 };
 
-// The grants of a policy that the template forbids, for a readiness check
-// or a test of the role Task 16 creates.
+// The grants of a policy that the deny-list forbids; empty for the
+// derived editor policy.
 export const forbiddenGrantsIn = (
   permissions: readonly PermissionGrant[],
 ): readonly PermissionGrant[] =>
@@ -117,66 +116,96 @@ export const forbiddenGrantsIn = (
     ),
   );
 
-// The part of GET /finki-hub-data-operations/snapshot the readiness check
-// reads (Task 10): counts, fingerprints and states, never a row.
-const snapshotReport = z.object({
-  active: z.object({ fingerprint: z.string(), rows: z.number().int() }),
-  activeMatchesPromotion: z.boolean().nullable(),
-  promoted: z
-    .object({ fingerprint: z.string(), rows: z.number().int() })
-    .nullable(),
-  state: z.string(),
-});
+// The editor policy (Task 16), derived from the collection roles: every
+// model collection falls in exactly one grant class.
+// - edit: an editable source (create, read, update, delete);
+// - keyed: a collection holding fields that decide public keys (read, and
+//   update of every other field): a key-source collection, withholding the
+//   per-row opt-in, the key text, the position, the parent and whatever
+//   its key-source filter tests, and a collection such a filter reaches
+//   through a relation, withholding the fields it tests there
+//   (editor-policy-keys.ts); a new public key or a changed one stays an
+//   administrator's decision;
+// - read: a source editors must not write (moodle_users, owned by the
+//   snapshot import), the derived rows and the migration ledger;
+// - none: candidate, staging and status rows, and the checkpoint sources a
+//   cleanup may drop.
+// The policy is code-owned: setup keeps the installed one equal to this.
+// `keyed` defaults to the fields the declared key sources withhold.
+export const grantClasses = ['edit', 'keyed', 'read', 'none'] as const;
 
-export type SnapshotReadinessFinding = {
-  readonly code: string;
-  readonly message: string;
+export type GrantClass = (typeof grantClasses)[number];
+
+type Keyed = ReadonlyMap<string, readonly string[]>;
+
+export const grantClassOf = (
+  declaration: CollectionDeclaration,
+  keyed: Keyed = keyedFields,
+): GrantClass => {
+  if (!isSource(declaration)) {
+    return forbiddenByRole[declaration.role].includes('read') ? 'none' : 'read';
+  }
+  if (declaration.optional === true) {
+    return 'none';
+  }
+  if (declaration.editorWrites === false) {
+    return 'read';
+  }
+  return keyed.has(declaration.collection) ? 'keyed' : 'edit';
 };
 
-// A code of the readiness-check registry that readiness counts from the
-// snapshot status too: the policy reports the same issue under the same
-// code, and a code the registry drops fails here at load.
-const snapshotCode = (code: string): string => {
-  if (readinessEntry(code)?.source.kind !== 'snapshot') {
-    throw new Error(`The readiness registry declares no snapshot code ${code}`);
-  }
-  return code;
+export type PermissionSpec = {
+  readonly action: PermissionAction;
+  readonly collection: string;
+  readonly fields: readonly string[];
+  readonly permissions: Readonly<Record<string, unknown>>;
 };
 
-export const activeSnapshotEdited = snapshotCode('active_snapshot_edited');
-export const snapshotImportFailed = snapshotCode('snapshot_import_failed');
+const every = ['*'] as const;
 
-// Flags the unsupported writes the snapshot workflow can see: active Moodle
-// users that no longer equal the snapshot the last promotion made active
-// (an edit in Studio, over REST or through the native CSV import by an
-// administrator, whom no policy restricts), and a failed import whose
-// staging must not be promoted. Nothing is flagged before the first
-// promotion.
-export const snapshotReadiness = (
-  report: unknown,
-): readonly SnapshotReadinessFinding[] => {
-  const parsed = snapshotReport.parse(report);
-  const findings: SnapshotReadinessFinding[] = [];
-  if (parsed.activeMatchesPromotion === false) {
-    findings.push({
-      code: activeSnapshotEdited,
-      message: `The active Moodle users (${String(parsed.active.rows)} rows) no longer equal the snapshot the last promotion made active (${String(parsed.promoted?.rows ?? 0)} rows): they were changed outside Data / Import Moodle snapshot. The next promotion replaces those changes.`,
-    });
+export const grant = (
+  collection: string,
+  action: PermissionAction,
+  fields: readonly string[] = every,
+): PermissionSpec => ({ action, collection, fields, permissions: {} });
+
+// The writable fields of a keyed collection: its own fields and the
+// relation aliases on it, less the fields that decide public keys.
+const writableFields = (collection: string, keyed: Keyed): string[] => {
+  const model = findModelCollection(collection);
+  if (model === undefined) {
+    return [];
   }
-  if (parsed.state === 'failed') {
-    findings.push({
-      code: snapshotImportFailed,
-      message:
-        'The last snapshot import or promotion failed; the active Moodle users are unchanged by it and its staging is not promoted.',
-    });
-  }
-  return findings;
+  const withheld = keyed.get(collection) ?? [];
+  return [
+    ...model.fields.map(({ field }) => field),
+    ...aliasesFor(model.collection).map(({ alias }) => alias.field),
+  ].filter((field) => !withheld.includes(field));
 };
 
-// Reads the snapshot status (administrators only) and returns its
-// findings. The status fingerprints every active Moodle user, so this is
-// an on-demand check, never part of a scheduled path.
-export const readSnapshotReadiness = async (
-  request: DirectusRequest,
-): Promise<readonly SnapshotReadinessFinding[]> =>
-  snapshotReadiness(await request('/finki-hub-data-operations/snapshot'));
+const grantsOf: Readonly<
+  Record<
+    GrantClass,
+    (collection: string, keyed: Keyed) => readonly PermissionSpec[]
+  >
+> = {
+  edit: (collection) => allActions.map((action) => grant(collection, action)),
+  keyed: (collection, keyed) => {
+    const fields = writableFields(collection, keyed);
+    return [
+      grant(collection, 'read'),
+      ...(fields.length > 0 ? [grant(collection, 'update', fields)] : []),
+    ];
+  },
+  none: () => [],
+  read: (collection) => [grant(collection, 'read')],
+};
+
+// The editor grants on the model collections, in declaration order.
+export const derivedGrants = (
+  declarations: readonly CollectionDeclaration[] = collectionDeclarations,
+  keyed: Keyed = keyedFields,
+): readonly PermissionSpec[] =>
+  declarations.flatMap((declaration) =>
+    grantsOf[grantClassOf(declaration, keyed)](declaration.collection, keyed),
+  );

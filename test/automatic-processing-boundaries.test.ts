@@ -24,8 +24,6 @@ import {
   editorForbiddenGrants,
   forbiddenByRole,
   forbiddenGrantsIn,
-  readSnapshotReadiness,
-  snapshotReadiness,
 } from '../src/editor-policy.js';
 import { flowFamilyCodes } from '../src/flows/flow-template.js';
 import {
@@ -43,6 +41,10 @@ import {
   legacyOperationTypes,
 } from '../src/legacy-flows.js';
 import { exitCodes, isRefusal } from '../src/lifecycle.js';
+import {
+  readSnapshotReadiness,
+  snapshotReadiness,
+} from '../src/snapshot-readiness.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
 import {
   lifecycleDataset,

@@ -82,6 +82,7 @@ const config = [
     // containers in the environment; the scenario runner starts
     // `node --test` on the selected suites.
     files: [
+      'test/operations-browser-helpers.mjs',
       'test/relational/automatic-processing-helpers.mjs',
       'test/relational/data-coordination.integration.mjs',
       'test/relational/run-scenarios.mjs',
@@ -98,6 +99,9 @@ const config = [
       'test/enrollment-proposal.test.ts',
       'test/import-cli.test.ts',
       'test/migration-cli.test.ts',
+      'test/operations-browser-helpers.mjs',
+      'test/operations-browser-steps.mjs',
+      'test/operations.browser.mjs',
       'test/relational/export-projection.integration.mjs',
       'test/relational/lifecycle.integration.mjs',
       'test/relational/migration-preflight.integration.mjs',

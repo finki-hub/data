@@ -167,10 +167,25 @@ export const byteLimit = (value: unknown): number => {
   return parsed.success ? parsed.data : defaultMaxBytes;
 };
 
+// The file as the Flow's dialog picks it: Studio's item picker over the
+// File Library answers { key, collection: 'directus_files' }; a REST
+// caller may send the id itself. Any other collection is refused.
+const pickedFile = z
+  .object({
+    collection: z.literal('directus_files'),
+    key: z.unknown(),
+  })
+  .transform(({ key }) => key);
+
+const fileId = (value: unknown): unknown => {
+  const picked = pickedFile.safeParse(value);
+  return blank(picked.success ? picked.data : value);
+};
+
 // The import operation takes the private Directus file id and nothing
 // else: never a path, a URL or CSV text.
 export const importOptionsSchema = z.object({
-  file: z.preprocess(blank, z.uuid()),
+  file: z.preprocess(fileId, z.uuid()),
 });
 
 export type ImportOptions = z.infer<typeof importOptionsSchema>;

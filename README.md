@@ -289,13 +289,14 @@ structurally malformed rows and replaces nothing atomically.
    (private)**, which `npm run setup` creates. It stays a private file in the
    local storage location. The import refuses a CSV outside that folder, so
    one permission filter on the folder keeps every snapshot file and backup
-   away from any role that may read files. Copy the file's id from its
-   address.
-3. Open the hidden **Data Operations** singleton (Content → Operations with
-   hidden collections shown, or `/admin/content/data_operations`) and run
-   the Flow **Data / Import Moodle snapshot** from its sidebar. Paste the file id and switch on **Replace the whole active
-   Moodle snapshot**. Switch on **Allow an empty snapshot** only to remove
-   every Moodle user on purpose.
+   away from any role that may read files.
+3. Run **Import Moodle snapshot** on the **Data operations** dashboard (or
+   the Flow **Data / Import Moodle snapshot** from the sidebar of the
+   hidden **Data Operations** singleton, `/admin/content/data_operations`).
+   Choose the file in **Private CSV file** (an item picker that lists the
+   files of that folder; a REST caller may send the file id) and switch on
+   **Replace the whole active Moodle snapshot**. Switch on **Allow an empty
+   snapshot** only to remove every Moodle user on purpose.
 
 The Flow first stages the file into the hidden staging collection in one
 transaction and answers only once it committed. The file must be strict CSV
@@ -608,18 +609,19 @@ index** is no longer a setup template: a project that ran an earlier setup
 keeps it, and it should be deleted in Studio. The checkpoint **Rebuild
 derived data** Flow and its extension stay untouched until the cutover.
 
-When the first non-administrator role is created, it must not hold what
-`src/editor-policy.ts` forbids: create, update or delete on
-`moodle_users` (the native CSV import needs them; snapshots go through
-**Data / Import Moodle snapshot**), any write to the staging, index,
-count, coordination and migration ledger collections, and any write to
-Flows, operations, permissions, policies or their assignments (the
-managed Flows read and write with `$full`, the schedule without
-accountability, so editing one would lift every other rule). Administrators cannot be restricted
-that way; `snapshotReadiness` in the same file flags active Moodle users
-changed outside the snapshot workflow (the snapshot status's
-`activeMatchesPromotion`) and a failed import, under the readiness-registry
-codes `active_snapshot_edited` and `snapshot_import_failed`.
+The editor policy that `npm run setup` installs (see **Data operations
+dashboard** below) never holds what `src/editor-policy.ts` forbids: create,
+update or delete on `moodle_users` (the native CSV import needs them;
+snapshots go through **Data / Import Moodle snapshot**), any write to the
+staging, index, count, coordination and migration ledger collections, and
+any write to Flows, operations, permissions, policies or their assignments
+(the managed Flows read and write with `$full`, the schedule without
+accountability, so editing one would lift every other rule).
+Administrators cannot be restricted that way; `snapshotReadiness` in
+`src/snapshot-readiness.ts` flags active Moodle users changed outside the
+snapshot workflow (the snapshot status's `activeMatchesPromotion`) and a
+failed import, under the readiness-registry codes `active_snapshot_edited`
+and `snapshot_import_failed`.
 
 ## Public files: definitions, readiness and preparation
 
@@ -876,6 +878,101 @@ check several codes share runs once.
 `data_operations.publication_outcomes` keeps the outcome of each declared
 file of the last publication, keyed by filename, for any number of files
 (see Publishing).
+
+## Data operations dashboard
+
+`npm run setup` installs one Insights dashboard, **Data operations**, with
+its default panels, once (a rerun creates a missing panel and never
+overwrites an edited one):
+
+- four **Run operation** panels: Publish (**Publish / Public assets
+  (relational)**), Recalculate (**Data / Mark pending**), Import Moodle
+  snapshot (**Data / Import Moodle snapshot**) and Add enrollment rules
+  (**Data / Add enrollment rules**). A panel shows its Flow's own
+  confirmation text and dialog fields (the snapshot's private CSV through
+  an item picker of the private folder's files) and posts them to the native
+  `POST /flows/trigger/:id`. Run is disabled while any data operation holds
+  the coordinator's claim and while a run started from a panel of the page
+  is in flight, and waits (saying why) while the data status cannot be
+  read. Every Run opens the dialog empty, so each replacement or
+  publication is confirmed again; a refusal shows its code and message
+  with a **Retry** that reopens the same Flow's dialog with the failed
+  run's inputs, less its checkboxes (acknowledgements such as "Replace the
+  whole active Moodle snapshot" are ticked again for every run). **Edit
+  Flow** opens the Flow's configuration.
+- three **Data status** panels, read from `GET /finki-hub-data-status` and
+  `GET /finki-hub-data-status/readiness`: every coordination domain
+  (idle, pending, running, failed; Publication partial when a failed
+  publication uploaded some declared files), every declared public file with its
+  last outcome, code, revision and size (the last publication's revision
+  comes from these entries), the last run and the last run of each
+  scheduled Flow within the past hour; every readiness check with its count
+  and one link to its records (its Needs review bookmark when it has one);
+  and the academic years, curriculum generations and study programs whose
+  `published` flags decide the public keys, each linked to its form. The
+  lists come from the declarations and the status, never from a fixed set.
+
+To put another operation on the dashboard, create a manual Flow in Studio
+whose name starts with `Data / ` or `Publish / `, then **Edit Panels →
+Create Panel → Run operation** and pick it. No code changes and no
+rebuild. Its trigger must be set up like the installed ones, or the panel
+refuses to run it and says why:
+
+- **Collections**: `data_operations` only. No editor reads it, so the
+  trigger endpoint (which checks nothing but read access to the Flow's
+  collection) refuses every non-administrator before the Flow starts.
+- **Collection Page (Requires Selection)** off, **Asynchronous** off and
+  **Error on Reject** on. An asynchronous Flow answers before it runs and a
+  Flow without Error on Reject answers success after a failed step, so the
+  panel could not tell a failure from a finished run.
+- **First operation**: a Condition named `Administrator?` with the rule
+  `{"$accountability":{"admin":{"_eq":true}}}`, whose reject path ends in
+  a Throw Error with status `403` and code `FORBIDDEN`, as in every
+  installed managed Flow. The Flow itself is the boundary: a user whom
+  another policy lets read `data_operations` passes the trigger endpoint,
+  and the panel's picker and its "Administrators only" state are
+  conveniences, never the check.
+- The dialog fields are yours, but the API ignores them: validate every
+  input inside the Flow.
+
+**Access.** The status endpoint is the boundary: an anonymous caller gets
+401, a caller who is neither an administrator nor a holder of the **Data
+editor** policy 403. Editors read a bounded view (states, codes, counts,
+names and links; no failure text, fingerprint, claim owner or record).
+Setup also installs that policy and keeps it equal to its derivation from
+the collection roles (`src/editor-policy.ts`): full rights on every
+editable source; read and update of the key-source collections except the
+fields that decide public keys (`published`, the key text, the position,
+the parent and whatever the key source filters on); read only on
+`moodle_users`, the derived counts and index and the migration ledger;
+nothing on staging, candidate and status rows or on the checkpoint
+sources; plus read of dashboards, panels and manual Flows. Setup attaches
+it to no role: attach it to your editing roles under **Settings → Access
+Policies**. Import, promotion, publication, recalculation and rule seeding
+stay administrator-only.
+
+**Adding a year or a course.** Create the academic year (unpublished) or
+the course, then run **Add enrollment rules** with that year (every course
+gets a `mapped_entries` rule), that course (every year) or both (one pair).
+Existing rules of any mode are kept, so a rerun creates nothing, and no
+mapping is created. The rules are counted at the next tick (zero where no
+entry is mapped yet). A year reaches `courses.json` only once an
+administrator publishes it.
+
+Each run of every Flow writes one `run` activity row; Directus prunes them
+only with `RETENTION_ENABLED=true` (default `false`), after
+`FLOW_LOGS_RETENTION` (default `90d`), on `RETENTION_SCHEDULE` (default
+`0 0 * * *`) in batches of `RETENTION_BATCH` (default `500`); other activity
+follows `ACTIVITY_RETENTION` and revisions `REVISIONS_RETENTION` (both
+`90d`).
+
+`npm run test:operations` runs the fixture scenario
+`test/relational/operations.integration.mjs` (the same target variables as
+`npm run test:relational`) and then `test/operations.browser.mjs`, which
+drives the dashboard in a real browser through the locally installed
+`agent-browser` CLI and needs the `npm run test:s3` variables as well. It
+fails, never skips, without the CLI. `OPERATIONS_BROWSER_SCREENSHOTS`
+names a directory for its screenshots (a temporary one otherwise).
 
 ## Branding
 
