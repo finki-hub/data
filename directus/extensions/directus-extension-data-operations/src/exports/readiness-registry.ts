@@ -8,12 +8,13 @@ import type {
 import type { ReadinessCheck } from './types.js';
 
 import { assignmentCheck } from './assignment-checks.js';
-import { curriculumCheck, importedValuesCheck } from './curriculum-checks.js';
 import {
-  enrollmentCheck,
-  mappingCheck,
-  yearOrderCheck,
-} from './enrollment-checks.js';
+  curriculumCheck,
+  importedValuesCheck,
+  unlinkedMember,
+} from './curriculum-checks.js';
+import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
+import { keyOrderEntries } from './key-order.js';
 import { notCurrentCalculations } from './readiness-facts.js';
 
 // The readiness-check registry: every issue readiness reports, in answer
@@ -24,9 +25,10 @@ import { notCurrentCalculations } from './readiness-facts.js';
 const status: ReadinessSource = { kind: 'status' };
 const snapshot: ReadinessSource = { kind: 'snapshot' };
 
-const counted = (filter: Filter): ReadinessSource => ({
-  aggregate: 'count',
-  field: 'id',
+// The matching rows, or their distinct values of `distinct`.
+const counted = (filter: Filter, distinct?: string): ReadinessSource => ({
+  aggregate: distinct === undefined ? 'count' : 'countDistinct',
+  field: distinct ?? 'id',
   filter,
   kind: 'count',
 });
@@ -35,11 +37,6 @@ const counted = (filter: Filter): ReadinessSource => ({
 const checkedBy = (check: ReadinessCheck): ReadinessSource => ({
   check,
   kind: 'check',
-});
-
-// A text column holding a non-empty value.
-const filled = (field: string): Filter => ({
-  _and: [{ [field]: { _nnull: true } }, { [field]: { _neq: '' } }],
 });
 
 // An entry of a severity and its gates. `generationScoped` is set only
@@ -109,22 +106,10 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     page: 'migration_ledger',
     source: counted({ status: { _neq: 'completed' } }),
   }),
-  blocker({
-    code: 'academic_year_unsorted',
-    description:
-      'A published academic year has no sort, so its key has no place among the newest-first year keys of courses.json. Give it a sort.',
-    page: 'academic_years',
-    source: counted({
-      _and: [{ published: { _eq: true } }, { sort: { _null: true } }],
-    }),
-  }),
-  blocker({
-    code: 'academic_year_sort_shared',
-    description:
-      'Two published academic years share a sort, so their keys have no newest-first order in courses.json. Give each published year its own sort.',
-    page: 'academic_years',
-    source: checkedBy(yearOrderCheck),
-  }),
+  // A published year, generation or program without its position, or
+  // sharing one with a sibling (academic_year_unsorted,
+  // academic_year_sort_shared and the like), from the key sources.
+  ...keyOrderEntries,
   blocker({
     code: 'enrollment_count_missing',
     description:
@@ -142,7 +127,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   blocker({
     code: 'curriculum_link_unresolved',
     description:
-      'An equivalency names a 2018 curriculum value of a course that has neither a 2018 link nor a 2018 name override.',
+      'An equivalency member of the 2018 generation names a curriculum value of a course that has no 2018 link.',
     page: 'course_equivalencies',
     source: checkedBy(curriculumCheck),
   }),
@@ -155,19 +140,22 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   warning({
     code: 'equivalency_entry_unresolved',
     description:
-      'An equivalency carries a 2023 or 2018 label that is linked to no curriculum entry of that generation.',
-    page: 'course_equivalencies',
-    source: counted({
-      _or: [
-        { _and: [filled('course_2023'), { entry_2023: { _null: true } }] },
-        { _and: [filled('course_2018'), { entry_2018: { _null: true } }] },
-      ],
-    }),
+      'An equivalency carries a member label of a generation with a curriculum that is linked to no curriculum entry of that generation (counted per equivalency).',
+    generationScoped: true,
+    page: 'course_equivalency_members',
+    review: {
+      bookmark: 'Equivalency labels without an entry',
+      fields: ['generation', 'label', 'equivalency'],
+      filter: unlinkedMember,
+      icon: 'join_inner',
+      sort: ['generation', 'equivalency'],
+    },
+    source: counted(unlinkedMember, 'equivalency'),
   }),
   blocker({
     code: 'curriculum_value_unlinked',
     description:
-      'A course carries an imported curriculum name, credits or availability of a generation it has no course_curricula link of; link the entry or clear the value.',
+      'A course carries an imported curriculum name, name override, credits or availability of a generation it has no course_curricula link of; link the entry (the imported columns are read-only).',
     page: 'courses',
     source: checkedBy(importedValuesCheck),
   }),

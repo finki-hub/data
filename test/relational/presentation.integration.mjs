@@ -6,11 +6,14 @@ import { applySchemaConstraints } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
 import { installPresentation } from '../../src/data-model/presentation.js';
 import {
-  entryLockedWithoutGeneration,
   generationFilter,
-  presentationFieldPatches,
-} from '../../src/data-model/presentation/fields.js';
-import { fieldGroups } from '../../src/data-model/presentation/groups.js';
+  lockedWithoutGeneration,
+} from '../../src/data-model/presentation/curriculum-fields.js';
+import { presentationFieldPatches } from '../../src/data-model/presentation/fields.js';
+import {
+  fieldGroups,
+  legacyImportColumns,
+} from '../../src/data-model/presentation/groups.js';
 import {
   collectionPlacements,
   folders,
@@ -115,7 +118,33 @@ const installsStudioMetadata = async (target) => {
   const entry = await get(target, '/fields/course_curricula/entry');
   assert.deepEqual(entry.meta.options.filter, generationFilter);
   assert.equal(entry.meta.readonly, false);
-  assert.deepEqual(entry.meta.conditions, [entryLockedWithoutGeneration]);
+  assert.deepEqual(entry.meta.conditions, [lockedWithoutGeneration]);
+  // The states of an entry: a many-to-many to the programs of its
+  // generation, locked until one is chosen; the member entry picker alike.
+  const states = await get(target, '/fields/curriculum_entries/program_states');
+  assert.equal(states.meta.interface, 'list-m2m');
+  assert.deepEqual(states.meta.special, ['m2m']);
+  assert.deepEqual(states.meta.options.filter, generationFilter);
+  assert.equal(states.meta.options.enableCreate, false);
+  assert.deepEqual(states.meta.conditions, [lockedWithoutGeneration]);
+  const member = await get(target, '/fields/course_equivalency_members/entry');
+  assert.deepEqual(member.meta.options.filter, generationFilter);
+  assert.deepEqual(member.meta.conditions, [lockedWithoutGeneration]);
+  const junction = await get(
+    target,
+    '/relations/curriculum_entry_program_states/entry',
+  );
+  assert.equal(junction.meta.junction_field, 'program');
+  assert.equal(junction.meta.one_field, 'program_states');
+  // The imported per-generation columns: read-only, in a closed group.
+  const legacyImport = await get(target, '/fields/courses/legacy_import');
+  assert.equal(legacyImport.meta.readonly, true);
+  assert.equal(legacyImport.meta.options.start, 'closed');
+  for (const column of legacyImportColumns) {
+    const field = await get(target, `/fields/courses/${column}`);
+    assert.equal(field.meta.group, 'legacy_import', column);
+    assert.equal(field.meta.readonly, true, column);
+  }
   const assignments = await get(target, '/fields/courses/assignments');
   assert.deepEqual(assignments.meta.options.fields, [
     'role',
@@ -152,16 +181,22 @@ const installsStudioMetadata = async (target) => {
   );
   assert.deepEqual(bookmarks, [
     {
-      bookmark: 'Curriculum 2018',
+      bookmark: 'Curriculum by generation',
       collection: 'curriculum_entries',
-      filter: { generation: { _eq: '2018' } },
+      filter: null,
       role: null,
       user: null,
     },
     {
-      bookmark: 'Curriculum 2023',
-      collection: 'curriculum_entries',
-      filter: { generation: { _eq: '2023' } },
+      bookmark: 'Equivalency labels without an entry',
+      collection: 'course_equivalency_members',
+      filter: {
+        _and: [
+          { _and: [{ label: { _nnull: true } }, { label: { _neq: '' } }] },
+          { entry: { _null: true } },
+          { generation: { has_curriculum: { _eq: true } } },
+        ],
+      },
       role: null,
       user: null,
     },
@@ -179,17 +214,30 @@ const installsStudioMetadata = async (target) => {
 // generation differs from its entry, and a matching link plus a professor
 // assignment read back through the course.
 const editsCourseThroughRelations = async (target, state) => {
+  const generations = {};
+  for (const [code, sort] of [
+    ['2018', 1],
+    ['2023', 2],
+  ]) {
+    const row = await createItem(target, 'curriculum_generations', {
+      code,
+      has_curriculum: true,
+      label: `Curriculum ${code}`,
+      sort,
+    });
+    generations[code] = row.data.id;
+  }
   const course = await createItem(target, 'courses', {
     name: 'Synthetic Presentation Course',
   });
   const entry2018 = await createItem(target, 'curriculum_entries', {
     code: 'SYN-2018',
-    generation: '2018',
+    generation: generations['2018'],
     name: 'Synthetic Presentation Entry 2018',
   });
   const entry2023 = await createItem(target, 'curriculum_entries', {
     code: 'SYN-2023',
-    generation: '2023',
+    generation: generations['2023'],
     name: 'Synthetic Presentation Entry 2023',
   });
   const professor = await createItem(target, 'staff', {
@@ -201,12 +249,14 @@ const editsCourseThroughRelations = async (target, state) => {
     ['curriculum_entries', entry2023.data.id],
     ['curriculum_entries', entry2018.data.id],
     ['courses', course.data.id],
+    ['curriculum_generations', generations['2023']],
+    ['curriculum_generations', generations['2018']],
   ];
   assert.equal(
     await rejectedItem(target, 'course_curricula', {
       course: course.data.id,
       entry: entry2023.data.id,
-      generation: '2018',
+      generation: generations['2018'],
     }),
     'INVALID_FOREIGN_KEY',
   );
@@ -215,7 +265,7 @@ const editsCourseThroughRelations = async (target, state) => {
     course: course.data.id,
     credits: 6,
     entry: entry2018.data.id,
-    generation: '2018',
+    generation: generations['2018'],
     sort: 1,
   });
   // A converted checkpoint row still carries the required course label.
@@ -232,7 +282,7 @@ const editsCourseThroughRelations = async (target, state) => {
   );
   const withRelations = await get(
     target,
-    `/items/courses/${course.data.id}?fields=curricula.generation,curricula.entry.name,curricula.credits,assignments.role,assignments.staff.name`,
+    `/items/courses/${course.data.id}?fields=curricula.generation.code,curricula.entry.name,curricula.credits,assignments.role,assignments.staff.name`,
   );
   assert.deepEqual(withRelations, {
     assignments: [
@@ -245,7 +295,7 @@ const editsCourseThroughRelations = async (target, state) => {
       {
         credits: 6,
         entry: { name: 'Synthetic Presentation Entry 2018' },
-        generation: '2018',
+        generation: { code: '2018' },
       },
     ],
   });

@@ -495,6 +495,10 @@ describe('workbook rows and their relational conversion', () => {
       'teaching_assignments',
       'student_council',
       'course_equivalencies',
+      'curriculum_generations',
+      'study_programs',
+      'curriculum_entry_program_states',
+      'course_equivalency_members',
     ]) {
       const keys = Object.keys(rowsIn(upgraded, collection)[0] ?? {});
 
@@ -547,6 +551,20 @@ describe('workbook rows and their relational conversion', () => {
     expect(rowsIn(fake.store, ledgerCollection)).toEqual([]);
     expect(rowsIn(fake.store, 'curriculum_entries')).toEqual([]);
     expect(rowsIn(fake.store, 'course_enrollment_rules')).toEqual([]);
+    // The generations and the programs of the curriculum sheets are
+    // seeded before the gate, like the years, for npm run migrate.
+    expect(
+      projected(fake.store, 'curriculum_generations', [
+        'code',
+        'has_curriculum',
+        'published',
+      ]),
+    ).toEqual([
+      { code: '2013', has_curriculum: false, published: false },
+      { code: '2018', has_curriculum: true, published: true },
+      { code: '2023', has_curriculum: true, published: true },
+    ]);
+    expect(rowsIn(fake.store, 'study_programs')).toHaveLength(15);
     expect(
       projected(fake.store, 'academic_years', ['label', 'published', 'sort']),
     ).toEqual(

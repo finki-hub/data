@@ -5,10 +5,9 @@ import { z } from 'zod';
 import type { CollectionSpec } from '../src/schema.js';
 
 import { dataModelCollections } from '../src/data-model/collections.js';
-import {
-  baselineFieldMeta,
-  presentationFieldPatches,
-} from '../src/data-model/presentation/fields.js';
+import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
+import { presentationFieldPatches } from '../src/data-model/presentation/fields.js';
+import { legacyImportColumns } from '../src/data-model/presentation/groups.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import { toApiField } from '../src/directus.js';
 import { collectionSpecs } from '../src/model.js';
@@ -96,6 +95,7 @@ const aliasMetas = dataModelCollections.flatMap((collection) =>
   aliasesFor(collection.collection).map(({ alias, relation }) => ({
     derivedTarget: isDerived(relation.collection),
     field: `${collection.collection}.${alias.field}`,
+    junction: alias.junction !== undefined,
     meta: relational.parse(
       effectiveFieldMeta(collection.collection, alias.field),
     ),
@@ -116,11 +116,16 @@ describe('collection icons', () => {
 describe('studio metadata', () => {
   test('gives every editable source field an interface and every relation a readable template', () => {
     expect(modelFields.length).toBeGreaterThan(0);
+
+    // Read-only in Studio: the derived columns, and the imported
+    // per-generation course columns that only the one-time import writes.
+    const importInput = new Set<string>(legacyImportColumns);
+
     expect(
       modelFields.filter(
         ({ collection, field, readOnly }) =>
           plain.parse(effectiveFieldMeta(collection, field)).readonly !==
-          readOnly,
+          (readOnly || (collection === 'courses' && importInput.has(field))),
       ),
     ).toEqual([]);
 
@@ -134,8 +139,8 @@ describe('studio metadata', () => {
     expect(new Set(selectors)).toEqual(new Set(['select-dropdown-m2o']));
     expect(
       aliasMetas.filter(
-        ({ meta }) =>
-          meta.interface !== 'list-o2m' ||
+        ({ junction, meta }) =>
+          meta.interface !== (junction ? 'list-m2m' : 'list-o2m') ||
           (meta.options.fields ?? []).length === 0,
       ),
     ).toEqual([]);
@@ -160,12 +165,14 @@ describe('studio metadata', () => {
       'data_operation_results',
       'migration_ledger',
     ]);
+    // A many-to-many list picks existing rows (study programs) and never
+    // creates one from the other side.
     expect(
       aliasMetas.filter(
-        ({ derivedTarget, meta, readOnly }) =>
+        ({ derivedTarget, junction, meta, readOnly }) =>
           readOnly !== derivedTarget ||
           meta.readonly !== derivedTarget ||
-          meta.options.enableCreate === derivedTarget ||
+          meta.options.enableCreate !== (!derivedTarget && !junction) ||
           meta.options.enableSelect === derivedTarget,
       ),
     ).toEqual([]);

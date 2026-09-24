@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
+import { curriculumGuards } from '../directus/extensions/directus-extension-data-operations/src/curriculum-guards.js';
 import {
   migrations,
   schemaConstraints,
@@ -18,7 +19,6 @@ import { choiceValues, scalar } from '../src/data-model/fields.js';
 import {
   CollectionLimitError,
   installDataModel,
-  SchemaRefusalError,
 } from '../src/data-model/install.js';
 import {
   aliasesFor,
@@ -132,7 +132,7 @@ const relationBody = z.object({
   field: z.string(),
   meta: z.object({ one_field: z.string().nullable() }),
   related_collection: z.string(),
-  schema: z.object({ on_delete: z.enum(['CASCADE', 'SET NULL']) }),
+  schema: z.object({ on_delete: z.enum(['CASCADE', 'NO ACTION', 'SET NULL']) }),
 });
 
 describe('target collections', () => {
@@ -140,8 +140,8 @@ describe('target collections', () => {
     expect(new Set(dataModelCollectionKeys)).toEqual(
       new Set([...collectionKeys, ...relationalCollectionKeys]),
     );
-    expect(dataModelCollectionKeys).toHaveLength(25);
-    expect(new Set(dataModelCollectionKeys).size).toBe(25);
+    expect(dataModelCollectionKeys).toHaveLength(29);
+    expect(new Set(dataModelCollectionKeys).size).toBe(29);
   });
 
   test('adopts the checkpoint collections with their current fields first', () => {
@@ -342,6 +342,21 @@ describe('domain keys', () => {
         kind: 'unique',
       },
       {
+        collection: 'study_programs',
+        columns: ['generation', 'code'],
+        kind: 'unique',
+      },
+      {
+        collection: 'curriculum_entry_program_states',
+        columns: ['entry', 'program'],
+        kind: 'unique',
+      },
+      {
+        collection: 'course_equivalency_members',
+        columns: ['equivalency', 'generation'],
+        kind: 'unique',
+      },
+      {
         collection: 'moodle_history_memberships',
         columns: ['moodle_user', 'entry'],
         kind: 'unique',
@@ -399,30 +414,161 @@ describe('domain keys', () => {
     }
   });
 
-  test('guards the link generation and nonnegative counts in SQL', () => {
+  test('guards every generation reference and nonnegative counts in SQL', () => {
     const sql = schemaConstraints.statements.join('\n');
 
     expect(sql).toContain('CHECK ("count" >= 0)');
+
+    for (const trigger of [
+      '"course_curricula_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_curricula"',
+      '"curriculum_entries_generation_guard" BEFORE INSERT OR UPDATE OF "generation" ON "curriculum_entries"',
+      '"curriculum_entry_program_states_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "program" ON "curriculum_entry_program_states"',
+      '"course_equivalency_members_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_equivalency_members"',
+      '"study_programs_generation_guard" BEFORE UPDATE OF "generation" ON "study_programs"',
+      '"curriculum_generations_curriculum_guard" BEFORE UPDATE OF "has_curriculum" ON "curriculum_generations"',
+    ]) {
+      expect(sql).toContain(`CREATE OR REPLACE TRIGGER ${trigger}`);
+    }
+
+    expect(curriculumGuards.map(({ table }) => table)).toEqual([
+      'course_curricula',
+      'curriculum_entries',
+      'curriculum_entry_program_states',
+      'course_equivalency_members',
+      'study_programs',
+      'curriculum_generations',
+    ]);
+    // A generation id compares as an integer; a label-only generation
+    // takes no entry, and an entry keeps its generation while dependants
+    // carry it.
+    expect(sql).toContain('entry_generation integer;');
+    expect(sql).toContain('IF curriculum IS DISTINCT FROM true THEN');
     expect(sql).toContain(
-      'CREATE OR REPLACE TRIGGER "course_curricula_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_curricula"',
+      '"course_equivalency_members" WHERE "entry" = NEW."id"',
     );
-    expect(sql).toContain(
-      'CREATE OR REPLACE TRIGGER "curriculum_entries_generation_guard" BEFORE UPDATE OF "generation" ON "curriculum_entries"',
+    // Eight curriculum refusals and one per key guard (key-guards.ts).
+    expect(sql.match(/ERRCODE = 'foreign_key_violation'/gu)).toHaveLength(11);
+  });
+});
+
+describe('curriculum generations and study programs as rows', () => {
+  test('relate entries, links, programs and members to generation rows, never an enum', () => {
+    for (const collection of [
+      'curriculum_entries',
+      'course_curricula',
+      'study_programs',
+      'course_equivalency_members',
+    ]) {
+      expect(findField(collection, 'generation')).toMatchObject({
+        kind: 'm2o',
+        nullable: false,
+        onDelete: 'NO ACTION',
+        related: 'curriculum_generations',
+      });
+    }
+
+    expect(
+      dataModelCollections
+        .flatMap(enumsOf)
+        .filter(({ field }) => field.field === 'generation'),
+    ).toEqual([]);
+  });
+
+  test('declare generations and programs unpublished until an administrator publishes them', () => {
+    expect(findField('curriculum_generations', 'code')).toMatchObject({
+      kind: 'string',
+      nullable: false,
+      unique: true,
+    });
+
+    for (const [collection, field] of [
+      ['curriculum_generations', 'published'],
+      ['curriculum_generations', 'has_curriculum'],
+      ['study_programs', 'published'],
+    ] as const) {
+      expect(findField(collection, field)).toMatchObject({
+        defaultValue: false,
+        kind: 'boolean',
+        nullable: false,
+      });
+    }
+
+    expect(
+      findCollection('study_programs').fields.map(({ field }) => field),
+    ).toEqual([
+      'generation',
+      'code',
+      'name',
+      'description',
+      'published',
+      'sort',
+    ]);
+  });
+
+  test('replace the flat state columns with state rows edited as a many-to-many from the entry', () => {
+    const entryFields = findCollection('curriculum_entries').fields.map(
+      ({ field }) => field,
     );
-    expect(sql).toContain("ERRCODE = 'foreign_key_violation'");
+
+    expect(entryFields.filter((field) => field.startsWith('state_'))).toEqual(
+      [],
+    );
+    expect(relationsOf('curriculum_entry_program_states')).toMatchObject([
+      {
+        alias: { field: 'program_states', junction: 'program' },
+        field: 'entry',
+        junction: 'program',
+        onDelete: 'CASCADE',
+        related: 'curriculum_entries',
+      },
+      {
+        field: 'program',
+        junction: 'entry',
+        onDelete: 'NO ACTION',
+        related: 'study_programs',
+      },
+    ]);
+    expect(
+      toAliasPayload(
+        aliasesFor('curriculum_entries').find(
+          ({ alias }) => alias.field === 'program_states',
+        )?.alias ?? { field: '', fields: [], template: '' },
+        20,
+      ).meta,
+    ).toMatchObject({
+      interface: 'list-m2m',
+      options: {
+        enableCreate: false,
+        enableSelect: true,
+        junctionFieldLocation: 'top',
+      },
+      special: ['m2m'],
+    });
+  });
+
+  test('keep equivalency members per generation, with a literal read-only label and a nullable entry', () => {
+    expect(
+      findCollection('course_equivalencies').fields.map(({ field }) => field),
+    ).toEqual(['course_2023', 'course_2018', 'course_2013', 'course']);
+
+    const label = findField('course_equivalency_members', 'label');
+
+    expect(label.readOnly).toBeTruthy();
+    expect(findField('course_equivalency_members', 'entry')).toMatchObject({
+      nullable: true,
+      onDelete: 'SET NULL',
+      related: 'curriculum_entries',
+    });
+    expect(
+      findField('course_equivalency_members', 'equivalency'),
+    ).toMatchObject({
+      alias: { field: 'members' },
+      onDelete: 'CASCADE',
+    });
   });
 });
 
 describe('enumerations', () => {
-  test('restricts generations to 2018 and 2023 on entries and links', () => {
-    for (const collection of ['curriculum_entries', 'course_curricula']) {
-      const generation = enumOf(collection, 'generation');
-
-      expect(choiceValues(generation)).toEqual(['2018', '2023']);
-      expect(generation.nullable).toBe(false);
-    }
-  });
-
   test('declares the role, mode, review and operation states with their labels', () => {
     expect(enumOf('teaching_assignments', 'role').choices).toEqual([
       { label: 'Professor', value: 'professor' },
@@ -470,7 +616,7 @@ describe('enumerations', () => {
   test('gives every enum one distinct value and a label per choice', () => {
     const enums = dataModelCollections.flatMap(enumsOf);
 
-    expect(enums.length).toBeGreaterThanOrEqual(10);
+    expect(enums.length).toBeGreaterThanOrEqual(8);
 
     for (const { collection, field } of enums) {
       const values = choiceValues(field);
@@ -486,23 +632,29 @@ describe('enumerations', () => {
   });
 
   test('builds server-enforced dropdowns for enums', () => {
-    const payload = toFieldPayload(enumOf('course_curricula', 'generation'), 3);
+    const payload = toFieldPayload(
+      enumOf('moodle_course_entries', 'review_state'),
+      3,
+    );
 
     expect(payload).toMatchObject({
-      field: 'generation',
+      field: 'review_state',
       meta: {
         interface: 'select-dropdown',
         options: {
           allowNone: false,
           allowOther: false,
           choices: [
-            { text: '2018', value: '2018' },
-            { text: '2023', value: '2023' },
+            { text: 'Needs mapping', value: 'needs_mapping' },
+            { text: 'Mapped', value: 'mapped' },
+            { text: 'Ignored', value: 'ignored' },
           ],
         },
         required: true,
         sort: 3,
-        validation: { generation: { _in: ['2018', '2023'] } },
+        validation: {
+          review_state: { _in: ['needs_mapping', 'mapped', 'ignored'] },
+        },
       },
       schema: { is_nullable: false, max_length: enumMaxLength },
       type: 'string',
@@ -558,19 +710,21 @@ describe('relations and aliases', () => {
 
       const readOnly = relation.alias.readOnly === true;
 
+      const m2m = relation.alias.junction !== undefined;
+
       expect(toAliasPayload(relation.alias, 9)).toMatchObject({
         field: relation.alias.field,
         meta: {
-          interface: 'list-o2m',
+          interface: m2m ? 'list-m2m' : 'list-o2m',
           options: {
-            enableCreate: !readOnly,
+            enableCreate: !readOnly && !m2m,
             enableSelect: !readOnly,
             fields: relation.alias.fields,
             template: relation.alias.template,
           },
           readonly: readOnly,
           sort: 9,
-          special: ['o2m'],
+          special: [m2m ? 'm2m' : 'o2m'],
         },
         type: 'alias',
       });
@@ -686,7 +840,12 @@ describe('installDataModel on fresh and installed projects', () => {
     const summary = await installDataModel(request);
 
     expect(summary).toEqual({
-      collections: { adopted: 0, created: 25, refused: 0, skipped: 0 },
+      collections: {
+        adopted: 0,
+        created: dataModelCollectionKeys.length,
+        refused: 0,
+        skipped: 0,
+      },
       fields: {
         adopted: 0,
         aligned: 0,
@@ -709,7 +868,7 @@ describe('installDataModel on fresh and installed projects', () => {
       false,
     );
 
-    const collections = changes.slice(0, 25);
+    const collections = changes.slice(0, dataModelCollectionKeys.length);
 
     expect(collections.map(({ pathname }) => pathname)).toEqual(
       dataModelCollectionKeys.map(() => '/collections'),
@@ -718,7 +877,7 @@ describe('installDataModel on fresh and installed projects', () => {
       collections.map(({ body }) => collectionBody.parse(body).collection),
     ).toEqual(dataModelCollectionKeys);
 
-    const relations = changes.slice(25);
+    const relations = changes.slice(dataModelCollectionKeys.length);
 
     expect(relations.map(({ pathname }) => pathname)).toEqual(
       modelRelations.map(() => '/relations'),
@@ -774,7 +933,12 @@ describe('installDataModel on fresh and installed projects', () => {
 
     expect(mutations(requests)).toEqual([]);
     expect(summary).toEqual({
-      collections: { adopted: 0, created: 0, refused: 0, skipped: 25 },
+      collections: {
+        adopted: 0,
+        created: 0,
+        refused: 0,
+        skipped: dataModelCollectionKeys.length,
+      },
       fields: {
         adopted: 0,
         aligned: 0,
@@ -790,7 +954,7 @@ describe('installDataModel on fresh and installed projects', () => {
       },
     });
     expect(requests.filter(({ method }) => method === 'GET')).toHaveLength(
-      1 + 25 * 2,
+      1 + dataModelCollectionKeys.length * 2,
     );
   });
 
@@ -807,7 +971,7 @@ describe('installDataModel on fresh and installed projects', () => {
       'LIMIT_EXCEEDED',
     );
     expect(failure instanceof Error && failure.message).toContain(
-      '25 collections',
+      `${String(dataModelCollectionKeys.length)} collections`,
     );
     expect(failure instanceof CollectionLimitError && failure.collection).toBe(
       'courses',
@@ -827,96 +991,5 @@ describe('installDataModel on fresh and installed projects', () => {
     );
 
     await expect(installDataModel(request)).rejects.toBe(outage);
-  });
-});
-
-describe('installDataModel over existing definitions', () => {
-  test('refuses an incompatible existing column before any mutation', async () => {
-    const state = installedState([findCollection('students')]);
-    const students = state.fields['students'] ?? [];
-    state.fields['students'] = students.map((field) =>
-      field.field === 'index_number' ? { ...field, type: 'integer' } : field,
-    );
-    const { request, requests } = fakeDirectus(state);
-
-    const failure = await failureOf(installDataModel(request));
-
-    expect(failure).toBeInstanceOf(SchemaRefusalError);
-
-    if (!(failure instanceof SchemaRefusalError)) {
-      return;
-    }
-
-    expect(failure.refusals).toEqual([
-      {
-        collection: 'students',
-        field: 'index_number',
-        reason:
-          'Field students.index_number has type integer but the model declares string',
-      },
-    ]);
-    expect(failure.summary.collections).toEqual({
-      adopted: 0,
-      created: 24,
-      refused: 0,
-      skipped: 1,
-    });
-    expect(failure.summary.fields.refused).toBe(1);
-    expect(mutations(requests)).toEqual([]);
-  });
-
-  test('refuses folders, alias clashes, foreign relations and diverging nullability', async () => {
-    const state = installedState([
-      findCollection('courses'),
-      findCollection('curriculum_entries'),
-      findCollection('course_curricula'),
-    ]);
-    state.collections.push({ collection: 'students', meta: {}, schema: null });
-    state.fields['courses'] = (state.fields['courses'] ?? []).map((field) =>
-      field.field === 'curricula'
-        ? { ...field, meta: { special: null } }
-        : field,
-    );
-    state.relations['course_curricula'] = (
-      state.relations['course_curricula'] ?? []
-    ).map((relation) =>
-      relation.field === 'entry'
-        ? { ...relation, related_collection: 'rooms' }
-        : relation,
-    );
-    state.fields['course_curricula'] = (
-      state.fields['course_curricula'] ?? []
-    ).map((field) =>
-      field.field === 'credits' && field.schema !== null
-        ? { ...field, schema: { ...field.schema, is_nullable: false } }
-        : field,
-    );
-    state.fields['curriculum_entries'] = (
-      state.fields['curriculum_entries'] ?? []
-    ).map((field) =>
-      field.field === 'name' && field.schema !== null
-        ? { ...field, schema: { ...field.schema, is_nullable: true } }
-        : field,
-    );
-    const { request, requests } = fakeDirectus(state);
-
-    const failure = await failureOf(installDataModel(request));
-
-    expect(failure).toBeInstanceOf(SchemaRefusalError);
-
-    if (!(failure instanceof SchemaRefusalError)) {
-      return;
-    }
-
-    expect(failure.refusals.map(({ reason }) => reason)).toEqual([
-      'Field courses.curricula is not an O2M alias but the model declares one',
-      'Collection students exists as a folder without a table',
-      'Field curriculum_entries.name is nullable but the model declares it required',
-      'Field course_curricula.credits is NOT NULL without a default but the model declares it nullable',
-      'Relation course_curricula.entry targets rooms but the model targets curriculum_entries',
-    ]);
-    expect(failure.summary.fields.refused).toBe(3);
-    expect(failure.message).toContain('Collection students exists as a folder');
-    expect(mutations(requests)).toEqual([]);
   });
 });

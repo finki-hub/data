@@ -35,6 +35,7 @@ import {
 import {
   convertedStore,
   edit,
+  generationIdOf,
   parityDataset,
   renamedCurrent,
   storeReader,
@@ -112,6 +113,27 @@ const withValues =
   (rows: FakeItem[]): FakeItem[] =>
     rows.map((row) => (row.id === course ? { ...row, ...values } : row));
 
+// The 2023 generation (page curriculum_generations) or its program of
+// the code (page study_programs) with the values set.
+type CurrentEdit = {
+  readonly code: string;
+  readonly page: string;
+  readonly values: Readonly<Record<string, unknown>>;
+};
+
+const withCurrentValues = (
+  store: FakeStore,
+  { code, page, values }: CurrentEdit,
+): FakeStore => {
+  const latest = generationIdOf(store, '2023');
+  const matches = (row: FakeItem) =>
+    row['code'] === code &&
+    (page === 'curriculum_generations' || row['generation'] === latest);
+  return edit(store, page, (rows) =>
+    rows.map((row) => (matches(row) ? { ...row, ...values } : row)),
+  );
+};
+
 // Iota without its imported 2023 credits and availability: only the 2023
 // name remains on the course.
 const nameOnly = (dataset: SyntheticDataset): SyntheticDataset => ({
@@ -166,11 +188,14 @@ describe('the readiness decision', () => {
       links: {
         assignment_review_label: '/admin/content/teaching_assignments',
         council_member_unresolved: '/admin/content/student_council',
-        equivalency_entry_unresolved: '/admin/content/course_equivalencies',
+        equivalency_entry_unresolved:
+          '/admin/content/course_equivalency_members',
         equivalency_without_course: '/admin/content/course_equivalencies',
       },
       ready: true,
-      reviews: {},
+      reviews: {
+        equivalency_entry_unresolved: 'Equivalency labels without an entry',
+      },
       revision: 42,
       warnings: [
         'equivalency_without_course',
@@ -379,6 +404,86 @@ describe('the registry decides every code once', () => {
   });
 });
 
+describe('the key order of courses.json', () => {
+  test.each([
+    {
+      blocker: 'curriculum_generation_unsorted',
+      code: '2023',
+      label: 'a published generation without a sort',
+      page: 'curriculum_generations',
+      values: { sort: null },
+    },
+    {
+      blocker: 'curriculum_generation_sort_shared',
+      code: '2023',
+      label: 'two published generations sharing a sort',
+      page: 'curriculum_generations',
+      values: { sort: 2 },
+    },
+    {
+      blocker: 'study_program_unsorted',
+      code: 'kn',
+      label: 'a published program without a sort',
+      page: 'study_programs',
+      values: { sort: null },
+    },
+    {
+      blocker: 'study_program_sort_shared',
+      code: 'ie',
+      label: 'two published programs of one generation sharing a sort',
+      page: 'study_programs',
+      values: { sort: 1 },
+    },
+  ])(
+    'blocks $label, whose keys would move silently',
+    async ({ blocker, ...change }) => {
+      const decision = await decide({
+        store: withCurrentValues(await convertedStore(), change),
+      });
+
+      expect(decision.blockers).toEqual([blocker]);
+      expect(decision.issueCounts[blocker]).toBe(1);
+      expect(decision.links[blocker]).toBe(`/admin/content/${change.page}`);
+      expect(decision.blockedFiles).toEqual(['courses.json']);
+    },
+  );
+
+  test('blocks no generation or program that places no key, nor programs of two generations sharing a sort', async () => {
+    const store = await convertedStore();
+    const labelOnly = generationIdOf(store, '2013');
+    // The label-only 2013 published with 2023's sort, a program of it
+    // without a sort and an unpublished 2023 program sharing kn's sort.
+    edit(
+      store,
+      'curriculum_generations',
+      withValues(labelOnly, { published: true, sort: 3 }),
+    );
+    edit(
+      store,
+      'study_programs',
+      append([
+        { code: 'xx', generation: labelOnly, id: 98, published: true },
+        {
+          code: 'yy',
+          generation: generationIdOf(store, '2023'),
+          id: 99,
+          published: false,
+          sort: 1,
+        },
+      ]),
+    );
+    const decision = await decide({ store });
+
+    expect(decision.ready).toBeTruthy();
+    expect(decision.issueCounts).toMatchObject({
+      curriculum_generation_sort_shared: 0,
+      curriculum_generation_unsorted: 0,
+      study_program_sort_shared: 0,
+      study_program_unsorted: 0,
+    });
+  });
+});
+
 describe('the enrollment and curriculum checks of courses.json', () => {
   test('blocks an exported course and year without a count row, and names a missing rule apart', async () => {
     const counted = await decide({
@@ -480,11 +585,16 @@ describe('the enrollment and curriculum checks of courses.json', () => {
     expect(unpublished.ready).toBeTruthy();
   });
 
-  test('blocks a 2018 entry an equivalency names while the course has neither the link nor an override, and 2018 values without the link', async () => {
-    const store = edit(
-      await convertedStore(),
+  test('blocks a 2018 member an equivalency names and 2018 values while the course has no 2018 link, whatever its read-only override, until the link is back', async () => {
+    const store = await convertedStore();
+    const legacy = generationIdOf(store, '2018');
+    const link = rowsOf(store, 'course_curricula').find(
+      (row) => row['course'] === 7 && row['generation'] === legacy,
+    );
+    edit(
+      store,
       'course_curricula',
-      without((link) => link['course'] === 7 && link['generation'] === '2018'),
+      without((row) => row === link),
     );
     const blocked = await decide({ store });
 
@@ -497,20 +607,19 @@ describe('the enrollment and curriculum checks of courses.json', () => {
       curriculum_value_unlinked: '/admin/content/courses',
     });
 
-    // The override settles the 2018 name; Theta's imported 2018 credits
-    // and availability still have no link to be published from.
+    // A (read-only) override is import input now: it settles nothing.
     edit(store, 'courses', withOverride(7, 'Theta Legacy'));
-
-    await expect(decide({ store })).resolves.toMatchObject({
-      blockers: ['curriculum_value_unlinked'],
-      issueCounts: { curriculum_value_unlinked: 1 },
-    });
-
     edit(
       store,
       'courses',
       withValues(7, { available_2018: null, credits_2018: null }),
     );
+
+    await expect(decide({ store })).resolves.toMatchObject({
+      blockers: ['curriculum_link_unresolved', 'curriculum_value_unlinked'],
+    });
+
+    edit(store, 'course_curricula', append(link === undefined ? [] : [link]));
 
     await expect(decide({ store })).resolves.toMatchObject({ ready: true });
   });

@@ -10,7 +10,6 @@ import {
   type MigrationData,
   type MigrationItem,
 } from '../schema.js';
-import { chunk, createRows } from './batches.js';
 import {
   type ConversionPlan,
   countByCode,
@@ -35,8 +34,7 @@ import {
 } from './inventory-schemas.js';
 import { type CheckpointRows, readInventory } from './inventory.js';
 import { preflight } from './preflight.js';
-import { convertAcademicYears } from './rules.js';
-import { readYearIds } from './target-reads.js';
+import { seedCurriculum, seedYears } from './workbook-seeds.js';
 
 // The rows written for the workbook are not the rows the converters would
 // read, or the relational model is not readable: the conversion never runs
@@ -151,6 +149,7 @@ export const previewBlockers = ({
         course_curricula: [],
         course_enrollment_rules: [],
         curriculum_entries: [],
+        curriculum_generations: [],
       },
     },
     null,
@@ -171,42 +170,6 @@ export type WorkbookConversion =
       readonly written: Readonly<Record<string, number>>;
     };
 
-// The workbook's academic years were not all seeded: `npm run migrate`
-// converts only the years a project holds, so it cannot finish this
-// import, which has to start over.
-export class YearSeedError extends Error {
-  public override readonly name = 'YearSeedError';
-}
-
-// Seeds the workbook's academic years (published, sorted by column group)
-// that the project lacks, in bounded batches, and answers how many it
-// created. The rules step then finds them in place.
-const seedYears = async (
-  request: DirectusRequest,
-  academicYears: readonly string[],
-  batchSize: number,
-): Promise<number> => {
-  try {
-    const { writes } = convertAcademicYears(
-      academicYears,
-      await readYearIds(request),
-    );
-    for (const batch of chunk(writes, batchSize)) {
-      await createRows(request, {
-        collection: 'academic_years',
-        fields: ['label'],
-        records: batch.map(({ record }) => record),
-      });
-    }
-    return writes.length;
-  } catch (error) {
-    throw new YearSeedError(
-      `The academic years of the workbook were not all seeded: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
-  }
-};
-
 // Feeds the imported workbook rows into the relational conversion exactly
 // as an upgrade would: the live inventory (checked against the workbook),
 // its preflight over the workbook's academic years, then the shared ledger
@@ -216,7 +179,7 @@ const seedYears = async (
 // project holds, finishes it once the blockers are resolved in Studio.
 export const convertWorkbook = async (
   request: DirectusRequest,
-  { academicYears, data }: WorkbookContent,
+  { academicYears, data, studyPrograms }: WorkbookContent,
   plan: ConversionPlan,
 ): Promise<WorkbookConversion> => {
   const inventory = await readInventory(request, {});
@@ -228,19 +191,28 @@ export const convertWorkbook = async (
   assertImportedRows(data, inventory.checkpoint);
   const live = preflight(inventory, null, academicYears);
   const seeded = await seedYears(request, academicYears, plan.batchSize);
+  const curriculum = await seedCurriculum(
+    request,
+    studyPrograms,
+    plan.batchSize,
+  );
   if (live.blockers.length === 0) {
     const { outcome, sink } = await runConversion(
       request,
       { inventory, live },
-      plan,
+      { ...plan, programs: studyPrograms },
     );
     const years = seeded + (sink.written['academic_years'] ?? 0);
+    const written = { ...sink.written };
+    for (const [collection, count] of Object.entries(curriculum)) {
+      written[collection] = (written[collection] ?? 0) + count;
+    }
     return {
       status: 'converted',
       steps: outcome,
       unresolved: countByCode(sink.findings),
       written: {
-        ...sink.written,
+        ...written,
         ...(years > 0 && { academic_years: years }),
       },
     };

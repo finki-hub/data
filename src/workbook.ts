@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 
+import type { ProgramSeed } from './migrations/generations.js';
+
 import { collectionSpecs } from './model.js';
 import {
   assertNever,
@@ -13,6 +15,7 @@ import {
   readEnrollmentYears,
 } from './workbook-enrollment-reader.js';
 import { readDiscordPairs, readStudentPairs } from './workbook-pair-reader.js';
+import { readStudyPrograms } from './workbook-program-reader.js';
 import { readRows } from './workbook-row-reader.js';
 import { WorkbookDataError } from './workbook-values.js';
 
@@ -68,11 +71,13 @@ export const readMigrationData = (
 };
 
 // What the one-time import reads from the workbook: the rows of every
-// checkpoint collection and the academic years its enrollment sheet
-// names, in sheet order.
+// checkpoint collection, the academic years its enrollment sheet names, in
+// sheet order, and the study programs its curriculum sheets head their
+// program columns with.
 export type WorkbookContent = {
   readonly academicYears: readonly string[];
   readonly data: MigrationData;
+  readonly studyPrograms: readonly ProgramSeed[];
 };
 
 // An academic-year header: two consecutive calendar years, such as
@@ -130,6 +135,7 @@ export const readWorkbookContent = (
 ): WorkbookContent => ({
   academicYears: readAcademicYears(workbook),
   data: readMigrationData(workbook),
+  studyPrograms: readStudyPrograms(workbook),
 });
 
 export const loadWorkbook = async (

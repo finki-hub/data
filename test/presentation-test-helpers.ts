@@ -1,7 +1,5 @@
-import {
-  baselineFieldMeta,
-  findFieldPatch,
-} from '../src/data-model/presentation/fields.js';
+import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
+import { findFieldPatch } from '../src/data-model/presentation/fields.js';
 import { fieldGroups } from '../src/data-model/presentation/groups.js';
 import {
   collectionPlacements,

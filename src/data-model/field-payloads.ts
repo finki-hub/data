@@ -183,31 +183,40 @@ export const toFieldPayload = (
   return scalarPayload(field, sort);
 };
 
-// The O2M reverse alias. Aliases onto derived collections are read-only so
-// Studio cannot create, link or reorder rows that only the Flows may write.
+// The special an alias carries: `m2m` through a junction, else `o2m`.
+export const aliasSpecial = (alias: ModelRelationAlias): 'm2m' | 'o2m' =>
+  alias.junction === undefined ? 'o2m' : 'm2m';
+
+// The reverse alias: an O2M list, or through a junction an M2M list whose
+// junction rows carry their own values (`fields` and `template` address
+// the junction row) and whose rows are picked from the related collection,
+// never created from it. Aliases onto derived collections are read-only
+// so Studio cannot create, link or reorder rows only the Flows may write.
 export const toAliasPayload = (
   alias: ModelRelationAlias,
   sort: number,
 ): FieldPayload => {
   const editable = alias.readOnly !== true;
+  const special = aliasSpecial(alias);
   return {
     field: alias.field,
     meta: {
       display: 'related-values',
       display_options: { template: alias.template },
-      interface: 'list-o2m',
+      interface: special === 'm2m' ? 'list-m2m' : 'list-o2m',
       options: {
-        enableCreate: editable,
+        enableCreate: special === 'o2m' && editable,
         enableLink: true,
         enableSelect: editable,
         fields: alias.fields,
+        ...(special === 'm2m' && { junctionFieldLocation: 'top' }),
         layout: 'table',
         template: alias.template,
       },
       readonly: !editable,
       required: false,
       sort,
-      special: ['o2m'],
+      special: [special],
       width: 'full',
     },
     type: 'alias',

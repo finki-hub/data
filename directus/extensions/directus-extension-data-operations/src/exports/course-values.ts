@@ -7,10 +7,10 @@ import { idOf, pathValue, textOf } from './values.js';
 // related rows (read keys `curricula`, `assignments`, `enrollments` of
 // courses.ts) and answers the value the checkpoint derivation produced,
 // resolving relation values on read, so a renamed staff member or
-// curriculum entry is published without any rebuild. Anything they cannot
-// resolve unambiguously is refused with ids only; nothing is guessed.
-
-export type Generation = '2018' | '2023';
+// curriculum entry is published without any rebuild. A generation or a
+// program is a key row of a published source, never a code constant.
+// Anything they cannot resolve unambiguously is refused with ids only;
+// nothing is guessed.
 
 // Joins the labels of one course's professors or assistants. The
 // conversion links a checkpoint list to staff rows only when this join
@@ -27,27 +27,26 @@ const courseId = ({ row }: RowContext): string => String(idOf(row['id']));
 const relatedRows = (context: RowContext, key: string): readonly Row[] =>
   context.related[key] ?? [];
 
-// The course's one link of a generation, whose entry is of that
-// generation, or undefined without a link.
-const linkOf = (
-  context: RowContext,
-  generation: Generation,
-): Row | undefined => {
+const isRow = (value: unknown): value is Row =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+// The course's one link of a published generation (its key row), whose
+// entry is of that generation, or undefined without a link.
+const linkOf = (context: RowContext, generation: Row): Row | undefined => {
+  const id = idOf(generation['id']);
+  const code = String(generation['code']);
   const links = relatedRows(context, 'curricula').filter(
-    (candidate) => candidate['generation'] === generation,
+    (candidate) => idOf(candidate['generation']) === id,
   );
   if (links.length > 1) {
     unresolved(
-      `Course ${courseId(context)} has ${links.length} ${generation} curriculum links`,
+      `Course ${courseId(context)} has ${links.length} ${code} curriculum links`,
     );
   }
   const [link] = links;
-  if (
-    link !== undefined &&
-    pathValue(link, 'entry.generation') !== generation
-  ) {
+  if (link !== undefined && idOf(pathValue(link, 'entry.generation')) !== id) {
     unresolved(
-      `Course ${courseId(context)} links a ${generation} curriculum entry of another generation or none`,
+      `Course ${courseId(context)} links a ${code} curriculum entry of another generation or none`,
     );
   }
   return link;
@@ -56,23 +55,42 @@ const linkOf = (
 // A value of the course's link of a generation (`credits`, `available`)
 // or of the linked entry (`entry.code`); null without a link.
 export const curriculum =
-  (generation: Generation, path: string): Resolver =>
-  (context) => {
+  (path: string) =>
+  (context: RowContext, generation: Row): unknown => {
     const link = linkOf(context, generation);
     return link === undefined ? null : pathValue(link, path);
   };
 
-// 2018-name: the course's name_2018_override when set, else the name of
-// its linked 2018 entry.
-export const legacyName: Resolver = (context) =>
-  textOf(context.row['name_2018_override']) ??
-  curriculum('2018', 'entry.name')(context);
+// The state of the course's linked entry of the generation in a published
+// program: the entry's state row of that program, null without one (an
+// absent row publishes like an empty cell: the key is omitted).
+export const programState = (
+  context: RowContext,
+  generation: Row,
+  program: Row,
+): unknown => {
+  const link = linkOf(context, generation);
+  const states =
+    link === undefined ? [] : pathValue(link, 'entry.program_states');
+  const rows = (Array.isArray(states) ? states : []).filter(
+    (state): state is Row =>
+      isRow(state) && idOf(state['program']) === idOf(program['id']),
+  );
+  if (rows.length > 1) {
+    unresolved(
+      `Course ${courseId(context)} links an entry with ${rows.length} states of program ${String(idOf(program['id']))}`,
+    );
+  }
+  return rows[0]?.['state'] ?? null;
+};
 
-// channel: true when either linked entry has its channel set; the Discord
-// channel list plays no part.
+// channel: true when a linked entry of any published generation (the only
+// links courses.ts reads) has its channel set; the Discord channel list
+// plays no part.
 export const channel: Resolver = (context) =>
-  curriculum('2023', 'entry.channel')(context) === true ||
-  curriculum('2018', 'entry.channel')(context) === true;
+  relatedRows(context, 'curricula').some(
+    (link) => pathValue(link, 'entry.channel') === true,
+  );
 
 const position = (row: Row): number => idOf(row['sort']) ?? Infinity;
 

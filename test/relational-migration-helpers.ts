@@ -124,6 +124,13 @@ export const entryIdsOf = (
     ]),
   ]);
 
+// The generation rows the curricula step seeds, with synthetic ids.
+export const generationIds: ReadonlyMap<string, number> = new Map([
+  ['2013', 301],
+  ['2018', 302],
+  ['2023', 303],
+]);
+
 export const yearIdsOf = (): Map<string, number> =>
   new Map(academicYears.map((label, index) => [label, 500 + index]));
 

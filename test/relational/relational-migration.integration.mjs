@@ -38,6 +38,10 @@ const targetCollections = [
   'course_curricula',
   'course_enrollment_rules',
   'curriculum_entries',
+  'curriculum_generations',
+  'study_programs',
+  'curriculum_entry_program_states',
+  'course_equivalency_members',
 ];
 const stepNames = [
   'curricula',
@@ -154,14 +158,21 @@ const seededCounts = {
   teaching_assignments: originalAssignments,
 };
 
-// What the five steps write for the seeded dataset.
+// What the five steps write for the seeded dataset: the three workbook
+// generations with the 15 programs of the curriculum sheets, one state
+// row per nonempty program cell and one member per filled equivalency
+// label among them.
 const written = {
   academic_years: 15,
   course_curricula: 12,
   course_enrollment_rules: 8 * 15,
-  course_equivalencies: 8,
+  course_equivalencies: 6,
+  course_equivalency_members: 21,
   curriculum_entries: 18,
+  curriculum_entry_program_states: 33,
+  curriculum_generations: 3,
   student_council: 3,
+  study_programs: 15,
   teaching_assignments: 15,
 };
 
@@ -461,10 +472,14 @@ const applyFailsAfterFirstBatch = async (target, directus, runs) => {
   );
   assert.match(ledger[1].error, outagePattern);
   assert.equal(
-    ledger[1].id_map.length,
+    ledger[1].id_map.filter(
+      ({ targetCollection }) => targetCollection === 'curriculum_entries',
+    ).length,
     batchSize,
-    'the first batch is recorded',
+    'the first batch of entries is recorded',
   );
+  assert.equal(await count(target, 'curriculum_generations'), 3);
+  assert.equal(await count(target, 'study_programs'), 15);
   assert.equal(await count(target, 'curriculum_entries'), batchSize);
   assert.equal(await count(target, 'course_curricula'), 0);
   const after = await checkpointSnapshot(target, directus);
@@ -479,12 +494,10 @@ const applyFailsAfterFirstBatch = async (target, directus, runs) => {
 const assertEntriesAndLinks = async (target) => {
   const entries = await list(target, 'curriculum_entries', [
     'id',
-    'generation',
+    'generation.code',
     'name',
     'source_collection',
     'source_id',
-    'state_ie',
-    'state_ke',
   ]);
   const provenance = entries.map(
     (row) => `${row.source_collection}/${row.source_id}`,
@@ -493,23 +506,53 @@ const assertEntriesAndLinks = async (target) => {
   assert.ok(entries.some((row) => row.name === 'Orphan Current Course'));
   assert.ok(entries.some((row) => row.name === 'Orphan Legacy Course'));
   assert.ok(
-    entries.every((row) =>
-      row.generation === '2023' ? row.state_ke === null : row.state_ie === null,
+    entries.every(
+      (row) =>
+        row.generation.code ===
+        (row.source_collection === 'curriculum_2023' ? '2023' : '2018'),
+    ),
+  );
+  // One state row per nonempty program cell, each for a program of the
+  // entry's generation, under the 2018 and 2023 program codes.
+  const states = await list(target, 'curriculum_entry_program_states', [
+    'entry.generation.code',
+    'program.generation.code',
+    'program.code',
+    'state',
+  ]);
+  assert.equal(states.length, written.curriculum_entry_program_states);
+  assert.ok(
+    states.every(
+      (row) =>
+        row.entry.generation.code === row.program.generation.code &&
+        row.state !== '',
+    ),
+  );
+  const programsOf = new Map([
+    ['2018', ['kn', 'siis', 'pit', 'imb', 'ki', 'ke', 'seis']],
+    ['2023', ['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'seis']],
+  ]);
+  assert.ok(
+    states.every((row) =>
+      programsOf.get(row.program.generation.code).includes(row.program.code),
     ),
   );
   const links = await list(target, 'course_curricula', [
     'id',
     'course',
     'entry',
-    'generation',
+    'generation.id',
+    'generation.code',
     'credits',
     'available',
   ]);
   const linkOf = (course, generation) =>
-    links.find((row) => row.course === course && row.generation === generation);
+    links.find(
+      (row) => row.course === course && row.generation.code === generation,
+    );
   const nameOf = (entry) => entries.find((row) => row.id === entry).name;
   assert.equal(
-    new Set(links.map((row) => `${row.course}/${row.generation}`)).size,
+    new Set(links.map((row) => `${row.course}/${row.generation.code}`)).size,
     12,
   );
   const alphaCurrent = linkOf(1, '2023');
@@ -660,33 +703,48 @@ const assertLinks = async (target) => {
   const equivalencies = await list(target, 'course_equivalencies', [
     'id',
     'course',
-    'entry_2023',
-    'entry_2018',
     'course_2013',
   ]);
+  const members = await list(target, 'course_equivalency_members', [
+    'equivalency',
+    'generation.code',
+    'label',
+    'entry',
+  ]);
+  // Each row's members, `<generation>:<linked>`: the link decisions of the
+  // checkpoint labels, 2013 always label-only.
+  const [linked2023, linked2018, ancient] = [
+    '2023:true',
+    '2018:true',
+    '2013:false',
+  ];
+  const membersOf = (id) =>
+    members
+      .filter((row) => row.equivalency === id)
+      .map((row) => `${row.generation.code}:${String(row.entry !== null)}`);
   assert.deepEqual(
-    equivalencies.map(({ course, entry_2018, entry_2023, id }) => [
-      id,
-      course,
-      entry_2023 !== null,
-      entry_2018 !== null,
-    ]),
+    equivalencies.map(({ course, id }) => [id, course, membersOf(id)]),
     [
-      [1, 1, true, true],
-      [3, null, true, false],
-      [4, 2, true, true],
-      [5, 3, true, false],
-      [6, 5, true, true],
-      [7, 6, true, true],
-      [8, 7, true, true],
-      [9, null, false, true],
-      [10, null, false, false],
+      [1, 1, [linked2023, linked2018, ancient]],
+      [3, null, [linked2023, '2018:false']],
+      [4, 2, [linked2023, linked2018, ancient]],
+      [5, 3, [linked2023, ancient]],
+      [6, 5, [linked2023, linked2018]],
+      [7, 6, [linked2023, linked2018]],
+      [8, 7, [linked2023, linked2018, ancient]],
+      [9, null, ['2023:false', linked2018, ancient]],
+      [10, null, [ancient]],
     ],
   );
   assert.equal(
     equivalencies.find((row) => row.id === 10).course_2013,
     'Ancient Only',
     'the 2013 label is retained',
+  );
+  assert.deepEqual(
+    members.filter((row) => row.equivalency === 10).map((row) => row.label),
+    ['Ancient Only'],
+    'the member label is the literal checkpoint label',
   );
 };
 
@@ -748,6 +806,8 @@ const applyResumesWithoutDuplicates = async (target, directus, runs) => {
     {
       ...summary.written,
       curriculum_entries: summary.written.curriculum_entries + batchSize,
+      curriculum_generations: 3,
+      study_programs: 15,
     },
     written,
     'the resumed run wrote only what the interrupted run had not',
@@ -759,9 +819,13 @@ const applyResumesWithoutDuplicates = async (target, directus, runs) => {
     academic_years: written.academic_years,
     course_curricula: written.course_curricula,
     course_enrollment_rules: written.course_enrollment_rules,
+    course_equivalency_members: written.course_equivalency_members,
     curriculum_entries: written.curriculum_entries,
+    curriculum_entry_program_states: written.curriculum_entry_program_states,
+    curriculum_generations: written.curriculum_generations,
     [ledgerCollection]: 6,
     students: 5,
+    study_programs: written.study_programs,
     teaching_assignments: originalAssignments + written.teaching_assignments,
   });
   const { alphaCurrent, entries } = await assertEntriesAndLinks(target);
@@ -791,18 +855,19 @@ const applyResumesWithoutDuplicates = async (target, directus, runs) => {
 // A write the model forbids is a converter bug the batch writer names,
 // never a condition to retry: the composite key and the generation guard
 // both answer through it on the real database.
-const currentLink = (course, entry) => ({
+const currentLink = (course, entry, generation) => ({
   available: null,
   course,
   credits: null,
   entry,
-  generation: '2023',
+  generation,
   sort: 1,
 });
 
 const constraintsSurfaceAsConverterBugs = async (directus, outcome) => {
   const { alphaCurrent, entries } = outcome;
-  const legacy = entries.find((row) => row.generation === '2018');
+  const legacy = entries.find((row) => row.generation.code === '2018');
+  const current = alphaCurrent.generation.id;
   const rejects = (record, code) =>
     assert.rejects(
       createRows(directus, {
@@ -813,8 +878,11 @@ const constraintsSurfaceAsConverterBugs = async (directus, outcome) => {
       (error) =>
         error instanceof ConverterWriteError && error.message.includes(code),
     );
-  await rejects(currentLink(1, alphaCurrent.entry), 'RECORD_NOT_UNIQUE');
-  await rejects(currentLink(4, legacy.id), 'INVALID_FOREIGN_KEY');
+  await rejects(
+    currentLink(1, alphaCurrent.entry, current),
+    'RECORD_NOT_UNIQUE',
+  );
+  await rejects(currentLink(4, legacy.id, current), 'INVALID_FOREIGN_KEY');
 };
 
 // Target rows go first (their links reference entries and years), then the
@@ -824,7 +892,11 @@ const cleanup = async (target) => {
   for (const collection of [
     'course_enrollment_rules',
     'course_curricula',
+    'curriculum_entry_program_states',
+    'course_equivalency_members',
     'curriculum_entries',
+    'study_programs',
+    'curriculum_generations',
     'academic_years',
     ...collectionKeys,
   ]) {

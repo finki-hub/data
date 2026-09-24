@@ -25,6 +25,7 @@ import {
   equivalencyRow,
   type FlowRow,
   flowRow,
+  generationTargetRow,
   idRow,
   moodleUserRow,
   type OperationRow,
@@ -59,6 +60,9 @@ export type TargetRows = {
   readonly course_curricula: ReadonlyArray<z.infer<typeof courseCurriculumRow>>;
   readonly course_enrollment_rules: ReadonlyArray<z.infer<typeof ruleRow>>;
   readonly curriculum_entries: ReadonlyArray<z.infer<typeof entryRow>>;
+  readonly curriculum_generations: ReadonlyArray<
+    z.infer<typeof generationTargetRow>
+  >;
 };
 
 export type Inventory = {
@@ -76,6 +80,7 @@ const targetCollections = [
   'course_curricula',
   'course_enrollment_rules',
   'curriculum_entries',
+  'curriculum_generations',
 ] as const;
 
 // An object schema whose rows carry an id, which the paged reader needs.
@@ -206,27 +211,17 @@ const readTargets = async (
       return null;
     }
   }
+  const target = <S extends RowSchema>(collection: string, schema: S) =>
+    rows(request, { collection, pageSize, schema });
   return {
-    academic_years: await rows(request, {
-      collection: 'academic_years',
-      pageSize,
-      schema: academicYearRow,
-    }),
-    course_curricula: await rows(request, {
-      collection: 'course_curricula',
-      pageSize,
-      schema: courseCurriculumRow,
-    }),
-    course_enrollment_rules: await rows(request, {
-      collection: 'course_enrollment_rules',
-      pageSize,
-      schema: ruleRow,
-    }),
-    curriculum_entries: await rows(request, {
-      collection: 'curriculum_entries',
-      pageSize,
-      schema: entryRow,
-    }),
+    academic_years: await target('academic_years', academicYearRow),
+    course_curricula: await target('course_curricula', courseCurriculumRow),
+    course_enrollment_rules: await target('course_enrollment_rules', ruleRow),
+    curriculum_entries: await target('curriculum_entries', entryRow),
+    curriculum_generations: await target(
+      'curriculum_generations',
+      generationTargetRow,
+    ),
   };
 };
 

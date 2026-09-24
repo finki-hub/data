@@ -908,14 +908,14 @@ describe('preflight flows and mappings', () => {
     const store = storeFromDataset(uniqueDataset(), { installed: true });
     store.items.get('curriculum_entries')?.push(
       {
-        generation: '2023',
+        generation: 3,
         id: 7,
         name: 'Beta Course',
         source_collection: 'curriculum_2023',
         source_id: 4,
       },
       {
-        generation: '2023',
+        generation: 3,
         id: 8,
         name: 'Hand made',
         source_collection: null,

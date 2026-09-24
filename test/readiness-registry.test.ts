@@ -4,6 +4,7 @@ import type { FakeItem } from './migration-test-helpers.js';
 
 import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { keyOrderEntries } from '../directus/extensions/directus-extension-data-operations/src/exports/key-order.js';
 import {
   preparePublicFiles,
   readinessAction,
@@ -121,6 +122,31 @@ describe('the readiness-check registry', () => {
     expect(reviewBookmarks.map(({ bookmark }) => bookmark)).toEqual(bookmarks);
     expect(reviewBookmarks).toEqual([
       {
+        bookmark: 'Equivalency labels without an entry',
+        collection: 'course_equivalency_members',
+        filter: {
+          _and: [
+            { _and: [{ label: { _nnull: true } }, { label: { _neq: '' } }] },
+            { entry: { _null: true } },
+            { generation: { has_curriculum: { _eq: true } } },
+          ],
+        },
+        icon: 'join_inner',
+        layout: 'tabular',
+        layout_options: { tabular: { spacing: 'comfortable' } },
+        layout_query: {
+          tabular: {
+            fields: ['generation', 'label', 'equivalency'],
+            limit: 50,
+            page: 1,
+            sort: ['generation', 'equivalency'],
+          },
+        },
+        role: null,
+        search: null,
+        user: null,
+      },
+      {
         bookmark: 'Needs mapping',
         collection: 'moodle_course_entries',
         filter: { review_state: { _eq: 'needs_mapping' } },
@@ -166,6 +192,43 @@ describe('the readiness-check registry', () => {
       history_index_pending: 'blocker/status',
       mapping_without_rule: 'warning/check',
       snapshot_import_failed: 'blocker/snapshot',
+    });
+  });
+
+  test('derives two order blockers for every key source a definition places, linking its collection', () => {
+    expect(
+      keyOrderEntries.map(({ code, gates, page, severity, source }) => [
+        code,
+        page,
+        source.kind,
+        severity,
+        gates,
+      ]),
+    ).toEqual(
+      ['academic_year', 'curriculum_generation', 'study_program'].flatMap(
+        (row) => [
+          [`${row}_unsorted`, `${row}s`, 'count', 'blocker', ['courses.json']],
+          [
+            `${row}_sort_shared`,
+            `${row}s`,
+            'check',
+            'blocker',
+            ['courses.json'],
+          ],
+        ],
+      ),
+    );
+    expect(readinessRegistry).toEqual(
+      expect.arrayContaining([...keyOrderEntries]),
+    );
+    // The year blocker counts what the Task 23 entry counted.
+    expect(keyOrderEntries[0]?.source).toEqual({
+      aggregate: 'count',
+      field: 'id',
+      filter: {
+        _and: [{ published: { _eq: true } }, { sort: { _null: true } }],
+      },
+      kind: 'count',
     });
   });
 
@@ -355,6 +418,11 @@ describe('readiness derived from the registry', () => {
 
     const answer = await readinessAction(exportDefinitions, deps(store));
 
-    expect(answer.reviews).toEqual({ entry_needs_mapping: 'Needs mapping' });
+    expect(answer.reviews).toEqual({
+      entry_needs_mapping: 'Needs mapping',
+      // The converted fixture keeps two equivalency labels without an
+      // entry (a generation-scoped review, follow-up 51).
+      equivalency_entry_unresolved: 'Equivalency labels without an entry',
+    });
   });
 });

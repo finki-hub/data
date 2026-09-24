@@ -19,7 +19,8 @@ const roleChoices = labelledChoices(assignmentRoles, {
 export const courseTemplate = '{{name}}';
 export const staffTemplate = '{{name}}';
 export const studentTemplate = '{{index_number}} - {{name}}';
-export const curriculumEntryTemplate = '{{code}} - {{name}} ({{generation}})';
+export const curriculumEntryTemplate =
+  '{{code}} - {{name}} ({{generation.code}})';
 
 const provenanceFields = (): readonly ModelField[] => [
   scalar('source_collection', 'string', {
@@ -34,28 +35,13 @@ const provenanceFields = (): readonly ModelField[] => [
 
 const additions: Readonly<Partial<Record<string, readonly ModelField[]>>> = {
   course_equivalencies: [
-    m2o('entry_2023', 'curriculum_entries', {
-      alias: {
-        field: 'equivalencies_2023',
-        fields: ['course_2023', 'course_2018', 'course_2013'],
-        template: '{{course_2023}} / {{course_2018}} / {{course_2013}}',
-      },
-      note: 'Resolved 2023 curriculum entry, when the label is unambiguous.',
-      template: curriculumEntryTemplate,
-    }),
-    m2o('entry_2018', 'curriculum_entries', {
-      alias: {
-        field: 'equivalencies_2018',
-        fields: ['course_2023', 'course_2018', 'course_2013'],
-        template: '{{course_2023}} / {{course_2018}} / {{course_2013}}',
-      },
-      note: 'Resolved 2018 curriculum entry, when the label is unambiguous.',
-      template: curriculumEntryTemplate,
-    }),
+    // The equivalency is the group of its members (course_equivalency_
+    // members), one literal label per generation; the course form lists
+    // each equivalency's member generations and labels.
     m2o('course', 'courses', {
       alias: {
         field: 'equivalencies',
-        fields: ['course_2023', 'course_2018', 'course_2013'],
+        fields: ['members.generation.code', 'members.label'],
         template: '{{course_2023}} / {{course_2018}} / {{course_2013}}',
       },
       note: 'Resolved course, when the labels point at exactly one course.',

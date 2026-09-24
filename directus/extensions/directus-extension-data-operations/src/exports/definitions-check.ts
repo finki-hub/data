@@ -1,7 +1,13 @@
 import type { ReadinessEntry } from './readiness-types.js';
 
 import { exportError } from './errors.js';
-import { isKeyed, keySourcesOf } from './field-map.js';
+import {
+  blockParts,
+  isBlock,
+  isFixed,
+  isNested,
+  keySourcesOf,
+} from './field-map.js';
 import { keySources } from './key-sources.js';
 import { readProblems } from './read-rules.js';
 import { readinessRegistry } from './readiness-registry.js';
@@ -10,20 +16,78 @@ import {
   registryProblems,
   registryReads,
 } from './registry-rules.js';
-import { type ExportDefinition, publicFilenamePattern } from './types.js';
+import {
+  type BlockPart,
+  type ExportDefinition,
+  publicFilenamePattern,
+} from './types.js';
 
 // The structural rules every export definition obeys, checked before any
 // read so a malformed definition fails at once and names itself: a
 // filename the storage writer accepts and no two files alike, distinct
 // fixed keys, an id field and every source path selected by the read, a
-// grouping field selected by each related read, a key field selected by
-// each key source, and every read under the read rules (read-rules.ts).
-// The readiness-check registry is checked in the same pass.
+// grouping field selected by each related read, a key field (and the
+// parent field of a nested source) selected by each key source, blocks
+// with a default layout and distinct parts, and every read under the read
+// rules (read-rules.ts). The readiness-check registry is checked in the
+// same pass.
+
+const partLabel = (part: BlockPart): string =>
+  isNested(part) ? `${part.infix}:${part.nested}` : part.suffix;
+
+// A part names a suffix or infix, and a nested part a source with a parent.
+const isMalformedPart = (part: BlockPart): boolean =>
+  isNested(part)
+    ? part.infix === '' || keySources[part.nested].parent === undefined
+    : part.suffix === '';
+
+// A block needs a default layout, and each layout names its parts once.
+const blockProblems = (definition: ExportDefinition): string[] =>
+  definition.fields.flatMap((entry) => {
+    if (!isBlock(entry)) {
+      return [];
+    }
+    const where = `${definition.filename} blocks ${entry.blocks}`;
+    const layouts = [
+      entry.layouts.default,
+      ...Object.values(entry.layouts.byKey),
+    ];
+    return [
+      ...(entry.layouts.default.length === 0
+        ? [`${where} without a default layout`]
+        : []),
+      ...(blockParts(entry).some((part) => isMalformedPart(part))
+        ? [`${where} with an empty or unnested part`]
+        : []),
+      ...(layouts.every(
+        (layout) => new Set(layout.map(partLabel)).size === layout.length,
+      )
+        ? []
+        : [`${where} with a part twice`]),
+    ];
+  });
+
+// Each key source selects its key field, and a nested one its parent.
+const keySourceProblems = (definition: ExportDefinition): string[] =>
+  keySourcesOf(definition).flatMap((name) => {
+    const source = keySources[name];
+    return [
+      ...(source.fields.includes(source.key)
+        ? []
+        : [`${definition.filename} keys ${name} by an omitted field`]),
+      ...(source.parent === undefined || source.fields.includes(source.parent)
+        ? []
+        : [`${definition.filename} nests ${name} by an omitted field`]),
+    ];
+  });
 
 const fieldProblems = (definition: ExportDefinition): string[] => {
   const { fields, filename, orderBy, related, rows } = definition;
-  const problems: string[] = [];
-  const keys = fields.flatMap((entry) => (isKeyed(entry) ? [] : [entry.key]));
+  const problems: string[] = [
+    ...blockProblems(definition),
+    ...keySourceProblems(definition),
+  ];
+  const keys = fields.flatMap((entry) => (isFixed(entry) ? [entry.key] : []));
   if (fields.length === 0 || keys.includes('')) {
     problems.push(`${filename} declares no key or an empty key`);
   }
@@ -35,19 +99,13 @@ const fieldProblems = (definition: ExportDefinition): string[] => {
   }
   for (const entry of fields) {
     if (
-      !isKeyed(entry) &&
+      isFixed(entry) &&
       typeof entry.value === 'string' &&
       !rows.fields.includes(entry.value)
     ) {
       problems.push(
         `${filename} key ${entry.key} reads ${entry.value}, which is omitted`,
       );
-    }
-  }
-  for (const name of keySourcesOf(definition)) {
-    const source = keySources[name];
-    if (!source.fields.includes(source.key)) {
-      problems.push(`${filename} keys ${name} by an omitted field`);
     }
   }
   for (const [name, read] of Object.entries(related)) {

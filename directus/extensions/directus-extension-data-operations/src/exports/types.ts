@@ -43,9 +43,24 @@ export const aggregates = ['count', 'countDistinct'] as const;
 
 export type Aggregate = (typeof aggregates)[number];
 
+// The field that places a key row among its siblings (the rows of one
+// parent, for a nested source) before the key text breaks a tie, and what
+// readiness calls such a row: a row without a position, or two siblings
+// sharing one, would move public keys silently, so each blocks
+// (`<row>_unsorted`, `<row>_sort_shared`; key-order.ts).
+export type KeyPosition = {
+  readonly field: string;
+  readonly row: string;
+};
+
 // A read whose rows each name one public key, in read order: the key is
-// the text of the row's `key` field.
-export type KeySource = SourceRead & { readonly key: string };
+// the text of the row's `key` field. A nested source's rows belong to a
+// block row of another source: `parent` holds that row's id.
+export type KeySource = SourceRead & {
+  readonly key: string;
+  readonly parent?: string;
+  readonly position: KeyPosition;
+};
 
 // The closed vocabulary of public value forms, as the reference serializer
 // (directus/flows/serialize-assets.cjs) writes them: text as is, a number
@@ -58,6 +73,29 @@ export const valueRules = [
   'numeric_boolean',
   'boolean',
 ] as const;
+
+// A block of keys per row of a key source, at this entry's position and in
+// the source's order (today one block per published curriculum
+// generation, newest first). A row follows the layout declared for its
+// key text, else the default layout; a new row needs no code change.
+export type BlockEntry = {
+  readonly blocks: KeySourceName;
+  readonly layouts: BlockLayouts;
+};
+
+// `<block key>-<suffix>`, valued for the file row and the block row.
+export type BlockField = {
+  readonly rule: ValueRule;
+  readonly suffix: string;
+  readonly value: (context: RowContext, blockRow: Row) => unknown;
+};
+
+export type BlockLayouts = {
+  readonly byKey: Readonly<Record<string, readonly BlockPart[]>>;
+  readonly default: readonly BlockPart[];
+};
+
+export type BlockPart = BlockField | NestedKeys;
 
 export type ExportDefinition = {
   // The ordered field map: output key order and the file's allowlist.
@@ -73,7 +111,7 @@ export type ExportDefinition = {
   readonly rows: SourceRead;
 };
 
-export type FieldEntry = FixedEntry | KeyedEntry;
+export type FieldEntry = BlockEntry | FixedEntry | KeyedEntry;
 
 // One public key: its value is a source path of the main row (for example
 // `name`, or `entry.code` when that dot path is read) or a resolver.
@@ -86,17 +124,33 @@ export type FixedEntry = {
 export type IssueCounts = Readonly<Record<string, number>>;
 
 // One public key per row of a key source (key-sources.ts), in the source's
-// order and at this entry's position: the key is the row's key text, the
-// value the resolver's answer for the file row and that key row. A row the
-// source does not read adds no key.
+// order and at this entry's position: the key is the row's key text, or
+// `<key text>-<suffix>`, the value the resolver's answer for the file row
+// and that key row. A row the source does not read adds no key.
 export type KeyedEntry = {
   readonly keys: KeySourceName;
   readonly rule: ValueRule;
+  readonly suffix?: string;
   readonly value: (context: RowContext, keyRow: Row) => unknown;
 };
 
 // The closed vocabulary of key sources (key-sources.ts).
-export type KeySourceName = 'published_years';
+export type KeySourceName =
+  'published_generations' | 'published_programs' | 'published_years';
+
+// The state-key rule: one key `<block key>-<infix>-<row key>` per row of a
+// nested key source that belongs to the block row, in the nested source's
+// order, valued for the file row, the block row and that row.
+export type NestedKeys = {
+  readonly infix: string;
+  readonly nested: KeySourceName;
+  readonly rule: ValueRule;
+  readonly value: (
+    context: RowContext,
+    blockRow: Row,
+    nestedRow: Row,
+  ) => unknown;
+};
 
 // A readiness check counted in code: its native reads (rows of ids and
 // keys, or bounded counts) and a pure evaluation answering a whole count

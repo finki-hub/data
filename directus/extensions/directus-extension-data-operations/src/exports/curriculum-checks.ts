@@ -7,26 +7,37 @@ import type {
   SourceRows,
 } from './types.js';
 
-import { sourceRows } from './values.js';
+import { pathValue, sourceRows } from './values.js';
 
 // The curriculum checks of courses.json, as native reads of ids and keys
 // counted in code; whether a text column holds a label is a filter, never
 // a read value. The projection publishes a generation's values only
 // through the course's link of that generation, while the checkpoint
-// serializer published some of them straight from import columns. A value
-// the import carried that no link holds would leave the public file
-// silently, so it blocks until the link exists or the imported value is
-// cleared.
+// serializer published some of them straight from import columns and
+// equivalency labels. A value the import carried that no link holds would
+// leave the public file silently, so it blocks until the link exists. Both
+// checks concern the historical workbook only and leave with its import
+// columns in the deferred cleanup.
 
 // A text column holding a non-empty value.
 const filled = (field: string): Filter => ({
   _and: [{ [field]: { _nnull: true } }, { [field]: { _neq: '' } }],
 });
 
-// Every course_curricula link, as its course and generation.
+// An equivalency member label of a generation with a curriculum that
+// names no entry of it.
+export const unlinkedMember: Filter = {
+  _and: [
+    filled('label'),
+    { entry: { _null: true } },
+    { generation: { has_curriculum: { _eq: true } } },
+  ],
+};
+
+// Every course_curricula link, as its course and generation code.
 const links: SourceRead = {
   collection: 'course_curricula',
-  fields: ['course', 'generation'],
+  fields: ['course', 'generation.code'],
   sort: ['id'],
 };
 
@@ -36,68 +47,53 @@ const pairOf = (course: unknown, generation: unknown): string =>
 const linkedPairs = (sources: SourceRows): ReadonlySet<string> =>
   new Set(
     sourceRows(sources, 'links').map((link) =>
-      pairOf(link['course'], link['generation']),
+      pairOf(link['course'], pathValue(link, 'generation.code')),
     ),
   );
 
-// A course an equivalency names for its 2018 values, through a 2018 entry
-// or through a 2018 label that matched no entry, while the course has
-// neither a 2018 link nor a name_2018_override: the checkpoint derivation
-// published the 2018 name of that equivalency, the link that would carry
-// it is missing.
+// The generation whose names the checkpoint derivation took from a
+// course's equivalency when no override named one (its 2018 lookup).
+const equivalencyGeneration = '2018';
+
+// A course an equivalency names through its member of that generation (an
+// entry, or a label that matched none) while the course has no link of
+// that generation: the checkpoint derivation published the member's name,
+// the link that would carry it is missing.
 export const curriculumCheck: ReadinessCheck = {
   evaluate: (sources): IssueCounts => {
     const linked = linkedPairs(sources);
-    const overridden = new Set(
-      sourceRows(sources, 'overridden').map(({ id }) => id),
+    const named = sourceRows(sources, 'members').map((row) =>
+      pathValue(row, 'equivalency.course'),
     );
-    const named = [
-      ...sourceRows(sources, 'entries'),
-      ...sourceRows(sources, 'labels'),
-    ].map((row) => row['course']);
     return {
       curriculum_link_unresolved: new Set(
         named.filter(
-          (course) =>
-            !overridden.has(course) && !linked.has(pairOf(course, '2018')),
+          (course) => !linked.has(pairOf(course, equivalencyGeneration)),
         ),
       ).size,
     };
   },
   reads: {
-    entries: {
-      collection: 'course_equivalencies',
-      fields: ['course'],
-      filter: {
-        _and: [{ course: { _nnull: true } }, { entry_2018: { _nnull: true } }],
-      },
-      sort: ['id'],
-    },
-    labels: {
-      collection: 'course_equivalencies',
-      fields: ['course'],
+    links,
+    members: {
+      collection: 'course_equivalency_members',
+      fields: ['equivalency.course'],
       filter: {
         _and: [
-          { course: { _nnull: true } },
-          { entry_2018: { _null: true } },
-          filled('course_2018'),
+          { equivalency: { course: { _nnull: true } } },
+          { generation: { code: { _eq: equivalencyGeneration } } },
+          { _or: [{ entry: { _nnull: true } }, filled('label')] },
         ],
       },
-      sort: ['id'],
-    },
-    links,
-    overridden: {
-      collection: 'courses',
-      fields: ['id'],
-      filter: filled('name_2018_override'),
       sort: ['id'],
     },
   },
 };
 
 // The import columns of each generation on courses and what the checkpoint
-// serializer published from them: name_2023 as 2023-name, credits_Y and
-// available_Y as Y-credits and Y-available. A new column pair is one entry.
+// serializer published from them: name_2023 and name_2018_override as the
+// generation's name, credits_Y and available_Y as Y-credits and
+// Y-available. No export reads them any more.
 const importColumns = [
   {
     generation: '2023',
@@ -106,19 +102,18 @@ const importColumns = [
   },
   {
     generation: '2018',
-    label: null,
+    label: 'name_2018_override',
     values: ['credits_2018', 'available_2018'],
   },
 ] as const;
 
-const labelled = importColumns.flatMap(({ label }) =>
-  label === null ? [] : [label],
-);
+const labelled = importColumns.map(({ label }) => label);
 
 // A course carrying an imported name, credits or availability of a
 // generation it has no link of: the checkpoint published that value, the
-// projection has nothing to publish it from. Linking the entry, or
-// clearing the imported value once the loss is intended, resolves it.
+// projection has nothing to publish it from. Linking the entry resolves
+// it; an administrator can also clear the read-only imported value
+// through the API once the loss is intended.
 export const importedValuesCheck: ReadinessCheck = {
   evaluate: (sources): IssueCounts => {
     const linked = linkedPairs(sources);
@@ -130,7 +125,7 @@ export const importedValuesCheck: ReadinessCheck = {
             (field) => row[field] !== null && row[field] !== undefined,
           ),
         ),
-        ...(label === null ? [] : sourceRows(sources, label)),
+        ...sourceRows(sources, label),
       ];
       for (const { id } of carrying) {
         if (!linked.has(pairOf(id, generation))) {

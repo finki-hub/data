@@ -3,24 +3,27 @@ import { z } from 'zod';
 
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { installPresentation } from '../src/data-model/presentation.js';
+import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
 import {
-  baselineFieldMeta,
-  entryLockedWithoutGeneration,
+  generationFilter,
+  lockedWithoutGeneration,
+} from '../src/data-model/presentation/curriculum-fields.js';
+import {
   fieldPresentations,
   findFieldPatch,
-  generationFilter,
   presentationFieldPatches,
 } from '../src/data-model/presentation/fields.js';
 import {
   fieldGroups,
   findFieldGroup,
+  legacyImportColumns,
 } from '../src/data-model/presentation/groups.js';
 import {
   collectionPlacements,
   folders,
 } from '../src/data-model/presentation/navigation.js';
 import {
-  curriculumBookmarks,
+  curriculumBookmark,
   presetDefinitions,
 } from '../src/data-model/presentation/presets.js';
 import { aliasesFor, modelRelations } from '../src/data-model/relations.js';
@@ -165,6 +168,7 @@ const options = z.record(z.string(), z.unknown());
 
 const helperCollections = [
   'course_curricula',
+  'curriculum_entry_program_states',
   'data_operation_results',
   'data_operations',
   'migration_ledger',
@@ -257,6 +261,7 @@ describe('field groups', () => {
       'moodle',
       'enrollment',
       'legacy_calculated',
+      'legacy_import',
     ]);
     expect(sorted(courseGroups.flatMap(({ members }) => members))).toEqual(
       sorted(fieldNames('courses')),
@@ -299,6 +304,88 @@ describe('field groups', () => {
   });
 });
 
+describe('curriculum generations in the forms', () => {
+  test('keeps the six imported per-generation course columns read-only in a closed legacy group', () => {
+    const group = findFieldGroup('courses', 'legacy_import');
+
+    expect(group).toMatchObject({ readOnly: true, start: 'closed' });
+    expect(group?.members).toEqual([...legacyImportColumns]);
+    expect(legacyImportColumns).toEqual([
+      'name_2023',
+      'credits_2023',
+      'available_2023',
+      'name_2018_override',
+      'credits_2018',
+      'available_2018',
+    ]);
+
+    for (const column of legacyImportColumns) {
+      expect(effectiveFieldMeta('courses', column)).toMatchObject({
+        group: 'legacy_import',
+        readonly: true,
+      });
+    }
+
+    expect(effectiveFieldMeta('courses', 'professors_override')).toMatchObject({
+      readonly: false,
+    });
+    expect(findFieldGroup('courses', 'curriculum')?.members).toEqual([
+      'curricula',
+      'equivalencies',
+    ]);
+  });
+
+  test('offers only the programs of the entry generation, locked until one is chosen', () => {
+    const states = effectiveFieldMeta('curriculum_entries', 'program_states');
+
+    expect(states).toMatchObject({
+      conditions: [lockedWithoutGeneration],
+      interface: 'list-m2m',
+      special: ['m2m'],
+    });
+    expect(states['options']).toMatchObject({
+      enableCreate: false,
+      enableSelect: true,
+      filter: generationFilter,
+      junctionFieldLocation: 'top',
+    });
+
+    for (const field of ['entry', 'program']) {
+      expect(
+        effectiveFieldMeta('curriculum_entry_program_states', field)['hidden'],
+      ).toBeTruthy();
+    }
+  });
+
+  test('offers only generations with a curriculum to entries and course links', () => {
+    for (const collection of ['curriculum_entries', 'course_curricula']) {
+      expect(
+        effectiveFieldMeta(collection, 'generation')['options'],
+      ).toMatchObject({
+        filter: { has_curriculum: { _eq: true } },
+        template: '{{code}}',
+      });
+    }
+  });
+
+  test('filters the entry of an equivalency member by its generation and lists the members on the course', () => {
+    expect(
+      effectiveFieldMeta('course_equivalency_members', 'entry'),
+    ).toMatchObject({
+      conditions: [lockedWithoutGeneration],
+      options: { filter: generationFilter },
+    });
+    expect(
+      effectiveFieldMeta('courses', 'equivalencies')['options'],
+    ).toMatchObject({
+      fields: ['members.generation.code', 'members.label'],
+    });
+    expect(
+      effectiveFieldMeta('course_equivalencies', 'members')['options'],
+    ).toMatchObject({ fields: ['generation', 'label', 'entry'] });
+  });
+});
+
 describe('field presentation', () => {
   test('filters the curriculum entry picker by the link generation', () => {
     const entry = effectiveFieldMeta('course_curricula', 'entry');
@@ -307,7 +394,7 @@ describe('field presentation', () => {
     expect(entry['options']).toMatchObject({
       enableSelect: true,
       filter: generationFilter,
-      template: '{{code}} - {{name}} ({{generation}})',
+      template: '{{code}} - {{name}} ({{generation.code}})',
     });
     expect(generationFilter).toEqual({
       generation: { _eq: '{{ generation }}' },
@@ -325,7 +412,7 @@ describe('field presentation', () => {
         rule: { generation: { _null: true } },
       },
     ]);
-    expect(entry['conditions']).toEqual([entryLockedWithoutGeneration]);
+    expect(entry['conditions']).toEqual([lockedWithoutGeneration]);
     // Studio evaluates only rules with exactly one top-level key.
     expect(
       declaredConditions.filter(
@@ -333,8 +420,16 @@ describe('field presentation', () => {
       ),
     ).toEqual([]);
     expect(declaredConditions.map(({ field }) => field)).toEqual([
+      'curriculum_entries.program_states',
       'course_curricula.entry',
+      'course_equivalency_members.entry',
     ]);
+    expect(
+      declaredConditions.filter(
+        ({ condition }) =>
+          JSON.stringify(condition) !== JSON.stringify(lockedWithoutGeneration),
+      ),
+    ).toEqual([]);
   });
 
   test('keeps the copied council name visible but read-only beside the linked student', () => {
@@ -360,7 +455,7 @@ describe('field presentation', () => {
         enums.has(`${collection}.${field}`) && ownsChoices(meta),
     );
 
-    expect(enums.size).toBeGreaterThanOrEqual(10);
+    expect(enums.size).toBeGreaterThanOrEqual(8);
     expect(owned).toEqual([]);
   });
 
@@ -458,28 +553,46 @@ describe('navigation', () => {
 });
 
 describe('presets', () => {
-  test('defines the 2018 and 2023 curriculum bookmarks from the repository file', () => {
-    expect(
-      curriculumBookmarks.map(({ bookmark, collection, filter }) => ({
-        bookmark,
-        collection,
-        filter,
-      })),
-    ).toEqual([
-      {
-        bookmark: 'Curriculum 2018',
-        collection: 'curriculum_entries',
-        filter: { generation: { _eq: '2018' } },
-      },
-      {
-        bookmark: 'Curriculum 2023',
-        collection: 'curriculum_entries',
-        filter: { generation: { _eq: '2023' } },
-      },
+  test('defines one curriculum bookmark, narrowed by the native generation filter, and none per generation', () => {
+    expect(curriculumBookmark).toMatchObject({
+      bookmark: 'Curriculum by generation',
+      collection: 'curriculum_entries',
+      filter: null,
+      role: null,
+      user: null,
+    });
+    expect(curriculumBookmark.layout_query.tabular.sort).toEqual([
+      'generation',
+      'catalog_order',
     ]);
-    expect(curriculumBookmarks.map(({ role, user }) => [role, user])).toEqual([
-      [null, null],
-      [null, null],
+    expect(curriculumBookmark.layout_query.tabular.fields[0]).toBe(
+      'generation',
+    );
+    expect(
+      presetDefinitions.filter(
+        ({ bookmark, collection }) =>
+          collection === 'curriculum_entries' && bookmark !== null,
+      ),
+    ).toEqual([curriculumBookmark]);
+    // No bookmark names a generation row: a new row needs none.
+    expect(
+      presetDefinitions.filter(({ filter }) =>
+        JSON.stringify(filter ?? {}).includes('"generation":{"_eq"'),
+      ),
+    ).toEqual([]);
+  });
+
+  test('keeps the imported per-generation columns out of the default Courses view', () => {
+    const courses = presetDefinitions.find(
+      ({ bookmark, collection }) =>
+        bookmark === null && collection === 'courses',
+    );
+
+    expect(courses?.layout_query.tabular.fields).toEqual([
+      'name',
+      'tags',
+      'curricula',
+      'assignments',
     ]);
   });
 
@@ -650,7 +763,7 @@ describe('installPresentation over Studio edits', () => {
     courses.meta = { ...courses.meta, group: 'my_own_folder' };
     state.presets = [
       {
-        bookmark: 'Curriculum 2018',
+        bookmark: 'Curriculum by generation',
         collection: 'curriculum_entries',
         role: null,
         user: null,
@@ -672,7 +785,7 @@ describe('installPresentation over Studio edits', () => {
     );
 
     expect(created).not.toContainEqual({
-      bookmark: 'Curriculum 2018',
+      bookmark: 'Curriculum by generation',
       collection: 'curriculum_entries',
     });
     expect(created).not.toContainEqual({
@@ -680,7 +793,7 @@ describe('installPresentation over Studio edits', () => {
       collection: 'courses',
     });
     expect(created).toContainEqual({
-      bookmark: 'Curriculum 2023',
+      bookmark: null,
       collection: 'curriculum_entries',
     });
     expect(summary.collections.skipped).toBe(1);

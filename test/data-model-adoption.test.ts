@@ -174,7 +174,7 @@ describe('installDataModel adoption', () => {
     const postPaths = posts.map(({ pathname }) => pathname);
 
     expect(postPaths.filter((path) => path === '/collections')).toHaveLength(
-      22,
+      dataModelCollections.length - 3,
     );
     expect(postPaths.filter((path) => path === '/relations')).toHaveLength(
       modelRelations.length - 1,
@@ -204,7 +204,7 @@ describe('installDataModel adoption', () => {
     ]);
     expect(summary.collections).toEqual({
       adopted: 1,
-      created: 22,
+      created: dataModelCollections.length - 3,
       refused: 0,
       skipped: 2,
     });
@@ -492,5 +492,127 @@ describe('installDataModel enum realignment', () => {
       '/fields/data_operations/publication_state',
     ]);
     expect(summary.fields.aligned).toBe(1);
+  });
+});
+
+describe('installDataModel over existing definitions', () => {
+  test('refuses an incompatible existing column before any mutation', async () => {
+    const state = installedState([findCollection('students')]);
+    const students = state.fields['students'] ?? [];
+    state.fields['students'] = students.map((field) =>
+      field.field === 'index_number' ? { ...field, type: 'integer' } : field,
+    );
+    const { request, requests } = fakeDirectus(state);
+
+    const failure = await failureOf(installDataModel(request));
+
+    expect(failure).toBeInstanceOf(SchemaRefusalError);
+
+    if (!(failure instanceof SchemaRefusalError)) {
+      return;
+    }
+
+    expect(failure.refusals).toEqual([
+      {
+        collection: 'students',
+        field: 'index_number',
+        reason:
+          'Field students.index_number has type integer but the model declares string',
+      },
+    ]);
+    expect(failure.summary.collections).toEqual({
+      adopted: 0,
+      created: dataModelCollections.length - 1,
+      refused: 0,
+      skipped: 1,
+    });
+    expect(failure.summary.fields.refused).toBe(1);
+    expect(mutations(requests)).toEqual([]);
+  });
+
+  test('refuses folders, alias clashes, foreign relations and diverging nullability', async () => {
+    const state = installedState([
+      findCollection('courses'),
+      findCollection('curriculum_entries'),
+      findCollection('course_curricula'),
+    ]);
+    state.collections.push({ collection: 'students', meta: {}, schema: null });
+    state.fields['courses'] = (state.fields['courses'] ?? []).map((field) =>
+      field.field === 'curricula'
+        ? { ...field, meta: { special: null } }
+        : field,
+    );
+    state.relations['course_curricula'] = (
+      state.relations['course_curricula'] ?? []
+    ).map((relation) =>
+      relation.field === 'entry'
+        ? { ...relation, related_collection: 'rooms' }
+        : relation,
+    );
+    state.fields['course_curricula'] = (
+      state.fields['course_curricula'] ?? []
+    ).map((field) =>
+      field.field === 'credits' && field.schema !== null
+        ? { ...field, schema: { ...field.schema, is_nullable: false } }
+        : field,
+    );
+    state.fields['curriculum_entries'] = (
+      state.fields['curriculum_entries'] ?? []
+    ).map((field) =>
+      field.field === 'name' && field.schema !== null
+        ? { ...field, schema: { ...field.schema, is_nullable: true } }
+        : field,
+    );
+    const { request, requests } = fakeDirectus(state);
+
+    const failure = await failureOf(installDataModel(request));
+
+    expect(failure).toBeInstanceOf(SchemaRefusalError);
+
+    if (!(failure instanceof SchemaRefusalError)) {
+      return;
+    }
+
+    expect(failure.refusals.map(({ reason }) => reason)).toEqual([
+      'Field courses.curricula is not an O2M alias but the model declares one',
+      'Collection students exists as a folder without a table',
+      'Field curriculum_entries.name is nullable but the model declares it required',
+      'Field course_curricula.credits is NOT NULL without a default but the model declares it nullable',
+      'Relation course_curricula.entry targets rooms but the model targets curriculum_entries',
+    ]);
+    expect(failure.summary.fields.refused).toBe(3);
+    expect(failure.message).toContain('Collection students exists as a folder');
+    expect(mutations(requests)).toEqual([]);
+  });
+
+  // A project set up while generations were a fixed text enum is refused,
+  // never converted: it is torn down and set up again (no production).
+  test('refuses the text generation columns of a project set up before generations were rows', async () => {
+    const state = installedState();
+    for (const collection of ['curriculum_entries', 'course_curricula']) {
+      state.fields[collection] = (state.fields[collection] ?? []).map(
+        (field) =>
+          field.field === 'generation' && field.schema !== null
+            ? {
+                ...field,
+                schema: { ...field.schema, foreign_key_table: null },
+                type: 'string',
+              }
+            : field,
+      );
+    }
+    const { request, requests } = fakeDirectus(state);
+
+    const failure = await failureOf(installDataModel(request));
+
+    expect(failure).toBeInstanceOf(SchemaRefusalError);
+    expect(
+      failure instanceof SchemaRefusalError &&
+        failure.refusals.map(({ reason }) => reason),
+    ).toEqual([
+      'Field curriculum_entries.generation has type string but the model declares integer',
+      'Field course_curricula.generation has type string but the model declares integer',
+    ]);
+    expect(mutations(requests)).toEqual([]);
   });
 });

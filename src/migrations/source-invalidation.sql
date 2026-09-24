@@ -98,11 +98,19 @@ CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_curricula" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
+CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_generations" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
+;
+CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "study_programs" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
+;
+CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_entry_program_states" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
+;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "teaching_assignments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "student_council" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_equivalencies" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
+;
+CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_equivalency_members" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "discord_channels" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;

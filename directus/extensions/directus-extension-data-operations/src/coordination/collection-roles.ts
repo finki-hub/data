@@ -93,9 +93,13 @@ export const collectionRoles = [
   publishes('students'),
   publishes('curriculum_entries'),
   publishes('course_curricula'),
+  publishes('curriculum_generations'),
+  publishes('study_programs'),
+  publishes('curriculum_entry_program_states'),
   publishes('teaching_assignments'),
   publishes('student_council'),
   publishes('course_equivalencies'),
+  publishes('course_equivalency_members'),
   publishes('discord_channels'),
   publishes('deans_office'),
   {

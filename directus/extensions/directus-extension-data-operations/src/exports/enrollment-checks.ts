@@ -2,7 +2,7 @@ import type { Filter } from '@directus/types';
 
 import type { IssueCounts, ReadinessCheck, Row, SourceRead } from './types.js';
 
-import { publishedYear } from './key-sources.js';
+import { publishedThrough } from './key-sources.js';
 import { countIn, sourceRows } from './values.js';
 
 // The enrollment checks of courses.json: counts and rules of every
@@ -36,33 +36,13 @@ export const enrollmentCheck: ReadinessCheck = {
     };
   },
   reads: {
-    counts: counting('course_enrollments', publishedYear('academic_year')),
+    counts: counting('course_enrollments', publishedThrough('academic_year')),
     courses: counting('courses'),
-    rules: counting('course_enrollment_rules', publishedYear('academic_year')),
+    rules: counting(
+      'course_enrollment_rules',
+      publishedThrough('academic_year'),
+    ),
     years: counting('academic_years', { published: { _eq: true } }),
-  },
-};
-
-// Two published academic years sharing a sort have no newest-first order
-// among the year keys of courses.json: the published years with a sort,
-// less their distinct sorts (two bounded counts; a year without a sort is
-// academic_year_unsorted).
-export const yearOrderCheck: ReadinessCheck = {
-  evaluate: (sources): IssueCounts => ({
-    academic_year_sort_shared:
-      countIn(sources, 'sorted') - countIn(sources, 'sorts'),
-  }),
-  reads: {
-    sorted: counting('academic_years', {
-      _and: [{ published: { _eq: true } }, { sort: { _nnull: true } }],
-    }),
-    sorts: {
-      aggregate: 'countDistinct',
-      collection: 'academic_years',
-      fields: ['sort'],
-      filter: { published: { _eq: true } },
-      sort: [],
-    },
   },
 };
 

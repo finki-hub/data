@@ -110,8 +110,9 @@ export const operationRow = z.object({
   resolve: idText.nullable(),
   type: z.string(),
 });
+// A generation is a row: entries and links carry its id.
 export const entryRow = z.object({
-  generation: text,
+  generation: integer,
   id,
   source_collection: text,
   source_id: integer,
@@ -119,9 +120,10 @@ export const entryRow = z.object({
 export const courseCurriculumRow = z.object({
   course: integer,
   entry: integer,
-  generation: text,
+  generation: integer,
   id,
 });
+export const generationTargetRow = z.object({ code: text, id });
 export const ruleRow = z.object({
   academic_year: integer,
   course: integer,

@@ -11,6 +11,7 @@ import {
   type ExistingField,
   type ExistingState,
 } from './directus-schema.js';
+import { aliasSpecial } from './field-payloads.js';
 import { expectedColumnType } from './fields.js';
 import { realignedChoices } from './plan-choices.js';
 import { planRelation } from './plan-relations.js';
@@ -190,14 +191,14 @@ const planAliases = (
       context.tally.add('fields', 'created');
     } else if (
       existing.type === 'alias' &&
-      (existing.meta?.special ?? []).includes('o2m')
+      (existing.meta?.special ?? []).includes(aliasSpecial(alias))
     ) {
       context.tally.add('fields', 'skipped');
     } else {
       context.actions.refusals.push({
         collection: name,
         field: alias.field,
-        reason: `Field ${name}.${alias.field} is not an O2M alias but the model declares one`,
+        reason: `Field ${name}.${alias.field} is not an ${aliasSpecial(alias).toUpperCase()} alias but the model declares one`,
       });
       context.tally.add('fields', 'refused');
     }

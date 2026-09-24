@@ -75,6 +75,15 @@ const findings = (report: MigrationReport, code: string) =>
 const queryOf = (pathname: string): URLSearchParams =>
   new URL(pathname, fakeBase).searchParams;
 
+// The target collections the inventory lists the fields of.
+const targetListings = [
+  'academic_years',
+  'course_curricula',
+  'course_enrollment_rules',
+  'curriculum_entries',
+  'curriculum_generations',
+];
+
 describe('inventory', () => {
   test('reads every checkpoint collection with explicit fields, sorted by id and paged', async () => {
     const store = storeFromDataset(makeSyntheticDataset(), { installed: true });
@@ -100,13 +109,9 @@ describe('inventory', () => {
       pathname.startsWith('/fields/'),
     );
 
-    expect(fieldListings.map(({ pathname }) => pathname)).toEqual([
-      ...collectionKeys.map((collection) => `/fields/${collection}`),
-      '/fields/academic_years',
-      '/fields/course_curricula',
-      '/fields/course_enrollment_rules',
-      '/fields/curriculum_entries',
-    ]);
+    expect(fieldListings.map(({ pathname }) => pathname)).toEqual(
+      [...collectionKeys, ...targetListings].map((name) => `/fields/${name}`),
+    );
 
     const listings = calls.filter((call) => !fieldListings.includes(call));
 
@@ -289,7 +294,7 @@ describe('source fingerprint', () => {
     const store = storeFromDataset(makeSyntheticDataset(), { installed: true });
     const original = await fingerprintOf(store);
     store.items.get('curriculum_entries')?.push({
-      generation: '2023',
+      generation: 3,
       id: 1,
       name: alphaCurrentName,
       source_collection: 'curriculum_2023',

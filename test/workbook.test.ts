@@ -400,6 +400,43 @@ const ruleYears = ({
 }): string[] => rules.map(({ academicYear }) => academicYear);
 const sixteenYears = [laterYear, ...academicYears];
 
+describe('study programs of the curriculum sheets', () => {
+  test('are read from the program headers, named by them and sorted in column order', async () => {
+    const content = readWorkbookContent(
+      await reloaded(syntheticWorkbook(lifecycleDataset())),
+    );
+
+    expect(
+      content.studyPrograms
+        .filter(({ generation }) => generation === '2018')
+        .map(({ code, name, sort }) => [sort, code, name]),
+    ).toEqual([
+      [1, 'kn', 'КН'],
+      [2, 'siis', 'СИИС'],
+      [3, 'pit', 'ПИТ'],
+      [4, 'imb', 'ИМБ'],
+      [5, 'ki', 'КИ'],
+      [6, 'ke', 'КЕ'],
+      [7, 'seis', 'SEIS'],
+    ]);
+    expect(content.studyPrograms).toHaveLength(15);
+  });
+
+  test('refuse an unknown program header before anything is written', async () => {
+    const workbook = await reloaded(syntheticWorkbook(lifecycleDataset()));
+    const sheet = workbook.getWorksheet('Предмети - 2023');
+    if (sheet === undefined) {
+      throw new Error('The 2023 curriculum sheet is missing');
+    }
+    sheet.getRow(1).getCell(13).value = 'Нов смер';
+
+    expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'The program column 6 of the curriculum_2023 sheet is headed "Нов смер"',
+    );
+  });
+});
+
 describe('academic years of the enrollment sheet', () => {
   test('are read in sheet order, newest first, and include the fifteen checkpoint years', async () => {
     const content = readWorkbookContent(

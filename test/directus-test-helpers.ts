@@ -5,6 +5,10 @@ import type { DirectusConfig } from '../src/config.js';
 import type { MigrationData } from '../src/schema.js';
 import type { WorkbookContent } from '../src/workbook.js';
 
+import {
+  specProgramHeaders,
+  workbookPrograms,
+} from '../src/migrations/generations.js';
 import { academicYears } from '../src/specs/public.js';
 
 export type RequestRecord = {
@@ -34,10 +38,12 @@ export const emptyData: MigrationData = {
   teaching_assignments: [],
 };
 
-// An empty workbook: no rows, the checkpoint's academic years.
+// An empty workbook: no rows, the checkpoint's academic years and the
+// study programs of the checkpoint's curriculum sheets.
 export const emptyWorkbook: WorkbookContent = {
   academicYears,
   data: emptyData,
+  studyPrograms: workbookPrograms(specProgramHeaders),
 };
 
 export const toUrl = (input: Parameters<typeof fetch>[0]): URL => {

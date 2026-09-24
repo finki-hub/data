@@ -33,14 +33,16 @@ const relationRefusal = (
   return null;
 };
 
-// True when the alias, sort field, deselect action or delete rule of the
-// existing relation differ from the model, including a missing foreign key.
+// True when the alias, junction, sort field, deselect action or delete
+// rule of the existing relation differ from the model, including a missing
+// foreign key.
 const diverges = (
   relation: ModelRelation,
   existing: ExistingRelation,
 ): boolean => {
   const { meta, schema } = toRelationAlignmentPayload(relation);
   const current = {
+    junction_field: existing.meta?.junction_field ?? null,
     on_delete: existing.schema?.on_delete ?? null,
     one_deselect_action: existing.meta?.one_deselect_action ?? null,
     one_field: existing.meta?.one_field ?? null,
@@ -50,6 +52,8 @@ const diverges = (
     current.on_delete !== schema.on_delete ||
     current.one_deselect_action !== meta.one_deselect_action ||
     current.sort_field !== meta.sort_field ||
+    (meta.junction_field !== undefined &&
+      current.junction_field !== meta.junction_field) ||
     (meta.one_field !== undefined && current.one_field !== meta.one_field)
   );
 };

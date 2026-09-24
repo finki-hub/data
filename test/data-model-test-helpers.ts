@@ -44,6 +44,7 @@ export type FakeRelation = {
   collection: string;
   field: string;
   meta: null | {
+    junction_field?: null | string;
     one_deselect_action?: null | string;
     one_field: null | string;
     sort_field?: null | string;
@@ -145,6 +146,7 @@ export const installedRelation = (relation: ModelRelation): FakeRelation => ({
   collection: relation.collection,
   field: relation.field,
   meta: {
+    junction_field: relation.junction,
     one_deselect_action: relation.nullable ? 'nullify' : 'delete',
     one_field: relation.alias?.field ?? null,
     sort_field: relation.sortField,

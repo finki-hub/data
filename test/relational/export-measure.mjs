@@ -16,9 +16,6 @@ import { get, post } from './history-index-helpers.mjs';
 
 const batch = 1_000;
 const pad = (value) => String(value).padStart(4, '0');
-const states = ['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'ke', 'seis'];
-const legacyStates = new Set(['ke']);
-const currentStates = new Set(['ie', 'ssp']);
 
 export const measuredCourse = (index) =>
   `Synthetic Measured Course ${pad(index)}`;
@@ -38,31 +35,37 @@ const createAll = async (target, collection, rows) => {
 };
 
 const entryOf = (generation, index) => {
-  const prefix = `SYN${generation.slice(2)}M`;
-  const entry = {
+  const prefix = `SYN${generation.code.slice(2)}M`;
+  return {
     channel: index % 4 !== 0,
     code: `${prefix}-${pad(index)}`,
-    generation,
+    generation: generation.id,
     level: 1 + (index % 3),
-    name: `${measuredCourse(index)} (${generation})`,
+    name: `${measuredCourse(index)} (${generation.code})`,
     prerequisites: index % 5 === 0 ? null : `${prefix}-${pad(index - 1)}`,
     semester: 1 + (index % 8),
   };
-  for (const [position, state] of states.entries()) {
-    const other = generation === '2023' ? legacyStates : currentStates;
-    entry[`state_${state}`] =
-      other.has(state) || (index + position) % 3 === 0
-        ? null
-        : ['mandatory', 'elective'][(index + position) % 2];
-  }
-  return entry;
 };
+
+// Two of every three programs of the entry's generation carry a state.
+const statesOf = (entries, programs) =>
+  entries.flatMap(({ entry, index }) =>
+    programs.flatMap((program, position) =>
+      (index + position) % 3 === 0
+        ? []
+        : [
+            {
+              entry,
+              program,
+              state: ['mandatory', 'elective'][(index + position) % 2],
+            },
+          ],
+    ),
+  );
 
 const courseRows = (count) =>
   Array.from({ length: count }, (_, index) => ({
     name: measuredCourse(index),
-    name_2018_override:
-      index % 20 === 0 ? `Synthetic Legacy Label ${pad(index)}` : null,
     professors_override:
       index % 10 === 0 ? `Prof. Synthetic Override ${pad(index)}` : null,
     tags: index % 3 === 0 ? null : `synthetic;measured;${index % 7}`,
@@ -141,6 +144,24 @@ export const seedRealistic = async (target, scale = 1) => {
     target,
     '/items/academic_years?fields=id,label&sort=id&limit=-1',
   );
+  // The generations and programs the import seeded.
+  const generations = await get(
+    target,
+    '/items/curriculum_generations?fields=id,code&limit=-1',
+  );
+  const programs = await get(
+    target,
+    '/items/study_programs?fields=id,generation&sort=sort&limit=-1',
+  );
+  const generationOf = (code) => generations.find((row) => row.code === code);
+  const programsOf = (generation) =>
+    programs
+      .filter((row) => row.generation === generation.id)
+      .map(({ id }) => id);
+  const [currentGeneration, legacyGeneration] = [
+    generationOf('2023'),
+    generationOf('2018'),
+  ];
   const courseIds = await createAll(
     target,
     'courses',
@@ -149,7 +170,7 @@ export const seedRealistic = async (target, scale = 1) => {
   const current = await createAll(
     target,
     'curriculum_entries',
-    courseIds.map((_, index) => entryOf('2023', index)),
+    courseIds.map((_, index) => entryOf(currentGeneration, index)),
   );
   const legacyIndexes = courseIds.flatMap((_, index) =>
     index % 10 < 7 ? [index] : [],
@@ -157,15 +178,29 @@ export const seedRealistic = async (target, scale = 1) => {
   const legacy = await createAll(
     target,
     'curriculum_entries',
-    legacyIndexes.map((index) => entryOf('2018', index)),
+    legacyIndexes.map((index) => entryOf(legacyGeneration, index)),
   );
+  const states = [
+    ...statesOf(
+      current.map((entry, index) => ({ entry, index })),
+      programsOf(currentGeneration),
+    ),
+    ...statesOf(
+      legacy.map((entry, position) => ({
+        entry,
+        index: legacyIndexes[position],
+      })),
+      programsOf(legacyGeneration),
+    ),
+  ];
+  await createAll(target, 'curriculum_entry_program_states', states);
   const links = [
     ...courseIds.map((course, index) => ({
       available: index % 2 === 0,
       course,
       credits: 6,
       entry: current[index],
-      generation: '2023',
+      generation: currentGeneration.id,
       sort: 1,
     })),
     ...legacyIndexes.map((index, position) => ({
@@ -173,7 +208,7 @@ export const seedRealistic = async (target, scale = 1) => {
       course: courseIds[index],
       credits: index % 9 === 0 ? 0 : 6,
       entry: legacy[position],
-      generation: '2018',
+      generation: legacyGeneration.id,
       sort: 2,
     })),
   ];
@@ -202,6 +237,7 @@ export const seedRealistic = async (target, scale = 1) => {
       rooms: count.rooms,
       rules: rules.length,
       staff: staffIds.length,
+      states: states.length,
       students: 15_000 * scale,
       users: 200,
     },

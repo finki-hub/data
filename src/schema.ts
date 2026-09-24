@@ -106,6 +106,10 @@ export const relationalCollectionKeys = [
   'academic_years',
   'curriculum_entries',
   'course_curricula',
+  'curriculum_generations',
+  'study_programs',
+  'curriculum_entry_program_states',
+  'course_equivalency_members',
   'moodle_import_rows',
   'moodle_course_entries',
   'moodle_history_memberships',
@@ -148,17 +152,28 @@ export type ModelEnumField = ModelFieldBase & {
   readonly kind: 'enum';
 };
 
+// The reverse alias of an M2O relation on its "one" side. With `junction`
+// the collection is a junction: the alias is a many-to-many that lists the
+// rows its `junction` relation points at, each with its junction row.
 export type ModelRelationAlias = {
   readonly field: string;
   readonly fields: readonly string[];
+  readonly junction?: string;
   readonly readOnly?: true;
   readonly template: string;
 };
 
+// What a delete of the related row does to this row: delete it with the
+// related row, clear the link, or refuse the delete while the row exists
+// (NO ACTION, PostgreSQL's foreign_key_violation; Directus 12.3.1 does not
+// translate database errors of a delete, so it answers a 500 naming the
+// constraint).
+export type OnDelete = 'CASCADE' | 'NO ACTION' | 'SET NULL';
+
 export type ModelRelationField = ModelFieldBase & {
   readonly alias?: ModelRelationAlias;
   readonly kind: 'm2o';
-  readonly onDelete: 'CASCADE' | 'SET NULL';
+  readonly onDelete: OnDelete;
   readonly related: ModelCollectionKey;
   readonly sortField?: string;
   readonly template: string;
@@ -182,8 +197,10 @@ export type ModelRelation = {
   readonly alias: ModelRelationAlias | null;
   readonly collection: ModelCollectionKey;
   readonly field: string;
+  // The other relation of a junction collection, or null.
+  readonly junction: null | string;
   readonly nullable: boolean;
-  readonly onDelete: 'CASCADE' | 'SET NULL';
+  readonly onDelete: OnDelete;
   readonly related: ModelCollectionKey;
   readonly sortField: null | string;
 };

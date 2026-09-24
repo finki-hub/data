@@ -1,7 +1,8 @@
-import type { OperationContext } from '@directus/types';
+import type { NestedDeepQuery, OperationContext, Query } from '@directus/types';
 
 import type { SourceReader } from './engine.js';
 import type { ExportDeps } from './prepare.js';
+import type { SourceRead } from './types.js';
 
 import { coordinationContext, sqlDatabase } from '../coordinate.js';
 import { calculationDomains } from '../coordination/domains.js';
@@ -16,11 +17,50 @@ import {
 // The Directus side of the export operation: native reads through the
 // ItemsService, the coordinator status and the snapshot status.
 
+// The deep query that reads every relation a field path steps through
+// whole. Directus cuts the list of an O2M or M2M step under each row to
+// QUERY_LIMIT_DEFAULT, before it sorts it, unless the read names a limit
+// (merge-with-parent-items.js), so a state row of an entry would go
+// missing without an error; every relational step gets `_limit: -1`, like
+// the top-level read (an M2O step is read whole either way).
+export const wholeNested = (
+  paths: ReadonlyArray<readonly string[]>,
+): NestedDeepQuery => {
+  const steps = new Map<string, Array<readonly string[]>>();
+  for (const [head, ...rest] of paths) {
+    if (head !== undefined && rest.length > 0) {
+      steps.set(head, [...(steps.get(head) ?? []), rest]);
+    }
+  }
+  const deep: NestedDeepQuery = {};
+  for (const [field, rest] of steps) {
+    deep[field] = { ...wholeNested(rest), _limit: -1 };
+  }
+  return deep;
+};
+
+// The native query of a read: an aggregate answers its one count row; a
+// row read answers every matching row, each relation it steps through
+// whole.
+export const readQuery = (read: SourceRead): Query => {
+  const filter = read.filter === undefined ? {} : { filter: read.filter };
+  if (read.aggregate !== undefined) {
+    return { aggregate: { [read.aggregate]: [...read.fields] }, ...filter };
+  }
+  const deep = wholeNested(read.fields.map((field) => field.split('.')));
+  return {
+    ...(Object.keys(deep).length > 0 && { deep }),
+    fields: [...read.fields],
+    ...filter,
+    limit: -1,
+    sort: [...read.sort],
+  };
+};
+
 // Reads as the system (accountability null): the operation checks the
 // caller's administrator flag itself before anything else, and every read
 // names its fields explicitly, so no private column is ever selected.
-// Events are not emitted and the whole result is read at once; an
-// aggregate read answers its one count row.
+// Events are not emitted and the whole result is read at once.
 export const itemsReader = async (
   context: OperationContext,
 ): Promise<SourceReader> => {
@@ -31,18 +71,7 @@ export const itemsReader = async (
       knex: context.database,
       schema,
     });
-    const filter = read.filter === undefined ? {} : { filter: read.filter };
-    return items.readByQuery(
-      read.aggregate === undefined
-        ? {
-            fields: [...read.fields],
-            ...filter,
-            limit: -1,
-            sort: [...read.sort],
-          }
-        : { aggregate: { [read.aggregate]: [...read.fields] }, ...filter },
-      { emitEvents: false },
-    );
+    return items.readByQuery(readQuery(read), { emitEvents: false });
   };
 };
 

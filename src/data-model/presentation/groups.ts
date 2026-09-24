@@ -7,8 +7,21 @@ const derivedFields = (collection: string): readonly string[] =>
     ({ field, readOnly }) => (readOnly === true ? [field] : []),
   );
 
+// The six per-generation course columns the one-time import copies into
+// course_curricula once: read-only import input that no export reads,
+// dropped in the deferred cleanup.
+export const legacyImportColumns = [
+  'name_2023',
+  'credits_2023',
+  'available_2023',
+  'name_2018_override',
+  'credits_2018',
+  'available_2018',
+] as const;
+
 // The course form: relational sections first, the checkpoint's derived
-// columns last, collapsed and read-only, never deleted.
+// columns and the import input last, collapsed and read-only, never
+// deleted.
 export const fieldGroups: readonly FieldGroup[] = [
   {
     collection: 'courses',
@@ -22,17 +35,8 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'curriculum',
     headerIcon: 'menu_book',
-    members: [
-      'curricula',
-      'equivalencies',
-      'name_2023',
-      'credits_2023',
-      'available_2023',
-      'name_2018_override',
-      'credits_2018',
-      'available_2018',
-    ],
-    note: 'Curriculum links carry the generation, entry, credits and availability; the 2023 and 2018 columns are the checkpoint sources they replace.',
+    members: ['curricula', 'equivalencies'],
+    note: 'Curriculum links carry the generation, entry, credits and availability; equivalencies list their members, one label per generation.',
     sort: 2,
     start: 'open',
   },
@@ -69,6 +73,16 @@ export const fieldGroups: readonly FieldGroup[] = [
     note: 'Columns the checkpoint derivation computes for the published JSON. Kept for compatibility; not edited by hand.',
     readOnly: true,
     sort: 6,
+    start: 'closed',
+  },
+  {
+    collection: 'courses',
+    field: 'legacy_import',
+    headerIcon: 'input',
+    members: legacyImportColumns,
+    note: 'The 2023 and 2018 columns of the workbook, copied once into the curriculum links by the import. Read-only import input: edit the curriculum links instead; no public file reads these.',
+    readOnly: true,
+    sort: 7,
     start: 'closed',
   },
   // The history entry form: the exact label with its review state first,

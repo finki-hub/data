@@ -30,9 +30,9 @@ const missingUrlPattern = /DIRECTUS_SEARCH_TEST_URL/u;
 const loopbackPattern = /loopback-only/u;
 const migrationsPath = '/finki-hub-data-operations/migrations';
 const courseLinkPath = '/relations/course_curricula/course';
-// Keys, indexes and generation guards (12), then the shared write guard
-// function and one statement trigger per guarded table of the
-// collection-role registry.
+// Keys and indexes, the curriculum generation guards (a function and a
+// trigger each), then the shared write guard function and one statement
+// trigger per guarded table of the collection-role registry.
 const expectedStatements = schemaConstraints.statements.length;
 const longLabel = `Synthetic history entry ${'x'.repeat(300)}`;
 const needsDatabase =
@@ -198,19 +198,40 @@ const keepsDuplicateStudentIndexes = async (target) => {
   assert.equal(first.data.index_number, second.data.index_number);
 };
 
+// The generation rows a curriculum test needs: 2013 label-only, 2018 and
+// 2023 with a curriculum.
+const createGenerations = async (target) => {
+  const ids = {};
+  for (const [code, sort] of [
+    ['2013', 1],
+    ['2018', 2],
+    ['2023', 3],
+  ]) {
+    const row = await createItem(target, 'curriculum_generations', {
+      code,
+      has_curriculum: code !== '2013',
+      label: `Curriculum ${code}`,
+      sort,
+    });
+    ids[code] = row.data.id;
+  }
+  return ids;
+};
+
 const guardsCurriculumLinks = async (target, state) => {
+  const generations = await createGenerations(target);
   const course = await createItem(target, 'courses', {
     name: 'Synthetic Course',
   });
   const entry2018 = await createItem(target, 'curriculum_entries', {
-    generation: '2018',
+    generation: generations['2018'],
     name: 'Synthetic Entry 2018',
   });
   const entry2023 = await createItem(target, 'curriculum_entries', {
-    generation: '2023',
+    generation: generations['2023'],
     name: 'Synthetic Entry 2023',
   });
-  const link = { course: course.data.id, generation: '2018' };
+  const link = { course: course.data.id, generation: generations['2018'] };
   assert.equal(
     await rejectedItem(target, 'course_curricula', {
       ...link,
@@ -222,7 +243,7 @@ const guardsCurriculumLinks = async (target, state) => {
     ...link,
     entry: entry2018.data.id,
   });
-  assert.equal(linked.data.generation, '2018');
+  assert.equal(linked.data.generation, generations['2018']);
   assert.equal(
     await rejectedItem(target, 'course_curricula', {
       ...link,
@@ -230,19 +251,19 @@ const guardsCurriculumLinks = async (target, state) => {
     }),
     'RECORD_NOT_UNIQUE',
   );
+  // The label-only generation takes no entry, hence no link either.
   assert.equal(
-    await rejectedItem(target, 'course_curricula', {
-      course: course.data.id,
-      entry: entry2023.data.id,
-      generation: '2013',
+    await rejectedItem(target, 'curriculum_entries', {
+      generation: generations['2013'],
+      name: 'Synthetic Entry 2013',
     }),
-    'FAILED_VALIDATION',
+    'INVALID_FOREIGN_KEY',
   );
   const regenerated = await read(
     await request(
       target,
       `/items/curriculum_entries/${entry2018.data.id}`,
-      json('PATCH', { generation: '2023' }, target.token),
+      json('PATCH', { generation: generations['2023'] }, target.token),
     ),
     400,
   );
@@ -250,13 +271,13 @@ const guardsCurriculumLinks = async (target, state) => {
   const withCourse = await read(
     await request(
       target,
-      `/items/courses/${course.data.id}?fields=id,curricula.entry.name,curricula.generation`,
+      `/items/courses/${course.data.id}?fields=id,curricula.entry.name,curricula.generation.code`,
       { token: target.token },
     ),
     200,
   );
   assert.deepEqual(withCourse.data.curricula, [
-    { entry: { name: 'Synthetic Entry 2018' }, generation: '2018' },
+    { entry: { name: 'Synthetic Entry 2018' }, generation: { code: '2018' } },
   ]);
   state.course = course.data.id;
 };

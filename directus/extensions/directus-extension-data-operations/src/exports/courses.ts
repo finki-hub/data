@@ -3,25 +3,73 @@ import {
   channel,
   curriculum,
   enrollmentCount,
-  type Generation,
-  legacyName,
   professors,
+  programState,
 } from './course-values.js';
-import { publishedYear } from './key-sources.js';
+import { publishedThrough } from './key-sources.js';
 import {
+  type BlockField,
+  type BlockPart,
   defaultMaxBytes,
   type ExportDefinition,
-  type FieldEntry,
+  type NestedKeys,
 } from './types.js';
 
 // courses.json: one row per course in id order, with the keys, order and
 // value forms of the reference serializer (serialize-assets.cjs), projected
-// from the relational rows on read.
+// from the relational rows on read. Its curriculum keys come from rows an
+// administrator publishes: every published generation with a curriculum
+// adds its availability key and a block of keys, and every published
+// program of it a state key. A new generation or program needs no change
+// here.
 
-const states2023 = ['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'seis'];
-const states2018 = ['kn', 'siis', 'pit', 'imb', 'ki', 'ke', 'seis'];
+// name, code, level, semester, channel and prerequisite of a generation,
+// from the course's linked entry of that generation.
+const entryFields: readonly BlockField[] = [
+  { rule: 'text', suffix: 'name', value: curriculum('entry.name') },
+  { rule: 'text', suffix: 'code', value: curriculum('entry.code') },
+  { rule: 'number', suffix: 'level', value: curriculum('entry.level') },
+  { rule: 'number', suffix: 'semester', value: curriculum('entry.semester') },
+  {
+    rule: 'numeric_boolean',
+    suffix: 'channel',
+    value: curriculum('entry.channel'),
+  },
+  {
+    rule: 'text',
+    suffix: 'prerequisite',
+    value: curriculum('entry.prerequisites'),
+  },
+];
 
-// The curriculum entry columns the generation keys publish.
+// The state-key rule: `<generation>-state-<program>` for every published
+// program of the generation, in program sort order.
+const states: NestedKeys = {
+  infix: 'state',
+  nested: 'published_programs',
+  rule: 'text',
+  value: programState,
+};
+
+// Credits and availability live on the link, not on the entry.
+const credits: BlockField = {
+  rule: 'number',
+  suffix: 'credits',
+  value: curriculum('credits'),
+};
+
+// The 2018 block lists its credits before its states, as the reference
+// serializer did; every other generation (2023 today, and any new one)
+// lists its states first.
+const creditsFirst = '2018';
+
+const generationLayout: readonly BlockPart[] = [
+  ...entryFields,
+  states,
+  credits,
+];
+
+// The curriculum entry columns and program states the blocks publish.
 const entryColumns = [
   'generation',
   'name',
@@ -30,66 +78,9 @@ const entryColumns = [
   'semester',
   'prerequisites',
   'channel',
-  ...['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'ke', 'seis'].map(
-    (state) => `state_${state}`,
-  ),
+  'program_states.program',
+  'program_states.state',
 ];
-
-// name, code, level, semester, channel and prerequisite of a generation,
-// from its linked entry (2018-name prefers name_2018_override).
-const entryFields = (generation: Generation): FieldEntry[] => [
-  {
-    key: `${generation}-name`,
-    rule: 'text',
-    value:
-      generation === '2018' ? legacyName : curriculum(generation, 'entry.name'),
-  },
-  {
-    key: `${generation}-code`,
-    rule: 'text',
-    value: curriculum(generation, 'entry.code'),
-  },
-  {
-    key: `${generation}-level`,
-    rule: 'number',
-    value: curriculum(generation, 'entry.level'),
-  },
-  {
-    key: `${generation}-semester`,
-    rule: 'number',
-    value: curriculum(generation, 'entry.semester'),
-  },
-  {
-    key: `${generation}-channel`,
-    rule: 'numeric_boolean',
-    value: curriculum(generation, 'entry.channel'),
-  },
-  {
-    key: `${generation}-prerequisite`,
-    rule: 'text',
-    value: curriculum(generation, 'entry.prerequisites'),
-  },
-];
-
-const stateFields = (
-  generation: Generation,
-  states: readonly string[],
-): FieldEntry[] =>
-  states.map((state) => ({
-    key: `${generation}-state-${state}`,
-    rule: 'text',
-    value: curriculum(generation, `entry.state_${state}`),
-  }));
-
-// Credits and availability live on the link, not on the entry.
-const linkField = (
-  generation: Generation,
-  column: 'available' | 'credits',
-): FieldEntry => ({
-  key: `${generation}-${column}`,
-  rule: column === 'credits' ? 'number' : 'boolean',
-  value: curriculum(generation, column),
-});
 
 export const courses: ExportDefinition = {
   fields: [
@@ -98,17 +89,24 @@ export const courses: ExportDefinition = {
     // The published-year rule: one key per published academic year, its
     // label, newest first, valued by the course's count for that year.
     { keys: 'published_years', rule: 'number', value: enrollmentCount },
-    linkField('2023', 'available'),
-    linkField('2018', 'available'),
+    // One availability key per published generation, newest first.
+    {
+      keys: 'published_generations',
+      rule: 'boolean',
+      suffix: 'available',
+      value: curriculum('available'),
+    },
     { key: 'channel', rule: 'boolean', value: channel },
     { key: 'tags', rule: 'text', value: 'tags' },
     { key: 'assistants', rule: 'text', value: assistants },
-    ...entryFields('2023'),
-    ...stateFields('2023', states2023),
-    linkField('2023', 'credits'),
-    ...entryFields('2018'),
-    linkField('2018', 'credits'),
-    ...stateFields('2018', states2018),
+    // One block per published generation, newest first.
+    {
+      blocks: 'published_generations',
+      layouts: {
+        byKey: { [creditsFirst]: [...entryFields, credits, states] },
+        default: generationLayout,
+      },
+    },
   ],
   filename: 'courses.json',
   maxBytes: defaultMaxBytes,
@@ -128,6 +126,8 @@ export const courses: ExportDefinition = {
       filter: { course: { _nnull: true } },
       sort: ['course', 'sort', 'id'],
     },
+    // The links of published generations only: an unpublished
+    // generation's links change nothing in the file.
     curricula: {
       by: 'course',
       collection: 'course_curricula',
@@ -138,19 +138,20 @@ export const courses: ExportDefinition = {
         'available',
         ...entryColumns.map((column) => `entry.${column}`),
       ],
+      filter: publishedThrough('generation'),
       sort: ['course', 'generation'],
     },
     enrollments: {
       by: 'course',
       collection: 'course_enrollments',
       fields: ['course', 'count', 'academic_year'],
-      filter: publishedYear('academic_year'),
+      filter: publishedThrough('academic_year'),
       sort: ['course', 'academic_year'],
     },
   },
   rows: {
     collection: 'courses',
-    fields: ['id', 'name', 'tags', 'professors_override', 'name_2018_override'],
+    fields: ['id', 'name', 'tags', 'professors_override'],
     sort: ['id'],
   },
 };

@@ -607,12 +607,23 @@ A key the data decides comes from a key source (`exports/key-sources.ts`, a
 closed list): an entry `{ keys: 'published_years', rule, value }` puts one
 key per row of that source at its position. `published_years` is every
 academic year whose `published` flag is set, newest first (`sort`
-descending, then the label descending), keyed by its label.
+descending, then the label descending), keyed by its label;
+`published_generations` and `published_programs` key the curriculum blocks
+below. Each source declares the field that places its rows (`sort`, among
+the programs of one generation for a program): readiness blocks a keyed
+row without a sort (`<row>_unsorted`) and two siblings sharing one
+(`<row>_sort_shared`), for `academic_year`, `curriculum_generation` and
+`study_program` alike, so no key moves silently. The database keeps the
+key text of a published row: changing the label of a published year or
+the code of a published generation or program answers 400
+`INVALID_FOREIGN_KEY`; unpublish the row first (one write may unpublish
+and rename).
 
 `exports/index.ts` lists the definitions in publication order. A generic
 engine (`exports/engine.ts`) reads each definition's sources through the
 Directus ItemsService (system rights after the operation's own
-administrator check, explicit fields, events off), serializes the rows in
+administrator check, explicit fields, events off, every nested list read
+whole rather than cut to `QUERY_LIMIT_DEFAULT`), serializes the rows in
 id order with the value rules, and validates every payload against its
 definition (a list of one object per read row, only declared keys and in
 their order, non-empty text values, the size bound) before anything is
@@ -625,10 +636,22 @@ assignments in `sort` (then id) order, each its `display_override` or its
 staff member's name, joined with `, ` (so the conversion links a
 checkpoint text to staff rows only when that join gives the text back: a
 list separated by `;`, a line break or a bare `,`, or with padding, stays
-one literal review row); `assistants` likewise; the 2023 and
-2018 keys come from the course's curriculum link of that generation and its
-entry (`2018-name` prefers `name_2018_override`), credits and availability
-from the link; `channel` is true when either linked entry has its channel;
+one literal review row); `assistants` likewise; the curriculum keys come
+from rows an administrator publishes: every published
+`curriculum_generations` row with a curriculum adds `<code>-available`
+(newest first by `sort`) and a block `<code>-name`, `-code`, `-level`,
+`-semester`, `-channel`, `-prerequisite`, then its state keys and
+`<code>-credits` (the definition declares the 2018 block with its credits
+before its states), valued from the course's curriculum link of that
+generation and its entry; a state key `<code>-state-<program>` exists for
+every published study program of the generation, in program `sort` order,
+valued by the entry's state row of that program. A new generation or
+program row adds no key until its `published` flag (and its generation's)
+is set. The six per-generation `courses` columns (`name_2023`,
+`credits_2023`, `available_2023`, `name_2018_override`, `credits_2018`,
+`available_2018`) are read-only import input and publish nothing;
+`channel` is true when a linked entry of a published generation has its
+channel;
 the year keys follow the published-year rule, one per published academic
 year with the course's `course_enrollments` count of that year: a new
 `academic_years` row adds no key until an editor sets its `published` flag,
@@ -748,12 +771,12 @@ Every issue is one entry of the readiness-check registry
 `warning`), where its count comes from (a bounded native aggregate, a check
 counted in code, the coordinator status or the snapshot status), the files
 it gates, an optional Needs review bookmark, whether its records each carry
-a curriculum `generation` column (so one view shows and filters by it; no
-entry does yet, since the equivalency and course checks read
-per-generation columns), and a description. `ready` is true exactly when
-every blocker counts zero. The registry is code, not rows, so no Studio edit
-can turn a blocker into a warning; the Needs review bookmarks setup installs
-are the entries that declare one (today **Needs mapping**).
+a curriculum `generation` column (so one view shows and filters by it,
+today the equivalency members), and a description. `ready` is true exactly
+when every blocker counts zero. The registry is code, not rows, so no
+Studio edit can turn a blocker into a warning; the Needs review bookmarks
+setup installs are the entries that declare one (today **Needs mapping**
+and **Equivalency labels without an entry**).
 
 Blockers: `history_index_*` and `enrollments_*` (`pending`, `running`,
 `failed`, from the coordinator status), `snapshot_import_running`,
@@ -762,13 +785,17 @@ conversion still running or failed in `migration_ledger`),
 `academic_year_unsorted` (a published year without a sort, which has no
 place among the year keys), `academic_year_sort_shared` (two published
 years with one sort, whose keys have no newest-first order),
+`curriculum_generation_unsorted` and `curriculum_generation_sort_shared`
+(the same for the published generations with a curriculum and their
+blocks), `study_program_unsorted` and `study_program_sort_shared` (the
+same for the published programs of one generation and their state keys),
 `enrollment_count_missing` (a course and
 published year without a count row), `enrollment_rule_missing` (without a
 rule, so it is never counted),
-`curriculum_link_unresolved` (an equivalency of the course names a 2018
-entry, or a 2018 label that matched no entry, while the course has neither
-a 2018 link nor a `name_2018_override`), `curriculum_value_unlinked` (a
-course carries an imported `name_2023`, or credits or availability of a
+`curriculum_link_unresolved` (a 2018 member of an equivalency of the
+course names an entry, or a label that matched none, while the course has
+no 2018 link), `curriculum_value_unlinked` (a course carries an imported
+`name_2023` or `name_2018_override`, or credits or availability of a
 generation, without a curriculum link of that generation),
 `assignment_role_missing`, `assignment_unresolved` (a published assignment
 with neither a staff member nor a display label),
@@ -780,7 +807,8 @@ position; the id decides their order), `mapping_without_rule` (mappings
 nothing counts), `mapped_entry_awaiting_review`, `entry_needs_mapping`
 (Moodle lines nobody mapped, administrative ones included),
 `equivalency_without_course`, `equivalency_entry_unresolved` (an
-equivalency label linked to no entry of its generation),
+equivalency with a member label of a generation with a curriculum linked
+to no entry of that generation),
 `council_member_unresolved` (a council membership linked to no student),
 `snapshot_staged`, `active_snapshot_edited` and `snapshot_never_promoted`.
 
@@ -792,9 +820,10 @@ silently:
   `unmatched_curriculum_2023_label` or `unmatched_curriculum_2018_label`),
   and a generation's credits or availability without any label
   (`unlinked_generation_values`), block as `curriculum_value_unlinked` or
-  `curriculum_link_unresolved`: create the entry and link it to the course,
-  or clear the imported value on the course when dropping it from the
-  public file is intended;
+  `curriculum_link_unresolved`: create the entry and link it to the course
+  (the imported course columns are read-only import input; an administrator
+  can clear one through the API when dropping the value from the public
+  file is intended);
 - a course with two checkpoint assignment rows (`duplicate_assignment`)
   gets role rows for both, while the checkpoint derivation published only
   the first: `assignment_source_duplicate` blocks until the role rows of

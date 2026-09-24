@@ -8,8 +8,23 @@ import {
 } from '../src/migrations/course-links.js';
 import {
   convertCurriculumEntries,
+  convertProgramStates,
   entryKey,
 } from '../src/migrations/curricula.js';
+import {
+  convertEquivalencyMembers,
+  memberKey,
+} from '../src/migrations/equivalency-members.js';
+import {
+  convertGenerations,
+  convertPrograms,
+  ProgramHeaderError,
+  programKey,
+  specProgramHeaders,
+  workbookPrograms,
+} from '../src/migrations/generations.js';
+import { readInventory } from '../src/migrations/inventory.js';
+import { preflight } from '../src/migrations/preflight.js';
 import {
   convertAcademicYears,
   convertEnrollmentRules,
@@ -26,15 +41,32 @@ import {
   toCourseSources,
 } from './fixtures/synthetic-data.js';
 import {
+  fakeItemsDirectus,
+  storeFromDataset,
+} from './migration-test-helpers.js';
+import {
   codes,
   entryIdsOf,
+  generationIds,
   none,
   prepare,
   uniqueDataset,
   yearIdsOf,
 } from './relational-migration-helpers.js';
 
+// Whether a record still carries a flat state column.
+const hasStateColumn = (record: object): boolean =>
+  Object.keys(record).some((key) => key.startsWith('state_'));
+
+// The nonempty program cells of a checkpoint curriculum row.
+const filledStates = (row: object) =>
+  Object.entries(row).filter(
+    ([key, value]) =>
+      key.startsWith('state_') && typeof value === 'string' && value !== '',
+  );
+
 const orphanLegacy = 'Orphan Legacy Course';
+const [legacy2018, current2023] = [302, 303];
 const noLinks: ReadonlyMap<string, ExistingLink> = new Map();
 const noRules: ReadonlyMap<string, ExistingRule> = new Map();
 
@@ -64,7 +96,8 @@ describe('curriculum entries', () => {
     const dataset = makeSyntheticDataset();
     const { checkpoint } = await prepare(dataset);
 
-    const conversion = convertCurriculumEntries(checkpoint, none);
+    const ids = { entries: none, generations: generationIds };
+    const conversion = convertCurriculumEntries(checkpoint, ids);
 
     expect(conversion.findings).toEqual([]);
     expect(conversion.settled).toEqual([]);
@@ -83,37 +116,30 @@ describe('curriculum entries', () => {
     const orphan = records.find(({ name }) => name === orphanLegacy);
     const zeta = records.find(
       ({ generation, name }) =>
-        generation === '2023' && name === courseNames.zeta,
+        generation === current2023 && name === courseNames.zeta,
     );
     const epsilon = records.find(
       ({ generation, name }) =>
-        generation === '2018' && name === 'Epsilon Legacy',
+        generation === legacy2018 && name === 'Epsilon Legacy',
     );
 
     expect(orphan).toMatchObject({
-      generation: '2018',
+      generation: legacy2018,
       code: 'SYN18-ORPHAN',
       channel: true,
-      state_ie: null,
-      state_ssp: null,
       source_collection: 'curriculum_2018',
       source_id: 8,
     });
     expect(zeta).toMatchObject({
       code: '',
       prerequisites: '',
-      state_kn: '',
       channel: null,
       semester: 6,
-      state_ke: null,
       url: 'https://curriculum.example/2023/7',
     });
-    expect(epsilon).toMatchObject({
-      state_ke: 'ke-legacy',
-      state_ie: null,
-      state_ssp: null,
-      catalog_order: 5,
-    });
+    expect(epsilon).toMatchObject({ catalog_order: 5 });
+    // The program states are rows of their own now.
+    expect(records.filter(hasStateColumn)).toEqual([]);
     expect(
       conversion.writes.find(({ record }) => record.name === orphanLegacy)
         ?.mappings,
@@ -127,14 +153,17 @@ describe('curriculum entries', () => {
         targetId: null,
       },
     ]);
-    expect(convertCurriculumEntries(checkpoint, none)).toEqual(conversion);
+    expect(convertCurriculumEntries(checkpoint, ids)).toEqual(conversion);
   });
 
   test('reuses an entry that already carries the provenance instead of planning a second row', async () => {
     const { checkpoint } = await prepare(uniqueDataset());
     const existing = new Map([[entryKey('curriculum_2023', 1), 41]]);
 
-    const conversion = convertCurriculumEntries(checkpoint, existing);
+    const conversion = convertCurriculumEntries(checkpoint, {
+      entries: existing,
+      generations: generationIds,
+    });
 
     expect(conversion.writes).toHaveLength(17);
     expect(conversion.settled).toEqual([
@@ -160,14 +189,19 @@ describe('course curricula links', () => {
       courses: checkpoint.courses,
       entryIds,
       existing: noLinks,
+      generationIds,
     });
 
     const links = conversion.writes.map(({ record }) => record);
-    const current = links.filter(({ generation }) => generation === '2023');
-    const legacy = links.filter(({ generation }) => generation === '2018');
-    const linkOf = (course: number, generation: string) =>
+    const current = links.filter(
+      ({ generation }) => generation === current2023,
+    );
+    const legacy = links.filter(({ generation }) => generation === legacy2018);
+    const linkOf = (course: number, code: '2018' | '2023') =>
       links.find(
-        (link) => link.course === course && link.generation === generation,
+        (link) =>
+          link.course === course &&
+          link.generation === (code === '2023' ? current2023 : legacy2018),
       );
 
     expect(links).toHaveLength(12);
@@ -179,7 +213,7 @@ describe('course curricula links', () => {
         course: 1,
         credits: 6,
         entry: entryIds.get(entryKey('curriculum_2023', 1)),
-        generation: '2023',
+        generation: current2023,
         sort: 1,
       },
       {
@@ -187,7 +221,7 @@ describe('course curricula links', () => {
         course: 1,
         credits: 6,
         entry: entryIds.get(entryKey('curriculum_2018', 1)),
-        generation: '2018',
+        generation: legacy2018,
         sort: 2,
       },
     ]);
@@ -240,6 +274,7 @@ describe('course curricula links', () => {
       courses: checkpoint.courses,
       entryIds: entryIdsOf(checkpoint),
       existing: noLinks,
+      generationIds,
     });
 
     expect(conversion.writes.some(({ record }) => record.course === 1)).toBe(
@@ -279,6 +314,7 @@ describe('course curricula links', () => {
       courses: missing.checkpoint.courses,
       entryIds: entryIdsOf(missing.checkpoint),
       existing: noLinks,
+      generationIds,
     });
     const alpha = unmatched.writes
       .map(({ record }) => record)
@@ -288,7 +324,7 @@ describe('course curricula links', () => {
       'unlinked_generation_values',
       'unmatched_curriculum_2023_label',
     ]);
-    expect(alpha.map(({ generation }) => generation)).toEqual(['2018']);
+    expect(alpha.map(({ generation }) => generation)).toEqual([legacy2018]);
   });
 });
 
@@ -298,21 +334,25 @@ describe('course curricula links: rows already present', () => {
     const entryIds = entryIdsOf(checkpoint);
     const alphaEntry = entryIds.get(entryKey('curriculum_2023', 1)) ?? 0;
     const existing = new Map([
-      [linkKey(1, '2023'), { entry: alphaEntry, id: 77 }],
+      [linkKey(1, current2023), { entry: alphaEntry, id: 77 }],
     ]);
-    const manual = new Map([[linkKey(1, '2023'), { entry: 9_999, id: 77 }]]);
+    const manual = new Map([
+      [linkKey(1, current2023), { entry: 9_999, id: 77 }],
+    ]);
 
     const conversion = convertCourseCurricula({
       candidates: report.candidates.courses,
       courses: checkpoint.courses,
       entryIds,
       existing,
+      generationIds,
     });
     const retained = convertCourseCurricula({
       candidates: report.candidates.courses,
       courses: checkpoint.courses,
       entryIds,
       existing: manual,
+      generationIds,
     });
 
     expect(conversion.writes).toHaveLength(11);
@@ -349,8 +389,304 @@ describe('course curricula links: rows already present', () => {
         courses: checkpoint.courses,
         entryIds: none,
         existing: noLinks,
+        generationIds,
       }),
     ).toThrow('curriculum_2023');
+  });
+});
+
+describe('curriculum generations and study programs', () => {
+  test('seeds the three workbook generations: 2013 label-only and unpublished, 2018 and 2023 published with a curriculum', () => {
+    const conversion = convertGenerations(none);
+
+    expect(conversion.writes.map(({ record }) => record)).toEqual([
+      {
+        code: '2013',
+        has_curriculum: false,
+        label: 'Curriculum 2013',
+        published: false,
+        sort: 1,
+      },
+      {
+        code: '2018',
+        has_curriculum: true,
+        label: 'Curriculum 2018',
+        published: true,
+        sort: 2,
+      },
+      {
+        code: '2023',
+        has_curriculum: true,
+        label: 'Curriculum 2023',
+        published: true,
+        sort: 3,
+      },
+    ]);
+    expect(convertGenerations(generationIds).writes).toEqual([]);
+  });
+
+  test('maps each program header of the curriculum sheets to its code, in column order, and refuses an unknown header', () => {
+    const programs = workbookPrograms(specProgramHeaders);
+
+    expect(
+      programs.map(({ code, generation, name, sort }) =>
+        [generation, sort, code, name].join(' '),
+      ),
+    ).toEqual([
+      '2023 1 kn КН',
+      '2023 2 siis СИИС',
+      '2023 3 pit ПИТ',
+      '2023 4 imb ИМБ',
+      '2023 5 ki КИ',
+      '2023 6 ie ИЕ',
+      '2023 7 ssp ССП',
+      '2023 8 seis SEIS',
+      '2018 1 kn КН',
+      '2018 2 siis СИИС',
+      '2018 3 pit ПИТ',
+      '2018 4 imb ИМБ',
+      '2018 5 ki КИ',
+      '2018 6 ke КЕ',
+      '2018 7 seis SEIS',
+    ]);
+    expect(() =>
+      workbookPrograms({
+        ...specProgramHeaders,
+        curriculum_2018: ['КН', 'СИИС', 'ПИТ', 'ИМБ', 'КИ', 'XYZ', 'SEIS'],
+      }),
+    ).toThrow(ProgramHeaderError);
+    // A known header over another program's column is refused too.
+    expect(() =>
+      workbookPrograms({
+        ...specProgramHeaders,
+        curriculum_2023: [
+          'СИИС',
+          'КН',
+          'ПИТ',
+          'ИМБ',
+          'КИ',
+          'ИЕ',
+          'ССП',
+          'SEIS',
+        ],
+      }),
+    ).toThrow('headed "СИИС"');
+
+    const seeded = convertPrograms(programs, {
+      generations: generationIds,
+      programs: none,
+    });
+
+    expect(seeded.writes).toHaveLength(15);
+    expect(seeded.writes[8]?.record).toEqual({
+      code: 'kn',
+      generation: legacy2018,
+      name: 'КН',
+      published: true,
+      sort: 1,
+    });
+    expect(
+      convertPrograms(programs, {
+        generations: generationIds,
+        programs: new Map([[programKey(current2023, 'kn'), 5]]),
+      }).settled,
+    ).toEqual([
+      expect.objectContaining({
+        sourceId: '2023/kn',
+        status: 'existing',
+        targetId: 5,
+      }),
+    ]);
+  });
+
+  test('writes one state row per nonempty program cell instead of columns', async () => {
+    const { checkpoint } = await prepare(uniqueDataset());
+    const entries = entryIdsOf(checkpoint);
+    const programs = new Map(
+      workbookPrograms(specProgramHeaders).map(
+        ({ code, generation }, index) => [
+          programKey(generationIds.get(generation) ?? 0, code),
+          700 + index,
+        ],
+      ),
+    );
+
+    const conversion = convertProgramStates(checkpoint, {
+      entries,
+      generations: generationIds,
+      programs,
+      states: new Map(),
+    });
+    const cells = [
+      ...checkpoint.curriculum_2023.flatMap(filledStates),
+      ...checkpoint.curriculum_2018.flatMap(filledStates),
+    ];
+    const epsilon = entries.get(entryKey('curriculum_2023', 6));
+
+    expect(conversion.writes).toHaveLength(cells.length);
+    expect(
+      conversion.writes
+        .map(({ record }) => record)
+        .filter(({ entry }) => entry === epsilon)
+        .map(({ program, state }) => [program, state]),
+    ).toEqual([
+      [700, 'kn-state'],
+      [701, 'siis-state'],
+      [702, 'pit-state'],
+      [703, 'imb-state'],
+      [704, 'ki-state'],
+      [705, 'ie-state'],
+      [706, 'ssp-state'],
+      [707, 'seis-state'],
+    ]);
+    // Zeta's empty cells write no row.
+    expect(
+      conversion.writes.some(
+        ({ record }) =>
+          record.entry === entries.get(entryKey('curriculum_2023', 7)),
+      ),
+    ).toBe(false);
+    expect(conversion.writes[0]?.mappings).toEqual([
+      expect.objectContaining({
+        relation: 'state_kn',
+        sourceCollection: 'curriculum_2023',
+        targetCollection: 'curriculum_entry_program_states',
+      }),
+    ]);
+  });
+});
+
+describe('preflight over generation rows', () => {
+  test('recognises a course link already written through the code of its generation row', async () => {
+    const store = storeFromDataset(uniqueDataset(), { installed: true });
+    store.items
+      .get('curriculum_generations')
+      ?.push(
+        { code: '2018', id: legacy2018, label: 'Curriculum 2018' },
+        { code: '2023', id: current2023, label: 'Curriculum 2023' },
+      );
+    store.items
+      .get('course_curricula')
+      ?.push({ course: 1, entry: 5, generation: current2023, id: 31 });
+    const report = preflight(
+      await readInventory(fakeItemsDirectus(store).request, {}),
+      null,
+    );
+
+    expect(
+      report.mappings.filter(
+        (entry) =>
+          entry.targetCollection === 'course_curricula' && entry.sourceId === 1,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        relation: 'curriculum_2018',
+        status: 'pending',
+      }),
+      expect.objectContaining({
+        relation: 'curriculum_2023',
+        status: 'existing',
+        targetId: 31,
+      }),
+    ]);
+  });
+});
+
+describe('equivalency members', () => {
+  test('yields at most three members per workbook row with literal labels and the link decisions of the preflight', async () => {
+    const { checkpoint, report } = await prepare(uniqueDataset());
+    const entryIds = entryIdsOf(checkpoint);
+
+    const conversion = convertEquivalencyMembers({
+      candidates: report.candidates.equivalencies,
+      entryIds,
+      existing: new Map(),
+      generationIds,
+      rows: checkpoint.course_equivalencies,
+    });
+    const members = conversion.writes.map(({ record }) => record);
+    const perRow = Map.groupBy(members, ({ equivalency }) => equivalency);
+
+    expect(Math.max(...perRow.values().map((rows) => rows.length))).toBe(3);
+
+    for (const row of checkpoint.course_equivalencies) {
+      const labels = [row.course_2023, row.course_2018, row.course_2013].filter(
+        (label) => label !== null && label !== '',
+      );
+
+      expect(perRow.get(row.id)?.map(({ label }) => label) ?? []).toEqual(
+        labels,
+      );
+    }
+    for (const candidate of report.candidates.equivalencies) {
+      const decided = (
+        link: typeof candidate.entry2023,
+        sheet: 'curriculum_2018' | 'curriculum_2023',
+      ) =>
+        link.resolution === 'unique' && link.precedent !== null
+          ? entryIds.get(entryKey(sheet, link.precedent))
+          : null;
+      const of = (generation: number) =>
+        members.find(
+          (member) =>
+            member.equivalency === candidate.id &&
+            member.generation === generation,
+        );
+
+      expect(of(current2023)?.entry ?? null).toBe(
+        of(current2023) === undefined
+          ? null
+          : decided(candidate.entry2023, 'curriculum_2023'),
+      );
+      expect(of(legacy2018)?.entry ?? null).toBe(
+        of(legacy2018) === undefined
+          ? null
+          : decided(candidate.entry2018, 'curriculum_2018'),
+      );
+      expect(of(301)?.entry ?? null).toBeNull();
+    }
+
+    expect(
+      members
+        .filter(({ generation }) => generation === 301)
+        .map(({ sort }) => sort),
+    ).toEqual(
+      members.filter(({ generation }) => generation === 301).map(() => 3),
+    );
+  });
+
+  test('reuses a member present and retains one linked by hand to another entry', async () => {
+    const { checkpoint, report } = await prepare(uniqueDataset());
+    const input = {
+      candidates: report.candidates.equivalencies,
+      entryIds: entryIdsOf(checkpoint),
+      generationIds,
+      rows: checkpoint.course_equivalencies,
+    };
+    const planned = convertEquivalencyMembers({
+      ...input,
+      existing: new Map(),
+    });
+    const [first] = planned.writes;
+    const key = memberKey(
+      first?.record.equivalency ?? 0,
+      first?.record.generation ?? 0,
+    );
+
+    const retained = convertEquivalencyMembers({
+      ...input,
+      existing: new Map([[key, { entry: 9_999, id: 55 }]]),
+    });
+
+    expect(retained.writes).toHaveLength(planned.writes.length - 1);
+    expect(retained.settled).toContainEqual(
+      expect.objectContaining({
+        status: 'existing',
+        targetCollection: 'course_equivalency_members',
+        targetId: 55,
+      }),
+    );
+    expect(codes(retained.findings)).toContain('manual_link_retained');
   });
 });
 

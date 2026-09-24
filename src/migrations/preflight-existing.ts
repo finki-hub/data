@@ -33,6 +33,23 @@ const existingRules = (
   );
 };
 
+// Links keyed by course and generation code (a link carries the id of
+// its generation row).
+const existingLinks = (targets: TargetRows): ReadonlyMap<string, number> => {
+  const codes = new Map(
+    targets.curriculum_generations.map(({ code, id }) => [id, code]),
+  );
+  return new Map(
+    targets.course_curricula.flatMap((row) => {
+      const code =
+        row.generation === null ? undefined : codes.get(row.generation);
+      return row.course === null || code === undefined || code === null
+        ? []
+        : [[key(row.course, code), row.id]];
+    }),
+  );
+};
+
 // Target rows an earlier run already wrote, keyed by their provenance.
 export const existingTargets = (targets: null | TargetRows): Existing => {
   if (targets === null) {
@@ -52,13 +69,7 @@ export const existingTargets = (targets: null | TargetRows): Existing => {
           : [[key(row.source_collection, row.source_id), row.id]],
       ),
     ),
-    links: new Map(
-      targets.course_curricula.flatMap((row) =>
-        row.course === null || row.generation === null
-          ? []
-          : [[key(row.course, row.generation), row.id]],
-      ),
-    ),
+    links: existingLinks(targets),
     rules: existingRules(targets, years),
     years,
   };

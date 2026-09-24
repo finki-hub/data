@@ -29,7 +29,7 @@ import { registryReads } from '../directus/extensions/directus-extension-data-op
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { findModelCollection } from '../src/data-model/collections.js';
-import { findModelRelation } from '../src/data-model/relations.js';
+import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
 import { privateCollectionSpecs } from '../src/specs/private.js';
 import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
 import {
@@ -52,15 +52,27 @@ const everyRead = [
   ...exportDefinitions.flatMap((definition) => definitionReads(definition)),
 ];
 
+// The collection a relational step reaches: the target of an M2O field,
+// or the rows (junction rows for an M2M) an O2M or M2M alias lists.
+const stepTarget = (collection: string, head: string): string | undefined => {
+  const relation = findModelRelation(collection, head);
+  if (relation !== undefined) {
+    return relation.related;
+  }
+  const model = findModelCollection(collection);
+  return model === undefined
+    ? undefined
+    : aliasesFor(model.collection).find(({ alias }) => alias.field === head)
+        ?.relation.collection;
+};
+
 // Whether a field path exists in the data model: every step but the last
-// an M2O relation, the last a field of the collection it reaches (or id).
+// a relation, the last a field of the collection it reaches (or id).
 const pathExists = (collection: string, path: string): boolean => {
   const [head = '', ...rest] = path.split('.');
   if (rest.length > 0) {
-    const relation = findModelRelation(collection, head);
-    return (
-      relation !== undefined && pathExists(relation.related, rest.join('.'))
-    );
+    const target = stepTarget(collection, head);
+    return target !== undefined && pathExists(target, rest.join('.'));
   }
   return (
     head === 'id' ||
@@ -100,8 +112,11 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   course_enrollment_rules: ['academic_year', 'course', 'id'],
   course_enrollments: ['academic_year', 'count', 'course', 'id'],
   course_equivalencies: null,
+  course_equivalency_members: ['entry', 'equivalency', 'generation', 'label'],
   courses: null,
   curriculum_entries: null,
+  curriculum_entry_program_states: ['entry', 'program', 'state'],
+  curriculum_generations: ['code', 'has_curriculum', 'id', 'published', 'sort'],
   migration_ledger: ['id', 'status'],
   moodle_course_entries: ['id', 'review_state'],
   moodle_course_mappings: ['academic_year', 'course', 'entry'],
@@ -109,6 +124,7 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   staff: null,
   student_council: ['id', 'student'],
   students: ['id', 'index_number', 'name'],
+  study_programs: ['code', 'generation', 'id', 'published', 'sort'],
   teaching_assignments: null,
 };
 
@@ -120,10 +136,10 @@ const touched = (
 ): ReadonlyArray<readonly [string, string]> => {
   const [head = '', ...rest] = path.split('.');
   const here: readonly [string, string] = [collection, head];
-  const relation = rest.length > 0 ? findModelRelation(collection, head) : null;
-  return relation === null || relation === undefined
+  const target = rest.length > 0 ? stepTarget(collection, head) : undefined;
+  return target === undefined
     ? [here]
-    : [here, ...touched(relation.related, rest.join('.'))];
+    : [here, ...touched(target, rest.join('.'))];
 };
 
 const outsideAllowlist = ([collection, field]: readonly [string, string]) => {
@@ -141,11 +157,13 @@ const sha256Pattern = /^[0-9a-f]{64}$/u;
 const namesMoodleField = (path: string): boolean =>
   path.split('.').some((step) => moodleUserFields.has(step));
 
-// The one label the export layer reads: the academic year's, the key of
-// the published-year rule.
+// The labels the export layer reads: the academic year's, the key of the
+// published-year rule, and an equivalency member's literal course label,
+// which readiness filters on (never a Moodle history label).
 const yearLabel = (read: SourceRead, path: string): boolean =>
   path === 'academic_year.label' ||
-  (read.collection === 'academic_years' && path === 'label');
+  (read.collection === 'academic_years' && path === 'label') ||
+  (read.collection === 'course_equivalency_members' && path === 'label');
 
 // What a read may not touch: a collection or field outside the
 // allowlist, a Moodle user field, the private student grouping, any label
@@ -409,6 +427,55 @@ describe('the definition rules', () => {
       'read links groups by an omitted field',
     ],
     [{ maxBytes: 0 }, 'has no positive size bound'],
+    [
+      {
+        fields: [
+          {
+            blocks: 'published_generations',
+            layouts: { byKey: {}, default: [] },
+          },
+        ],
+      },
+      'blocks published_generations without a default layout',
+    ],
+    [
+      {
+        fields: [
+          {
+            blocks: 'published_generations',
+            layouts: {
+              byKey: {},
+              default: [
+                { rule: 'text', suffix: 'name', value: (): null => null },
+                { rule: 'text', suffix: 'name', value: (): null => null },
+              ],
+            },
+          },
+        ],
+      },
+      'blocks published_generations with a part twice',
+    ],
+    [
+      {
+        fields: [
+          {
+            blocks: 'published_generations',
+            layouts: {
+              byKey: {},
+              default: [
+                {
+                  infix: 'state',
+                  nested: 'published_years',
+                  rule: 'text',
+                  value: (): null => null,
+                },
+              ],
+            },
+          },
+        ],
+      },
+      'blocks published_generations with an empty or unnested part',
+    ],
   ] as const)('names %j', (change, problem) => {
     expect(broken(change).join('; ')).toContain(problem);
   });

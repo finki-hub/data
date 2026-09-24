@@ -195,6 +195,24 @@ const normalizedTargets = async (target) => {
     id === null ? null : (ids[collection].get(id) ?? `missing ${id}`);
   const years = await list(target, 'academic_years', ['id', 'label', 'sort']);
   const yearLabel = new Map(years.map((row) => [row.id, row.label]));
+  // Generation rows by code, programs by generation code and code.
+  const generations = await list(
+    target,
+    'curriculum_generations',
+    modelFields('curriculum_generations'),
+  );
+  const generationCode = new Map(generations.map((row) => [row.id, row.code]));
+  const programs = await list(
+    target,
+    'study_programs',
+    modelFields('study_programs'),
+  );
+  const programKey = new Map(
+    programs.map((row) => [
+      row.id,
+      `${generationCode.get(row.generation)}/${row.code}`,
+    ]),
+  );
   const entries = await list(
     target,
     'curriculum_entries',
@@ -221,15 +239,24 @@ const normalizedTargets = async (target) => {
   const equivalencies = await list(target, 'course_equivalencies', [
     'id',
     'course',
-    'entry_2023',
-    'entry_2018',
   ]);
+  const members = await list(
+    target,
+    'course_equivalency_members',
+    modelFields('course_equivalency_members'),
+  );
+  const states = await list(
+    target,
+    'curriculum_entry_program_states',
+    modelFields('curriculum_entry_program_states'),
+  );
   return {
     academic_years: years.map((row) => withoutId(row)),
     course_curricula: links.map((row) => ({
       ...withoutId(row),
       course: ref('courses', row.course),
       entry: entryRef(row.entry),
+      generation: generationCode.get(row.generation),
     })),
     course_enrollment_rules: rules.map((row) => ({
       ...withoutId(row),
@@ -239,17 +266,32 @@ const normalizedTargets = async (target) => {
     })),
     course_equivalencies: equivalencies.map((row) => ({
       course: ref('courses', row.course),
-      entry_2018: entryRef(row.entry_2018),
-      entry_2023: entryRef(row.entry_2023),
       row: ref('course_equivalencies', row.id),
+    })),
+    course_equivalency_members: members.map((row) => ({
+      ...withoutId(row),
+      entry: entryRef(row.entry),
+      equivalency: ref('course_equivalencies', row.equivalency),
+      generation: generationCode.get(row.generation),
     })),
     curriculum_entries: entries.map((row) => ({
       ...withoutId(row),
+      generation: generationCode.get(row.generation),
       source_id: ref(row.source_collection, row.source_id),
     })),
+    curriculum_entry_program_states: states.map((row) => ({
+      ...withoutId(row),
+      entry: entryRef(row.entry),
+      program: programKey.get(row.program),
+    })),
+    curriculum_generations: generations.map((row) => withoutId(row)),
     student_council: council.map((row) => ({
       member: ref('student_council', row.id),
       student: ref('students', row.student),
+    })),
+    study_programs: programs.map((row) => ({
+      ...withoutId(row),
+      generation: generationCode.get(row.generation),
     })),
     teaching_assignments: assignments
       .filter((row) => row.source_collection !== null)

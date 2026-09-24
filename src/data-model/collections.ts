@@ -2,6 +2,7 @@ import type { ModelCollection, ModelCollectionKey } from '../schema.js';
 
 import { checkpointCollections } from './checkpoint-collections.js';
 import { curriculumCollections } from './curriculum-collections.js';
+import { generationCollections } from './generation-collections.js';
 import { migrationCollections } from './migration-collections.js';
 import { moodleCollections } from './moodle-collections.js';
 import { operationsCollections } from './operations-collections.js';
@@ -11,6 +12,7 @@ import { operationsCollections } from './operations-collections.js';
 export const dataModelCollections: readonly ModelCollection[] = [
   ...checkpointCollections,
   ...curriculumCollections,
+  ...generationCollections,
   ...moodleCollections,
   ...operationsCollections,
   ...migrationCollections,

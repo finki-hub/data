@@ -34,6 +34,10 @@ const targetCollections = [
   'course_curricula',
   'course_enrollment_rules',
   'curriculum_entries',
+  'curriculum_generations',
+  'study_programs',
+  'curriculum_entry_program_states',
+  'course_equivalency_members',
 ];
 const backupReceiptVersion = 'backup-receipt-1';
 const clockValue = '2026-09-22T12:00:00.000Z';
@@ -53,14 +57,21 @@ const stepNames = [
   'council',
   'equivalencies',
 ];
-// What the converter steps write for the seeded dataset: every curriculum
-// row, one link per unique current/legacy label, the fifteen years with a
-// rule per course and year, and one role row per resolved or retained text.
+// What the converter steps write for the seeded dataset: the three
+// workbook generations with the 15 programs of the curriculum sheets,
+// every curriculum row with one state row per nonempty program cell, one
+// link per unique current/legacy label, the fifteen years with a rule per
+// course and year, one role row per resolved or retained text and one
+// equivalency member per filled label.
 const migratedCounts = {
   academic_years: 15,
   course_curricula: 12,
   course_enrollment_rules: 8 * 15,
+  course_equivalency_members: 21,
   curriculum_entries: 18,
+  curriculum_entry_program_states: 33,
+  curriculum_generations: 3,
+  study_programs: 15,
   teaching_assignments: 7 + 10,
 };
 
@@ -608,7 +619,11 @@ const cleanup = async (target) => {
   for (const collection of [
     'course_enrollment_rules',
     'course_curricula',
+    'curriculum_entry_program_states',
+    'course_equivalency_members',
     'curriculum_entries',
+    'study_programs',
+    'curriculum_generations',
     'academic_years',
     ...collectionKeys,
   ]) {

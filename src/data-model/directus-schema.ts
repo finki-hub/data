@@ -49,6 +49,7 @@ export const existingRelationsSchema = z.array(
     field: z.string(),
     meta: z
       .looseObject({
+        junction_field: z.string().nullable().optional(),
         one_deselect_action: z.string().nullable().optional(),
         one_field: z.string().nullable().optional(),
         sort_field: z.string().nullable().optional(),

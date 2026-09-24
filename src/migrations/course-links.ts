@@ -1,3 +1,4 @@
+import type { EntrySource } from './generations.js';
 import type { CourseRow } from './inventory-schemas.js';
 import type { CourseCandidate } from './report.js';
 
@@ -10,17 +11,18 @@ import {
   pending,
   unresolved,
 } from './converter-types.js';
-import { entryKey, type EntrySource, type Generation } from './curricula.js';
+import { entryKey, type GenerationIds } from './curricula.js';
 import { finding, type LinkCandidate, listIds, quote } from './labels.js';
 
-// The course_curricula link of one course and generation: credits and
-// availability come from the course columns of that generation.
+// The course_curricula link of one course and generation (its row id):
+// credits and availability come from the course columns of that
+// generation.
 export type CourseLinkRecord = {
   readonly available: boolean | null;
   readonly course: number;
   readonly credits: null | number;
   readonly entry: number;
-  readonly generation: Generation;
+  readonly generation: number;
   readonly sort: number;
 };
 
@@ -31,14 +33,15 @@ export type ExistingLink = {
   readonly id: number;
 };
 
-export const linkKey = (course: number | string, generation: string) =>
+export const linkKey = (course: number | string, generation: number | string) =>
   compositeKey(course, generation);
 
 const linkCollection = 'course_curricula';
 
+// The import columns of a workbook generation (its code) on courses.
 type GenerationSpec = {
   readonly collection: EntrySource;
-  readonly generation: Generation;
+  readonly generation: '2018' | '2023';
   readonly link: (candidate: CourseCandidate) => LinkCandidate;
   readonly sort: number;
   readonly values: (
@@ -73,7 +76,19 @@ export type CourseLinkInput = {
   readonly candidates: readonly CourseCandidate[];
   readonly courses: readonly CourseRow[];
   readonly entryIds: ReadonlyMap<string, number>;
+  // Links keyed by course and generation id.
   readonly existing: ReadonlyMap<string, ExistingLink>;
+  readonly generationIds: GenerationIds;
+};
+
+const generationIdOf = (input: CourseLinkInput, spec: GenerationSpec) => {
+  const id = input.generationIds.get(spec.generation);
+  if (id === undefined) {
+    throw new ConverterError(
+      `The generation ${spec.generation} was not created before its course links.`,
+    );
+  }
+  return id;
 };
 
 type Target = {
@@ -155,7 +170,7 @@ const linkOf = (
     ...spec.values(row),
     course: candidate.id,
     entry,
-    generation: spec.generation,
+    generation: generationIdOf(input, spec),
     sort: spec.sort,
   };
 };
@@ -198,7 +213,7 @@ const linkGeneration = (
     return;
   }
   const planned = linkOf(input, target);
-  const present = input.existing.get(linkKey(candidate.id, spec.generation));
+  const present = input.existing.get(linkKey(candidate.id, planned.generation));
   if (present === undefined) {
     out.write(planned, [pending(sourceOf(target), linkCollection)]);
   } else {

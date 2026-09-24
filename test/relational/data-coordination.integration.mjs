@@ -6,6 +6,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
 import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
+import { sourceInvalidation } from '../../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import {
   applySchemaConstraints,
@@ -34,9 +35,10 @@ const triggerPath = `/flows/trigger/${flowId}`;
 const containerPattern = /^[a-z0-9][a-z0-9_.-]{0,127}$/u;
 const uuidPattern = /^[0-9a-f-]{36}$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
-// The singleton row and index, the function, 19 table triggers (3 of them
-// guarded) and the entry label trigger of Task 13.
-const expectedStatements = 23;
+// The singleton row and index, the function, one trigger per source table
+// of the collection-role registry (the optional ones guarded) and the
+// entry label trigger of Task 13.
+const expectedStatements = sourceInvalidation.statements.length;
 const allDomains = ['history_index', 'enrollments', 'publication'];
 const optionKeys = [
   'action',

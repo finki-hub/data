@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { readinessRegistry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import curriculumEntries from '../../../directus/presets/curriculum-entries.json' with { type: 'json' };
 import { findModelCollection } from '../collections.js';
 
 const tabularQuerySchema = z.object({
@@ -30,12 +29,6 @@ export const presetSchema = z.object({
 
 export type PresetDefinition = z.infer<typeof presetSchema>;
 
-// The shared "Curriculum 2018" and "Curriculum 2023" bookmarks.
-export const curriculumBookmarks: readonly PresetDefinition[] = z
-  .array(presetSchema)
-  .min(1)
-  .parse(curriculumEntries);
-
 const defaultView = (
   collection: string,
   fields: readonly string[],
@@ -49,6 +42,38 @@ const defaultView = (
   layout_options: { tabular: { spacing: 'comfortable' } },
   layout_query: {
     tabular: { fields: [...fields], limit: 25, page: 1, sort: [...sort] },
+  },
+  role: null,
+  search: null,
+  user: null,
+});
+
+// The one shared curriculum bookmark: every entry, generation first,
+// sorted by generation and catalog order. Editors narrow it to one
+// generation with Studio's native filter on `generation`, so a new
+// generation row needs no bookmark and no setup rerun.
+export const curriculumBookmark: PresetDefinition = presetSchema.parse({
+  bookmark: 'Curriculum by generation',
+  collection: 'curriculum_entries',
+  filter: null,
+  icon: 'menu_book',
+  layout: 'tabular',
+  layout_options: { tabular: { spacing: 'comfortable' } },
+  layout_query: {
+    tabular: {
+      fields: [
+        'generation',
+        'code',
+        'name',
+        'level',
+        'semester',
+        'channel',
+        'course_links',
+      ],
+      limit: 50,
+      page: 1,
+      sort: ['generation', 'catalog_order'],
+    },
   },
   role: null,
   search: null,
@@ -91,18 +116,12 @@ export const reviewBookmarks: readonly PresetDefinition[] =
 // collections that gained relations. A populated deployment keeps the views
 // its importer created; these only fill the gaps.
 export const presetDefinitions: readonly PresetDefinition[] = [
-  ...curriculumBookmarks,
+  curriculumBookmark,
   ...reviewBookmarks,
+  // The curriculum links replace the imported per-generation columns.
   defaultView(
     'courses',
-    [
-      'name',
-      'tags',
-      'available_2023',
-      'available_2018',
-      'curricula',
-      'assignments',
-    ],
+    ['name', 'tags', 'curricula', 'assignments'],
     ['name'],
   ),
   defaultView(
@@ -115,8 +134,19 @@ export const presetDefinitions: readonly PresetDefinition[] = [
     ['course', 'generation', 'entry', 'credits', 'available'],
     ['course', 'generation'],
   ),
-  // Newest first, as courses.json lists the published years.
+  // Newest first, as courses.json lists the published years and
+  // generations.
   defaultView('academic_years', ['label', 'published', 'sort'], ['-sort']),
+  defaultView(
+    'curriculum_generations',
+    ['code', 'label', 'has_curriculum', 'published', 'sort'],
+    ['-sort'],
+  ),
+  defaultView(
+    'study_programs',
+    ['generation', 'code', 'name', 'published', 'sort'],
+    ['generation', 'sort'],
+  ),
   defaultView(
     'teaching_assignments',
     ['course', 'role', 'staff', 'display_override'],
@@ -129,10 +159,11 @@ export const presetDefinitions: readonly PresetDefinition[] = [
     ['year', 'student.name', 'name', 'index_number', 'position'],
     ['-year'],
   ),
+  defaultView('course_equivalencies', ['course', 'members'], ['course_2023']),
   defaultView(
-    'course_equivalencies',
-    ['course_2023', 'course_2018', 'course_2013', 'course'],
-    ['course_2023'],
+    'course_equivalency_members',
+    ['equivalency', 'generation', 'label', 'entry'],
+    ['equivalency', 'sort'],
   ),
   defaultView(
     'moodle_import_rows',

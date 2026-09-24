@@ -1,5 +1,6 @@
 import type { DirectusRequest } from '../directus-request.js';
 import type { ConverterSink } from './converter-types.js';
+import type { ProgramSeed } from './generations.js';
 import type { Inventory } from './inventory.js';
 import type { LedgerOutcome } from './ledger-types.js';
 
@@ -14,6 +15,8 @@ import {
 export type ConversionPlan = {
   readonly batchSize: number;
   readonly now: () => string;
+  // The study programs to seed; the checkpoint spec's when absent.
+  readonly programs?: readonly ProgramSeed[];
   readonly resume: boolean;
   readonly runToken: string;
 };
@@ -62,6 +65,7 @@ export const runConversion = async (
   const converters = converterSteps(inventory, live, {
     batchSize: plan.batchSize,
     sink,
+    ...(plan.programs !== undefined && { programs: plan.programs }),
   });
   const outcome = await runLedger(request, {
     now: plan.now,

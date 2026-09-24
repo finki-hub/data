@@ -5,30 +5,10 @@ import {
   curriculumEntryTemplate,
   provenanceFields,
 } from './checkpoint-collections.js';
-import { enumField, labelledChoices, m2o, scalar } from './fields.js';
-
-export const generations = ['2018', '2023'] as const;
-
-// Replaced by curriculum_generations rows in Task 25; until then the
-// labels are the codes.
-const generationChoices = labelledChoices(generations, {
-  2_018: '2018',
-  2_023: '2023',
-});
+import { m2o, scalar } from './fields.js';
+import { generationReference } from './generation-collections.js';
 
 export const academicYearTemplate = '{{label}}';
-
-const studyProgramStates = [
-  'kn',
-  'siis',
-  'pit',
-  'imb',
-  'ki',
-  'ie',
-  'ssp',
-  'ke',
-  'seis',
-] as const;
 
 export const curriculumCollections: readonly ModelCollection[] = [
   {
@@ -60,7 +40,9 @@ export const curriculumCollections: readonly ModelCollection[] = [
     collection: 'curriculum_entries',
     displayTemplate: curriculumEntryTemplate,
     fields: [
-      enumField('generation', generationChoices, { nullable: false }),
+      generationReference(
+        'Only a generation with a curriculum takes entries; the database refuses the others.',
+      ),
       scalar('name', 'string', { nullable: false }),
       scalar('catalog_order', 'integer'),
       scalar('url', 'text'),
@@ -69,25 +51,24 @@ export const curriculumCollections: readonly ModelCollection[] = [
       scalar('semester', 'integer'),
       scalar('prerequisites', 'text'),
       scalar('channel', 'boolean'),
-      ...studyProgramStates.map((state) => scalar(`state_${state}`, 'string')),
       ...provenanceFields(),
     ],
     hidden: false,
     icon: 'menu_book',
-    note: 'One row per 2018 or 2023 curriculum source row, including orphans and duplicates.',
+    note: 'One row per curriculum source row of a generation, including orphans and duplicates; its study-program states are rows of its own.',
     origin: 'relational',
     singleton: false,
     sort: 15,
   },
   {
     collection: 'course_curricula',
-    displayTemplate: '{{course.name}} - {{entry.name}} ({{generation}})',
+    displayTemplate: '{{course.name}} - {{entry.name}} ({{generation.code}})',
     fields: [
       m2o('course', 'courses', {
         alias: {
           field: 'curricula',
           fields: ['generation', 'entry', 'credits', 'available'],
-          template: '{{generation}}: {{entry.name}}',
+          template: '{{generation.code}}: {{entry.name}}',
         },
         nullable: false,
         sortField: 'sort',
@@ -97,15 +78,14 @@ export const curriculumCollections: readonly ModelCollection[] = [
         alias: {
           field: 'course_links',
           fields: ['course', 'generation', 'credits', 'available'],
-          template: '{{course.name}} ({{generation}})',
+          template: '{{course.name}} ({{generation.code}})',
         },
         nullable: false,
         template: curriculumEntryTemplate,
       }),
-      enumField('generation', generationChoices, {
-        note: 'Must match the generation of the linked curriculum entry.',
-        nullable: false,
-      }),
+      generationReference(
+        'Must match the generation of the linked curriculum entry.',
+      ),
       scalar('credits', 'integer'),
       scalar('available', 'boolean'),
       scalar('sort', 'integer'),

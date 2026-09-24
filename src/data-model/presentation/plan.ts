@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 
-import { baselineFieldMeta, presentationFieldPatches } from './fields.js';
+import { baselineFieldMeta } from './baseline.js';
+import { presentationFieldPatches } from './fields.js';
 import { fieldGroups } from './groups.js';
 import { collectionPlacements, folders } from './navigation.js';
 import { type PresetDefinition, presetDefinitions } from './presets.js';

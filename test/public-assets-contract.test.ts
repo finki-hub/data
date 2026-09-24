@@ -8,6 +8,10 @@ import { courses as coursesDefinition } from '../directus/extensions/directus-ex
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { deriveCourses } from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 import {
+  specProgramHeaders,
+  workbookPrograms,
+} from '../src/migrations/generations.js';
+import {
   academicYears,
   courseNames,
   forbiddenPrivateFields,
@@ -718,11 +722,38 @@ const publishedYearRows = (labels: readonly string[] = checkpointYears) =>
     }))
     .toReversed();
 
+// The generation and program rows the one-time import seeds, as the
+// published key sources read them: 2023 and 2018 published with their
+// curriculum-sheet programs (2013 is label-only and unpublished, so the
+// sources never read it), in reverse order to show the engine orders
+// them itself.
+const generationRows = [
+  { code: '2018', id: 2, sort: 2 },
+  { code: '2023', id: 3, sort: 3 },
+];
+
+const programRows = workbookPrograms(specProgramHeaders)
+  .map(({ code, generation, sort }, index) => ({
+    code,
+    generation: generation === '2023' ? 3 : 2,
+    id: 10 + index,
+    sort,
+  }))
+  .toReversed();
+
+const curriculumKeyRows = {
+  published_generations: generationRows.toReversed(),
+  published_programs: programRows,
+};
+
 describe('published-year keys of the relational courses definition', () => {
   test('fill exactly the reference year positions with the fifteen published years', () => {
     expect(
       fileKeys(coursesDefinition, {
-        keyRows: { published_years: publishedYearRows() },
+        keyRows: {
+          ...curriculumKeyRows,
+          published_years: publishedYearRows(),
+        },
       }),
     ).toEqual(outputLabels(courseFieldMap));
   });
@@ -732,7 +763,10 @@ describe('published-year keys of the relational courses definition', () => {
 
     expect(
       fileKeys(coursesDefinition, {
-        keyRows: { published_years: publishedYearRows(published) },
+        keyRows: {
+          ...curriculumKeyRows,
+          published_years: publishedYearRows(published),
+        },
       }),
     ).toEqual(
       outputLabels(courseFieldMap).filter((label) => label !== '2019/2020'),
@@ -760,6 +794,7 @@ describe('published-year keys of the relational courses definition', () => {
   test('place a newly published later year first among the year keys', () => {
     const keys = fileKeys(coursesDefinition, {
       keyRows: {
+        ...curriculumKeyRows,
         published_years: [
           ...publishedYearRows(),
           { id: 99, label: '2026/2027', sort: 16 },
@@ -773,5 +808,93 @@ describe('published-year keys of the relational courses definition', () => {
       '2026/2027',
       ...reference.slice(2),
     ]);
+  });
+});
+
+// The courses keys over the given generation and program rows.
+const keysWith = (
+  generations: ReadonlyArray<Readonly<Record<string, unknown>>>,
+  programs: ReadonlyArray<Readonly<Record<string, unknown>>>,
+) =>
+  fileKeys(coursesDefinition, {
+    keyRows: {
+      published_generations: generations,
+      published_programs: programs,
+      published_years: publishedYearRows(),
+    },
+  });
+
+describe('generation keys of the relational courses definition', () => {
+  test("reproduce the 15 state keys in each generation's declared layout", () => {
+    const keys = keysWith(generationRows, programRows);
+
+    expect(keys).toEqual(outputLabels(courseFieldMap));
+    expect(keys.filter((key) => key.includes('-state-'))).toHaveLength(15);
+  });
+
+  test('add a newly published generation with two published programs with no code change', () => {
+    const keys = keysWith(
+      [...generationRows, { code: '2028', id: 4, sort: 4 }],
+      [
+        ...programRows,
+        { code: 'ab', generation: 4, id: 91, sort: 2 },
+        { code: 'cd', generation: 4, id: 92, sort: 1 },
+      ],
+    );
+    const reference = outputLabels(courseFieldMap);
+    const assistants = reference.indexOf('assistants') + 1;
+
+    expect(keys).toEqual([
+      ...reference.slice(0, reference.indexOf('2023-available')),
+      '2028-available',
+      ...reference.slice(reference.indexOf('2023-available'), assistants),
+      '2028-name',
+      '2028-code',
+      '2028-level',
+      '2028-semester',
+      '2028-channel',
+      '2028-prerequisite',
+      '2028-state-cd',
+      '2028-state-ab',
+      '2028-credits',
+      ...reference.slice(assistants),
+    ]);
+  });
+
+  test.each(['constructor', 'toString', '__proto__'])(
+    'follow the default layout for a published generation coded %s, a name every object inherits',
+    (code) => {
+      const keys = keysWith(
+        [...generationRows, { code, id: 4, sort: 4 }],
+        [...programRows, { code: 'ab', generation: 4, id: 91, sort: 1 }],
+      );
+
+      expect(keys.filter((key) => key.startsWith(`${code}-`))).toEqual(
+        [
+          'available',
+          'name',
+          'code',
+          'level',
+          'semester',
+          'channel',
+          'prerequisite',
+          'state-ab',
+          'credits',
+        ].map((suffix) => `${code}-${suffix}`),
+      );
+    },
+  );
+
+  test('add no state key for a program the sources did not read (unpublished)', () => {
+    const keys = keysWith(
+      generationRows,
+      programRows.filter(
+        ({ code, generation }) => !(code === 'ie' && generation === 3),
+      ),
+    );
+
+    expect(keys).toEqual(
+      outputLabels(courseFieldMap).filter((key) => key !== '2023-state-ie'),
+    );
   });
 });

@@ -1,89 +1,14 @@
-import type { FieldCondition, FieldPresentation } from './types.js';
+import type { FieldPresentation } from './types.js';
 
-import { curriculumEntryTemplate } from '../checkpoint-collections.js';
-import { dataModelCollections, findModelCollection } from '../collections.js';
-import { toAliasPayload, toFieldPayload } from '../field-payloads.js';
+import { dataModelCollections } from '../collections.js';
 import { type AliasDeclaration, aliasesFor } from '../relations.js';
+import { baselineOptions } from './baseline.js';
+import { curriculumFieldPresentations } from './curriculum-fields.js';
 import { fieldGroups } from './groups.js';
 import { moodleFieldPresentations } from './moodle-fields.js';
 
-// Meta columns Directus reports when an installer payload leaves them unset.
-const metaDefaults: Readonly<Record<string, unknown>> = {
-  conditions: null,
-  display: null,
-  display_options: null,
-  group: null,
-  hidden: false,
-  note: null,
-  options: null,
-  special: null,
-  translations: null,
-  validation: null,
-};
-
-// The meta the schema installer wrote for a model field or alias: the
-// reference the once-only rule compares the live meta against.
-export const baselineFieldMeta = (
-  collection: string,
-  field: string,
-): Readonly<Record<string, unknown>> => {
-  const model = findModelCollection(collection);
-  if (model === undefined) {
-    throw new Error(`Collection ${collection} is not part of the model`);
-  }
-  const column = model.fields.find((candidate) => candidate.field === field);
-  if (column !== undefined) {
-    const columnSort = model.fields.indexOf(column) + 1;
-    return { ...metaDefaults, ...toFieldPayload(column, columnSort).meta };
-  }
-  const aliases = aliasesFor(model.collection);
-  const alias = aliases.find((candidate) => candidate.alias.field === field);
-  if (alias === undefined) {
-    throw new Error(`Field ${collection}.${field} is not part of the model`);
-  }
-  const aliasSort = model.fields.length + aliases.indexOf(alias) + 1;
-  return { ...metaDefaults, ...toAliasPayload(alias.alias, aliasSort).meta };
-};
-
-const baselineOptions = (
-  collection: string,
-  field: string,
-): Readonly<Record<string, unknown>> => {
-  const options = baselineFieldMeta(collection, field)['options'];
-  return typeof options === 'object' && options !== null ? { ...options } : {};
-};
-
-// Rendered by Studio with the link row's own live `generation` value before
-// the entry picker queries, so only entries of that generation are offered.
-// The database trigger from the schema constraints rejects the rest.
-export const generationFilter = { generation: { _eq: '{{ generation }}' } };
-
-// A new link row carries `generation: null`, so the entry selector stays
-// locked until a generation is chosen; opened earlier, Studio would query
-// the entries with an empty generation and get an invalid-query error back.
-export const entryLockedWithoutGeneration: FieldCondition = {
-  name: 'Generation not chosen yet',
-  readonly: true,
-  rule: { generation: { _null: true } },
-};
-
 export const fieldPresentations: readonly FieldPresentation[] = [
-  {
-    collection: 'course_curricula',
-    field: 'entry',
-    meta: {
-      conditions: [entryLockedWithoutGeneration],
-      note: 'Pick the generation first: the picker lists only entries of that generation.',
-      options: {
-        ...baselineOptions('course_curricula', 'entry'),
-        filter: generationFilter,
-        template: curriculumEntryTemplate,
-      },
-      sort: 3,
-    },
-  },
-  // The generation comes before the entry it filters.
-  { collection: 'course_curricula', field: 'generation', meta: { sort: 2 } },
+  ...curriculumFieldPresentations,
   {
     collection: 'course_curricula',
     field: 'available',
@@ -156,16 +81,22 @@ const membershipPresentations = (): readonly FieldPresentation[] =>
     })),
   );
 
+// Later metas win key by key; interface options are merged the same way.
 const merge = (
   presentations: readonly FieldPresentation[],
 ): readonly FieldPresentation[] => {
   const byField = new Map<string, FieldPresentation>();
   for (const { collection, field, meta } of presentations) {
     const key = `${collection}.${field}`;
+    const earlier = byField.get(key)?.meta;
+    const options =
+      earlier?.options === undefined || meta.options === undefined
+        ? {}
+        : { options: { ...earlier.options, ...meta.options } };
     byField.set(key, {
       collection,
       field,
-      meta: { ...byField.get(key)?.meta, ...meta },
+      meta: { ...earlier, ...meta, ...options },
     });
   }
   return byField.values().toArray();

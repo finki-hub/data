@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import type { DirectusRequest } from '../directus-request.js';
-import type { EquivalencyLinks } from './equivalencies.js';
 
 import { roleKey } from './assignments.js';
 import { compositeKey } from './converter-types.js';
@@ -29,7 +28,7 @@ type Listing<S extends RowSchema> = {
 
 // Every row of a collection with exactly the schema's fields, indexed by
 // the entries the caller derives from each row.
-const indexed = async <S extends RowSchema, K, V>(
+export const indexed = async <S extends RowSchema, K, V>(
   request: DirectusRequest,
   { collection, schema }: Listing<S>,
   entries: (row: z.output<S>) => ReadonlyArray<readonly [K, V]>,
@@ -70,12 +69,12 @@ export const readEntryIds = (
 const linkRow = z.object({
   course: integer,
   entry: integer,
-  generation: text,
+  generation: integer,
   id,
 });
 
-// Links keyed by course and generation, with the entry each one points at
-// so a link set by hand to another entry is recognised, not adopted.
+// Links keyed by course and generation id, with the entry each one points
+// at so a link set by hand to another entry is recognised, not adopted.
 export const readCourseLinks = (
   request: DirectusRequest,
 ): Promise<ReadonlyMap<string, ExistingLink>> =>
@@ -186,29 +185,16 @@ export const readCouncilLinks = (
     (row) => [[row.id, row.student]],
   );
 
-const equivalencyRow = z.object({
-  course: integer,
-  entry_2018: integer,
-  entry_2023: integer,
-  id,
-});
+const equivalencyRow = z.object({ course: integer, id });
 
+// The course link of every equivalency row.
 export const readEquivalencyLinks = (
   request: DirectusRequest,
-): Promise<ReadonlyMap<number, EquivalencyLinks>> =>
+): Promise<ReadonlyMap<number, null | number>> =>
   indexed(
     request,
     { collection: 'course_equivalencies', schema: equivalencyRow },
-    (row) => [
-      [
-        row.id,
-        {
-          course: row.course,
-          entry_2018: row.entry_2018,
-          entry_2023: row.entry_2023,
-        },
-      ],
-    ],
+    (row) => [[row.id, row.course]],
   );
 
 // Keys created rows by the columns read back after a POST, so a plan is

@@ -10,6 +10,7 @@ import {
 import { resolveFields } from '../directus/extensions/directus-extension-data-operations/src/exports/field-map.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
+import { legacyImportColumns } from '../src/data-model/presentation/groups.js';
 import { academicYears } from '../src/specs/public.js';
 import {
   courseNames,
@@ -23,6 +24,7 @@ import {
   derivedLegacyAssets,
   edit,
   engineAssets,
+  generationIdOf,
   injecting,
   legacyAssets,
   parityDataset,
@@ -91,6 +93,20 @@ const setOnCourse =
       row['name'] === name ? { ...row, [field]: value } : row,
     );
 
+// The column set to the value on every course.
+const setEverywhere =
+  (column: string, value: unknown) =>
+  (rows: FakeItem[]): FakeItem[] =>
+    rows.map((row) => ({ ...row, [column]: value }));
+
+// An edited value of each kind of import column; names take a label.
+const importEdits: Readonly<Record<string, unknown>> = {
+  available: false,
+  credits: 99,
+};
+
+const coursesFile = 'courses.json';
+
 const fieldMap = z.array(z.tuple([z.string(), z.string()]));
 const referenceMaps = z
   .object({
@@ -134,10 +150,16 @@ const keysOf = async (filename: string, store?: FakeStore) => {
 const labelsOf = (map: ReadonlyArray<readonly [string, string]>) =>
   map.map(([, label]) => label);
 
-const numericKeys = (definition: (typeof exportDefinitions)[number]) =>
-  resolveFields(definition)
+// The keys a definition publishes as "1"/"0" over the converted fixture.
+const numericKeys = async (definition: (typeof exportDefinitions)[number]) => {
+  const { keyRows } = await readFileSources(
+    definition,
+    storeReader(await convertedStore()),
+  );
+  return resolveFields(definition, keyRows)
     .filter(({ rule }) => rule === 'numeric_boolean')
     .map(({ key }) => key);
+};
 
 // A count row of the year for every course of the store.
 const countsOf = (courses: readonly FakeItem[], year: number): FakeItem[] =>
@@ -148,7 +170,7 @@ const countsOf = (courses: readonly FakeItem[], year: number): FakeItem[] =>
     id: 900 + index,
   }));
 
-const isLink = (row: FakeItem, course: number, generation: string) =>
+const isLink = (row: FakeItem, course: number, generation: number) =>
   row['course'] === course && row['generation'] === generation;
 
 // Every role row but those converted from the assignment row.
@@ -167,7 +189,7 @@ const withoutCount =
 
 // A second link of the course and generation.
 const duplicateLink =
-  (course: number, generation: string) =>
+  (course: number, generation: number) =>
   (rows: FakeItem[]): FakeItem[] => [
     ...rows,
     ...rows
@@ -175,13 +197,15 @@ const duplicateLink =
       .map((row) => ({ ...row, id: 900 })),
   ];
 
-// The course's 2018 link pointed at its 2023 entry.
+// The course's legacy (2018) link pointed at its current (2023) entry.
 const crossedLink =
-  (course: number) =>
+  (course: number, ids: { current: number; legacy: number }) =>
   (rows: FakeItem[]): FakeItem[] => {
-    const current = rows.find((row) => isLink(row, course, '2023'));
+    const current = rows.find((row) => isLink(row, course, ids.current));
     return rows.map((row) =>
-      isLink(row, course, '2018') ? { ...row, entry: current?.['entry'] } : row,
+      isLink(row, course, ids.legacy)
+        ? { ...row, entry: current?.['entry'] }
+        : row,
     );
   };
 
@@ -223,7 +247,7 @@ describe('parity with the legacy serializer', () => {
       'staff.json',
       'students.json',
     ]);
-    await expect(keysOf('courses.json')).resolves.toEqual(
+    await expect(keysOf(coursesFile)).resolves.toEqual(
       labelsOf(referenceMaps.courseFields),
     );
     await expect(keysOf('rooms.json')).resolves.toEqual(
@@ -237,11 +261,11 @@ describe('parity with the legacy serializer', () => {
     );
   });
 
-  test('publishes "1"/"0" exactly where the reference does', () => {
+  test('publishes "1"/"0" exactly where the reference does', async () => {
     // numericBooleans holds active, channel_2018 and channel_2023.
-    const numeric = exportDefinitions.flatMap(numericKeys);
+    const numeric = await Promise.all(exportDefinitions.map(numericKeys));
 
-    expect(numeric).toEqual(['2023-channel', '2018-channel', 'active']);
+    expect(numeric.flat()).toEqual(['2023-channel', '2018-channel', 'active']);
   });
 
   test('keeps the ambiguous checkpoint fixture out of the conversion instead of guessing', async () => {
@@ -446,7 +470,7 @@ describe('year configuration', () => {
     expect(JSON.stringify(after)).not.toContain('2014/2015');
     expect(after.courses).toEqual(withoutKey(before, '2014/2015'));
     expect(after.rooms).toEqual(before.rooms);
-    await expect(keysOf('courses.json', store)).resolves.toHaveLength(
+    await expect(keysOf(coursesFile, store)).resolves.toHaveLength(
       labelsOf(referenceMaps.courseFields).length - 1,
     );
   });
@@ -501,6 +525,19 @@ describe('year configuration', () => {
       code: 'EXPORT_UNRESOLVED',
       message:
         'courses.json would publish the key tags twice: a key-source row names another key; nothing was prepared.',
+    });
+  });
+
+  test('refuses a published year labelled __proto__, a key a row object would drop', async () => {
+    const store = edit(await convertedStore(), 'academic_years', (rows) => [
+      ...rows,
+      { id: 98, label: '__proto__', published: true, sort: 20 },
+    ]);
+
+    await expect(refusalOf(() => projected(store))).resolves.toEqual({
+      code: 'EXPORT_UNRESOLVED',
+      message:
+        'courses.json cannot publish the key __proto__, which a key-source row names; nothing was prepared.',
     });
   });
 
@@ -579,31 +616,18 @@ describe('relation values resolved on read', () => {
     );
   });
 
-  test('publishes the 2018 name override before the linked entry name, with or without a link', async () => {
-    const override = 'name_2018_override';
-    const store = edit(
-      await convertedStore(),
-      'courses',
-      setOnCourse(courseNames.gamma, override, 'Gamma Legacy Label'),
-    );
-    edit(
-      store,
-      'courses',
-      setOnCourse(courseNames.beta, override, 'Beta Override Label'),
-    );
-    const assets = await projected(store);
+  test.each(legacyImportColumns)(
+    'publishes nothing from the read-only import column %s',
+    async (column) => {
+      const store = await convertedStore();
+      const before = await projected(store);
+      const [kind = ''] = column.split('_');
+      const value = importEdits[kind] ?? 'Edited Import Label';
+      edit(store, 'courses', setEverywhere(column, value));
 
-    expect(courseNamed(assets, courseNames.beta)).toMatchObject({
-      '2018-code': 'SYN18-002-MANUAL',
-      '2018-name': 'Beta Override Label',
-    });
-
-    const gamma = Object.keys(courseNamed(assets, courseNames.gamma) ?? {});
-
-    expect(gamma.filter((key) => key.startsWith('2018-'))).toEqual([
-      '2018-name',
-    ]);
-  });
+      expect(sameJson(await projected(store), before)).toBeTruthy();
+    },
+  );
 
   test.each([
     [
@@ -638,15 +662,20 @@ describe('relation values resolved on read', () => {
   });
 
   test('refuses two links of one generation and a link to an entry of the other generation', async () => {
-    const twice = edit(
-      await convertedStore(),
+    const twice = await convertedStore();
+    edit(
+      twice,
       'course_curricula',
-      duplicateLink(1, '2023'),
+      duplicateLink(1, generationIdOf(twice, '2023')),
     );
-    const crossed = edit(
-      await convertedStore(),
+    const crossed = await convertedStore();
+    edit(
+      crossed,
       'course_curricula',
-      crossedLink(7),
+      crossedLink(7, {
+        current: generationIdOf(crossed, '2023'),
+        legacy: generationIdOf(crossed, '2018'),
+      }),
     );
 
     await expect(refusalOf(() => projected(twice))).resolves.toMatchObject({
@@ -657,6 +686,203 @@ describe('relation values resolved on read', () => {
       message:
         'Course 7 links a 2018 curriculum entry of another generation or none; nothing was prepared.',
     });
+  });
+});
+
+// A generation 2028 added in Studio: two programs (CD sorts before ab),
+// an entry with a state in each, linked to course 1. Nothing is published
+// unless asked.
+const withGeneration = (
+  store: FakeStore,
+  published: { generation: boolean; programs: readonly [boolean, boolean] },
+): FakeStore => {
+  edit(store, 'curriculum_generations', (rows) => [
+    ...rows,
+    {
+      code: '2028',
+      has_curriculum: true,
+      id: 90,
+      label: 'Curriculum 2028',
+      published: published.generation,
+      sort: 4,
+    },
+  ]);
+  edit(store, 'study_programs', (rows) => [
+    ...rows,
+    {
+      code: 'ab',
+      generation: 90,
+      id: 91,
+      name: 'AB',
+      published: published.programs[0],
+      sort: 2,
+    },
+    {
+      code: 'cd',
+      generation: 90,
+      id: 92,
+      name: 'CD',
+      published: published.programs[1],
+      sort: 1,
+    },
+  ]);
+  edit(store, 'curriculum_entries', (rows) => [
+    ...rows,
+    {
+      channel: false,
+      code: 'SYN28-001',
+      generation: 90,
+      id: 950,
+      level: 1,
+      name: 'Synthetic 2028 Entry',
+      prerequisites: null,
+      semester: 2,
+    },
+  ]);
+  edit(store, 'curriculum_entry_program_states', (rows) => [
+    ...rows,
+    { entry: 950, id: 960, program: 91, state: 'A' },
+    { entry: 950, id: 961, program: 92, state: 'B' },
+  ]);
+  return edit(store, 'course_curricula', (rows) => [
+    ...rows,
+    {
+      available: true,
+      course: 1,
+      credits: 6,
+      entry: 950,
+      generation: 90,
+      id: 970,
+      sort: 3,
+    },
+  ]);
+};
+
+// A public row without the keys of generation 2028.
+const without2028 = (row: Readonly<Record<string, string>>) =>
+  Object.fromEntries(
+    Object.entries(row).filter(([key]) => !key.startsWith('2028-')),
+  );
+
+const generationKeys = [
+  '2028-name',
+  '2028-code',
+  '2028-level',
+  '2028-semester',
+  '2028-channel',
+  '2028-prerequisite',
+  '2028-state-cd',
+  '2028-state-ab',
+  '2028-credits',
+];
+
+describe('curriculum generations and study programs as rows', () => {
+  test('reproduces the 15 state keys in the declared per-generation layouts', async () => {
+    const keys = await keysOf(coursesFile);
+    const states = keys.filter((key) => key.includes('-state-'));
+    const block = (code: string) =>
+      keys.filter(
+        (key) => key.startsWith(`${code}-`) && !key.endsWith('-available'),
+      );
+
+    expect(states).toHaveLength(15);
+    expect(block('2023').slice(-9)).toEqual([
+      ...states.filter((key) => key.startsWith('2023-')),
+      '2023-credits',
+    ]);
+    expect(block('2018').slice(-8)).toEqual([
+      '2018-credits',
+      ...states.filter((key) => key.startsWith('2018-')),
+    ]);
+  });
+
+  test.each([
+    [true, true],
+    [false, false],
+  ] as const)(
+    'adds nothing while the generation is unpublished, programs published: %j',
+    async (...programs) => {
+      const before = await projected(await convertedStore());
+      const store = withGeneration(await convertedStore(), {
+        generation: false,
+        programs,
+      });
+
+      expect(sameJson(await projected(store), before)).toBeTruthy();
+    },
+  );
+
+  test('a published generation without published programs adds its keys but no state key', async () => {
+    const before = await projected(await convertedStore());
+    const store = withGeneration(await convertedStore(), {
+      generation: true,
+      programs: [false, false],
+    });
+    const keys = await keysOf(coursesFile, store);
+    const { courses } = await projected(store);
+
+    expect(keys.filter((key) => key.startsWith('2028-'))).toEqual([
+      '2028-available',
+      ...generationKeys.filter((key) => !key.includes('-state-')),
+    ]);
+    expect(courses.map(without2028)).toEqual(before.courses);
+  });
+
+  test('publishing the generation and both programs adds its availability key and block, states in program sort order, with no code change', async () => {
+    const baseline = await keysOf(coursesFile);
+    const store = withGeneration(await convertedStore(), {
+      generation: true,
+      programs: [true, true],
+    });
+    const keys = await keysOf(coursesFile, store);
+    const { courses } = await projected(store);
+    const [course] = courses;
+
+    expect(keys).toEqual([
+      ...baseline.slice(0, baseline.indexOf('2023-available')),
+      '2028-available',
+      ...baseline.slice(
+        baseline.indexOf('2023-available'),
+        baseline.indexOf('assistants') + 1,
+      ),
+      ...generationKeys,
+      ...baseline.slice(baseline.indexOf('assistants') + 1),
+    ]);
+    expect(course).toMatchObject({
+      '2028-available': 'TRUE',
+      '2028-channel': '0',
+      '2028-code': 'SYN28-001',
+      '2028-credits': '6',
+      '2028-level': '1',
+      '2028-name': 'Synthetic 2028 Entry',
+      '2028-semester': '2',
+      '2028-state-ab': 'A',
+      '2028-state-cd': 'B',
+    });
+    expect(course).not.toHaveProperty('2028-prerequisite');
+  });
+
+  test('unpublishing one program removes exactly its state key', async () => {
+    const both = await projected(
+      withGeneration(await convertedStore(), {
+        generation: true,
+        programs: [true, true],
+      }),
+    );
+    const one = await projected(
+      withGeneration(await convertedStore(), {
+        generation: true,
+        programs: [false, true],
+      }),
+    );
+    const [first, ...rest] = both.courses;
+
+    expect(one.courses).toEqual([
+      Object.fromEntries(
+        Object.entries(first ?? {}).filter(([key]) => key !== '2028-state-ab'),
+      ),
+      ...rest,
+    ]);
   });
 });
 

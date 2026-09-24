@@ -18,7 +18,8 @@ import {
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { deriveCourses } from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
-import { findModelRelation } from '../src/data-model/relations.js';
+import { findModelCollection } from '../src/data-model/collections.js';
+import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
 import {
   courseNames,
   type SyntheticDataset,
@@ -224,15 +225,27 @@ export const edit = (
   return store;
 };
 
+// The id of the generation row of a code.
+export const generationIdOf = (store: FakeStore, code: string): number => {
+  const id = rowsOf(store, 'curriculum_generations').find(
+    (row) => row['code'] === code,
+  )?.id;
+  if (typeof id !== 'number') {
+    throw new TypeError(`The store holds no generation ${code}`);
+  }
+  return id;
+};
+
 // What an editor does to publish an unmatched label as before: a
 // curriculum entry of the generation carrying the label, linked to the
 // course with the course's imported credits and availability.
 export const withLinkedLabel = (
   store: FakeStore,
   course: number,
-  generation: '2018' | '2023',
+  code: '2018' | '2023',
 ): FakeStore => {
   const row = rowsOf(store, 'courses').find(({ id }) => id === course);
+  const generation = generationIdOf(store, code);
   edit(store, 'curriculum_entries', (rows) => [
     ...rows,
     { generation, id: 900, name: unmatchedLabel },
@@ -240,13 +253,13 @@ export const withLinkedLabel = (
   return edit(store, 'course_curricula', (rows) => [
     ...rows,
     {
-      available: row?.[`available_${generation}`] ?? null,
+      available: row?.[`available_${code}`] ?? null,
       course,
-      credits: row?.[`credits_${generation}`] ?? null,
+      credits: row?.[`credits_${code}`] ?? null,
       entry: 900,
       generation,
       id: 900,
-      sort: generation === '2023' ? 1 : 2,
+      sort: code === '2023' ? 1 : 2,
     },
   ]);
 };
@@ -307,8 +320,29 @@ const matches = (place: Place, row: FakeItem, filter: unknown): boolean =>
     return found !== undefined && matches(next, found, test);
   });
 
+// The rows an O2M or M2M alias of the row lists (for an M2M, its junction
+// rows), in id order, or null when `field` is no alias.
+const aliased = (place: Place, row: FakeItem, field: string) => {
+  const model = findModelCollection(place.collection);
+  const declaration =
+    model === undefined
+      ? undefined
+      : aliasesFor(model.collection).find(({ alias }) => alias.field === field);
+  if (declaration === undefined) {
+    return null;
+  }
+  const { collection, field: parent } = declaration.relation;
+  return {
+    place: { collection, store: place.store },
+    rows: rowsOf(place.store, collection)
+      .filter((candidate) => candidate[parent] === row.id)
+      .toSorted((left, right) => Number(left.id) - Number(right.id)),
+  };
+};
+
 // The explicit fields of a row the way Directus answers them: `a.b`
-// follows the M2O relation a and answers { a: { b } }, null without a row.
+// follows the M2O relation a and answers { a: { b } }, null without a row;
+// through an O2M or M2M alias a it answers { a: [{ b }, ...] }.
 const pick = (
   place: Place,
   row: FakeItem,
@@ -325,6 +359,11 @@ const pick = (
     }
   }
   for (const [head, rest] of nested) {
+    const listed = aliased(place, row, head);
+    if (listed !== null) {
+      output[head] = listed.rows.map((item) => pick(listed.place, item, rest));
+      continue;
+    }
     const { found, place: next } = linked(place, row, head);
     output[head] = found === undefined ? null : pick(next, found, rest);
   }

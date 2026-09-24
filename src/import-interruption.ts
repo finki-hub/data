@@ -1,7 +1,6 @@
-import {
-  type WorkbookConversion,
-  YearSeedError,
-} from './migrations/workbook-adapter.js';
+import type { WorkbookConversion } from './migrations/workbook-adapter.js';
+
+import { YearSeedError } from './migrations/workbook-seeds.js';
 
 const trailingPeriod = /\.$/u;
 

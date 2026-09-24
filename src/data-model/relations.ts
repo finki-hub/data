@@ -1,8 +1,10 @@
 import type {
   CompositeKey,
+  ModelCollection,
   ModelCollectionKey,
   ModelRelation,
   ModelRelationAlias,
+  OnDelete,
 } from '../schema.js';
 
 import { dataModelCollections } from './collections.js';
@@ -11,13 +13,13 @@ export type RelationPayload = {
   readonly collection: string;
   readonly field: string;
   readonly meta: {
-    readonly junction_field: null;
+    readonly junction_field: null | string;
     readonly one_deselect_action: 'delete' | 'nullify';
     readonly one_field: null | string;
     readonly sort_field: null | string;
   };
   readonly related_collection: string;
-  readonly schema: { readonly on_delete: 'CASCADE' | 'SET NULL' };
+  readonly schema: { readonly on_delete: OnDelete };
 };
 
 // The body of `PATCH /relations/:collection/:field`. Directus drops and
@@ -29,17 +31,39 @@ export type RelationAlignmentPayload = {
   readonly collection: string;
   readonly field: string;
   readonly meta: {
+    readonly junction_field?: string;
     readonly one_deselect_action: 'delete' | 'nullify';
     readonly one_field?: string;
     readonly sort_field: null | string;
   };
   readonly related_collection: string;
-  readonly schema: { readonly on_delete: 'CASCADE' | 'SET NULL' };
+  readonly schema: { readonly on_delete: OnDelete };
 };
 
 export type AliasDeclaration = {
   readonly alias: ModelRelationAlias;
   readonly relation: ModelRelation;
+};
+
+// The other relation of a junction: the one this field's alias lists
+// through the collection, or the one whose alias lists this field's rows.
+const junctionOf = (
+  collection: ModelCollection,
+  field: string,
+): null | string => {
+  for (const candidate of collection.fields) {
+    if (candidate.kind !== 'm2o') {
+      continue;
+    }
+    const junction = candidate.alias?.junction;
+    if (candidate.field === field && junction !== undefined) {
+      return junction;
+    }
+    if (junction === field) {
+      return candidate.field;
+    }
+  }
+  return null;
 };
 
 // Every M2O relation of the model, derived from the collection definitions.
@@ -52,6 +76,7 @@ export const modelRelations: readonly ModelRelation[] =
               alias: field.alias ?? null,
               collection: collection.collection,
               field: field.field,
+              junction: junctionOf(collection, field.field),
               nullable: field.nullable,
               onDelete: field.onDelete,
               related: field.related,
@@ -68,7 +93,7 @@ export const toRelationPayload = (
   collection: relation.collection,
   field: relation.field,
   meta: {
-    junction_field: null,
+    junction_field: relation.junction,
     one_deselect_action: relation.nullable ? 'nullify' : 'delete',
     one_field: relation.alias?.field ?? null,
     sort_field: relation.sortField,
@@ -86,6 +111,9 @@ export const toRelationAlignmentPayload = (
     collection,
     field,
     meta: {
+      ...(meta.junction_field !== null && {
+        junction_field: meta.junction_field,
+      }),
       one_deselect_action: meta.one_deselect_action,
       ...(meta.one_field !== null && { one_field: meta.one_field }),
       sort_field: meta.sort_field,
@@ -128,6 +156,24 @@ export const compositeKeys: readonly CompositeKey[] = [
     columns: ['course', 'generation'],
     kind: 'unique',
     name: 'course_curricula_course_generation_unique',
+  },
+  {
+    collection: 'study_programs',
+    columns: ['generation', 'code'],
+    kind: 'unique',
+    name: 'study_programs_generation_code_unique',
+  },
+  {
+    collection: 'curriculum_entry_program_states',
+    columns: ['entry', 'program'],
+    kind: 'unique',
+    name: 'curriculum_entry_program_states_entry_program_unique',
+  },
+  {
+    collection: 'course_equivalency_members',
+    columns: ['equivalency', 'generation'],
+    kind: 'unique',
+    name: 'course_equivalency_members_equivalency_generation_unique',
   },
   {
     collection: 'moodle_history_memberships',

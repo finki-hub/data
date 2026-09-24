@@ -1,4 +1,6 @@
 import { writeGuardStatements } from './coordination/write-guards.js';
+import { curriculumGuardStatements } from './curriculum-guards.js';
+import { keyGuardStatements } from './key-guards.js';
 import {
   sourceInvalidationSql,
   splitSqlStatements,
@@ -11,53 +13,20 @@ export type Migration = {
 
 export const migrationNamePattern = /^[a-z][a-z0-9-]{0,63}$/u;
 
-const generationGuardFunction = `
-CREATE OR REPLACE FUNCTION "finki_hub_course_curricula_generation_guard"() RETURNS trigger
-LANGUAGE plpgsql AS $$
-DECLARE
-  entry_generation text;
-BEGIN
-  SELECT "generation" INTO entry_generation FROM "curriculum_entries" WHERE "id" = NEW."entry";
-  IF entry_generation IS NULL THEN
-    RAISE EXCEPTION 'course_curricula.entry % does not exist', NEW."entry"
-      USING ERRCODE = 'foreign_key_violation', TABLE = 'course_curricula',
-        DETAIL = 'Key (entry)=(' || NEW."entry" || ') is not present in table "curriculum_entries".';
-  END IF;
-  IF entry_generation IS DISTINCT FROM NEW."generation" THEN
-    RAISE EXCEPTION 'course_curricula.generation % does not match curriculum entry generation %', NEW."generation", entry_generation
-      USING ERRCODE = 'foreign_key_violation', TABLE = 'course_curricula',
-        DETAIL = 'Key (entry)=(' || NEW."entry" || ') belongs to generation ' || entry_generation || ', not ' || COALESCE(NEW."generation", 'NULL') || '.';
-  END IF;
-  RETURN NEW;
-END
-$$`;
-
-const entryGenerationGuardFunction = `
-CREATE OR REPLACE FUNCTION "finki_hub_curriculum_entries_generation_guard"() RETURNS trigger
-LANGUAGE plpgsql AS $$
-DECLARE
-  linked_courses integer;
-BEGIN
-  SELECT COUNT(*) INTO linked_courses FROM "course_curricula"
-    WHERE "entry" = NEW."id" AND "generation" IS DISTINCT FROM NEW."generation";
-  IF linked_courses > 0 THEN
-    RAISE EXCEPTION 'curriculum_entries.generation cannot change while % course links carry generation %', linked_courses, OLD."generation"
-      USING ERRCODE = 'foreign_key_violation', TABLE = 'curriculum_entries',
-        DETAIL = 'Key (generation)=(' || COALESCE(NEW."generation", 'NULL') || ') is still referenced by course_curricula rows of generation ' || COALESCE(OLD."generation", 'NULL') || '.';
-  END IF;
-  RETURN NEW;
-END
-$$`;
-
-// Composite domain keys, join indexes, the generation guards and the write
-// guards of the derived, candidate and staging tables (from the
-// collection-role registry) that the Directus schema API cannot express.
+// Composite domain keys, join indexes, the curriculum generation guards
+// (curriculum-guards.ts), the key guards of published key rows
+// (key-guards.ts) and the write guards of the derived, candidate and
+// staging tables (from the collection-role registry) that the Directus
+// schema API cannot express.
 // Every statement is idempotent and is executed on its own inside one
 // transaction; statements carry no bindings.
 export const schemaConstraints: Migration = {
   name: 'schema-constraints',
   statements: [
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_curricula_course_generation_unique" ON "course_curricula" ("course", "generation")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "study_programs_generation_code_unique" ON "study_programs" ("generation", "code")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "curriculum_entry_program_states_entry_program_unique" ON "curriculum_entry_program_states" ("entry", "program")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "course_equivalency_members_equivalency_generation_unique" ON "course_equivalency_members" ("equivalency", "generation")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_history_memberships_moodle_user_entry_unique" ON "moodle_history_memberships" ("moodle_user", "entry")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_course_mappings_entry_course_academic_year_unique" ON "moodle_course_mappings" ("entry", "course", "academic_year")',
     'CREATE INDEX IF NOT EXISTS "moodle_course_mappings_course_academic_year_index" ON "moodle_course_mappings" ("course", "academic_year")',
@@ -71,10 +40,8 @@ BEGIN
   END IF;
 END
 $$`,
-    generationGuardFunction,
-    'CREATE OR REPLACE TRIGGER "course_curricula_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_curricula" FOR EACH ROW EXECUTE FUNCTION "finki_hub_course_curricula_generation_guard"()',
-    entryGenerationGuardFunction,
-    'CREATE OR REPLACE TRIGGER "curriculum_entries_generation_guard" BEFORE UPDATE OF "generation" ON "curriculum_entries" FOR EACH ROW EXECUTE FUNCTION "finki_hub_curriculum_entries_generation_guard"()',
+    ...curriculumGuardStatements(),
+    ...keyGuardStatements(),
     ...writeGuardStatements(),
   ],
 };

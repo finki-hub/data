@@ -3,10 +3,12 @@ import { z } from 'zod';
 
 import { guardedDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import { writeGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/coordination/write-guards.js';
+import { curriculumGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/curriculum-guards.js';
 import {
   executeMigration,
   isAdminRequest,
 } from '../directus/extensions/directus-extension-data-operations/src/index.js';
+import { keyGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/key-guards.js';
 import {
   findMigration,
   migrations,
@@ -202,13 +204,19 @@ describe('schema constraints', () => {
 
     expect(count).toBe(schemaConstraints.statements.length);
     expect(executed).toEqual([...schemaConstraints.statements]);
-    // Twelve keys, indexes and generation guards, then the write guards
-    // of the collection-role registry: one shared function and a statement
-    // trigger per derived, candidate and staging table.
-    expect(count).toBe(12 + writeGuardStatements().length);
-    expect(executed.slice(12)).toEqual([...writeGuardStatements()]);
 
-    const guardTriggers = executed.slice(13);
+    // Eleven keys and indexes, a function and a trigger per curriculum
+    // generation guard and per key guard, then the write guards of the
+    // collection-role registry: one shared function and a statement
+    // trigger per derived, candidate and staging table.
+    const rowGuards = [...curriculumGuardStatements(), ...keyGuardStatements()];
+    const fixed = 11 + rowGuards.length;
+
+    expect(count).toBe(fixed + writeGuardStatements().length);
+    expect(executed.slice(11, fixed)).toEqual(rowGuards);
+    expect(executed.slice(fixed)).toEqual([...writeGuardStatements()]);
+
+    const guardTriggers = executed.slice(fixed + 1);
 
     expect(guardTriggers).toHaveLength(guardedDeclarations.length);
 
@@ -218,7 +226,7 @@ describe('schema constraints', () => {
       );
     }
 
-    expect(executed[12]).toContain(
+    expect(executed[fixed]).toContain(
       "pg_trigger_depth() < 2 AND current_setting(TG_ARGV[0], true) IS DISTINCT FROM 'on'",
     );
   });

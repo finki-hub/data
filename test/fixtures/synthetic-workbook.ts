@@ -10,6 +10,10 @@ import type {
 } from '../../src/schema.js';
 import type { WorkbookContent } from '../../src/workbook.js';
 
+import {
+  specProgramHeaders,
+  workbookPrograms,
+} from '../../src/migrations/generations.js';
 import { collectionSpecs } from '../../src/model.js';
 import { academicYears } from '../../src/specs/public.js';
 import {
@@ -345,13 +349,16 @@ export const workbookData = (
 };
 
 // What the import reads from the workbook written from the dataset: its
-// rows and the academic years its listener sheet names.
+// rows, the academic years its listener sheet names and the study
+// programs its curriculum sheets head (the spec's headers, which the
+// written sheets carry).
 export const workbookContent = (
   dataset: SyntheticDataset,
   years: readonly string[] = academicYears,
 ): WorkbookContent => ({
   academicYears: headerYears(dataset.course_enrollment_patterns, years),
   data: workbookData(dataset, years),
+  studyPrograms: workbookPrograms(specProgramHeaders),
 });
 
 // The rows of parsed workbook data with the ids a fresh table hands out

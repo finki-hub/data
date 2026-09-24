@@ -7,10 +7,11 @@ import {
 } from '../src/migrations/assignments.js';
 import { convertCouncilLinks } from '../src/migrations/council.js';
 import { entryKey } from '../src/migrations/curricula.js';
+import { convertEquivalencyLinks } from '../src/migrations/equivalencies.js';
 import {
-  convertEquivalencyLinks,
-  type EquivalencyLinks,
-} from '../src/migrations/equivalencies.js';
+  convertEquivalencyMembers,
+  memberKey,
+} from '../src/migrations/equivalency-members.js';
 import { indexLabels } from '../src/migrations/labels.js';
 import { staffListSeparator } from '../src/migrations/preflight-staff.js';
 import { findField } from './data-model-test-helpers.js';
@@ -22,6 +23,7 @@ import {
   codes,
   count,
   entryIdsOf,
+  generationIds,
   prepare,
   type Prepared,
   uniqueDataset,
@@ -51,7 +53,35 @@ const convertAssignments = (
 const roleRowsOf = (prepared: Prepared) =>
   convertAssignments(prepared).writes.map(({ record }) => record);
 
-const emptyLinks = (): Map<number, EquivalencyLinks> => new Map();
+const emptyLinks = (): Map<number, null | number> => new Map();
+
+// The member of an equivalency row and generation code a conversion
+// plans.
+const memberIn =
+  (members: ReturnType<typeof convertEquivalencyMembers>) =>
+  (id: number, generation: string) =>
+    members.writes
+      .map(({ record }) => record)
+      .find(
+        (member) =>
+          member.equivalency === id &&
+          member.generation === generationIds.get(generation),
+      );
+
+// The equivalency members of a prepared dataset, with synthetic ids.
+const membersOf = (
+  prepared: Prepared,
+  existing: Parameters<
+    typeof convertEquivalencyMembers
+  >[0]['existing'] = new Map(),
+) =>
+  convertEquivalencyMembers({
+    candidates: prepared.report.candidates.equivalencies,
+    entryIds: entryIdsOf(prepared.checkpoint),
+    existing,
+    generationIds,
+    rows: prepared.checkpoint.course_equivalencies,
+  });
 
 describe('teaching assignments: review rows', () => {
   test('keeps unmatched text as one review row per role with the literal label and never splits on spaces', async () => {
@@ -434,39 +464,53 @@ describe('student council links', () => {
 });
 
 describe('equivalency links', () => {
-  test('sets the course and the entries of represented generations when unique and retains every label', async () => {
+  test('sets the course when unique and turns every filled label into a member with the entry decisions of the preflight', async () => {
     const prepared = await prepare(uniqueDataset());
     const entryIds = entryIdsOf(prepared.checkpoint);
 
     const conversion = convertEquivalencyLinks({
       candidates: prepared.report.candidates.equivalencies,
       current: emptyLinks(),
-      entryIds,
     });
-    const patches = conversion.writes.map(({ record }) => record);
-    const patchOf = (id: number) => patches.find((patch) => patch.id === id);
+    const members = membersOf(prepared);
+    const memberOf = memberIn(members);
 
-    expect(patches.map(({ id }) => id)).toEqual([1, 3, 4, 5, 6, 7, 8, 9]);
-    expect(patchOf(1)).toEqual({
-      id: 1,
-      course: 1,
-      entry_2023: entryIds.get(entryKey('curriculum_2023', 3)),
-      entry_2018: entryIds.get(entryKey('curriculum_2018', 1)),
-    });
-    expect(patchOf(5)).toEqual({
-      id: 5,
-      course: 3,
-      entry_2023: entryIds.get(entryKey('curriculum_2023', 5)),
-    });
-    expect(patchOf(9)).toEqual({
-      id: 9,
-      entry_2018: entryIds.get(entryKey('curriculum_2018', 8)),
-    });
-    expect(patchOf(10)).toBeUndefined();
+    expect(conversion.writes.map(({ record }) => record.id)).toEqual([
+      1, 4, 5, 6, 7, 8,
+    ]);
+    expect(conversion.writes[0]?.record).toEqual({ course: 1, id: 1 });
     expect(codes(conversion.findings)).toEqual([
       'orphan_equivalency',
       'orphan_equivalency',
       'orphan_equivalency',
+    ]);
+    expect(memberOf(1, '2023')).toMatchObject({
+      entry: entryIds.get(entryKey('curriculum_2023', 3)),
+      label: 'Alpha Course',
+      sort: 1,
+    });
+    expect(memberOf(1, '2018')).toMatchObject({
+      entry: entryIds.get(entryKey('curriculum_2018', 1)),
+      label: 'Alpha Legacy',
+      sort: 2,
+    });
+    expect(memberOf(1, '2013')).toMatchObject({
+      entry: null,
+      label: 'Alpha Ancient',
+      sort: 3,
+    });
+    expect(memberOf(5, '2023')?.entry).toBe(
+      entryIds.get(entryKey('curriculum_2023', 5)),
+    );
+    expect(memberOf(9, '2018')?.entry).toBe(
+      entryIds.get(entryKey('curriculum_2018', 8)),
+    );
+    expect(
+      members.writes
+        .filter(({ record }) => record.equivalency === 10)
+        .map(({ record }) => [record.label, record.entry]),
+    ).toEqual([['Ancient Only', null]]);
+    expect(codes(members.findings)).toEqual([
       'unmatched_equivalency_entry',
       'unmatched_equivalency_entry',
     ]);
@@ -475,60 +519,58 @@ describe('equivalency links', () => {
     ).toEqual([
       expect.objectContaining({ relation: 'course', status: 'unresolved' }),
     ]);
-    expect(conversion.writes[0]?.mappings).toEqual([
-      expect.objectContaining({
-        relation: 'course',
-        sourceId: 1,
-        status: 'pending',
-        targetCollection: 'courses',
-        targetId: 1,
-      }),
+    expect(members.settled).toContainEqual(
       expect.objectContaining({
         relation: 'entry_2023',
         sourceId: 1,
-        status: 'pending',
+        status: 'existing',
         targetCollection: 'curriculum_entries',
+        targetId: entryIds.get(entryKey('curriculum_2023', 3)),
       }),
+    );
+    expect(members.writes[0]?.mappings).toEqual([
       expect.objectContaining({
-        relation: 'entry_2018',
+        relation: 'member_2023',
         sourceId: 1,
         status: 'pending',
-        targetCollection: 'curriculum_entries',
+        targetCollection: 'course_equivalency_members',
       }),
     ]);
-    expect(JSON.stringify(patches)).not.toContain('Ancient');
   });
 
   test('leaves an ambiguous entry label unlinked, skips links already set and keeps manual links', async () => {
     const prepared = await prepare(makeSyntheticDataset());
     const entryIds = entryIdsOf(prepared.checkpoint);
+    const current2023 = generationIds.get('2023') ?? 0;
 
     const conversion = convertEquivalencyLinks({
       candidates: prepared.report.candidates.equivalencies,
-      current: new Map([
-        [4, { course: 2, entry_2018: null, entry_2023: 9_999 }],
-      ]),
-      entryIds,
+      current: new Map([[4, 2]]),
     });
-    const patches = conversion.writes.map(({ record }) => record);
-    const patchOf = (id: number) => patches.find((patch) => patch.id === id);
-    const ambiguous = conversion.findings.filter(
+    const members = membersOf(
+      prepared,
+      new Map([[memberKey(4, current2023), { entry: 9_999, id: 44 }]]),
+    );
+    const ambiguous = members.findings.filter(
       ({ code }) => code === 'ambiguous_equivalency_entry',
     );
+    const memberOf = memberIn(members);
 
-    expect(patchOf(1)).toEqual({
-      id: 1,
-      course: 1,
-      entry_2023: entryIds.get(entryKey('curriculum_2023', 3)),
+    expect(memberOf(1, '2023')?.entry).toBe(
+      entryIds.get(entryKey('curriculum_2023', 3)),
+    );
+    expect(memberOf(1, '2018')).toMatchObject({
+      entry: null,
+      label: 'Alpha Legacy',
     });
     expect(ambiguous.map(({ ids, label }) => [ids, label])).toEqual([
       [[1], 'Alpha Legacy'],
       [[3], 'Alpha Course (2023)'],
     ]);
-    expect(patchOf(4)).toEqual({
-      id: 4,
-      entry_2018: entryIds.get(entryKey('curriculum_2018', 4)),
-    });
+    expect(memberOf(4, '2018')?.entry).toBe(
+      entryIds.get(entryKey('curriculum_2018', 4)),
+    );
+    expect(memberOf(4, '2023')).toBeUndefined();
     expect(conversion.settled).toContainEqual(
       expect.objectContaining({
         relation: 'course',
@@ -537,18 +579,21 @@ describe('equivalency links', () => {
         targetId: 2,
       }),
     );
-    expect(conversion.settled).toContainEqual(
+    expect(members.settled).toContainEqual(
       expect.objectContaining({
-        relation: 'entry_2023',
+        relation: 'member_2023',
         sourceId: 4,
         status: 'existing',
-        targetId: 9_999,
+        targetId: 44,
       }),
     );
     expect(
-      conversion.findings.filter(({ code }) => code === 'manual_link_retained'),
+      members.findings.filter(({ code }) => code === 'manual_link_retained'),
     ).toEqual([
-      expect.objectContaining({ collection: 'course_equivalencies', ids: [4] }),
+      expect.objectContaining({
+        collection: 'course_equivalency_members',
+        ids: [44],
+      }),
     ]);
   });
 });

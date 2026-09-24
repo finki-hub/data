@@ -12,8 +12,22 @@ import {
 } from './assignments.js';
 import { convertCouncilLinks } from './council.js';
 import { convertCourseCurricula } from './course-links.js';
-import { convertCurriculumEntries } from './curricula.js';
+import { convertCurriculumEntries, convertProgramStates } from './curricula.js';
+import {
+  readGenerationIds,
+  readMembers,
+  readProgramIds,
+  readStateIds,
+} from './curriculum-reads.js';
 import { convertEquivalencyLinks } from './equivalencies.js';
+import { convertEquivalencyMembers } from './equivalency-members.js';
+import {
+  convertGenerations,
+  convertPrograms,
+  type ProgramSeed,
+  specProgramHeaders,
+  workbookPrograms,
+} from './generations.js';
 import { indexLabels } from './labels.js';
 import { convertAcademicYears, convertEnrollmentRules } from './rules.js';
 import {
@@ -29,6 +43,9 @@ import {
 type StepInput = {
   readonly inventory: Inventory;
   readonly options: ConverterOptions;
+  // The study programs to seed: the workbook's for the one-time import,
+  // the checkpoint spec's for a populated project.
+  readonly programs: readonly ProgramSeed[];
   readonly report: MigrationReport;
 };
 
@@ -37,29 +54,66 @@ type Run = (
   input: StepInput,
 ) => Promise<readonly SourceMapEntry[]>;
 
-// Every curriculum row becomes an entry, then every course links its
-// unique current and legacy entries; the entry ids are read back from the
-// provenance the first half wrote.
-const curricula: Run = async (context, { inventory, options, report }) => {
+// The workbook's generations and study programs (reused when an import
+// already seeded them), then every curriculum row as an entry with its
+// program states, then every course's links to its unique current and
+// legacy entries; ids are read back from what the earlier writes created.
+const curricula: Run = async (
+  context,
+  { inventory, options, programs, report },
+) => {
+  const { checkpoint } = inventory;
+  const generationRows = await applyCreates(context, options, {
+    collection: 'curriculum_generations',
+    conversion: convertGenerations(await readGenerationIds(context.request)),
+    key: ['code'],
+  });
+  const generations = await readGenerationIds(context.request);
+  const programRows = await applyCreates(context, options, {
+    collection: 'study_programs',
+    conversion: convertPrograms(programs, {
+      generations,
+      programs: await readProgramIds(context.request),
+    }),
+    key: ['generation', 'code'],
+  });
   const entries = await applyCreates(context, options, {
     collection: 'curriculum_entries',
-    conversion: convertCurriculumEntries(
-      inventory.checkpoint,
-      await readEntryIds(context.request),
-    ),
+    conversion: convertCurriculumEntries(checkpoint, {
+      entries: await readEntryIds(context.request),
+      generations,
+    }),
     key: ['source_collection', 'source_id'],
+  });
+  const entryIds = await readEntryIds(context.request);
+  const states = await applyCreates(context, options, {
+    collection: 'curriculum_entry_program_states',
+    conversion: convertProgramStates(checkpoint, {
+      entries: entryIds,
+      generations,
+      programs: await readProgramIds(context.request),
+      states: await readStateIds(context.request),
+    }),
+    key: ['entry', 'program'],
   });
   const links = await applyCreates(context, options, {
     collection: 'course_curricula',
     conversion: convertCourseCurricula({
       candidates: report.candidates.courses,
-      courses: inventory.checkpoint.courses,
-      entryIds: await readEntryIds(context.request),
+      courses: checkpoint.courses,
+      entryIds,
       existing: await readCourseLinks(context.request),
+      generationIds: generations,
     }),
     key: ['course', 'generation'],
   });
-  return [...entries.mappings, ...links.mappings];
+  return [
+    ...generationRows.mappings,
+    ...programRows.mappings,
+    ...entries.mappings,
+    ...states.mappings,
+    ...links.mappings,
+  ];
 };
 
 // The academic years of the preflight (the workbook's for the one-time
@@ -134,16 +188,28 @@ const council: Run = async (context, { options, report }) => {
   return applied.mappings;
 };
 
-const equivalencies: Run = async (context, { options, report }) => {
-  const applied = await applyUpdates(context, options, {
+// The course link of every equivalency row, then its members: one per
+// filled label column, linked to the entry its label names uniquely.
+const equivalencies: Run = async (context, { inventory, options, report }) => {
+  const links = await applyUpdates(context, options, {
     collection: 'course_equivalencies',
     conversion: convertEquivalencyLinks({
       candidates: report.candidates.equivalencies,
       current: await readEquivalencyLinks(context.request),
-      entryIds: await readEntryIds(context.request),
     }),
   });
-  return applied.mappings;
+  const members = await applyCreates(context, options, {
+    collection: 'course_equivalency_members',
+    conversion: convertEquivalencyMembers({
+      candidates: report.candidates.equivalencies,
+      entryIds: await readEntryIds(context.request),
+      existing: await readMembers(context.request),
+      generationIds: await readGenerationIds(context.request),
+      rows: inventory.checkpoint.course_equivalencies,
+    }),
+    key: ['equivalency', 'generation'],
+  });
+  return [...links.mappings, ...members.mappings];
 };
 
 const runs: ReadonlyArray<readonly [string, Run]> = [
@@ -159,12 +225,17 @@ const runs: ReadonlyArray<readonly [string, Run]> = [
 // candidate decisions of the live preflight, writes what is missing in
 // bounded batches and returns its id map; a completed step is skipped by
 // the ledger and an interrupted one resumes without a duplicate.
+// The study programs seeded are the workbook's for the one-time import
+// and the checkpoint spec's, by default, for a populated project.
 export const converterSteps = (
   inventory: Inventory,
   report: MigrationReport,
-  options: ConverterOptions,
+  {
+    programs = workbookPrograms(specProgramHeaders),
+    ...options
+  }: ConverterOptions & { readonly programs?: readonly ProgramSeed[] },
 ): readonly MigrationStep[] =>
   runs.map(([step, run]) => ({
-    run: (context) => run(context, { inventory, options, report }),
+    run: (context) => run(context, { inventory, options, programs, report }),
     step,
   }));

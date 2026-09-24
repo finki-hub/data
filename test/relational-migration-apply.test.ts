@@ -80,6 +80,29 @@ const entriesOf = (
 const ledgerMaps = (store: FakeStore): readonly SourceMapEntry[] =>
   stepNames.flatMap((step) => ledgerMap(store, step));
 
+// Each equivalency row's members as `<generation code>:<linked>`, in row
+// order: today's link decisions, 2013 never linked.
+const memberLinks = (store: FakeStore) => {
+  const generationCodes = new Map(
+    rowsOf(store, 'curriculum_generations').map((row) => [row.id, row['code']]),
+  );
+  const label = (row: FakeItem) =>
+    `${String(generationCodes.get(Number(row['generation'])))}:${String(row['entry'] !== null)}`;
+  return Map.groupBy(
+    rowsOf(store, 'course_equivalency_members'),
+    (row) => row['equivalency'],
+  )
+    .entries()
+    .map(([equivalency, rows]) => [equivalency, rows.map(label)])
+    .toArray();
+};
+
+const [linked2023, linked2018, ancient] = [
+  '2023:true',
+  '2018:true',
+  '2013:false',
+];
+
 const collator = new Intl.Collator('en');
 
 const mutatedCollections = (
@@ -136,9 +159,13 @@ describe('converter steps under the ledger', () => {
       academic_years: 15,
       course_curricula: 12,
       course_enrollment_rules: 120,
-      course_equivalencies: 8,
+      course_equivalencies: 6,
+      course_equivalency_members: 21,
       curriculum_entries: 18,
+      curriculum_entry_program_states: 33,
+      curriculum_generations: 3,
       student_council: 3,
+      study_programs: 15,
       teaching_assignments: 10,
     });
 
@@ -149,9 +176,13 @@ describe('converter steps under the ledger', () => {
       'course_curricula',
       'course_enrollment_rules',
       'course_equivalencies',
+      'course_equivalency_members',
       'curriculum_entries',
+      'curriculum_entry_program_states',
+      'curriculum_generations',
       'migration_ledger',
       'student_council',
+      'study_programs',
       'teaching_assignments',
     ]);
 
@@ -173,21 +204,21 @@ describe('converter steps under the ledger', () => {
       rowsOf(prepared.store, 'student_council').map((row) => row['student']),
     ).toEqual([1, null, 3, 4]);
     expect(
-      rowsOf(prepared.store, 'course_equivalencies').map((row) => [
-        row['course'],
-        row['entry_2023'] !== null,
-        row['entry_2018'] !== null,
-      ]),
-    ).toEqual([
-      [1, true, true],
-      [null, true, false],
-      [2, true, true],
-      [3, true, false],
-      [5, true, true],
-      [6, true, true],
-      [7, true, true],
-      [null, false, true],
-      [null, false, false],
+      rowsOf(prepared.store, 'course_equivalencies').map(
+        (row) => row['course'],
+      ),
+    ).toEqual([1, null, 2, 3, 5, 6, 7, null, null]);
+
+    expect(memberLinks(prepared.store)).toEqual([
+      [1, [linked2023, linked2018, ancient]],
+      [3, [linked2023, '2018:false']],
+      [4, [linked2023, linked2018, ancient]],
+      [5, [linked2023, ancient]],
+      [6, [linked2023, linked2018]],
+      [7, [linked2023, linked2018]],
+      [8, [linked2023, linked2018, ancient]],
+      [9, ['2023:false', linked2018, ancient]],
+      [10, [ancient]],
     ]);
     expect(codes(sink.findings)).toContain('unresolved_staff_text');
   });
@@ -265,7 +296,21 @@ describe('converter steps resume', () => {
         row['status'],
       ]),
     ).toEqual([['curricula', 'failed']]);
-    expect(ledgerMap(prepared.store, 'curricula')).toHaveLength(5);
+    // The generations and programs, then the first batch of entries.
+    expect(
+      Object.fromEntries(
+        Map.groupBy(
+          ledgerMap(prepared.store, 'curricula'),
+          ({ targetCollection }) => targetCollection,
+        )
+          .entries()
+          .map(([collection, rows]) => [collection, rows.length]),
+      ),
+    ).toEqual({
+      curriculum_entries: 5,
+      curriculum_generations: 3,
+      study_programs: 15,
+    });
 
     const resumed = await runSteps(prepared, {
       batchSize: 5,

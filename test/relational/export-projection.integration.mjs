@@ -218,11 +218,11 @@ const blocksUnresolvedCurriculum = async ({ state, target }) => {
   );
   const [link] = await get(
     target,
-    `/items/course_curricula?fields=id,course,entry,generation,credits,available,sort&filter[course][_eq]=${course.id}&filter[generation][_eq]=2018`,
+    `/items/course_curricula?fields=id,course,entry,generation,credits,available,sort&filter[course][_eq]=${course.id}&filter[generation][code][_eq]=2018`,
   );
   await remove(target, `/items/course_curricula/${link.id}`);
   const answer = await readiness(target);
-  // The equivalency's 2018 entry and Theta's imported 2018 credits and
+  // The equivalency's 2018 member and Theta's imported 2018 credits and
   // availability both lost the link they are published through.
   assert.deepEqual(answer.blockers, [
     'curriculum_link_unresolved',
