@@ -18,7 +18,7 @@ branding files, and it does read `.env` (see [Branding](#branding)).
 
 | Situation | Command | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template, the mapped and legacy enrollment count Flow templates and the automatic processing Flows (**Data / Process pending**, **Data / Mark pending**, **Data / Count enrollments**; see [Automatic processing](#automatic-processing)). Writes no records, but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the current data model, its database constraints and source-invalidation triggers, the Studio presentation, a table view per checkpoint collection, the **Search** bookmark, the Moodle history index Flow templates, the private File Library folder **Moodle snapshots (private)**, the **Data / Import Moodle snapshot** Flow template, the mapped and legacy enrollment count Flow templates and the automatic processing Flows (**Data / Process pending**, **Data / Mark pending**, **Data / Count enrollments**, **Data / Run enrollment family**; see [Automatic processing](#automatic-processing)). Writes no records, but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the spreadsheet | `npm run import` | Refuses unless every application collection is empty and no checkpoint Rebuild or Publish Flow exists under another id, runs setup, then imports the workbook once (below). |
 | Project that already holds data | `npm run migrate -- --dry-run --report <private path>`, then `-- --apply` | Upgrades it in place to the relational model through the migration ledger. Never reads the workbook. |
 
@@ -328,7 +328,7 @@ Until the cutover retires it, the checkpoint **Rebuild derived data** still comp
 
 ## Enrollment counts from explicit mappings
 
-`npm run setup` installs two operation-triggered Flow templates that count
+`npm run setup` installs three operation-triggered Flow templates that count
 the course/year pairs whose enrollment rule has the mode `mapped_entries`:
 
 - **Data / Count mapped enrollments** counts one pair. It takes
@@ -351,18 +351,26 @@ the course/year pairs whose enrollment rule has the mode `mapped_entries`:
   pair with the Flow above, one pair at a time, and stages all counts of
   the page, zeros included, in one coordinator `stage_page` call. If any
   pair fails, it stages nothing.
+- **Data / Count mapped enrollment pages** runs the `mapped_entries` family
+  of an enrollments plan (`{claim, kind, pages, revision, runner}`): every
+  mapped page in turn through the page Flow above, then a check that each
+  staged one row per planned rule. It answers `{ok: true, pages, staged}`;
+  on any failure it fails the claim (`MAPPED_COUNT_FAILED`) and answers
+  `{ok: false, stage, code, message}`.
 
 Only the enrollment claim's completion writes `course_enrollments`, and it
-replaces every row at the claimed revision, so one claim must stage both
-rule families (see the next section). **Data / Count enrollments** is the
-Flow that does so under the claim the schedule takes (see
+replaces every row at the claimed revision, so one claim must stage every
+rule family (see [Rule modes](#rule-modes)). **Data / Count enrollments** is
+the Flow that does so under the claim the schedule takes (see
 [Automatic processing](#automatic-processing)). The coordinator
 refuses `plan_pages` with source `rules` under an enrollments claim while
 any rule is not `mapped_entries`, and source `history` under any claim but
 a history index claim (`DOMAIN_MISMATCH`), so an enrollments claim is
-never completed from a plan that leaves the legacy family out.
-Both templates contain a coordinator step, so an edit to either of them in
-Studio marks every calculation pending again. The count query filters with
+never completed from a plan that leaves a family out.
+All three templates are part of the calculation fingerprint (the pair and
+page Flows through their coordinator steps, the family runner as a declared
+root), so an edit to any of them in Studio marks every calculation pending
+again. The count query filters with
 the path `history_memberships.entry.mappings` and puts the course and the
 year side by side in that path. Keep that shape when you edit the query in Studio:
 Directus ignores a `_some` block that holds two conditions, and two separate
@@ -390,7 +398,9 @@ pattern may cross line boundaries, and a pattern that does not compile
 
 `npm run setup` installs three operation-triggered templates:
 
-- **Data / Count legacy enrollments** takes `{claim}`. It reads the plan the
+- **Data / Count legacy enrollments** runs the `legacy_regex` family of an
+  enrollments plan (`{claim, kind, pages, revision, runner}`; it reads only
+  the claim). It reads the plan the
   caller stored with `plan_pages` source `enrollments`, runs the two Flows
   below serially for every planned legacy page and zero page, checks every
   answer, and answers `{ok: true, legacyPages, staged, zeroPages, pairs,
@@ -415,8 +425,8 @@ pattern may cross line boundaries, and a pattern that does not compile
   it fails the claim at once when any step fails. The completion sums the
   staged rows and never fills zeros itself.
 
-`plan_pages` with source `enrollments` plans both families in one plan of
-an enrollments claim: the mapped pages first, then per legacy rule page
+`plan_pages` with source `enrollments` plans every rule family in one plan
+of an enrollments claim: the mapped pages first, then per legacy rule page
 every history page and its zero page. Every page must be staged before
 `complete` accepts the claim, so a run that skips a family is refused with
 `PAGES_MISSING` and deletes nothing. History pages hold at most 250 users
@@ -447,6 +457,35 @@ a rule; switch a rule to `mapped_entries` in Studio only where the sets
 are equal, and keep `legacy_regex` where an expression needs several
 entries at once. The printed summary carries the counts only.
 
+## Rule modes
+
+The rule modes (`mapped_entries`, `legacy_regex`) are declared once, in
+`directus/extensions/directus-extension-data-operations/src/rule-modes.ts`:
+each with its Studio label, what it counts, whether it reads `pattern`, how
+its rules are planned (plain rule ranges, or rule pages crossed with history
+pages plus a zero page each), its page kinds and the Flow that runs its
+whole family. The `mode` field's choices and notes, the enrollments planner,
+the refusal of an undeclared mode, the `rules` plan check, the rule filters
+and page kinds of each family's Flows and the calculation fingerprint all
+read that declaration. The vocabulary stays closed: a rule of any other mode
+refuses the whole plan (`UNKNOWN_RULE_MODE`).
+
+`plan_pages` with source `enrollments` answers
+`{families: [{kind, runnerFlowId, pages}], total}`, one family per mode that
+has rules. **Data / Count enrollments** hands the families in turn to
+**Data / Run enrollment family**, which refreshes the claim and runs the
+family through the runner Flow the plan names. That Trigger Flow step's
+target is the template `{{ $trigger.runner }}` (Directus 12.3.1 renders it
+like any other option); Studio shows the template text in its Flow picker,
+and it must stay as it is. No dispatcher step names a mode, so adding or
+retiring one never edits an installed Flow (a new mode brings its own Flow
+family), and a mode that no rule uses is not planned at all. Once every rule is `mapped_entries`, the legacy Flows do not
+run and the history byte budget no longer applies. Retiring a mode is a
+change to the declaration and its Flow family; `npm run setup` then
+realigns the `mode` choices and refuses while rows still hold the retired
+mode. A family's runner is a declared root of the calculation fingerprint,
+because the fingerprint cannot follow a templated Flow id.
+
 ## Automatic processing
 
 The history index and the enrollment counts refresh on their own; nobody
@@ -464,10 +503,10 @@ for this, beside the history and enrollment templates above:
   tick ends at once. It reads the coordination status row and the Flow
   graph, never a collection. When it claims, it runs exactly one domain, through
   **Data / Refresh history index** (every history page in turn, then the
-  completion) or **Data / Count enrollments** (one plan of both rule
-  families, the mapped pages in turn, a heartbeat, the legacy pages and
-  their explicit zeros, then one completion that installs every pair). The
-  next tick takes the next domain.
+  completion) or **Data / Count enrollments** (one plan of every rule
+  family, each family in turn through **Data / Run enrollment family** and
+  the runner Flow its rule mode declares, then one completion that installs
+  every pair). The next tick takes the next domain.
 - **Data / Mark pending** is a manual Flow on the hidden **Data Operations**
   singleton for administrators. It marks the chosen domains pending (the
   history index and the enrollment counts when none is chosen) and answers

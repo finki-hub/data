@@ -1,200 +1,164 @@
 import { coordinationError } from './coordination/errors.js';
 import {
-  historyPageBudget,
-  legacyPatternBudget,
-  legacyRulePageSize,
-  pageSize,
-} from './coordination/state.js';
+  type EnrollmentLimits,
+  enrollmentLimits,
+  historyRanges,
+  type HistorySize,
+  legacyRuleRanges,
+  type Sized,
+  type SizedRange,
+} from './enrollment-ranges.js';
+import { idRanges, type PageRange, pageToken } from './page-state.js';
 import {
-  type IdRange,
-  idRanges,
-  type PageRange,
-  pageToken,
-} from './page-state.js';
+  alternatives,
+  ruleModeNames,
+  ruleModes,
+  type RuleModeSpec,
+} from './rule-modes.js';
 
-export type EnrollmentLimits = {
-  readonly budget: number;
-  readonly patternBudget: number;
-  readonly rulePageSize: number;
-  readonly userPageSize: number;
+// The pages of one rule mode and the Flow that runs them all.
+export type EnrollmentFamily = {
+  readonly kind: string;
+  readonly pages: readonly EnrollmentPage[];
+  readonly runnerFlowId: string;
 };
 
-// The pages of one enrollments plan. A mapped page is a range of
-// mapped_entries rules (Task 11 page Flow); a legacy page crosses one
-// history page with one legacy rule page (from/to/rows/bytes name the
+// A page of one enrollments plan, its kind declared by its rule mode
+// (rule-modes.ts). A rule page is a range of the mode's rules; a cross page
+// crosses one history page with one rule page (from/to/rows/bytes name the
 // users, rules the rule page and its pattern bytes); a zero page names one
-// legacy rule page, whose pairs without any count are staged as explicit
-// zeros after all of its legacy pages.
+// rule page, whose pairs without any count are staged as explicit zeros
+// after all of its cross pages.
 export type EnrollmentPage =
   | (PageRange & {
       readonly bytes: number;
-      readonly kind: 'legacy';
+      readonly kind: string;
       readonly rules: SizedRange;
     })
-  | (PageRange & { readonly kind: 'legacy_zeros' })
-  | (PageRange & { readonly kind: 'mapped' });
+  | (PageRange & { readonly kind: string });
 
 export type EnrollmentSources = {
-  readonly rules: readonly RuleMode[];
+  readonly rules: readonly RuleSize[];
   readonly users: readonly HistorySize[];
 };
 
-// One Moodle user: its id and the UTF-8 bytes of its raw `Courses` text,
-// never the text itself.
-export type HistorySize = { readonly bytes: number; readonly id: number };
-
 // One rule of course_enrollment_rules as the planner sees it: its id, mode
 // and the UTF-8 bytes of its pattern, never its course, year or pattern.
-export type RuleMode = {
+export type RuleSize = {
   readonly bytes: number;
   readonly id: number;
   readonly mode: null | string;
 };
 
-// Consecutive rows of at most a row count and a byte budget: a history
-// page of the legacy family or a legacy rule page.
-export type SizedRange = IdRange & { readonly bytes: number };
-
-export const enrollmentLimits: EnrollmentLimits = {
-  budget: historyPageBudget,
-  patternBudget: legacyPatternBudget,
-  rulePageSize: legacyRulePageSize,
-  userPageSize: pageSize,
-};
-
 const shownMode = (mode: null | string): string =>
   mode === null ? 'none' : JSON.stringify(mode.slice(0, 40));
 
-type Sized = { readonly bytes: number; readonly id: number };
-
-// Splits sized rows into consecutive ranges of at most `rows` rows and
-// `budget` bytes. A row that alone exceeds the budget fits no range, so
-// the plan is refused by `oversized`, which names the row and sizes only.
-const sizedRanges = (
-  items: readonly Sized[],
-  limit: { readonly budget: number; readonly rows: number },
-  oversized: (item: Sized) => Error,
-): SizedRange[] => {
-  const ranges: SizedRange[] = [];
-  const sorted = items.toSorted((left, right) => left.id - right.id);
-  for (const item of sorted) {
-    if (item.bytes > limit.budget) {
-      throw oversized(item);
-    }
-    const last = ranges.at(-1);
-    if (
-      last === undefined ||
-      last.rows >= limit.rows ||
-      last.bytes + item.bytes > limit.budget
-    ) {
-      ranges.push({ bytes: item.bytes, from: item.id, rows: 1, to: item.id });
-    } else {
-      ranges[ranges.length - 1] = {
-        bytes: last.bytes + item.bytes,
-        from: last.from,
-        rows: last.rows + 1,
-        to: item.id,
-      };
-    }
-  }
-  return ranges;
-};
-
-// Splits the users into consecutive pages of at most `userPageSize` rows
-// and `budget` bytes of history.
-export const historyRanges = (
-  users: readonly HistorySize[],
-  limits: EnrollmentLimits = enrollmentLimits,
-): SizedRange[] =>
-  sizedRanges(
-    users,
-    { budget: limits.budget, rows: limits.userPageSize },
-    (user) =>
-      coordinationError(
-        'PAGE_OVER_BUDGET',
-        `Moodle user ${user.id} holds ${user.bytes} bytes of Courses history, more than the ${limits.budget}-byte budget of one legacy rule page; nothing was planned.`,
-        {
-          details: { budget: limits.budget, bytes: user.bytes, user: user.id },
-        },
-      ),
-  );
-
-// Splits the legacy rules into consecutive pages of at most
-// `rulePageSize` rules and `patternBudget` bytes of pattern text.
-export const legacyRuleRanges = (
-  rules: readonly Sized[],
-  limits: EnrollmentLimits = enrollmentLimits,
-): SizedRange[] =>
-  sizedRanges(
-    rules,
-    { budget: limits.patternBudget, rows: limits.rulePageSize },
-    (rule) =>
-      coordinationError(
-        'PAGE_OVER_BUDGET',
-        `Rule ${rule.id} holds a pattern of ${rule.bytes} bytes, more than the ${limits.patternBudget}-byte pattern budget of one legacy rule page; nothing was planned.`,
-        {
-          details: {
-            budget: limits.patternBudget,
-            bytes: rule.bytes,
-            rule: rule.id,
-          },
-        },
-      ),
-  );
-
+// The rules of every declared mode. A rule of any other mode, or of none,
+// refuses the whole plan, naming its id and a bounded mode only.
 const rulesByMode = (
-  rules: readonly RuleMode[],
-): { readonly legacy: Sized[]; readonly mapped: number[] } => {
-  const legacy: Sized[] = [];
-  const mapped: number[] = [];
+  rules: readonly RuleSize[],
+  modes: readonly RuleModeSpec[],
+): Map<string, Sized[]> => {
+  const grouped = new Map<string, Sized[]>(modes.map(({ mode }) => [mode, []]));
   for (const rule of rules) {
-    if (rule.mode === 'mapped_entries') {
-      mapped.push(rule.id);
-    } else if (rule.mode === 'legacy_regex') {
-      legacy.push({ bytes: rule.bytes, id: rule.id });
-    } else {
+    const family = rule.mode === null ? undefined : grouped.get(rule.mode);
+    if (family === undefined) {
       throw coordinationError(
         'UNKNOWN_RULE_MODE',
-        `Rule ${rule.id} has the mode ${shownMode(rule.mode)}; every enrollment rule must be mapped_entries or legacy_regex, so nothing was planned.`,
+        `Rule ${rule.id} has the mode ${shownMode(rule.mode)}; every enrollment rule must be ${alternatives(ruleModeNames(modes))}, so nothing was planned.`,
         { details: { rule: rule.id } },
       );
     }
+    family.push({ bytes: rule.bytes, id: rule.id });
   }
-  return { legacy, mapped };
+  return grouped;
 };
 
-// The one plan of an enrollments claim, in the order its pages run: every
-// mapped rule page, then per legacy rule page every history page crossed
-// with it and its zero page. Every page is tracked by the completion, so
-// omitting a family, a history page or a zero page leaves the claim
-// PAGES_MISSING instead of dropping the rows of that family.
+type Planning = {
+  readonly histories: () => readonly SizedRange[];
+  readonly limits: EnrollmentLimits;
+  readonly token: () => string;
+};
+
+// The pages of one mode's rules, as its planner cuts them: rule ranges, or
+// per rule page every history page crossed with it and its zero page.
+const familyPages = (
+  spec: RuleModeSpec,
+  rules: readonly Sized[],
+  { histories, limits, token }: Planning,
+): EnrollmentPage[] => {
+  if (spec.planner === 'rule_ranges') {
+    const [kind] = spec.pageKinds;
+    const ids = rules.map(({ id }) => id);
+    return idRanges(ids, limits.userPageSize).map((range) => ({
+      ...range,
+      kind,
+      token: token(),
+    }));
+  }
+  const [cross, zeros] = spec.pageKinds;
+  const ruleRanges = legacyRuleRanges(rules, limits);
+  const users = histories();
+  return ruleRanges.flatMap((range): EnrollmentPage[] => [
+    ...users.map((history) => ({
+      ...history,
+      kind: cross,
+      rules: range,
+      token: token(),
+    })),
+    {
+      from: range.from,
+      kind: zeros,
+      rows: range.rows,
+      to: range.to,
+      token: token(),
+    },
+  ]);
+};
+
+// The one plan of an enrollments claim: one family per declared mode that
+// has rules, in declaration order, its pages numbered on across families.
+// Every page is tracked by the completion, so a family, a history page or
+// a zero page that is not staged leaves the claim PAGES_MISSING instead of
+// dropping the rows of that family. The histories are sized only for a
+// family that crosses them.
+export const planEnrollmentFamilies = (
+  sources: EnrollmentSources,
+  limits: EnrollmentLimits = enrollmentLimits,
+  modes: readonly RuleModeSpec[] = ruleModes,
+): EnrollmentFamily[] => {
+  const grouped = rulesByMode(sources.rules, modes);
+  let sized: SizedRange[] | undefined;
+  let next = 0;
+  const planning: Planning = {
+    histories: () => {
+      sized ??= historyRanges(sources.users, limits);
+      return sized;
+    },
+    limits,
+    token: () => {
+      next += 1;
+      return pageToken(next - 1);
+    },
+  };
+  return modes.flatMap((spec) => {
+    const rules = grouped.get(spec.mode) ?? [];
+    return rules.length === 0
+      ? []
+      : [
+          {
+            kind: spec.mode,
+            pages: familyPages(spec, rules, planning),
+            runnerFlowId: spec.runnerFlowId,
+          },
+        ];
+  });
+};
+
+// Every page of the plan, in the order its families run them.
 export const planEnrollmentPages = (
   sources: EnrollmentSources,
   limits: EnrollmentLimits = enrollmentLimits,
-): EnrollmentPage[] => {
-  const { legacy, mapped } = rulesByMode(sources.rules);
-  const ruleRanges = legacyRuleRanges(legacy, limits);
-  const histories = historyRanges(sources.users, limits);
-  const pages: EnrollmentPage[] = [];
-  for (const range of idRanges(mapped, limits.userPageSize)) {
-    pages.push({ ...range, kind: 'mapped', token: pageToken(pages.length) });
-  }
-  for (const rules of ruleRanges) {
-    for (const users of histories) {
-      pages.push({
-        ...users,
-        kind: 'legacy',
-        rules,
-        token: pageToken(pages.length),
-      });
-    }
-    pages.push({
-      from: rules.from,
-      kind: 'legacy_zeros',
-      rows: rules.rows,
-      to: rules.to,
-      token: pageToken(pages.length),
-    });
-  }
-  return pages;
-};
+  modes: readonly RuleModeSpec[] = ruleModes,
+): EnrollmentPage[] =>
+  planEnrollmentFamilies(sources, limits, modes).flatMap(({ pages }) => pages);

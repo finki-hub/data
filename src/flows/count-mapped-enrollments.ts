@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { mappedPageFlow } from './count-mapped-enrollment-page.js';
+import { mappedPagesFlow } from './count-mapped-enrollment-pages.js';
 import { coordinateOperation, type FlowTemplate } from './flow-template.js';
 import {
   countFailure,
@@ -127,8 +128,10 @@ export const mappedPairFlow: FlowTemplate = {
   trigger: 'operation',
 };
 
-// The pair Flow before the page Flow that calls it.
+// The pair Flow before the page Flow that calls it, and the page Flow
+// before the family's runner.
 export const mappedEnrollmentFlows: readonly FlowTemplate[] = [
   mappedPairFlow,
   mappedPageFlow,
+  mappedPagesFlow,
 ];

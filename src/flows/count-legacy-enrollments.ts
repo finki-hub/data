@@ -11,6 +11,7 @@ import {
   legacyEnrollmentFlowIds,
   legacyFailureCode,
   legacyId,
+  legacyRuleMode,
   legacyStep as step,
 } from './shared.js';
 
@@ -96,15 +97,16 @@ const failureSteps = stages.flatMap(({ code, key, stage, suffixes }, index) => [
 const rejectOf = (key: string): string =>
   legacyId(stages.find((entry) => entry.key === key)?.suffixes[0] ?? '');
 
-// The legacy family of an enrollments claim whose plan (plan_pages with
-// source enrollments) the caller made: every legacy page serially, then
-// every zero page serially. The staged rows of both, with the mapped
-// pages', are installed by the claim's completion, which the caller runs;
-// this Flow never plans (a new plan would discard the mapped pages).
+// The runner of the legacy_regex family (rule-modes.ts names it) of an
+// enrollments claim whose plan (plan_pages with source enrollments) the
+// caller made: every legacy page serially, then every zero page serially,
+// both listed from the stored plan. The staged rows of both, with the
+// other families', are installed by the claim's completion, which the
+// caller runs; this Flow never plans (a new plan would discard the other
+// families' pages).
 export const legacyParentFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Counts the legacy_regex enrollment rules of an enrollments claim. Input {claim}: reads the enrollments plan the caller stored with plan_pages (source enrollments), runs "Data / Count legacy rules page" for every legacy page and then "Data / Fill legacy rule zeros" for every legacy rule page, serially, and checks every answer. Answers {ok: true, legacyPages, staged, zeroPages, pairs, counted, zeros}; the caller completes the claim. Any failure fails the claim (LEGACY_COUNT_FAILED) so nothing partial is installed, and answers {ok: false, stage, code, message} naming the first failed page; a failing page fails the claim itself, so every later page refuses at once instead of running into the same failure again. Pattern text stays editable in Enrollment Rules; the coordinator never reads it.',
+  description: `Counts the ${legacyRuleMode.mode} family of an enrollments claim. Input {claim, kind, pages, revision, runner} (the family as plan_pages with source "enrollments" planned it; only the claim is read, the pages come from the plan stored for the claim): runs "Data / Count legacy rules page" for every legacy page and then "Data / Fill legacy rule zeros" for every legacy rule page, serially, and checks every answer. Answers {ok: true, legacyPages, staged, zeroPages, pairs, counted, zeros}; the caller completes the claim. Any failure fails the claim (${legacyFailureCode}) so nothing partial is installed, and answers {ok: false, stage, code, message} naming the first failed page; a failing page fails the claim itself, so every later page refuses at once instead of running into the same failure again. Pattern text stays editable in Enrollment Rules; the coordinator never reads it. Called by "Data / Run enrollment family".`,
   entry: legacyId('11'),
   icon: 'rule_settings',
   id: legacyEnrollmentFlowIds.parent,

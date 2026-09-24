@@ -686,10 +686,7 @@ describe('pages over the persistence port', () => {
     );
 
     expect(first).toMatchObject({ discarded: 0, total: 2 });
-    expect(planned.parse(first).pages.map(({ token: page }) => page)).toEqual([
-      firstPage,
-      secondPage,
-    ]);
+    expect(fake.data.claim?.pages).toEqual([firstPage, secondPage]);
 
     await stage(fake, { page: firstPage, rows: [row], token });
     await stage(fake, {

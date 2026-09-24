@@ -4,6 +4,8 @@ import { z } from 'zod';
 
 import type { DirectusRequest } from '../src/directus-request.js';
 
+import { runnerFlowIds } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
+import { mappedPagesFlow } from '../src/flows/count-mapped-enrollment-pages.js';
 import {
   familyId,
   flowFamilyCodes,
@@ -16,6 +18,7 @@ import {
   flowTemplates,
   installFlowFamilies,
 } from '../src/flows/registry.js';
+import { familyRunnerFlow } from '../src/flows/run-enrollment-family.js';
 
 const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 
@@ -29,6 +32,8 @@ const installedFlowIds = [
   '1001',
   '1101',
   '1102',
+  // Task 26: the runner of the mapped family.
+  '1103',
   '1202',
   '1203',
   '1201',
@@ -37,6 +42,8 @@ const installedFlowIds = [
   // Task 15: the publish family, the child before its parent.
   '1502',
   '1501',
+  // Task 26: the one runner every planned family goes through.
+  '1304',
   '1301',
   '1303',
   '1302',
@@ -48,13 +55,38 @@ const operationIdsSha256 =
   '6858e870a5fb769ab5e64a027b3d56deb9364915d519cdf3161a950b08173ee8';
 
 // What Task 15 added: every operation of the publish family, and the
-// schedule's enrollment route and unknown-domain branch.
+// schedule's enrollment route and unknown-domain branch. What Task 26
+// added: every operation of the two runner Flows.
 const addedOperationIds = new Set([
   ...publishFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
   familyId('13', '3a'),
   familyId('13', '4a'),
   familyId('13', '49'),
+  ...[familyRunnerFlow, mappedPagesFlow].flatMap(({ operations }) =>
+    operations.map(({ id }) => id),
+  ),
 ]);
+
+// The dispatcher steps Task 26 replaced by its family loop (its other
+// steps keep their ids). Teardown keeps template Flows and setup skips a
+// Flow whose id exists, so a project set up earlier keeps the old
+// dispatcher until "Data / Count enrollments" (and "Data / Count legacy
+// enrollments", whose description changed) is deleted in Studio and setup
+// runs again; no upgrade code does it.
+const removedOperationIds = [
+  '17',
+  '18',
+  '19',
+  '2b',
+  '2c',
+  '2d',
+  '2e',
+  '2f',
+  '30',
+].map((suffix) => familyId('13', suffix));
+
+// A Trigger Flow target that names no Flow but a template of its payload.
+const templated = (target: string): boolean => target.includes('{{');
 
 const codeOf = (id: string): string =>
   id.startsWith(idPrefix) ? id.slice(idPrefix.length, idPrefix.length + 2) : '';
@@ -94,12 +126,22 @@ const notOf =
   (id: string): boolean =>
     codeOf(id) !== code;
 
-// The Flows a template triggers through a Trigger Flow step.
-const childrenOf = (template: FlowTemplate): string[] =>
+// The Flow targets of a template's Trigger Flow steps, fixed or templated.
+const targetsOf = (template: FlowTemplate): string[] =>
   template.operations.flatMap(({ options, type }) => {
     const parsed = childFlow.safeParse(options);
     return type === 'trigger' && parsed.success ? [parsed.data.flow] : [];
   });
+
+// The Flows a template triggers by id.
+const childrenOf = (template: FlowTemplate): string[] =>
+  targetsOf(template).filter((target) => !templated(target));
+
+// The templated Trigger Flow targets of a template, with its id.
+const templatedTargetsOf = (template: FlowTemplate): string[][] =>
+  targetsOf(template)
+    .filter(templated)
+    .map((target) => [template.id, target]);
 
 describe('the Flow family registry', () => {
   test('registers every declared family code exactly once', () => {
@@ -116,13 +158,19 @@ describe('the Flow family registry', () => {
     const operations = templates.flatMap(operationIds).toSorted(byText);
 
     const kept = operations.filter((id) => !addedOperationIds.has(id));
+    const before = [...kept, ...removedOperationIds].toSorted(byText);
 
     expect(templates.map(({ id }) => id.slice(-4))).toEqual(installedFlowIds);
-    expect(kept).toHaveLength(171);
-    expect(createHash('sha256').update(kept.join(',')).digest('hex')).toBe(
+    expect(before).toHaveLength(171);
+    expect(createHash('sha256').update(before.join(',')).digest('hex')).toBe(
       operationIdsSha256,
     );
-    expect(operations).toHaveLength(171 + addedOperationIds.size);
+    expect(operations.filter((id) => removedOperationIds.includes(id))).toEqual(
+      [],
+    );
+    expect(operations).toHaveLength(
+      171 - removedOperationIds.length + addedOperationIds.size,
+    );
     expect(templates.map(({ id }) => id)).toContain(familyId('14', '04'));
     expect(templates.map(({ id }) => id)).toContain(familyId('14', '05'));
   });
@@ -166,6 +214,19 @@ describe('the Flow family registry', () => {
       .filter((child) => !known.has(child));
 
     expect(unknown).toEqual([]);
+  });
+
+  // The one templated target: the family runner hands each planned family
+  // to the runner Flow the plan names, so every declared runner must be a
+  // registered Flow installed before it.
+  test('reaches the declared family runners through one templated target', () => {
+    const order = flowTemplates().map(({ id }) => id);
+    const targets = flowTemplates().flatMap(templatedTargetsOf);
+
+    expect(targets).toEqual([[familyRunnerFlow.id, '{{ $trigger.runner }}']]);
+    expect(
+      runnerFlowIds().filter(installedAfter(order, familyRunnerFlow.id)),
+    ).toEqual([]);
   });
 });
 

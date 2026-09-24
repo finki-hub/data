@@ -1,4 +1,4 @@
-import type { EnrollmentSources, RuleMode } from '../enrollment-pages.js';
+import type { EnrollmentSources, RuleSize } from '../enrollment-pages.js';
 import type { CountRow, PageRange } from '../page-state.js';
 import type { ClaimDomain, Domain } from './domains.js';
 import type { Fingerprints } from './fingerprint.js';
@@ -84,12 +84,13 @@ export type CoordinationPort = {
   // given, or else the recorded one.
   readonly release: (input: ReleaseInput) => Promise<boolean>;
   // The id, mode and pattern bytes of every enrollment rule (never its
-  // pattern), for a rules plan's check that no rule is legacy_regex.
-  readonly ruleModes: () => Promise<readonly RuleMode[]>;
+  // pattern), for a rules plan's check that every rule is of a mode planned
+  // as plain rule ranges.
+  readonly ruleModes: () => Promise<readonly RuleSize[]>;
   readonly sourceIds: (source: PageSource) => Promise<readonly number[]>;
   // Guard: claim token, owner and the claimed domain's inputs unchanged. A
-  // page of an enrollments plan carries its kind (and a legacy page its bytes and rule
-  // range) beside the range the coordinator keeps.
+  // page of an enrollments plan carries its kind (and a cross page its bytes
+  // and rule range) beside the range the coordinator keeps.
   readonly storePlan: (
     token: string,
     owner: string,

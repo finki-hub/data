@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 
 import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { sourceInvalidation } from '../../directus/extensions/directus-extension-data-operations/src/migrations.js';
+import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import {
   applySchemaConstraints,
@@ -525,7 +526,13 @@ const stagesPages = async (target, state) => {
   });
   assert.deepEqual(replaced, {
     discarded: 0,
-    pages: [{ ...ruleRange, kind: 'mapped', token: 'p0001' }],
+    families: [
+      {
+        kind: 'mapped_entries',
+        pages: [{ ...ruleRange, kind: 'mapped', token: 'p0001' }],
+        runnerFlowId: ruleMode('mapped_entries').runnerFlowId,
+      },
+    ],
     source: 'enrollments',
     total: 1,
   });

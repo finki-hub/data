@@ -1,20 +1,17 @@
 import assert from 'node:assert/strict';
 
 import { deriveCourses } from '../../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
+import { dispatcherFlowId } from '../../src/flows/count-enrollments.js';
 import { insertionOrder } from '../../src/flows/flow-template.js';
-import {
-  legacyEnrollmentFlowIds,
-  mappedEnrollmentFlowIds,
-} from '../../src/flows/shared.js';
 import { academicYears } from '../../src/specs/public.js';
 import { makeSyntheticDataset } from '../fixtures/synthetic-data.js';
 import { get, patch, post, trigger } from './history-index-helpers.mjs';
 
 // Synthetic Flows, seeds and the oracle of the legacy rule fixture suite
 // (legacy-rules.integration.mjs). The installed templates are operation
-// triggered; the synthetic manual "Synthetic enrollment run" plays the
-// Task 13 dispatcher: one enrollments claim, one plan of both families,
-// the mapped pages, the legacy family, one completion.
+// triggered; the synthetic manual "Synthetic enrollment run" takes one
+// enrollments claim and hands it to the installed dispatcher, which plans
+// every rule family, runs each through its runner and completes.
 
 const syntheticId = (suffix) => `9e4d826c-5b1a-4c0e-8f2d-0000000012${suffix}`;
 
@@ -53,24 +50,6 @@ export const longHistory = historyOf(40_000, [
 
 export const catastrophicPattern = '(a+)+b';
 
-// Adds the claim and its revision to every mapped page of the plan, the
-// payload the Task 11 page Flow expects.
-const mappedPagesScript = `module.exports = function (data) {
-  return data.plan.pages.filter(function (page) { return page.kind === 'mapped'; }).map(function (page) {
-    return { claim: data.claim.token, from: page.from, revision: data.claim.revision, rows: page.rows, to: page.to, token: page.token };
-  });
-};`;
-
-const mappedOkScript = `module.exports = function (data) {
-  const results = Array.isArray(data.count_mapped) ? data.count_mapped : [];
-  const failed = results.filter(function (result) { return result === null || typeof result !== 'object' || typeof result.staged !== 'number'; });
-  if (failed.length > 0 || results.length !== data.mapped_pages.length) {
-    const first = failed[0] || {};
-    throw new Error('Mapped count failed at page ' + String(first.page) + ' (' + String(first.stage) + '): ' + String(first.code) + ' ' + String(first.message).slice(0, 300));
-  }
-  return { pages: results.length, staged: results.reduce(function (total, result) { return total + result.staged; }, 0) };
-};`;
-
 const coordinate = 'finki-hub-data-coordinate';
 
 const step = ([suffix, key, type, options, edges = {}]) => ({
@@ -85,14 +64,6 @@ const step = ([suffix, key, type, options, edges = {}]) => ({
   type,
 });
 
-const failRun = ({ code, key, next, suffix }) => [
-  suffix,
-  key,
-  coordinate,
-  { action: 'fail', code, token: '{{ claim.token }}' },
-  { resolve: next },
-];
-
 const raise = ({ code, key, message, status, suffix }) => [
   suffix,
   key,
@@ -100,6 +71,10 @@ const raise = ({ code, key, message, status, suffix }) => [
   { code, message, status },
 ];
 
+// One claim of the enrollments domain handed to the installed dispatcher
+// "Data / Count enrollments", which plans every rule family, runs each
+// through its declared runner and completes the claim; a refused run
+// raises the dispatcher's own code and message.
 const runOperations = [
   [
     '13',
@@ -128,119 +103,41 @@ const runOperations = [
   }),
   [
     '16',
-    'plan',
-    coordinate,
-    { action: 'plan_pages', source: 'enrollments', token: '{{ claim.token }}' },
-    { reject: '17', resolve: '19' },
+    'count',
+    'trigger',
+    {
+      flow: dispatcherFlowId,
+      iterationMode: 'serial',
+      payload: { claim: '{{ claim.token }}', revision: '{{ claim.revision }}' },
+    },
+    { resolve: '17' },
   ],
-  failRun({ code: 'PLAN_FAILED', key: 'plan_fail', next: '18', suffix: '17' }),
+  [
+    '17',
+    'counted',
+    'condition',
+    { filter: { count: { ok: { _eq: true } } } },
+    { reject: '18', resolve: '19' },
+  ],
   raise({
-    code: 'PLAN_REFUSED',
-    key: 'raise_plan',
-    message: '{{ plan.message }}',
+    code: '{{ count.code }}',
+    key: 'raise_count',
+    message: '{{ count.stage }}: {{ count.message }}',
     status: 500,
     suffix: '18',
   }),
-  [
-    '19',
-    'mapped_pages',
-    'exec',
-    { code: mappedPagesScript },
-    { resolve: '1a' },
-  ],
-  [
-    '1a',
-    'count_mapped',
-    'trigger',
-    {
-      flow: mappedEnrollmentFlowIds.page,
-      iterationMode: 'serial',
-      payload: '{{ mapped_pages }}',
-    },
-    { resolve: '1b' },
-  ],
-  [
-    '1b',
-    'mapped_ok',
-    'exec',
-    { code: mappedOkScript },
-    { reject: '1c', resolve: '1e' },
-  ],
-  failRun({
-    code: 'MAPPED_COUNT_FAILED',
-    key: 'mapped_fail',
-    next: '1d',
-    suffix: '1c',
-  }),
-  raise({
-    code: 'MAPPED_COUNT_FAILED',
-    key: 'raise_mapped',
-    message: '{{ mapped_ok.message }}',
-    status: 500,
-    suffix: '1d',
-  }),
-  [
-    '1e',
-    'count_legacy',
-    'trigger',
-    {
-      flow: legacyEnrollmentFlowIds.parent,
-      iterationMode: 'serial',
-      payload: { claim: '{{ claim.token }}' },
-    },
-    { resolve: '1f' },
-  ],
-  [
-    '1f',
-    'legacy_ok',
-    'condition',
-    { filter: { count_legacy: { ok: { _eq: true } } } },
-    { reject: '20', resolve: '22' },
-  ],
-  raise({
-    code: 'LEGACY_COUNT_FAILED',
-    key: 'raise_legacy',
-    message:
-      '{{ count_legacy.stage }}: {{ count_legacy.code }} {{ count_legacy.message }}',
-    status: 500,
-    suffix: '20',
-  }),
-  [
-    '22',
-    'complete',
-    coordinate,
-    { action: 'complete', token: '{{ claim.token }}' },
-    { reject: '23', resolve: '24' },
-  ],
-  raise({
-    code: 'COMPLETION_REFUSED',
-    key: 'raise_completion',
-    message: '{{ complete.message }}',
-    status: 409,
-    suffix: '23',
-  }),
-  [
-    '24',
-    'answer',
-    'transform',
-    {
-      json: {
-        completed: true,
-        installed: '{{ complete.installed }}',
-        legacy: '{{ count_legacy }}',
-        mapped: '{{ mapped_ok }}',
-        pages: '{{ plan.total }}',
-        revision: '{{ complete.revision }}',
-      },
-    },
-  ],
+  ['19', 'answer', 'transform', { json: '{{ count }}' }],
 ].map((entry) => step(entry));
+
+// The family of a dispatcher answer, by its rule mode.
+export const familyOf = (answer, kind) =>
+  answer.families.find((family) => family.kind === kind);
 
 export const installLegacyRunFlow = async (target) => {
   await post(target, '/flows', {
     accountability: 'activity',
     description:
-      'Synthetic test parent of both enrollment families (the Task 13 dispatcher in miniature); removed by the suite that installs it.',
+      'Synthetic manual run of the enrollment dispatcher under one enrollments claim; removed by the suite that installs it.',
     icon: 'science',
     id: legacyRunFlowId,
     name: 'Synthetic enrollment run',

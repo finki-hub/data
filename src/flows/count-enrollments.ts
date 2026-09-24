@@ -1,10 +1,9 @@
 import {
-  mappedCheckScript,
-  mappedPagesScript,
+  familiesCheckScript,
+  familiesScript,
 } from './count-enrollments-scripts.js';
 import {
   automationId,
-  condition,
   coordinateOperation,
   flowFamilyCodes,
   type FlowTemplate,
@@ -12,15 +11,13 @@ import {
 } from './flow-template.js';
 import {
   chainStep,
-  failStepId,
   type ReleaseBranch,
   releaseSteps,
 } from './release-steps.js';
 import {
-  legacyEnrollmentFlowIds,
-  legacyFailureCode,
-  mappedEnrollmentFlowIds,
-} from './shared.js';
+  familyFailureCode,
+  familyRunnerFlowId,
+} from './run-enrollment-family.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -39,61 +36,32 @@ const release = ({ column, ...failure }: Failure): ReleaseBranch => ({
   token: claimToken,
 });
 
-// Every step that can fail, with the code kept with the claim. The legacy
-// parent and its pages fail the claim themselves (fail first), so their
-// branches here only record the parent's answer; the fail finds the claim
-// released and keeps the child's code and message.
+// Every step that can fail, with the code kept with the claim. A family
+// fails the claim itself (its runner with its own code, or "Data / Run
+// enrollment family" when the runner could not), so the family branch
+// here finds the claim released and keeps the family's code and message.
 const branches = {
   complete: release({
     code: 'COMPLETION_REFUSED',
-    column: 145,
+    column: 91,
     message: '{{ complete.message }}',
     recordCode: '{{ complete.code }}',
     stage: 'complete',
-    suffixes: ['2d', '2e'],
-  }),
-  count: release({
-    code: 'MAPPED_COUNT_FAILED',
-    column: 55,
-    message: '{{ count_mapped.message }}',
-    stage: 'count',
-    suffixes: ['25', '26'],
-  }),
-  heartbeat: release({
-    code: 'ENROLLMENTS_FAILED',
-    column: 91,
-    message: '{{ keep_alive.message }}',
-    recordCode: '{{ keep_alive.code }}',
-    stage: 'heartbeat',
     suffixes: ['29', '2a'],
   }),
-  legacy: release({
-    code: legacyFailureCode,
-    column: 127,
-    message: 'The legacy count answered {{ count_legacy }}',
-    stage: 'legacy',
-    suffixes: ['2b', '2c'],
-  }),
-  legacyRun: release({
-    code: legacyFailureCode,
-    column: 109,
-    message: '{{ count_legacy.message }}',
-    stage: 'legacy_run',
-    suffixes: ['2f', '30'],
-  }),
-  mapped: release({
-    code: 'MAPPED_COUNT_FAILED',
-    column: 73,
-    message: '{{ mapped_ok.message }}',
-    stage: 'mapped',
-    suffixes: ['27', '28'],
-  }),
-  pages: release({
-    code: 'ENROLLMENTS_FAILED',
+  families: release({
+    code: familyFailureCode,
     column: 37,
-    message: '{{ mapped_pages.message }}',
-    stage: 'pages',
+    message: '{{ families.message }}',
+    stage: 'families',
     suffixes: ['23', '24'],
+  }),
+  family: release({
+    code: familyFailureCode,
+    column: 73,
+    message: '{{ families_ok.message }}',
+    stage: 'family',
+    suffixes: ['27', '28'],
   }),
   plan: release({
     code: 'PLAN_FAILED',
@@ -103,19 +71,29 @@ const branches = {
     stage: 'plan',
     suffixes: ['21', '22'],
   }),
+  run: release({
+    code: familyFailureCode,
+    column: 55,
+    message: '{{ run_families.message }}',
+    stage: 'run',
+    suffixes: ['25', '26'],
+  }),
 } as const;
 
-// The enrollment count of one claim ({claim, revision}): one plan of both
-// rule families, the mapped pages serially through the Task 11 page Flow,
-// a heartbeat, the legacy family through the Task 12 parent, then one
-// completion that installs every pair at once. Pages never run in
-// parallel, the claim is refreshed by every pair, page and plan (at most a
-// few seconds apart, far inside the 60 s stale window), and any failure
-// fails the claim so nothing partial is installed.
+// The enrollment count of one claim ({claim, revision}): one plan of every
+// declared rule mode as one family each, every family serially through
+// "Data / Run enrollment family" (which runs it through the runner Flow
+// the plan names), then one completion that installs every pair at once.
+// The completion refuses until every page of every planned family is
+// staged, so a family that did not run never drops its rows. No step
+// names a rule mode or a runner Flow: declaring or retiring a mode
+// (rule-modes.ts) changes the plan, never this graph. Pages never run in
+// parallel, the claim is refreshed by every family, pair, page and plan,
+// and any failure fails the claim so nothing partial is installed.
 export const dispatcherFlow: FlowTemplate = {
   accountability: 'activity',
   description:
-    'Counts every enrollment pair under an enrollments claim the caller holds ({claim, revision}): plans both rule families once (plan_pages source enrollments), runs the mapped pages serially with "Data / Count mapped enrollment page", heartbeats, runs "Data / Count legacy enrollments" (legacy pages and explicit zeros), then completes the claim, which installs every pair at once. Any failure fails the claim with its code and message. Answers {ok: true, completed, domain, installed, revision, pages, mapped, legacy} or {ok: false, stage, code, message}. Called by "Data / Process pending".',
+    'Counts every enrollment pair under an enrollments claim the caller holds ({claim, revision}): plans every rule mode once (plan_pages source enrollments, one family of pages per mode that has rules), runs the families serially with "Data / Run enrollment family", which hands each to the runner Flow the plan names for its mode, checks every answer, then completes the claim, which installs every pair at once and refuses while any planned page is not staged. Any failure fails the claim with its code and message. Answers {ok: true, completed, domain, installed, revision, pages, families} or {ok: false, stage, code, message}. Called by "Data / Process pending".',
   entry: automationId('11'),
   icon: 'functions',
   id: dispatcherFlowId,
@@ -125,7 +103,7 @@ export const dispatcherFlow: FlowTemplate = {
       column: 19,
       failure: branches.plan,
       key: 'plan',
-      name: 'Plan both rule families',
+      name: 'Plan every rule family',
       next: '12',
       options: {
         action: 'plan_pages',
@@ -137,82 +115,46 @@ export const dispatcherFlow: FlowTemplate = {
     }),
     chainStep({
       column: 37,
-      failure: branches.pages,
-      key: 'mapped_pages',
-      name: 'List the mapped pages',
+      failure: branches.families,
+      key: 'families',
+      name: 'List the planned families',
       next: '13',
-      options: { code: mappedPagesScript },
+      options: { code: familiesScript },
       suffix: '12',
       type: 'exec',
     }),
     chainStep({
       column: 55,
-      failure: branches.count,
-      key: 'count_mapped',
-      name: 'Count every mapped page in turn',
+      failure: branches.run,
+      key: 'run_families',
+      name: 'Run every family in turn',
       next: '14',
       options: {
-        flow: mappedEnrollmentFlowIds.page,
+        flow: familyRunnerFlowId,
         iterationMode: 'serial',
-        payload: '{{ mapped_pages }}',
+        payload: '{{ families }}',
       },
       suffix: '13',
       type: 'trigger',
     }),
     chainStep({
       column: 73,
-      failure: branches.mapped,
-      key: 'mapped_ok',
-      name: 'Check every mapped page answer',
+      failure: branches.family,
+      key: 'families_ok',
+      name: 'Check every family answer',
       next: '15',
-      options: { code: mappedCheckScript },
+      options: { code: familiesCheckScript },
       suffix: '14',
       type: 'exec',
     }),
     chainStep({
       column: 91,
-      failure: branches.heartbeat,
-      key: 'keep_alive',
-      name: 'Refresh the claim',
-      next: '16',
-      options: { action: 'heartbeat', token: claimToken },
-      suffix: '15',
-      type: coordinateOperation,
-    }),
-    chainStep({
-      column: 109,
-      failure: branches.legacyRun,
-      key: 'count_legacy',
-      name: 'Count the legacy rules',
-      next: '17',
-      options: {
-        flow: legacyEnrollmentFlowIds.parent,
-        iterationMode: 'serial',
-        payload: { claim: claimToken },
-      },
-      suffix: '16',
-      type: 'trigger',
-    }),
-    condition({
-      edges: {
-        reject: failStepId(branches.legacy),
-        resolve: automationId('18'),
-      },
-      family,
-      filter: { count_legacy: { ok: { _eq: true } } },
-      key: 'legacy_ok',
-      name: 'Legacy rules counted?',
-      position: [127, 1],
-      suffix: '17',
-    }),
-    chainStep({
-      column: 145,
       failure: branches.complete,
       key: 'complete',
       name: 'Complete the claim',
-      next: '19',
+      next: '16',
       options: { action: 'complete', token: claimToken },
-      suffix: '18',
+      suffix: '15',
       type: coordinateOperation,
     }),
     operation({
@@ -223,16 +165,15 @@ export const dispatcherFlow: FlowTemplate = {
         json: {
           completed: true,
           domain: 'enrollments',
+          families: '{{ families_ok.families }}',
           installed: '{{ complete.installed }}',
-          legacy: '{{ count_legacy }}',
-          mapped: '{{ mapped_ok }}',
           ok: true,
           pages: '{{ plan.total }}',
           revision: '{{ complete.revision }}',
         },
       },
-      position: [163, 1],
-      suffix: '19',
+      position: [109, 1],
+      suffix: '16',
       type: 'transform',
     }),
     ...Object.values(branches).flatMap((branch) => releaseSteps(branch)),

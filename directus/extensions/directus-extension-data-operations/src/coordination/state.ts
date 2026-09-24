@@ -11,9 +11,9 @@ export const pageSources = ['history', 'rules'] as const;
 export type PageSource = (typeof pageSources)[number];
 
 // What plan_pages may plan: one source table, or `enrollments`, the one
-// plan of an enrollments claim that covers both rule families (mapped rule
-// pages, legacy rule pages crossed with history pages, and a zero page per
-// legacy rule page), so its completion never drops a family's rows.
+// plan of an enrollments claim that covers every declared rule mode as one
+// family of pages (rule-modes.ts), so its completion never drops a
+// family's rows.
 export const planSources = [...pageSources, 'enrollments'] as const;
 
 export type PlanSource = (typeof planSources)[number];
@@ -83,9 +83,9 @@ export const historyPageBudget = 800_000;
 export const legacyPatternBudget = 1_000_000;
 
 // The only claim domain each table source may be planned under. An
-// enrollments claim plans its rules alone only while every rule is
-// mapped_entries; otherwise it needs source `enrollments`, the one plan
-// that covers the legacy family too.
+// enrollments claim plans its rules alone only while every rule is of a
+// mode planned as plain rule ranges; otherwise it needs source
+// `enrollments`, the one plan that covers every rule mode.
 export const pageSourceDomains: Readonly<Record<PageSource, Domain>> = {
   history: 'history_index',
   rules: 'enrollments',

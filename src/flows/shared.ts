@@ -4,8 +4,28 @@
 // planned page, and the check that turns the per-pair results
 // {course, academic_year, count, revision} into the candidate rows of that
 // page. The install-once helpers themselves live in flow-template.ts and
-// install-flows.ts (Tasks 9 and 10) and are reused, not copied.
+// install-flows.ts (Tasks 9 and 10) and are reused, not copied. The rule
+// modes, their page kinds and the runner of each family are declared once
+// in the data-operations extension (rule-modes.ts); the Flows of a family
+// read their own declaration.
+import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { familyIds, familyStep, flowFamilyCodes } from './flow-template.js';
+
+// A declared mode or page kind as a string literal inside a Run Script
+// body. The registry test keeps every declared value to lowercase words
+// and underscores, so the literal needs no escaping.
+export const scriptText = (value: string): string => `'${value}'`;
+
+// The mapped_entries family: its rule mode and its one page kind.
+export const mappedRuleMode = ruleMode('mapped_entries');
+
+export const [mappedPageKind] = mappedRuleMode.pageKinds;
+
+// The legacy_regex family: its rule mode and its two page kinds (a history
+// page crossed with a rule page, and the zero page of a rule page).
+export const legacyRuleMode = ruleMode('legacy_regex');
+
+export const [legacyPageKind, zeroPageKind] = legacyRuleMode.pageKinds;
 
 export const enrollmentFamily = flowFamilyCodes.mapped;
 
@@ -15,9 +35,12 @@ export const enrollmentId = familyIds(enrollmentFamily);
 // An operation of the enrollment count family.
 export const enrollmentStep = familyStep(enrollmentFamily);
 
-// The mapped enrollment Flows: one course/year, one planned rule page.
+// The mapped enrollment Flows: one course/year, one planned rule page, and
+// the family's runner (every mapped page of the plan), whose id the
+// registry declares.
 export const mappedEnrollmentFlowIds = {
   page: enrollmentId('02'),
+  pages: mappedRuleMode.runnerFlowId,
   pair: enrollmentId('01'),
 } as const;
 
@@ -29,11 +52,12 @@ export const legacyId = familyIds(legacyFamily);
 // An operation of the legacy enrollment family.
 export const legacyStep = familyStep(legacyFamily);
 
-// The legacy enrollment Flows: the parent, one legacy page (a history page
-// crossed with a legacy rule page), one zero page (a legacy rule page).
+// The legacy enrollment Flows: the parent (the family's runner, whose id
+// the registry declares), one legacy page (a history page crossed with a
+// legacy rule page), one zero page (a legacy rule page).
 export const legacyEnrollmentFlowIds = {
   page: legacyId('02'),
-  parent: legacyId('01'),
+  parent: legacyRuleMode.runnerFlowId,
   zeros: legacyId('03'),
 } as const;
 
@@ -109,7 +133,7 @@ export const pagePlanScript = String.raw`module.exports = function (data) {
     refuse('is not planned with its range under this claim (plan_pages with source enrollments or rules)');
   }
   const range = planned[0];
-  if (range.kind !== undefined && range.kind !== 'mapped') {
+  if (range.kind !== undefined && range.kind !== ${scriptText(mappedPageKind)}) {
     refuse('is planned as a ' + String(range.kind) + ' page, not a mapped rule page');
   }
   if (range.from !== page.from || range.to !== page.to || range.rows !== page.rows) {
@@ -129,7 +153,7 @@ export const rulePageQuery = {
   fields: ['id', 'course', 'academic_year', 'mode'],
   filter: {
     id: { _between: ['{{ check_page.from }}', '{{ check_page.to }}'] },
-    mode: { _eq: 'mapped_entries' },
+    mode: { _eq: mappedRuleMode.mode },
   },
   limit: -1,
   sort: ['id'],
@@ -165,8 +189,8 @@ export const rulePairsScript = `module.exports = function (data) {
     if (!whole(rule.course, 1) || !whole(rule.academic_year, 1)) {
       throw new Error('Rule ' + rule.id + ' has no course or academic year id.');
     }
-    if (rule.mode !== 'mapped_entries') {
-      throw new Error('Rule ' + rule.id + ' of page ' + page.token + ' has the mode ' + String(rule.mode) + '; this Flow counts mapped_entries rules only and stages a page whole, so nothing was counted.');
+    if (rule.mode !== ${scriptText(mappedRuleMode.mode)}) {
+      throw new Error('Rule ' + rule.id + ' of page ' + page.token + ' has the mode ' + String(rule.mode) + '; this Flow counts ${mappedRuleMode.mode} rules only and stages a page whole, so nothing was counted.');
     }
     pairs.push({ academic_year: rule.academic_year, claim: page.claim, course: rule.course, revision: page.revision });
   }

@@ -9,12 +9,12 @@ import {
   legacyRulePageSize,
   pageSize,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
+import { planEnrollmentPages } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
 import {
   enrollmentLimits,
   historyRanges,
   legacyRuleRanges,
-  planEnrollmentPages,
-} from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
+} from '../directus/extensions/directus-extension-data-operations/src/enrollment-ranges.js';
 import {
   deriveCourses,
   DerivedDataError,

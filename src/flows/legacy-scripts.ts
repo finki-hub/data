@@ -1,10 +1,17 @@
+import { legacyPageKind, scriptText, zeroPageKind } from './shared.js';
+
 // The small Run Script bodies of the legacy enrollment Flows that check
 // the stored plan and the answers of the child Flows. The two bodies that
 // touch data, count-history-page.cjs and sum-counts.cjs, live in
 // directus/flows. stage_page checks only that a page token is planned, so
 // every page checks itself against the plan the coordinator stored for
 // the claim (kind, ranges, bytes and revision) before it reads a row, and
-// no refusal names a claim token, a history, a pattern or a name.
+// no refusal names a claim token, a history, a pattern or a name. The two
+// page kinds are the legacy_regex family's declared ones (rule-modes.ts).
+
+const legacyKind = scriptText(legacyPageKind);
+
+const zeroKind = scriptText(zeroPageKind);
 
 // The coordination status row, read the way the coordinator reads it: the
 // current claim, its domain, revision, planned pages and staged pages.
@@ -66,7 +73,7 @@ export const legacyPageCheckScript = `module.exports = function (data) {
   if (!Number.isSafeInteger(page.bytes) || page.bytes < 0 || !Number.isSafeInteger(page.revision) || page.revision < 0 || page.rules === null || typeof page.rules !== 'object' || !Number.isSafeInteger(page.rules.bytes) || page.rules.bytes < 0) {
     throw new Error('The ranges, bytes and revision of page ' + page.token + ' must be integers.');
   }${pageStatus}
-  if (entry.kind !== 'legacy') {
+  if (entry.kind !== ${legacyKind}) {
     refuse('is planned as a ' + kindOf(entry) + ' page, not a legacy page');
   }
   const rules = entry.rules !== null && typeof entry.rules === 'object' ? entry.rules : {};
@@ -86,14 +93,14 @@ export const zeroPageCheckScript = `module.exports = function (data) {
   if (!Number.isSafeInteger(page.revision) || page.revision < 0) {
     throw new Error('The revision of page ' + page.token + ' must be an integer.');
   }${pageStatus}
-  if (entry.kind !== 'legacy_zeros') {
+  if (entry.kind !== ${zeroKind}) {
     refuse('is planned as a ' + kindOf(entry) + ' page, not a zero page');
   }
   if (!isRange(page) || entry.from !== page.from || entry.to !== page.to || entry.rows !== page.rows) {
     refuse('was planned as rules ' + String(entry.from) + ' to ' + String(entry.to) + ' (' + String(entry.rows) + ')');
   }
   const cells = pages.filter(function (other) {
-    return other !== null && typeof other === 'object' && other.kind === 'legacy' && other.rules !== null && typeof other.rules === 'object' && other.rules.from === page.from && other.rules.to === page.to && other.rules.rows === page.rows;
+    return other !== null && typeof other === 'object' && other.kind === ${legacyKind} && other.rules !== null && typeof other.rules === 'object' && other.rules.from === page.from && other.rules.to === page.to && other.rules.rows === page.rows;
   }).map(function (other) { return other.token; });
   const staged = Array.isArray(status.claim_staged) ? status.claim_staged : [];
   const missing = cells.filter(function (token) { return !staged.includes(token); });
@@ -134,9 +141,9 @@ export const legacyPagesScript = `module.exports = function (data) {
   const zeros = [];
   for (const entry of pages) {
     const rules = entry.rules !== null && typeof entry.rules === 'object' ? entry.rules : {};
-    if (entry.kind === 'legacy') {
+    if (entry.kind === ${legacyKind}) {
       cells.push({ bytes: entry.bytes, claim: trigger.claim, from: entry.from, revision: revision, rows: entry.rows, rules: { bytes: rules.bytes, from: rules.from, rows: rules.rows, to: rules.to }, to: entry.to, token: entry.token });
-    } else if (entry.kind === 'legacy_zeros') {
+    } else if (entry.kind === ${zeroKind}) {
       zeros.push({ claim: trigger.claim, from: entry.from, revision: revision, rows: entry.rows, to: entry.to, token: entry.token });
     }
   }

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
+import { runnerFlowIds } from '../rule-modes.js';
 import {
   calculationDomains,
   domainDeclarations,
@@ -69,6 +70,14 @@ export const calculationTargets: readonly string[] = [
 export const publicationTargets: readonly string[] = domainDeclarations
   .filter(({ kind }) => kind === 'publication')
   .map(({ name }) => name);
+
+// The Flows that root the calculation graph by declaration rather than by
+// a coordinate step: the runner of every rule-mode family. The enrollment
+// dispatcher reaches a runner through a Trigger Flow step whose flow id is
+// templated from the planned family, which no graph walk can follow, so
+// without these roots a family's Flows would fall out of the fingerprint
+// and a Studio edit of them would never requeue the counts.
+export const calculationRunnerRoots: readonly string[] = runnerFlowIds();
 
 const textOf = (options: unknown, key: string): null | string => {
   const value = isRecord(options) ? options[key] : undefined;

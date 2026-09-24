@@ -10,6 +10,7 @@ import {
   nextCalculation,
 } from './coordination/domains.js';
 import { operationId, planSources } from './coordination/state.js';
+import { ruleModes, rulesPlanMode } from './rule-modes.js';
 
 const choices = (values: readonly string[]) =>
   values.map((value) => ({ text: value, value }));
@@ -23,6 +24,11 @@ const domainChoices = (values: readonly string[]) =>
 
 const text = (value: unknown): string =>
   typeof value === 'string' && value !== '' ? value : '--';
+
+// The page kinds of every declared rule mode, for the plan source note.
+const familyKinds = ruleModes
+  .map(({ mode, pageKinds }) => `${mode}: ${pageKinds.join(' and ')} pages`)
+  .join('; ');
 
 export default defineOperationApp({
   description:
@@ -88,7 +94,7 @@ export default defineOperationApp({
       field: 'source',
       meta: {
         interface: 'select-dropdown',
-        note: 'plan_pages: history pages Moodle users (history_index claims), rules pages enrollment rules (enrollments claims while every rule is mapped_entries), enrollments plans both rule families of an enrollments claim (mapped pages, legacy pages, zero pages); planning discards every candidate row staged under the claim.',
+        note: `plan_pages: history pages Moodle users (history_index claims), rules pages enrollment rules (enrollments claims while every rule is ${rulesPlanMode.mode}), enrollments plans one family of pages per rule mode of an enrollments claim (${familyKinds}); planning discards every candidate row staged under the claim.`,
         options: { allowNone: true, choices: choices(planSources) },
         width: 'half',
       },

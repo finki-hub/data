@@ -1,5 +1,6 @@
 import { calculationDomains } from './domains.js';
 import {
+  calculationRunnerRoots,
   calculationTargets,
   neutralActions,
   pageStepActions,
@@ -28,18 +29,33 @@ const literals = (values: readonly string[]): string =>
 const action = `o."options"->>'action'`;
 const claimed = `o."options"->>'domain'`;
 
+// One row of a VALUES list holding a fixed identifier.
+const valuesRow = (value: string): string => `(${literals([value])})`;
+
+// The declared runner Flows (fixed identifiers of the rule-mode registry)
+// as more roots of the calculation graph; none when no mode is declared.
+const runnerRoots = (runners: readonly string[]): string =>
+  runners.length === 0
+    ? ''
+    : `
+  UNION SELECT 'calculation', runners."flow" FROM (VALUES ${runners.map(valuesRow).join(', ')}) AS runners("flow")`;
+
 // The managed Flow graphs, partitioned by what their coordinate steps do
 // (graphKindsOf in fingerprint.ts is the same rule): a Flow is a root of
 // the calculation graph when it claims a calculation domain or
 // next_calculation or plans, stages or indexes pages, and a root of the
 // publication graph when it claims publication; a templated or unknown
 // action or claim domain roots both, and a Flow holding only mark, status,
-// heartbeat, complete or fail steps roots neither. Each graph adds every
-// Flow its roots reach through Trigger Flow operations; UNION stops at
-// Flows already reached, so a cycle ends, and a templated or unknown child
-// id matches no Flow. Only system tables are read, never a collection.
-// Binding: the coordinate type.
-export const graphSql = `WITH RECURSIVE "roots"("graph", "flow") AS (
+// heartbeat, complete or fail steps roots neither. The runner of every
+// declared rule mode roots the calculation graph as well (its caller's
+// flow id is templated). Each graph adds every Flow its roots reach
+// through Trigger Flow operations; UNION stops at Flows already reached,
+// so a cycle ends, and a templated or unknown child id matches no Flow.
+// Only system tables are read, never a collection. Binding: the coordinate
+// type.
+export const graphSqlOf = (
+  runners: readonly string[],
+): string => `WITH RECURSIVE "roots"("graph", "flow") AS (
   SELECT DISTINCT kinds."graph", o."flow"::text FROM "directus_operations" o
   CROSS JOIN (VALUES ('calculation'), ('publication')) AS kinds("graph")
   WHERE o."type" = ? AND CASE
@@ -47,7 +63,7 @@ export const graphSql = `WITH RECURSIVE "roots"("graph", "flow") AS (
     WHEN ${action} IN (${literals(pageStepActions)}) THEN kinds."graph" = 'calculation'
     WHEN ${action} = 'claim' AND ${claimed} IN (${literals(calculationTargets)}) THEN kinds."graph" = 'calculation'
     WHEN ${action} = 'claim' AND ${claimed} IN (${literals(publicationTargets)}) THEN kinds."graph" = 'publication'
-    ELSE true END
+    ELSE true END${runnerRoots(runners)}
 ), "managed"("graph", "flow") AS (
   SELECT "graph", "flow" FROM "roots"
   UNION
@@ -59,6 +75,8 @@ SELECT m."graph", f."id" AS "flow", f."trigger", f."options" AS "flow_options", 
 FROM "managed" m JOIN "directus_flows" f ON f."id"::text = m."flow"
 LEFT JOIN "directus_operations" o ON o."flow" = f."id"
 ORDER BY m."graph", f."id", o."id"`;
+
+export const graphSql = graphSqlOf(calculationRunnerRoots);
 
 // Bindings: token, owner, domain, fingerprint, dirty JSON, domain, revision.
 export const claimSql = `UPDATE "data_operations" SET "claim_token" = ?, "claim_owner" = ?, "claim_domain" = ?,

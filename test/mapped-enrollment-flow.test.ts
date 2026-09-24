@@ -7,7 +7,12 @@ import { z } from 'zod';
 import type { DirectusRequest } from '../src/directus-request.js';
 
 import { coordinatorActions } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
+import {
+  mappedCheckScript,
+  mappedPagesScript,
+} from '../src/flows/count-enrollments-scripts.js';
 import { mappedPageFlow } from '../src/flows/count-mapped-enrollment-page.js';
+import { mappedPagesFlow } from '../src/flows/count-mapped-enrollment-pages.js';
 import {
   mappedCountQuery,
   mappedEnrollmentFlows,
@@ -549,6 +554,7 @@ describe('mapped enrollment Flow templates', () => {
     expect(mappedEnrollmentFlows.map(({ id }) => id)).toEqual([
       mappedEnrollmentFlowIds.pair,
       mappedEnrollmentFlowIds.page,
+      mappedEnrollmentFlowIds.pages,
     ]);
 
     for (const flow of mappedEnrollmentFlows) {
@@ -576,8 +582,9 @@ describe('mapped enrollment Flow templates', () => {
         expect(targets.every((target) => own.has(target))).toBeTruthy();
       }
 
-      // Both Flows hold a coordinator step, so the managed graph
-      // fingerprint covers their queries and scripts.
+      // Every Flow holds a coordinator step (the runner its fail steps);
+      // the runner is a declared root of the calculation graph, so the
+      // managed graph fingerprint covers every query and script.
       const coordinate = flow.operations.filter(
         ({ type }) => type === coordinateOperation,
       );
@@ -739,6 +746,154 @@ describe('mapped enrollment Flow templates', () => {
   });
 });
 
+// The runner of the mapped_entries family: the family as the dispatcher's
+// "Data / Run enrollment family" hands it over, and its page payloads.
+const familyPages = [
+  { from: 1, kind: 'mapped', rows: 3, to: 4, token: 'p0001' },
+  { from: 9, kind: 'mapped', rows: 1, to: 9, token: 'p0002' },
+];
+const mappedFamily = {
+  claim,
+  kind: 'mapped_entries',
+  pages: familyPages,
+  revision: 7,
+  runner: mappedEnrollmentFlowIds.pages,
+};
+const pagePayloads = [
+  { claim, from: 1, revision: 7, rows: 3, to: 4, token: 'p0001' },
+  { claim, from: 9, revision: 7, rows: 1, to: 9, token: 'p0002' },
+];
+const pageAnswers = [
+  { page: 'p0001', replaced: 0, staged: 3 },
+  { page: 'p0002', replaced: 0, staged: 1 },
+];
+const checkedAnswers = (answers: unknown) =>
+  runScript(mappedCheckScript, {
+    count_pages: answers,
+    mapped_pages: pagePayloads,
+  });
+
+describe('mapped family runner', () => {
+  test('hands every mapped page of its family, with the claim and revision, to the page Flow', () => {
+    expect(runScript(mappedPagesScript, { $trigger: mappedFamily })).toEqual(
+      pagePayloads,
+    );
+    expect(
+      runScript(mappedPagesScript, {
+        $trigger: { ...mappedFamily, pages: [] },
+      }),
+    ).toEqual([]);
+    expect(
+      refusalOf(() =>
+        runScript(mappedPagesScript, {
+          $trigger: { ...mappedFamily, revision: null },
+        }),
+      ),
+    ).toContain('{claim, revision, pages}');
+    expect(
+      refusalOf(() =>
+        runScript(mappedPagesScript, {
+          $trigger: {
+            ...mappedFamily,
+            pages: [familyPages[0], { ...familyPages[1], kind: 'legacy' }],
+          },
+        }),
+      ),
+    ).toBe(
+      'Page 2 of the mapped family is not a mapped page; nothing was counted.',
+    );
+  });
+
+  test('accepts a mapped page only when it staged every planned pair, zeros included', () => {
+    expect(checkedAnswers(pageAnswers)).toEqual({ pages: 2, staged: 4 });
+    // A page that left out its zero rows would install fewer pairs than
+    // the rules name; the check refuses it before the completion.
+    expect(
+      refusalOf(() =>
+        checkedAnswers([pageAnswers[0], { ...pageAnswers[1], staged: 0 }]),
+      ),
+    ).toBe(
+      'Mapped page p0002 answered no valid summary; nothing was installed.',
+    );
+    expect(
+      refusalOf(() =>
+        checkedAnswers([
+          {
+            code: 'COORDINATION_SOURCE_CHANGED',
+            message: 'A source change committed during the run.',
+            ok: false,
+            page: 'p0001',
+            stage: 'stage',
+          },
+          pageAnswers[1],
+        ]),
+      ),
+    ).toBe(
+      'Mapped page p0001 failed (stage: COORDINATION_SOURCE_CHANGED A source change committed during the run.); nothing was installed.',
+    );
+    expect(refusalOf(() => checkedAnswers([pageAnswers[0]]))).toContain(
+      'count_pages answered 1 results for 2 mapped pages',
+    );
+  });
+
+  test('runs its pages serially through the page Flow, fails the claim on any failure and answers a summary', () => {
+    const flow = mappedPagesFlow;
+
+    expect(flow).toMatchObject({
+      id: mappedEnrollmentFlowIds.pages,
+      name: 'Data / Count mapped enrollment pages',
+      trigger: 'operation',
+    });
+    expect(keyOf(flow, flow.entry)).toBe('mapped_pages');
+    expect(step(flow, 'mapped_pages').options).toEqual({
+      code: mappedPagesScript,
+    });
+    expect(step(flow, 'count_pages')).toMatchObject({
+      options: {
+        flow: mappedEnrollmentFlowIds.page,
+        iterationMode: 'serial',
+        payload: '{{ mapped_pages }}',
+      },
+      type: 'trigger',
+    });
+    expect(step(flow, 'check_pages').options).toEqual({
+      code: mappedCheckScript,
+    });
+    expect(step(flow, 'answer').options).toEqual({
+      json: {
+        ok: true,
+        pages: '{{ check_pages.pages }}',
+        staged: '{{ check_pages.staged }}',
+      },
+    });
+
+    const main = ['mapped_pages', 'count_pages', 'check_pages'];
+
+    expect(main.map((key) => edges(flow, key)[0])).toEqual([
+      'count_pages',
+      'check_pages',
+      'answer',
+    ]);
+
+    for (const key of main) {
+      const failing = step(flow, edges(flow, key)[1] ?? '');
+
+      expect(failing).toMatchObject({
+        options: {
+          action: 'fail',
+          code: 'MAPPED_COUNT_FAILED',
+          message: `{{ ${key}.message }}`,
+          token: '{{ $trigger.claim }}',
+        },
+        type: coordinateOperation,
+      });
+      expect(
+        step(flow, edges(flow, failing.key)[0] ?? '').options,
+      ).toMatchObject({ json: { message: `{{ ${key}.message }}`, ok: false } });
+    }
+  });
+});
+
 describe('mapped enrollment Flow installer', () => {
   test('installs each Flow once and never touches an existing one', async () => {
     const calls: Array<{ body: unknown; method: string; pathname: string }> =
@@ -777,7 +932,7 @@ describe('mapped enrollment Flow installer', () => {
       mutations
         .filter(({ pathname }) => pathname === '/flows')
         .map(({ body }) => flowBody.parse(body).status),
-    ).toEqual(['inactive', 'inactive']);
+    ).toEqual(['inactive', 'inactive', 'inactive']);
     expect(
       mutations.filter(({ pathname }) => pathname === '/operations'),
     ).toHaveLength(

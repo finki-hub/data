@@ -7,6 +7,7 @@ import { failureSteps, readStep } from './legacy-steps.js';
 import {
   legacyEnrollmentFlowIds,
   legacyId,
+  legacyRuleMode,
   legacyStep as step,
 } from './shared.js';
 
@@ -27,7 +28,7 @@ export const zeroRulesQuery = {
   fields: ['id', 'course', 'academic_year'],
   filter: {
     id: { _between: ['{{ check_zeros.from }}', '{{ check_zeros.to }}'] },
-    mode: { _eq: 'legacy_regex' },
+    mode: { _eq: legacyRuleMode.mode },
   },
   limit: -1,
   sort: ['id'],

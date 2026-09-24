@@ -8,12 +8,15 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
+import { dispatcherFlow } from '../../src/flows/count-enrollments.js';
 import { legacyEnrollmentFlows } from '../../src/flows/count-legacy-enrollments.js';
 import { mappedEnrollmentFlows } from '../../src/flows/count-mapped-enrollments.js';
 import { legacySumsQuery } from '../../src/flows/fill-legacy-zeros.js';
 import { flowFamilyCodes } from '../../src/flows/flow-template.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
+import { installFlowTemplates } from '../../src/flows/install-flows.js';
 import { installFlowFamily } from '../../src/flows/registry.js';
+import { familyRunnerFlow } from '../../src/flows/run-enrollment-family.js';
 import {
   legacyEnrollmentFlowIds,
   mappedEnrollmentFlowIds,
@@ -52,6 +55,7 @@ import {
   baseSeed,
   candidateRows,
   catastrophicPattern,
+  familyOf,
   historyOf,
   installedCounts,
   installedRevisions,
@@ -74,6 +78,10 @@ import {
 // The Flows a family install created and skipped.
 const flowLists = ({ created, skipped }) => ({ created, skipped });
 
+// The installed dispatcher and the runner every planned family goes
+// through, children first.
+const dispatcherFlows = [familyRunnerFlow, dispatcherFlow];
+
 const collator = new Intl.Collator('en');
 const byKey = (left, right) => collator.compare(left.key, right.key);
 const fillerText = /Synthetic Legacy Filler/u;
@@ -84,7 +92,9 @@ const invalidRule =
 const timedOut = /Script execution timed out/u;
 const firstLegacyPage = /Legacy page p0002 failed/u;
 const overBudget =
-  /^Moodle user (?<user>\d+) holds 800001 bytes of Courses history, more than the 800000-byte budget of one legacy rule page; nothing was planned\.$/u;
+  /^plan: Moodle user (?<user>\d+) holds 800001 bytes of Courses history, more than the 800000-byte budget of one legacy rule page; nothing was planned\.$/u;
+const legacyFamilyFailed =
+  /^family: Enrollment family legacy_regex failed \(family: LEGACY_COUNT_FAILED legacy: LEGACY_COUNT_FAILED /u;
 const mappedPair = { 'ma/2025/2026': 2, 'mb/2025/2026': 0 };
 
 // The installed counts must equal the checkpoint derivation of the seed
@@ -111,20 +121,42 @@ const claimAndPlan = async (target, retry = null) => {
   // The planned page plus the claim and its revision: the payload of the
   // page Flows, which check it against the stored plan themselves.
   const pagesOf = (wanted) =>
-    plan.pages
+    plan.families
+      .flatMap(({ pages }) => pages)
       .filter(({ kind }) => kind === wanted)
       .map((page) => ({
         ...page,
         claim: claim.token,
         revision: claim.revision,
       }));
+  // A planned family as "Data / Run enrollment family" hands it to the
+  // runner Flow the plan names.
+  const family = (kind) => {
+    const planned = plan.families.find((entry) => entry.kind === kind);
+    return {
+      claim: claim.token,
+      kind,
+      pages: planned.pages,
+      revision: claim.revision,
+      runner: planned.runnerFlowId,
+    };
+  };
   return {
     cells: pagesOf('legacy'),
     claim,
+    family,
     mapped: pagesOf('mapped'),
     plan,
     zeros: pagesOf('legacy_zeros'),
   };
+};
+
+// Runs one planned family through the runner Flow its plan names.
+const runFamily = async (target, planned, kind) => {
+  const family = planned.family(kind);
+  const [answer] = await drive(target, family.runner, [family]);
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  return answer;
 };
 
 const installsFlows = async (target, directus, state) => {
@@ -134,12 +166,16 @@ const installsFlows = async (target, directus, state) => {
     ...historyIndexFlows,
     ...mappedEnrollmentFlows,
     ...legacyEnrollmentFlows,
+    ...dispatcherFlows,
   ]
     .map(({ id }) => id)
     .filter((id) => !present.has(id));
   await installFlowFamily(directus, flowFamilyCodes.history);
   await installFlowFamily(directus, flowFamilyCodes.mapped);
   const first = await installFlowFamily(directus, flowFamilyCodes.legacy);
+  // The dispatcher and its family runner only: the rest of the automatic
+  // processing family (the schedule) stays as the fixture holds it.
+  await installFlowTemplates(directus, dispatcherFlows);
   assert.equal(
     first.created.length + first.skipped.length,
     legacyEnrollmentFlows.length,
@@ -151,7 +187,11 @@ const installsFlows = async (target, directus, state) => {
       skipped: legacyEnrollmentFlows.map(({ name }) => name),
     },
   );
-  for (const flow of [...mappedEnrollmentFlows, ...legacyEnrollmentFlows]) {
+  for (const flow of [
+    ...mappedEnrollmentFlows,
+    ...legacyEnrollmentFlows,
+    ...dispatcherFlows,
+  ]) {
     const live = await get(
       target,
       `/flows/${flow.id}?fields=name,description,status,trigger,accountability,operation,options`,
@@ -281,21 +321,33 @@ const countsBothFamilies = async (target, state, context) => {
   const run = await runEnrollments(target);
   const runMs = Math.round(performance.now() - started);
   assert.equal(run.status, 200, JSON.stringify(run.body));
-  assert.deepEqual(run.body.legacy, {
-    counted: run.body.legacy.counted,
+  assert.deepEqual(
+    run.body.families.map(({ kind, pages }) => [kind, pages]),
+    [
+      ['mapped_entries', 1],
+      ['legacy_regex', 2],
+    ],
+  );
+  const legacy = familyOf(run.body, 'legacy_regex').summary;
+  assert.deepEqual(legacy, {
+    counted: legacy.counted,
     legacyPages: 1,
     ok: true,
     pairs: 120,
-    staged: run.body.legacy.counted,
+    staged: legacy.counted,
     zeroPages: 1,
-    zeros: 120 - run.body.legacy.counted,
+    zeros: 120 - legacy.counted,
   });
-  assert.deepEqual(run.body.mapped, { pages: 1, staged: 2 });
+  assert.deepEqual(familyOf(run.body, 'mapped_entries').summary, {
+    ok: true,
+    pages: 1,
+    staged: 2,
+  });
   assert.equal(run.body.pages, 3);
   assert.equal(run.body.installed, 122);
   const expected = await expectParity(target, state);
   const nonzero = Object.values(expected).filter((value) => value > 0).length;
-  assert.equal(run.body.legacy.counted, nonzero - 1);
+  assert.equal(legacy.counted, nonzero - 1);
   assert.deepEqual(await installedRevisions(target), [run.body.revision]);
   assert.deepEqual(await candidateRows(target), []);
   const report = await status(target);
@@ -313,21 +365,19 @@ const countsBothFamilies = async (target, state, context) => {
   );
 };
 
-// A claim that stages only one family is refused by the completion
-// (PAGES_MISSING names the other family's pages) and installs nothing;
-// driven in full by a synthetic dispatcher it completes.
+// A claim that stages only one family (run through the runner Flow its
+// plan names) is refused by the completion (PAGES_MISSING names the other
+// family's pages) and installs nothing; with every family staged it
+// completes.
 const refusesOneFamily = async (target, state) => {
   const before = await installedCounts(target, state);
   await act(target, { action: 'mark', domains: ['enrollments'] });
   const mappedOnly = await claimAndPlan(target);
-  const staged = await drive(
-    target,
-    mappedEnrollmentFlowIds.page,
-    mappedOnly.mapped,
+  assert.equal(
+    mappedOnly.family('mapped_entries').runner,
+    mappedEnrollmentFlowIds.pages,
   );
-  for (const result of staged) {
-    assert.equal(typeof result.staged, 'number', JSON.stringify(result));
-  }
+  await runFamily(target, mappedOnly, 'mapped_entries');
   const missingLegacy = await invoke(target, {
     action: 'complete',
     token: mappedOnly.claim.token,
@@ -345,10 +395,11 @@ const refusesOneFamily = async (target, state) => {
     token: mappedOnly.claim.token,
   });
   const legacyOnly = await claimAndPlan(target, true);
-  const [legacy] = await drive(target, legacyEnrollmentFlowIds.parent, [
-    { claim: legacyOnly.claim.token },
-  ]);
-  assert.equal(legacy.ok, true, JSON.stringify(legacy));
+  assert.equal(
+    legacyOnly.family('legacy_regex').runner,
+    legacyEnrollmentFlowIds.parent,
+  );
+  await runFamily(target, legacyOnly, 'legacy_regex');
   const missingMapped = await invoke(target, {
     action: 'complete',
     token: legacyOnly.claim.token,
@@ -394,13 +445,10 @@ const refusesOneFamily = async (target, state) => {
     code: 'SYNTHETIC_TABLE_PLAN',
     token: tableOnly.token,
   });
-  // The same claim flow with both families, driven step by step.
+  // The same claim with every family, each through its runner.
   const both = await claimAndPlan(target, true);
-  await drive(target, mappedEnrollmentFlowIds.page, both.mapped);
-  const [answer] = await drive(target, legacyEnrollmentFlowIds.parent, [
-    { claim: both.claim.token },
-  ]);
-  assert.equal(answer.ok, true, JSON.stringify(answer));
+  await runFamily(target, both, 'mapped_entries');
+  await runFamily(target, both, 'legacy_regex');
   const completed = await act(target, {
     action: 'complete',
     token: both.claim.token,
@@ -521,7 +569,8 @@ const editsPattern = async (target, state) => {
 // Refused runs install nothing and leave status failed; the counts and
 // their revision stay those of the last successful run.
 const expectVisibleFailure = async (target, state, { reason, run }) => {
-  const message = assertRefusedRun(run, 500, 'LEGACY_COUNT_FAILED');
+  const message = assertRefusedRun(run, 500, 'ENROLLMENTS_FAILED');
+  assert.match(message, legacyFamilyFailed);
   assert.match(message, reason);
   assert.doesNotMatch(JSON.stringify(run.body), privateText);
   assert.deepEqual(await installedCounts(target, state), state.expected);
@@ -611,7 +660,7 @@ const refusesOverBudget = async (target, state) => {
   const before = await status(target);
   const completed = before.revisions.completed;
   const run = await runEnrollments(target);
-  const message = assertRefusedRun(run, 500, 'PLAN_REFUSED');
+  const message = assertRefusedRun(run, 500, 'COORDINATION_PAGE_OVER_BUDGET');
   assert.equal(Number(overBudget.exec(message)?.groups?.user), user);
   assert.doesNotMatch(JSON.stringify(run.body), fillerText);
   const report = await status(target);
@@ -703,7 +752,8 @@ const stopsAtFirstFailedPage = async (target, state, context) => {
   const started = performance.now();
   const run = await runEnrollments(target);
   const runMs = Math.round(performance.now() - started);
-  const message = assertRefusedRun(run, 500, 'LEGACY_COUNT_FAILED');
+  const message = assertRefusedRun(run, 500, 'ENROLLMENTS_FAILED');
+  assert.match(message, legacyFamilyFailed);
   assert.match(message, timedOut);
   assert.match(message, firstLegacyPage);
   assert.doesNotMatch(JSON.stringify(run.body), privateText);
@@ -741,7 +791,7 @@ const installsZerosWithoutUsers = async (target, state) => {
   assert.equal(indexed.status, 200, JSON.stringify(indexed.body));
   const run = await runEnrollments(target, { retry: true });
   assert.equal(run.status, 200, JSON.stringify(run.body));
-  assert.deepEqual(run.body.legacy, {
+  assert.deepEqual(familyOf(run.body, 'legacy_regex').summary, {
     counted: 0,
     legacyPages: 0,
     ok: true,
@@ -762,7 +812,10 @@ const installsZerosWithoutUsers = async (target, state) => {
 };
 
 const refusesAnonymousTriggers = async (target) => {
-  for (const id of Object.values(legacyEnrollmentFlowIds)) {
+  for (const id of [
+    ...Object.values(legacyEnrollmentFlowIds),
+    ...dispatcherFlows.map((flow) => flow.id),
+  ]) {
     assert.equal(await anonymousTrigger(target, id), 403, id);
     const direct = await request(
       target,

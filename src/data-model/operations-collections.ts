@@ -8,6 +8,8 @@ import {
   claimChoices,
   importChoices,
   modeChoices,
+  modeNote,
+  patternNote,
   publicationChoices,
 } from './operations-vocabularies.js';
 import { snapshotImportFields } from './snapshot-fields.js';
@@ -35,13 +37,8 @@ export const operationsCollections: readonly ModelCollection[] = [
         nullable: false,
         template: academicYearTemplate,
       }),
-      enumField('mode', modeChoices, {
-        note: 'mapped_entries counts explicit mappings; legacy_regex applies the retained pattern.',
-        nullable: false,
-      }),
-      scalar('pattern', 'text', {
-        note: 'Literal regular expression retained from the checkpoint; only used by legacy_regex.',
-      }),
+      enumField('mode', modeChoices, { note: modeNote, nullable: false }),
+      scalar('pattern', 'text', { note: patternNote }),
       scalar('review_note', 'text'),
       ...provenanceFields(),
     ],

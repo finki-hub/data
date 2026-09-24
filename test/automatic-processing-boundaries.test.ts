@@ -467,6 +467,7 @@ describe('installation', () => {
       installFlowFamily(request, flowFamilyCodes.automation),
     ).resolves.toMatchObject({
       created: [
+        'Data / Run enrollment family',
         'Data / Count enrollments',
         'Data / Mark pending',
         'Data / Process pending',
@@ -474,6 +475,7 @@ describe('installation', () => {
       skipped: [],
     });
     expect(posted.map(({ status }) => status)).toEqual([
+      'inactive',
       'inactive',
       'inactive',
       'inactive',

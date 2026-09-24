@@ -17,6 +17,7 @@ import {
   routeSteps,
   unknownDomainSteps,
 } from './process-routes.js';
+import { familyRunnerFlow } from './run-enrollment-family.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -161,8 +162,10 @@ export const processPendingFlow: FlowTemplate = {
 };
 
 // The automatic processing Flows in installation order: every child before
-// the Flows that call it, the schedule last, so its first tick finds them.
+// the Flows that call it (the family runner before the dispatcher), the
+// schedule last, so its first tick finds them.
 export const automaticProcessingFlows: readonly FlowTemplate[] = [
+  familyRunnerFlow,
   dispatcherFlow,
   markPendingFlow,
   processPendingFlow,

@@ -10,6 +10,7 @@ import {
   domainKinds,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
+  calculationRunnerRoots,
   fingerprintsOfGraph,
   graphKindsOf,
   type GraphRow,
@@ -171,13 +172,18 @@ export const recordingDatabase = (row: StateRow) => {
 
 // The Flows of one graph over a template set, as graphSql partitions the
 // installed ones: the Flows a coordinate step roots in the graph
-// (graphKindsOf), and every Flow they reach through Trigger Flow steps.
+// (graphKindsOf), the declared family runners in the calculation graph
+// (graphSql's extra roots, since their caller's flow id is templated),
+// and every Flow they reach through Trigger Flow steps.
 export const graphFlowIds = (
   templates: readonly FlowTemplate[],
   kind: DomainKind,
+  runners: readonly string[] = calculationRunnerRoots,
 ): Set<string> => {
-  const graph = new Set(
-    templates
+  const present = new Set(templates.map(({ id }) => id));
+  const declared = kind === 'calculation' ? runners : [];
+  const graph = new Set([
+    ...templates
       .filter((flow) =>
         flow.operations.some(
           ({ options, type }) =>
@@ -186,7 +192,8 @@ export const graphFlowIds = (
         ),
       )
       .map(({ id }) => id),
-  );
+    ...declared.filter((id) => present.has(id)),
+  ]);
   const edges = templates.flatMap((flow) =>
     flow.operations.flatMap(({ options, type }) => {
       const child = options['flow'];
@@ -217,10 +224,14 @@ const byId = (left: { readonly id: string }, right: { readonly id: string }) =>
   left.id < right.id ? -1 : 1;
 
 // The rows graphSql answers for a template set once it is installed, in
-// its order (graph, Flow id, operation id).
-export const graphRowsOf = (templates: readonly FlowTemplate[]): GraphRow[] =>
+// its order (graph, Flow id, operation id), with the declared runners (or
+// those of a test registry) as extra calculation roots.
+export const graphRowsOf = (
+  templates: readonly FlowTemplate[],
+  runners: readonly string[] = calculationRunnerRoots,
+): GraphRow[] =>
   domainKinds.flatMap((kind) => {
-    const ids = graphFlowIds(templates, kind);
+    const ids = graphFlowIds(templates, kind, runners);
     return templates
       .filter(({ id }) => ids.has(id))
       .toSorted(byId)

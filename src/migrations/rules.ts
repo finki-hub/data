@@ -1,5 +1,6 @@
 import type { Candidates, CourseCandidate, RuleCandidate } from './report.js';
 
+import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import {
   Collector,
   compositeKey,
@@ -43,13 +44,18 @@ export const convertAcademicYears = (
   return out.result();
 };
 
+// The mode every seeded rule gets, taken from its declaration
+// (rule-modes.ts): a mode retired or renamed there fails to compile here
+// instead of seeding rules the enrollments planner refuses.
+const seededMode = ruleMode('legacy_regex').mode;
+
 // One legacy_regex rule per course and academic year: the pattern the
 // checkpoint derivation compiled, recorded literally, with the row it came
 // from as provenance and a note that says why.
 export type RuleRecord = {
   readonly academic_year: number;
   readonly course: number;
-  readonly mode: 'legacy_regex';
+  readonly mode: typeof seededMode;
   readonly pattern: string;
   readonly review_note: string;
   readonly source_collection: 'course_enrollment_patterns' | 'courses';
@@ -117,7 +123,7 @@ const ruleOf = (
     ...provenanceOf(course, rule),
     academic_year: year,
     course: course.id,
-    mode: 'legacy_regex',
+    mode: seededMode,
     pattern: rule.pattern,
   };
 };
@@ -183,7 +189,7 @@ const reuseRule = (
         collection: ruleCollection,
         ids: [present.id],
         label: course.name,
-        message: `course_enrollment_rules row ${String(present.id)} of ${quote(course.name)} already carries mode ${quote(present.mode)} and pattern ${quote(present.pattern)} while the migration would seed legacy_regex ${quote(planned.pattern)}; the rule set by hand is retained.`,
+        message: `course_enrollment_rules row ${String(present.id)} of ${quote(course.name)} already carries mode ${quote(present.mode)} and pattern ${quote(present.pattern)} while the migration would seed ${planned.mode} ${quote(planned.pattern)}; the rule set by hand is retained.`,
       }),
     );
   }

@@ -33,7 +33,10 @@ import {
   zeroPagesCheckScript,
 } from '../src/flows/legacy-scripts.js';
 import { installFlowFamily } from '../src/flows/registry.js';
-import { legacyEnrollmentFlowIds } from '../src/flows/shared.js';
+import {
+  legacyEnrollmentFlowIds,
+  legacyRuleMode,
+} from '../src/flows/shared.js';
 import { claim, refusalOf, runScript } from './legacy-enrollment-helpers.js';
 
 const flowsDirectory = join(import.meta.dirname, '..', 'directus', 'flows');
@@ -329,6 +332,26 @@ describe('legacy plan checks', () => {
 
     expect(message).toMatch(reason);
     expect(message).not.toContain(claim);
+  });
+});
+
+// The pages the parent lists for a trigger payload, from the stored plan.
+const listedPages = (trigger: unknown) =>
+  runScript(legacyPagesScript, { $trigger: trigger, read_plan: [status] });
+
+// "Data / Run enrollment family" hands the parent the whole family; the
+// stored plan stays the authority, whatever pages the payload lists.
+describe('legacy family payload', () => {
+  test('lists the same pages from the family the family runner hands over', () => {
+    const family = {
+      claim,
+      kind: legacyRuleMode.mode,
+      pages: plannedPages.slice(0, 2),
+      revision: 7,
+      runner: legacyEnrollmentFlowIds.parent,
+    };
+
+    expect(listedPages(family)).toEqual(listedPages({ claim }));
   });
 });
 
@@ -749,6 +772,20 @@ describe('zero page Flow template', () => {
 });
 
 describe('legacy parent Flow template', () => {
+  test('is the declared runner of its family and reads the declared mode and page kinds', () => {
+    const [legacy, zeros] = legacyRuleMode.pageKinds;
+
+    expect(legacyParentFlow.id).toBe(legacyRuleMode.runnerFlowId);
+    expect(legacyParentFlow.description).toContain(legacyRuleMode.mode);
+    expect(legacyParentFlow.description).toContain(
+      'Called by "Data / Run enrollment family"',
+    );
+    expect(legacyPagesScript).toContain(`entry.kind === '${legacy}'`);
+    expect(legacyPagesScript).toContain(`entry.kind === '${zeros}'`);
+    expect(legacyPageCheckScript).toContain(`entry.kind !== '${legacy}'`);
+    expect(zeroPageCheckScript).toContain(`entry.kind !== '${zeros}'`);
+  });
+
   test('run the legacy and zero pages serially and fail the claim visibly on any failure', () => {
     expect(keyOf(legacyParentFlow, legacyParentFlow.entry)).toBe('read_plan');
     expect(step(legacyParentFlow, 'legacy_pages').options).toEqual({
@@ -864,6 +901,9 @@ describe('coordinator operation form', () => {
       'rules',
       'enrollments',
     ]);
+    expect(JSON.stringify(source[0]?.meta)).toContain(
+      'while every rule is mapped_entries), enrollments plans one family of pages per rule mode of an enrollments claim (mapped_entries: mapped pages; legacy_regex: legacy and legacy_zeros pages)',
+    );
   });
 });
 

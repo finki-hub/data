@@ -76,7 +76,7 @@ const invalidAggregate = /INVALID_AGGREGATE/u;
 // The coordinator plans the rules of an enrollments claim only while every
 // rule is mapped_entries (Task 12); a legacy rule needs source enrollments.
 const legacyRefused =
-  /^plan_pages with source rules plans mapped_entries rules only, and rule \d+ has another mode; plan with source enrollments, which covers the legacy family too\. Nothing was planned\.$/u;
+  /^plan_pages with source rules plans mapped_entries rules only, and rule \d+ has another mode; plan with source enrollments, which covers every rule mode\. Nothing was planned\.$/u;
 const historyDomain =
   /needs an enrollments claim, and the current claim runs history_index/u;
 const planMismatch = 'PAGE_PLAN_MISMATCH';

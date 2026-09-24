@@ -6,6 +6,7 @@ import {
   importStates,
   publicationStates,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import { ruleModes } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { labelledChoices } from './fields.js';
 
 // The vocabularies of the operations collections. The coordinator's own
@@ -14,12 +15,21 @@ import { labelledChoices } from './fields.js';
 // Studio shows are declared here once per value, and setup keeps
 // installed fields in step with them.
 
-export const enrollmentRuleModes = ['mapped_entries', 'legacy_regex'] as const;
+// The enrollment rule modes carry their labels in their one declaration
+// (rule-modes.ts), with what each does and whether it reads `pattern`.
+export const modeChoices: readonly EnumChoice[] = ruleModes.map(
+  ({ label, mode }) => ({ label, value: mode }),
+);
 
-export const modeChoices = labelledChoices(enrollmentRuleModes, {
-  legacy_regex: 'Legacy regex',
-  mapped_entries: 'Mapped entries',
-});
+const modeDoes = ({ description, mode }: (typeof ruleModes)[number]): string =>
+  `${mode} ${description}`;
+
+export const modeNote = `${ruleModes.map(modeDoes).join('; ')}.`;
+
+export const patternNote = `Literal regular expression retained from the checkpoint; only used by ${ruleModes
+  .filter(({ usesPattern }) => usesPattern)
+  .map(({ mode }) => mode)
+  .join(', ')}.`;
 
 export const importChoices = labelledChoices(importStates, {
   completed: 'Completed',

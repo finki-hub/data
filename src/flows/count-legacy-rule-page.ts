@@ -8,6 +8,7 @@ import {
   legacyEnrollmentFlowIds,
   legacyFailureCode,
   legacyId,
+  legacyRuleMode,
   legacyStep as step,
 } from './shared.js';
 
@@ -32,7 +33,7 @@ export const legacyRulesQuery = {
     id: {
       _between: ['{{ check_page.rules.from }}', '{{ check_page.rules.to }}'],
     },
-    mode: { _eq: 'legacy_regex' },
+    mode: { _eq: legacyRuleMode.mode },
   },
   limit: -1,
   sort: ['id'],

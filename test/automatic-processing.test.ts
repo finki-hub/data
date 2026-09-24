@@ -8,6 +8,8 @@ import {
   coordinatorActionNames,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
+  calculationRunnerRoots,
+  canonicalJson,
   graphKindsOf,
   neutralActions,
   pageStepActions,
@@ -17,13 +19,26 @@ import {
   stateRow,
   toState,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/sql-state.js';
-import { graphSql } from '../directus/extensions/directus-extension-data-operations/src/coordination/sql-statements.js';
 import {
-  mappedCheckScript,
-  mappedPagesScript,
+  graphSql,
+  graphSqlOf,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/sql-statements.js';
+import { planEnrollmentFamilies } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
+import { enrollmentLimits } from '../directus/extensions/directus-extension-data-operations/src/enrollment-ranges.js';
+import {
+  ruleModes,
+  runnerFlowIds,
+} from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
+import {
+  familiesCheckScript,
+  familiesScript,
 } from '../src/flows/count-enrollments-scripts.js';
 import { dispatcherFlow } from '../src/flows/count-enrollments.js';
-import { legacyEnrollmentFlows } from '../src/flows/count-legacy-enrollments.js';
+import {
+  legacyEnrollmentFlows,
+  legacyParentFlow,
+} from '../src/flows/count-legacy-enrollments.js';
+import { mappedPagesFlow } from '../src/flows/count-mapped-enrollment-pages.js';
 import { mappedEnrollmentFlows } from '../src/flows/count-mapped-enrollments.js';
 import {
   coordinateOperation,
@@ -40,6 +55,8 @@ import {
 } from '../src/flows/process-pending.js';
 import { publishFileFlow } from '../src/flows/publish-one-file.js';
 import { publishFlows } from '../src/flows/publish-public-assets.js';
+import { familyRunnerFlow } from '../src/flows/run-enrollment-family.js';
+import { mappedEnrollmentFlowIds } from '../src/flows/shared.js';
 import { snapshotImportFlows } from '../src/flows/snapshot-import.js';
 import {
   claimNext,
@@ -48,6 +65,7 @@ import {
   finish,
   graphFingerprints,
   graphFlowIds,
+  graphRowsOf,
   recordingDatabase,
   settled,
   stateRowOf,
@@ -57,7 +75,7 @@ import {
   tick,
 } from './automatic-processing-helpers.js';
 import { bothGraphs } from './data-coordination-helpers.js';
-import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+import { runScript } from './legacy-enrollment-helpers.js';
 
 const boundedCode = /^[A-Z][A-Z_]{0,63}$/u;
 const collator = new Intl.Collator('en');
@@ -394,6 +412,7 @@ const calculationFlows = [
   ...historyIndexFlows,
   ...mappedEnrollmentFlows,
   ...legacyEnrollmentFlows,
+  familyRunnerFlow,
   dispatcherFlow,
   processPendingFlow,
 ];
@@ -488,7 +507,7 @@ describe('the scheduled Flow', () => {
       payload: { claim: '{{ claim.token }}' },
     });
     expect(step('count')?.options).toEqual({
-      flow: automaticProcessingFlows[0]?.id,
+      flow: dispatcherFlow.id,
       iterationMode: 'serial',
       payload: { claim: '{{ claim.token }}', revision: '{{ claim.revision }}' },
     });
@@ -545,7 +564,8 @@ describe('the Flow-graph fingerprints', () => {
     const calculation = graphFlowIds(installedTemplates, 'calculation');
     const published = graphFlowIds(installedTemplates, 'publication');
 
-    // History, mapped, legacy, the dispatcher and the schedule.
+    // History, mapped, legacy, the family runner, the dispatcher and the
+    // schedule.
     expect(inGraph(calculation, calculationFlows)).toEqual(
       idsOf(calculationFlows),
     );
@@ -592,6 +612,51 @@ describe('the Flow-graph fingerprints', () => {
     expect(publishEdit.publication).not.toBe(base.publication);
     expect(calculationEdit.calculation).not.toBe(base.calculation);
     expect(calculationEdit.publication).not.toBe(base.publication);
+  });
+
+  // The dispatcher reaches a family's runner through a Trigger Flow step
+  // whose flow id is templated, which no graph walk follows: the declared
+  // runners root the calculation graph themselves, so their Flows and the
+  // pages they run stay covered, and a Studio edit of one requeues the
+  // counts.
+  test('root every declared family runner in the calculation graph', () => {
+    const calculation = graphFlowIds(installedTemplates, 'calculation');
+    const unrooted = graphFlowIds(installedTemplates, 'calculation', []);
+    const runners = [mappedPagesFlow, legacyParentFlow];
+
+    expect(calculationRunnerRoots).toEqual(runners.map(({ id }) => id));
+    expect(runnerFlowIds()).toEqual(calculationRunnerRoots);
+    expect(inGraph(calculation, runners)).toEqual(idsOf(runners));
+    expect(inGraph(unrooted, runners)).toEqual([]);
+    expect(
+      inGraph(graphFlowIds(installedTemplates, 'publication'), runners),
+    ).toEqual([]);
+
+    const base = templateFingerprints(installedTemplates);
+    const runnerEdit = templateFingerprints(
+      replaced(
+        installedTemplates,
+        withOptions(mappedPagesFlow, 'check_pages', { extra: true }),
+      ),
+    );
+
+    expect(runnerEdit.calculation).not.toBe(base.calculation);
+    expect(runnerEdit.publication).not.toBe(base.publication);
+    expect(graphSql).toContain(
+      `UNION SELECT 'calculation', runners."flow" FROM (VALUES ${calculationRunnerRoots
+        .map((id) => quoted(id))
+        .map((id) => `(${id})`)
+        .join(', ')}) AS runners("flow")`,
+    );
+
+    // A registry without a mode drops that runner's root and nothing else;
+    // an empty one adds no root at all.
+    const [mappedRunner = '', legacyRunner = ''] = calculationRunnerRoots;
+
+    expect(graphSqlOf([mappedRunner])).toBe(
+      graphSql.replace(`, (${quoted(legacyRunner)})`, ''),
+    );
+    expect(graphSqlOf([])).not.toContain('runners');
   });
 
   test('root a Flow by what its coordinate step does, and a templated claim in both graphs', () => {
@@ -710,42 +775,45 @@ describe('every template the scheduler reaches', () => {
   });
 });
 
-const dispatcherStep = (key: string): OperationTemplate | undefined =>
-  dispatcherFlow.operations.find((operation) => operation.key === key);
+const stepOf =
+  (flow: FlowTemplate) =>
+  (key: string): OperationTemplate | undefined =>
+    flow.operations.find((operation) => operation.key === key);
 
-const dispatcherKeyOf = (id: null | string | undefined): string | undefined =>
-  dispatcherFlow.operations.find((operation) => operation.id === id)?.key;
+const keyIn =
+  (flow: FlowTemplate) =>
+  (id: null | string | undefined): string | undefined =>
+    flow.operations.find((operation) => operation.id === id)?.key;
+
+const dispatcherStep = stepOf(dispatcherFlow);
+const dispatcherKeyOf = keyIn(dispatcherFlow);
+
+// The keys along the resolve edges from the entry of a Flow.
+const mainRow = (flow: FlowTemplate): string[] => {
+  const order = [];
+  let key = keyIn(flow)(flow.entry);
+  while (key !== undefined) {
+    order.push(key);
+    key = keyIn(flow)(stepOf(flow)(key)?.resolve);
+  }
+  return order;
+};
 
 const claimToken = 'c0ffee00-0000-4000-8000-000000000001';
 
-// An enrollments plan as plan_pages source enrollments answers it: two
-// mapped pages, then one legacy rule page with one history page and its
-// zero page.
-const plan = {
-  pages: [
-    { from: 1, kind: 'mapped', rows: 3, to: 4, token: 'p0001' },
-    { from: 9, kind: 'mapped', rows: 1, to: 9, token: 'p0002' },
-    {
-      bytes: 90,
-      from: 1,
-      kind: 'legacy',
-      rows: 2,
-      rules: { bytes: 40, from: 5, rows: 2, to: 8 },
-      to: 2,
-      token: 'p0003',
-    },
-    { from: 5, kind: 'legacy_zeros', rows: 2, to: 8, token: 'p0004' },
+// Every declared mode, runner Flow and page kind (quoted as a script or
+// JSON literal would hold it).
+const declaredValues = ruleModes.flatMap(
+  ({ mode, pageKinds, runnerFlowId }) => [
+    mode,
+    runnerFlowId,
+    ...pageKinds.map((kind) => `'${kind}'`),
+    ...pageKinds.map((kind) => `"${kind}"`),
   ],
-  total: 4,
-};
-
-const mappedPayloads = [
-  { claim: claimToken, from: 1, revision: 11, rows: 3, to: 4, token: 'p0001' },
-  { claim: claimToken, from: 9, revision: 11, rows: 1, to: 9, token: 'p0002' },
-];
+);
 
 describe('the enrollment dispatcher', () => {
-  test('plans both families once, counts mapped pages serially, heartbeats, runs the legacy family, then completes once', () => {
+  test('plans every rule family once, runs the families serially through one runner, then completes once', () => {
     expect(dispatcherFlow).toMatchObject({
       accountability: 'activity',
       id: '6a1d9f0e-2b3c-4d5e-8f70-000000001301',
@@ -753,22 +821,11 @@ describe('the enrollment dispatcher', () => {
       options: { return: '$last' },
       trigger: 'operation',
     });
-
-    const order = [];
-    let key = dispatcherKeyOf(dispatcherFlow.entry);
-    while (key !== undefined) {
-      order.push(key);
-      key = dispatcherKeyOf(dispatcherStep(key)?.resolve);
-    }
-
-    expect(order).toEqual([
+    expect(mainRow(dispatcherFlow)).toEqual([
       'plan',
-      'mapped_pages',
-      'count_mapped',
-      'mapped_ok',
-      'keep_alive',
-      'count_legacy',
-      'legacy_ok',
+      'families',
+      'run_families',
+      'families_ok',
       'complete',
       'answer',
     ]);
@@ -777,19 +834,16 @@ describe('the enrollment dispatcher', () => {
       source: 'enrollments',
       token: triggerClaim,
     });
-    expect(dispatcherStep('count_mapped')?.options).toEqual({
-      flow: mappedEnrollmentFlows[1]?.id,
+    expect(dispatcherStep('run_families')?.options).toEqual({
+      flow: familyRunnerFlow.id,
       iterationMode: 'serial',
-      payload: '{{ mapped_pages }}',
+      payload: '{{ families }}',
     });
-    expect(dispatcherStep('keep_alive')?.options).toEqual({
-      action: 'heartbeat',
-      token: triggerClaim,
+    expect(dispatcherStep('families')?.options).toEqual({
+      code: familiesScript,
     });
-    expect(dispatcherStep('count_legacy')?.options).toEqual({
-      flow: legacyEnrollmentFlows[2]?.id,
-      iterationMode: 'serial',
-      payload: { claim: triggerClaim },
+    expect(dispatcherStep('families_ok')?.options).toEqual({
+      code: familiesCheckScript,
     });
     expect(dispatcherStep('complete')?.options).toEqual({
       action: 'complete',
@@ -802,7 +856,7 @@ describe('the enrollment dispatcher', () => {
       .map(({ options }) => options['action'])
       .filter((action) => action !== undefined && action !== 'fail');
 
-    expect(actions).toEqual(['plan_pages', 'heartbeat', 'complete']);
+    expect(actions).toEqual(['plan_pages', 'complete']);
   });
 
   test('fails the claim from every step that can reject, with a bounded code and the step message', () => {
@@ -812,12 +866,9 @@ describe('the enrollment dispatcher', () => {
 
     expect(rejecting.map(({ key }) => key)).toEqual([
       'plan',
-      'mapped_pages',
-      'count_mapped',
-      'mapped_ok',
-      'keep_alive',
-      'count_legacy',
-      'legacy_ok',
+      'families',
+      'run_families',
+      'families_ok',
       'complete',
     ]);
 
@@ -833,84 +884,57 @@ describe('the enrollment dispatcher', () => {
       ).toMatchObject({ json: { ok: false } });
     }
 
-    expect(dispatcherStep('mapped_fail')?.options).toEqual({
+    expect(dispatcherStep('family_fail')?.options).toEqual({
       action: 'fail',
-      code: 'MAPPED_COUNT_FAILED',
-      message: '{{ mapped_ok.message }}',
+      code: 'ENROLLMENTS_FAILED',
+      message: '{{ families_ok.message }}',
       token: triggerClaim,
     });
   });
 
-  test('hands the mapped pages of the plan, with the claim and revision, to the page Flow', () => {
-    expect(
-      runScript(mappedPagesScript, {
-        $trigger: { claim: claimToken, revision: 11 },
-        plan,
-      }),
-    ).toEqual(mappedPayloads);
-    expect(
-      runScript(mappedPagesScript, {
-        $trigger: { claim: claimToken, revision: 11 },
-        plan: { pages: [], total: 0 },
-      }),
-    ).toEqual([]);
-    expect(
-      refusalOf(() =>
-        runScript(mappedPagesScript, { $trigger: { claim: claimToken }, plan }),
-      ),
-    ).toContain('{claim, revision}');
-  });
+  // The dispatcher and its runner are installed once and never updated,
+  // so no step of theirs may depend on the declared modes: the plan names
+  // the families and their runner Flows, the graph stays the same.
+  test('names no rule mode, page kind or runner Flow, so removing a mode from a registry leaves its graph unchanged', () => {
+    const graph = canonicalJson([dispatcherFlow, familyRunnerFlow]);
 
-  test('accepts a mapped page only when it staged every planned pair, zeros included', () => {
-    const answers = [
-      { page: 'p0001', replaced: 0, staged: 3 },
-      { page: 'p0002', replaced: 0, staged: 1 },
-    ];
+    expect(declaredValues.filter((value) => graph.includes(value))).toEqual([]);
 
-    expect(
-      runScript(mappedCheckScript, {
-        count_mapped: answers,
-        mapped_pages: mappedPayloads,
-      }),
-    ).toEqual({ pages: 2, staged: 4 });
-    // A page that left out its zero rows would install fewer pairs than
-    // the rules name; the check refuses it before the completion.
-    expect(
-      refusalOf(() =>
-        runScript(mappedCheckScript, {
-          count_mapped: [answers[0], { ...answers[1], staged: 0 }],
-          mapped_pages: mappedPayloads,
-        }),
-      ),
-    ).toBe(
-      'Mapped page p0002 answered no valid summary; nothing was installed.',
+    // A registry without the legacy mode plans the mapped family alone,
+    // and the same installed steps list and run it.
+    const mappedOnly = ruleModes.filter(({ mode }) => mode !== 'legacy_regex');
+    const families = planEnrollmentFamilies(
+      { rules: [{ bytes: 0, id: 1, mode: 'mapped_entries' }], users: [] },
+      enrollmentLimits,
+      mappedOnly,
     );
-    expect(
-      refusalOf(() =>
-        runScript(mappedCheckScript, {
-          count_mapped: [
-            {
-              code: 'COORDINATION_SOURCE_CHANGED',
-              message: 'A source change committed during the run.',
-              ok: false,
-              page: 'p0001',
-              stage: 'stage',
-            },
-            answers[1],
-          ],
-          mapped_pages: mappedPayloads,
-        }),
-      ),
-    ).toBe(
-      'Mapped page p0001 failed (stage: COORDINATION_SOURCE_CHANGED A source change committed during the run.); nothing was installed.',
+    const listed = runScript(familiesScript, {
+      $trigger: { claim: claimToken, revision: 11 },
+      plan: { families, total: 1 },
+    });
+
+    expect(listed).toEqual([
+      {
+        claim: claimToken,
+        kind: 'mapped_entries',
+        pages: [{ from: 1, kind: 'mapped', rows: 1, to: 1, token: 'p0001' }],
+        revision: 11,
+        runner: mappedEnrollmentFlowIds.pages,
+      },
+    ]);
+
+    // Its rows in the calculation graph are the same under both
+    // registries; only the runner roots differ.
+    const dispatcherRows = (runners: readonly string[]) =>
+      graphRowsOf(installedTemplates, runners).filter(({ flow }) =>
+        [dispatcherFlow.id, familyRunnerFlow.id].includes(flow),
+      );
+
+    expect(dispatcherRows(runnerFlowIds(mappedOnly))).toEqual(
+      dispatcherRows(runnerFlowIds()),
     );
-    expect(
-      refusalOf(() =>
-        runScript(mappedCheckScript, {
-          count_mapped: [answers[0]],
-          mapped_pages: mappedPayloads,
-        }),
-      ),
-    ).toContain('count_mapped answered 1 results for 2 mapped pages');
+    expect(dispatcherRows(runnerFlowIds())).toHaveLength(
+      dispatcherFlow.operations.length + familyRunnerFlow.operations.length,
+    );
   });
 });

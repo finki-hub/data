@@ -1,6 +1,7 @@
 import type { CoordinationPort } from './port.js';
 
-import { planEnrollmentPages } from '../enrollment-pages.js';
+import { planEnrollmentFamilies } from '../enrollment-pages.js';
+import { rulesPlanMode } from '../rule-modes.js';
 import {
   type ActionContext,
   done,
@@ -14,10 +15,12 @@ import { coordinationError } from './errors.js';
 import { type PageSource, pageSourceDomains } from './state.js';
 
 // A table source is planned only under its own claim domain, and `rules`
-// only while every rule is mapped_entries: the completion of an
-// enrollments claim replaces every installed count, so a plan without the
-// legacy family (user ranges, or rule ranges the legacy rules sit in)
-// could otherwise drop that family's rows. The refusal names ids only.
+// only while every rule has the one mode its page Flow counts
+// (rulesPlanMode, rule-modes.ts): the completion of an enrollments claim
+// replaces every installed count, so a plan without another family (its
+// rule pages, or the history pages they cross) could otherwise drop that
+// family's rows, and that page Flow refuses a page holding a rule of
+// another mode. The refusal names ids only.
 export const checkPlanSource = async (
   port: CoordinationPort,
   domain: ClaimDomain | null,
@@ -35,11 +38,11 @@ export const checkPlanSource = async (
   }
   if (source === 'rules') {
     const rules = await port.ruleModes();
-    const other = rules.find(({ mode }) => mode !== 'mapped_entries');
+    const other = rules.find(({ mode }) => mode !== rulesPlanMode.mode);
     if (other !== undefined) {
       throw coordinationError(
         'DOMAIN_MISMATCH',
-        `plan_pages with source rules plans mapped_entries rules only, and rule ${other.id} has another mode; plan with source enrollments, which covers the legacy family too. Nothing was planned.`,
+        `plan_pages with source rules plans ${rulesPlanMode.mode} rules only, and rule ${other.id} has another mode; plan with source enrollments, which covers every rule mode. Nothing was planned.`,
         { details: { rule: other.id, source } },
       );
     }
@@ -47,12 +50,14 @@ export const checkPlanSource = async (
 };
 
 // plan_pages with source `enrollments`: the one plan of an enrollments
-// claim. Both rule families are planned together (the completion replaces
-// every installed count, so a family whose pages were not planned would
-// lose its rows), every page is tracked for PAGES_MISSING, and the plan
+// claim, one family per declared rule mode that has rules (the completion
+// replaces every installed count, so a family whose pages were not planned
+// would lose its rows). The answer names each family's runner Flow and
+// pages; the stored plan keeps every page, so the completion refuses
+// (PAGES_MISSING) until every family's pages are staged, and the plan
 // replaces an earlier plan of the claim with its candidates, like any
 // other plan. The planner reads rule modes and history byte sizes only; a
-// history over the page budget or a rule of an unknown mode refuses the
+// history over the page budget or a rule of an undeclared mode refuses the
 // whole plan, and the transaction leaves the claim as it was.
 export const planEnrollmentsAction = (token: string, context: ActionContext) =>
   guarded(context, async (port) => {
@@ -70,14 +75,15 @@ export const planEnrollmentsAction = (token: string, context: ActionContext) =>
         `plan_pages with source enrollments needs an enrollments claim; the current claim runs ${state.claim.domain ?? 'no domain'}.`,
       );
     }
-    const pages = planEnrollmentPages(await port.enrollmentSources());
+    const families = planEnrollmentFamilies(await port.enrollmentSources());
+    const pages = families.flatMap((family) => family.pages);
     const discarded = await port.discardCandidates(token);
     if (!(await port.storePlan(token, context.owner, pages))) {
       throw mismatch('claim_mismatch');
     }
     return done({
       discarded,
-      pages,
+      families,
       source: 'enrollments',
       total: pages.length,
     });
