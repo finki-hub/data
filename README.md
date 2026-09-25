@@ -170,9 +170,6 @@ A few things are code-owned and kept in step on every rerun:
    `DIRECTUS_ADMIN_PASSWORD` from `.env`.
 6. Attach the **Data editor** policy to the roles of the people who edit
    the data (**Settings → Access Policies**); setup attaches it to no role.
-   On a project filled by the workbook import, do this only after its
-   checkpoint **Publish public assets** Flow is inactive (step 3 of
-   [One-time workbook import](#one-time-workbook-import)).
 
 The project is empty: its academic years, curriculum generations, study
 programs, courses and the rest are rows you add in Studio (see
@@ -206,13 +203,7 @@ run the one-time import (below) in place of step 4.
      WORKBOOK_PATH=finki-hub.xlsx npm run import
    ```
 
-3. Switch off the checkpoint **Publish public assets** Flow the import
-   installed: under **Settings → Flows**, open **Publish public assets**
-   (not **Publish / Public assets (relational)**) and set its status to
-   **Inactive**. Do this before step 6 attaches the **Data editor** policy
-   to anyone and before `STORAGE_PUBLISH_*` names the live bucket (see the
-   warning below).
-4. Continue with steps 5 and 6 of [Fresh setup](#fresh-setup).
+3. Continue with steps 5 and 6 of [Fresh setup](#fresh-setup).
 
 The import reads and checks the whole workbook before it contacts Directus,
 so a malformed or missing workbook stops with nothing written and nothing
@@ -287,18 +278,19 @@ and the message names the phase and the one way to finish:
   finish with `npm run migrate`.
 
 The import installs **Publish public assets** before it writes the first
-row, as an active manual Flow on `courses`, `rooms`, `staff` and `students`
-without the `Administrator?` condition of the managed Flows. It reads with
-full rights, skips readiness and the export definitions, and writes every
-checkpoint file into the publish location. Directus lets any user who may
-read one of those collections trigger it, so a **Data editor** can too.
-Never run it, and set it inactive right after the import (step 3 above):
-Directus refuses every trigger of an inactive Flow, for administrators
-too, and a Flow's status is no part of any fingerprint. Publish through
-**Publish / Public assets (relational)** once readiness passes (see
-[Publishing](#publishing)). The relational publication does not need the
-checkpoint Flow: it writes through the **Publish JSON files** operation
-itself.
+row, as an active manual Flow on `courses`, `rooms`, `staff` and `students`.
+It reads with full rights, skips readiness and the export definitions, and
+writes every checkpoint file into the publish location, so never run it.
+Directus lets any user who may read one of those collections trigger it,
+but like every managed manual Flow it starts with the `Administrator?`
+condition and refuses everyone else with 403 (`Only administrators may
+publish the public files.`) before it reads anything; **Rebuild derived
+data** does the same (`Only administrators may rebuild the derived
+data.`), and the import runs it with the administrator token it was
+given. Publish through **Publish / Public assets (relational)** once
+readiness passes (see [Publishing](#publishing)). The relational
+publication does not need the checkpoint Flow: it writes through the
+**Publish JSON files** operation itself.
 
 There is no update, merge, reconciliation, or ongoing Google Sheets
 synchronization mode. After the import, Directus is the source of truth.
@@ -1075,13 +1067,13 @@ To put another operation on the dashboard, see
 
 ### Publishing
 
-Publication is manual: nothing is published automatically, and nothing
-becomes public except through a declared export definition (see
-[Extending](#a-key-or-a-new-published-file)), with one exception on a
-project filled by the workbook import: its checkpoint **Publish public
-assets** Flow, which the import installs active and which must be set
-inactive right after the import (see
-[One-time workbook import](#one-time-workbook-import)).
+Publication is manual and administrator-only: nothing is published
+automatically, and nothing becomes public except through a declared
+export definition (see [Extending](#a-key-or-a-new-published-file)). The
+only other writer is the checkpoint **Publish public assets** Flow on a
+project filled by the workbook import, which refuses every
+non-administrator and must not be run (see
+[Checkpoint derivation and publication](#checkpoint-derivation-and-publication-slated-for-removal)).
 
 **Every publication replaces the objects the public consumers read.** The
 publish location is the live bucket once `STORAGE_PUBLISH_*` names it, and
@@ -1285,17 +1277,15 @@ The private endpoints of the extensions check the caller:
   `Administrator?` condition: import, promotion, publication,
   recalculation and rule seeding are administrator-only, whoever can see a
   button.
-- The exception is the two checkpoint Flows the workbook import installs
-  (see [Checkpoint derivation and publication](#checkpoint-derivation-and-publication-slated-for-removal)).
-  They are manual Flows on source collections, with no `Administrator?`
-  condition, and their operations run with full rights, so Directus lets
-  anyone who may read one of those collections trigger them, a **Data
-  editor** included. **Rebuild derived data** only recomputes the
-  checkpoint's calculated course columns and the council members' copied
-  names, which no published file reads. The checkpoint **Publish public
-  assets** would publish, so set it inactive right after the import,
-  before the **Data editor** policy is attached to any role (step 3 of
-  [One-time workbook import](#one-time-workbook-import)).
+- The two checkpoint Flows the workbook import installs, **Rebuild derived
+  data** and **Publish public assets** (see
+  [Checkpoint derivation and publication](#checkpoint-derivation-and-publication-slated-for-removal)),
+  are manual Flows on source collections whose operations run with full
+  rights, so Directus lets anyone who may read one of those collections
+  trigger them, a **Data editor** included. Each starts with the same
+  `Administrator?` condition and refuses everyone else with 403 before it
+  reads or writes anything, so the rebuild and the checkpoint publication
+  are administrator-only too.
 
 The **Data editor** policy that `npm run setup` installs is derived from
 the collection roles (`src/editor-policy.ts`) and kept equal to that
@@ -1823,25 +1813,28 @@ the scraper header set. Nothing here is a general rules language.
 The workbook import still installs the checkpoint model's two Flows, both
 kept only until a separately approved cleanup removes them:
 
-- **Rebuild derived data** (active, manual, on the source collections) runs
-  once at the end of the import and recomputes the checkpoint's calculated
-  course columns (the **Legacy Calculated** group) and the council
-  members' copied names from the checkpoint collections. No published file
-  reads them, so it never needs to run for publication; the import's exit
-  4 messages still name it as a step of finishing an interrupted import.
-  Its calculated fields are read-only in Studio so their source remains
-  unambiguous.
-- **Publish public assets** (installed active, manual, on the collections
-  the checkpoint published) serializes the checkpoint columns into the
-  files the checkpoint knew (`courses.json`, `rooms.json`, `staff.json`,
-  `students.json`) and ignores the export definitions and readiness. **Do
-  not run it**: it would replace the public files with checkpoint data.
-  Set it **Inactive** right after the import (step 3 of
-  [One-time workbook import](#one-time-workbook-import)): neither Flow has
-  the `Administrator?` condition, so anyone who may read one of their
-  collections, a **Data editor** included, can trigger an active one (see
-  [Access](#access)). Publish through **Publish / Public assets
-  (relational)** (see [Publishing](#publishing)).
+- **Rebuild derived data** (active, manual, on the source collections,
+  administrators only) runs once at the end of the import and recomputes
+  the checkpoint's calculated course columns (the **Legacy Calculated**
+  group) and the council members' copied names from the checkpoint
+  collections. No published file reads them, so it never needs to run for
+  publication; the import's exit 4 messages still name it as a step of
+  finishing an interrupted import. Its calculated fields are read-only in
+  Studio so their source remains unambiguous.
+- **Publish public assets** (active, manual, on the collections the
+  checkpoint published, administrators only) serializes the checkpoint
+  columns into the files the checkpoint knew (`courses.json`,
+  `rooms.json`, `staff.json`, `students.json`) and ignores the export
+  definitions and readiness. **Do not run it**: it would replace the
+  public files with checkpoint data. Publish through **Publish / Public
+  assets (relational)** (see [Publishing](#publishing)).
+
+Both start with the `Administrator?` condition of every managed manual
+Flow. Anyone who may read one of their collections, a **Data editor**
+included, passes the trigger endpoint, and the Flow then refuses them with
+403 (`Only administrators may rebuild the derived data.`, `Only
+administrators may publish the public files.`) before it reads or writes
+anything (see [Access](#access)).
 
 `npm run setup` installs neither, and no command can reinstall either on a
 project that holds data, so never delete one to refresh it. The storage
@@ -1865,8 +1858,9 @@ Fixture-free checks, which need no Directus:
 The fixture suites run against a disposable Directus only, never a project
 holding data. None has a default target or reads `.env`; each validates its
 target before its first request, and a suite refuses to run without a
-container, S3 target or browser it requires (only the optional container
-subtests of `npm run test:relational` are reported as skipped). The
+container, S3 target or browser it requires (only the optional subtests
+of `npm run test:relational`, which need a container or the S3 target,
+are reported as skipped). The
 target is a licensed Directus built from this repository (the local image
 with the extensions mounted), reachable on loopback, that holds a marker
 collection and, between runs, nothing of the data model: the
@@ -1921,7 +1915,7 @@ bucket name and any value naming `amazonaws.com` or
 | --- | --- | --- |
 | `npm run test:csv` | `test/directus-csv-import.integration.mjs`: creates a uniquely named hidden collection, imports generated Cyrillic, CJK and emoji text across CSV read boundaries through the native importer, checks every value and deletes the collection. It reads and changes nothing else. | nothing |
 | `npm run test:search` | `test/search.integration.mjs` and `test/search-relational.integration.mjs`: Search and its permissions over generated users and the relational aliases. | nothing |
-| `npm run test:relational` | Every `test/relational/*.integration.mjs` scenario in turn; `npm run test:relational -- --scenario <name>` runs one (an unknown name lists the known ones and exits 2). | optionally the containers, bound to the target before the first scenario (the database container only together with the Directus one): without them the restart and database-statistics subtests are reported as skipped |
+| `npm run test:relational` | Every `test/relational/*.integration.mjs` scenario in turn; `npm run test:relational -- --scenario <name>` runs one (an unknown name lists the known ones and exits 2). | optionally the containers, bound to the target before the first scenario (the database container only together with the Directus one): without them the restart and database-statistics subtests are reported as skipped; optionally the S3 variables: without them the `lifecycle` scenario skips the administrator's run of the checkpoint **Publish public assets** and checks the Data editor's refusal without reading the bucket |
 | `npm run test:relational -- --scenario stress` | The opt-in full-size run (`test/relational/stress.opt-in.mjs`, never part of the default run): the [Sizing](#sizing) figures, about 13 minutes. | both containers and the S3 variables |
 | `npm run test:operations` | The `operations` scenario, then `test/operations.browser.mjs`, which drives the dashboard in a real browser through the locally installed `agent-browser` CLI (it fails, never skips, without it). `OPERATIONS_BROWSER_SCREENSHOTS` names a directory for its screenshots (a temporary one otherwise). | the S3 variables |
 | `npm run test:s3` | `test/publish-flow.integration.mjs` (the publish Flows against the local bucket, including an injected storage failure) and `test/publish-workflow.integration.mjs` (the complete workflow from setup to publication, with the failure, restart, race and extension scenarios). | both containers and the S3 variables |

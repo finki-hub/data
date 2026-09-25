@@ -632,12 +632,17 @@ describe('checkpoint Flow templates', () => {
       name: 'Publish public assets',
       options: {
         collections: ['courses', 'rooms', 'staff', 'students'],
+        error_on_reject: true,
         location: 'collection',
         requireConfirmation: true,
         requireSelection: false,
       },
       trigger: 'manual',
     });
+    expect(flows.map(({ options }) => options['error_on_reject'])).toEqual([
+      true,
+      true,
+    ]);
 
     const operations = fake.calls
       .filter(
@@ -646,7 +651,16 @@ describe('checkpoint Flow templates', () => {
       )
       .map(({ body }) => operationBody.parse(body));
 
-    expect(operations).toHaveLength(7);
+    // Each Flow's own steps plus the Administrator? gate and its refusal.
+    expect(operations).toHaveLength(11);
+    expect(
+      operations
+        .filter(({ key }) => key === 'admin_only')
+        .map(({ flow, id }) => [flow, id]),
+    ).toEqual([
+      [derivedDataFlowId, derivedDataFlow.entry],
+      [publicAssetsFlowId, publicAssetsFlow('').entry],
+    ]);
     expect(
       operations.find(({ key }) => key === 'publish_assets'),
     ).toMatchObject({

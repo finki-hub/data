@@ -2,8 +2,8 @@ import {
   condition,
   exportsOperation,
   familyIds,
-  type FlowFamilyCode,
   flowFamilyCodes,
+  type FlowIdCode,
   type FlowTemplate,
   operation,
   publicationId,
@@ -26,17 +26,27 @@ export const publicationButton = {
   requireSelection: false,
 } as const;
 
-// Any user who may read data_operations could trigger a manual Flow on it;
-// the export operation reads with system rights, so the Flow is gated on
-// the administrator flag (the operation checks it again). The suffixes are
-// those of the gate, its refusal and the step it lets through, in the
-// given family (publication unless named).
+// Where an administrator gate goes: the family of its ids (publication
+// unless named) and the gate's place (the first column unless given; its
+// refusal sits one row below).
+export type AdminGatePlacement = {
+  readonly at?: readonly [number, number];
+  readonly code?: FlowIdCode;
+};
+
+// Any user who may read one of a manual Flow's collections could trigger
+// it (the trigger endpoint checks read access only); the export operation
+// reads with system rights, so the Flow is gated on the administrator flag
+// (the operation checks it again). The suffixes are those of the gate, its
+// refusal and the step it lets through. A Flow answers the refusal (403)
+// only with error_on_reject.
 export const adminOnly = (
   suffixes: readonly [string, string, string],
   message: string,
-  code: FlowFamilyCode = family,
+  { at = [19, 1], code = family }: AdminGatePlacement = {},
 ): Array<ReturnType<typeof condition>> => {
   const id = familyIds(code);
+  const [column, row] = at;
   return [
     condition({
       edges: { reject: id(suffixes[1]), resolve: id(suffixes[2]) },
@@ -44,7 +54,7 @@ export const adminOnly = (
       filter: { $accountability: { admin: { _eq: true } } },
       key: 'admin_only',
       name: 'Administrator?',
-      position: [19, 1],
+      position: [column, row],
       suffix: suffixes[0],
     }),
     raise({
@@ -52,7 +62,7 @@ export const adminOnly = (
       family: code,
       key: 'raise_forbidden',
       name: 'Refuse a non-administrator',
-      position: [19, 19],
+      position: [column, row + 18],
       suffix: suffixes[1],
     }),
   ];

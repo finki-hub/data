@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
 import {
+  checkpointFamilyCode,
   checkpointFlowId,
   type FlowTemplate,
   type OperationTemplate,
 } from './flows/flow-template.js';
+import { adminOnly } from './flows/validate-readiness.js';
 
 const publicCollections = ['courses', 'rooms', 'staff', 'students'] as const;
 
@@ -18,6 +20,10 @@ const operationIds = {
   readStudents: checkpointFlowId('24'),
   serialize: checkpointFlowId('25'),
 } as const;
+
+// The Administrator? gate, its refusal and the first read it lets through.
+// The gate sits below the first read, so every step keeps its place.
+const gate = ['27', '28', '21'] as const;
 
 const readOperations: readonly OperationTemplate[] = [
   {
@@ -61,19 +67,25 @@ const readOperations: readonly OperationTemplate[] = [
   type: 'item-read',
 }));
 
-// The checkpoint Publish public assets Flow under stable ids: native reads
-// of the four public collections, the editable serializer, then the narrow
-// storage writer. Installed once by the workbook import; Studio owns it
-// afterwards.
+// The checkpoint Publish public assets Flow under stable ids: the
+// Administrator? gate every managed manual Flow starts with (anyone who
+// may read one of its collections passes the trigger endpoint, and the
+// reads run with full rights), native reads of the four public
+// collections, the editable serializer, then the narrow storage writer.
+// Installed once by the workbook import; Studio owns it afterwards.
 export const publicAssetsFlow = (serializer: string): FlowTemplate => ({
   accountability: 'activity',
   description:
-    'Publishes courses.json, rooms.json, staff.json, and students.json.',
-  entry: operationIds.readCourses,
+    'Publishes courses.json, rooms.json, staff.json, and students.json (administrators only).',
+  entry: checkpointFlowId(gate[0]),
   icon: 'cloud_upload',
   id: publicAssetsFlowId,
   name: 'Publish public assets',
   operations: [
+    ...adminOnly(gate, 'Only administrators may publish the public files.', {
+      at: [19, 19],
+      code: checkpointFamilyCode,
+    }),
     ...readOperations,
     {
       id: operationIds.serialize,
@@ -109,6 +121,7 @@ export const publicAssetsFlow = (serializer: string): FlowTemplate => ({
   options: {
     async: false,
     collections: publicCollections,
+    error_on_reject: true,
     location: 'collection',
     requireConfirmation: true,
     requireSelection: false,

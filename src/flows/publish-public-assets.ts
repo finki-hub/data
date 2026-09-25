@@ -42,7 +42,7 @@ export const publishAssetsFlow: FlowTemplate = {
     ...adminOnly(
       ['11', '12', '13'],
       'Only administrators may publish the public files.',
-      family,
+      { code: family },
     ),
     step({
       column: 37,

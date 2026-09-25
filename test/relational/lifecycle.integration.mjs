@@ -28,7 +28,11 @@ import {
   lifecycleDataset,
   syntheticWorkbook,
 } from '../fixtures/synthetic-workbook.js';
-import { targetFrom } from '../isolated-target.mjs';
+import { isolatedTargets } from '../isolated-target.mjs';
+import {
+  publishesAsAdministrator,
+  refusesEditor,
+} from './checkpoint-flows-helpers.mjs';
 import {
   adminRequest,
   destroyDataModel,
@@ -737,7 +741,7 @@ const restoreFlows = async (target, before) => {
   );
 };
 
-const scenarios = async (t, { context, directus, target }) => {
+const scenarios = async (t, { context, directus, s3, target }) => {
   await t.test('a malformed workbook aborts before Directus is contacted', () =>
     badWorkbookAborts(target, context),
   );
@@ -759,6 +763,15 @@ const scenarios = async (t, { context, directus, target }) => {
     secondImportRefused(target, context),
   );
   await t.test(
+    'the checkpoint Flows the import installed refuse a Data editor with 403 before any write, and the administrator still rebuilds',
+    (subtest) => refusesEditor({ s3, t: subtest, target }),
+  );
+  await t.test(
+    'the administrator still publishes through the checkpoint Publish public assets',
+    { skip: s3 === null && 'needs the S3 variables (DIRECTUS_S3_TEST_*)' },
+    (subtest) => publishesAsAdministrator({ s3, t: subtest, target }),
+  );
+  await t.test(
     'an equivalent checkpoint project upgrades to the same relational rows without the workbook',
     () => upgradeMatchesImport(target, directus, context),
   );
@@ -769,7 +782,9 @@ const scenarios = async (t, { context, directus, target }) => {
 };
 
 test('separates fresh setup, the one-time workbook import and populated upgrades on the fixture', async (t) => {
-  const target = targetFrom(process.env);
+  // The S3 target is optional: without it the administrator's checkpoint
+  // publication is skipped and the editor's refusal checks no bucket.
+  const { s3, target } = await isolatedTargets(process.env, { s3: 'optional' });
   const directus = adminRequest(target);
   const directory = await mkdtemp(
     path.join(os.tmpdir(), 'relational-lifecycle-'),
@@ -800,7 +815,7 @@ test('separates fresh setup, the one-time workbook import and populated upgrades
     };
     await withDataModel(target, async () => {
       try {
-        await scenarios(t, { context, directus, target });
+        await scenarios(t, { context, directus, s3, target });
       } finally {
         await t.test(
           'removes the Flows it created and restores the ones it edited',

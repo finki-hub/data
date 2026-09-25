@@ -140,7 +140,9 @@ const writeSourceRows = async (
 };
 
 // The initial rebuild the checkpoint importer always ran, through the
-// manual Flow (which answers the operation result undecoded).
+// manual Flow with the import's administrator token (the Flow refuses
+// anyone else). It answers the operation result undecoded, or the
+// operation's error, which interrupts the import while rebuilding.
 const triggerRebuild = async (
   request: DirectusModeRequest,
 ): Promise<ImportSummary['rebuild']> => {
