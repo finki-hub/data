@@ -38,9 +38,9 @@
     "migrate": "node --import tsx src/migrations/cli.ts",
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
-    "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs",
-    "test:operations": "node test/relational/run-scenarios.mjs --scenario operations && node --import tsx --test test/operations.browser.mjs",
-    "test:relational": "node test/relational/run-scenarios.mjs",
+    "test:csv": "node --import tsx --test test/directus-csv-import.integration.mjs",
+    "test:operations": "node --import tsx test/relational/run-scenarios.mjs --scenario operations && node --import tsx --test test/operations.browser.mjs",
+    "test:relational": "node --import tsx test/relational/run-scenarios.mjs",
     "test:restore": "node --import tsx --test test/restore.integration.mjs",
     "test:s3": "node --import tsx --test --test-concurrency=1 test/publish-flow.integration.mjs test/publish-workflow.integration.mjs",
     "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.mjs test/search-relational.integration.mjs"

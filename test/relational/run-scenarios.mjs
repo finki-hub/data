@@ -8,6 +8,8 @@ import { spawn } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import { containersFrom, isolatedTargets } from '../isolated-target.mjs';
+
 const directory = import.meta.dirname;
 const suffix = '.integration.mjs';
 const optInSuffix = '.opt-in.mjs';
@@ -22,6 +24,31 @@ const scenarioOf = (argv) => {
   return argument.includes('=')
     ? argument.slice(flag.length + 1)
     : (argv[index + 1] ?? '');
+};
+
+// The optional containers of the restart and database-statistics subtests
+// (DIRECTUS_COORDINATION_RESTART_CONTAINER, which they `docker restart`,
+// and DIRECTUS_AUTOMATIC_DATABASE_CONTAINER, which they `docker exec`
+// into) are bound to the target once, before any scenario runs: read-only
+// Docker commands show that the Directus container publishes the target's
+// port and that the database container is the PostgreSQL server that
+// Directus connects to (so it needs the Directus container named too). A
+// container of another project is refused before anything touches it.
+// Answers whether the scenarios may run; a refusal names the rule only.
+const containersBound = async () => {
+  try {
+    const named = containersFrom(process.env);
+    const needed = Object.keys(named).filter((name) => named[name] !== null);
+    if (needed.length > 0) {
+      await isolatedTargets(process.env, { containers: needed });
+    }
+    return true;
+  } catch (error) {
+    process.stderr.write(
+      `Refused before any scenario ran: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return false;
+  }
 };
 
 const entries = await readdir(directory);
@@ -46,7 +73,7 @@ if (selected.length === 0) {
     `Unknown scenario "${scenario}". Known: ${known.join(', ')}.\n`,
   );
   process.exitCode = 2;
-} else {
+} else if (await containersBound()) {
   const child = spawn(
     process.execPath,
     [
@@ -61,4 +88,6 @@ if (selected.length === 0) {
   child.on('exit', (code, signal) => {
     process.exitCode = code ?? (signal === null ? 1 : 128);
   });
+} else {
+  process.exitCode = 2;
 }
