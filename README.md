@@ -1042,6 +1042,148 @@ moving or backing up this setup. As with the database, `down -v` deletes the
 uploads volume; the repository-owned branding assets can be reapplied with
 `npm run brand`.
 
+## Backup and restore
+
+A project is its PostgreSQL database and its `uploads_data` volume. The
+database holds the schema, every record, the Flows and their Studio edits,
+presets and bookmarks, the dashboard, users, the settings (branding, and a
+licence Directus activated) and the coordination status, including source
+edits the schedule has not processed yet. The uploads volume holds the
+branding files and every private file of the File Library (Moodle snapshot
+uploads and their backups). The published objects live only in the publish
+bucket; they are not part of a backup, and a restored project republishes
+them on demand. Keep backups outside every git repository, in a directory
+only you can read: a dump holds every password hash, the static API tokens
+and unexpired session tokens in plain text, and the licence and the other
+encrypted settings, which anyone with the project's `SECRET` can read.
+
+Take a backup with the stack running (no command of this project needs to
+be stopped):
+
+```sh
+mkdir -m 700 <private dir>
+umask 077
+docker compose exec -T database pg_dump --format=custom -U directus -d directus > <private dir>/directus.dump
+docker compose exec -T directus tar -c -f - -C /directus/uploads . > <private dir>/uploads.tar
+(cd <private dir> && sha256sum directus.dump uploads.tar > SHA256SUMS)
+```
+
+The dump and the archive are taken one after the other, so make no File
+Library change between the two commands: no upload, replacement or
+deletion, which includes a Moodle snapshot import and `npm run brand`. A
+file added in between only leaves an unused file in the archive, but a
+file deleted or replaced in between leaves a restored file row without
+its bytes (or with other bytes), and that file must then be uploaded
+again. The schedule and a publication write nothing into the uploads
+volume, so they can keep running.
+
+A backup counts once it has been restored, not because the files are
+non-empty. To restore into a fresh project:
+
+1. Check the set first and stop on any mismatch: `(cd <private dir> &&
+   sha256sum -c SHA256SUMS)`. A truncated or altered dump must never reach
+   a database.
+2. Start an empty PostgreSQL 18 database and an empty uploads volume.
+   Refuse a target that already holds any schema object (a table, view,
+   sequence, function, type or schema of its own) or any file; never
+   restore over a project that holds data.
+3. `pg_restore --exit-on-error --single-transaction -U directus -d
+   directus` with the dump on standard input, and unpack the archive into
+   the new uploads volume (`tar -x -f - -C <volume root>`), giving the
+   volume root the owner of `/directus/uploads` in the Directus image
+   (`node`, uid 1000).
+4. Start Directus on them with the same image, `SECRET` and, for a licensed
+   project, the same `LICENSE_KEY` and `PUBLIC_URL`. `SECRET` encrypts the
+   persisted licence (and the AI keys) in `directus_settings`: with another
+   secret Directus reads no licence at all, and with `LICENSE_KEY` set it
+   would then activate the key again as a new project. With the same values
+   it finds its own licence and only refreshes it, as on any restart. Never
+   run the restored copy and the original project with the same licence at
+   the same time. Unless replacing the published objects with the restored
+   data is the authorized rollback, also point `STORAGE_PUBLISH_BUCKET`
+   (and, for another server, `STORAGE_PUBLISH_ENDPOINT` and its keys) at a
+   separate scratch bucket, as `npm run test:restore` does: with the
+   project's usual environment a restored copy publishes into the live
+   bucket, over the current public files.
+5. Sign in, check the branding and the Flows, and resume **Data / Process
+   pending** if it was paused: it processes any source edit the backup
+   caught before it was counted. When readiness passes, publish into the
+   bucket step 4 chose; publish into the live bucket only when that
+   overwrite has been authorized.
+
+`npm run setup` does not have to run after a restore: the dump carries the
+schema, the database guard functions and triggers, Flows and presets
+(setup recreates the functions with `CREATE OR REPLACE` and installs only
+what is missing, so a rerun is harmless).
+
+`npm run test:restore` (`test/restore.integration.mjs`) rehearses this on a
+disposable fixture and never touches another project. It needs the target
+variables of `npm run test:s3` including the restart and database containers,
+the Compose environment that fixture's Directus container was created with
+(the harness checks that it reproduces the container's configuration hash,
+and that the image tag still names the running build, before it changes
+anything), and three names of its own: `DIRECTUS_RESTORE_TEST_NAME`
+(`finki_restore_` plus 6-32 lowercase letters or digits; the restore
+database container, its volume, the uploads volume and a network alias are
+derived from it and labelled with it), `DIRECTUS_RESTORE_TEST_BUCKET` (a
+second `synthetic-restore-…` bucket in the same local S3 server, created
+and removed by the run, so no object of the fixture bucket is overwritten)
+and `DIRECTUS_RESTORE_BACKUP_DIR` (an existing mode-700 directory outside
+every git repository). The run keeps its backup set, the damaged copies
+and the override each in a `restore-…` directory directly under it and
+refuses to start while one of an earlier run is still there.
+`DIRECTUS_RESTORE_KEEP_BACKUP=1` keeps the backup set; move it out of the
+directory before the next run. It builds a project through setup, a
+generated workbook import and a generated snapshot import, edits the
+publish Flow in Studio, adds a bookmark, the branding, a password user and
+source edits, leaves one edit pending, and takes the backup above (plus a
+manifest). It refuses a
+truncated or altered dump, a target name that is not disposable, a target
+database holding a schema object (a view) and a target uploads volume
+holding a file before writing anything, restores into a fresh
+PostgreSQL container and uploads volume, and lets the fixture's own
+Directus container serve the restored project through one more private
+Compose override that changes only the database connection, the publish
+bucket and the uploads volume. The restored project must sign in, show its
+branding and files byte for byte, keep its Flow edit and bookmark, count
+the pending edit on the next tick and publish every declared file into
+the second bucket equal to the export recorded before the backup. The
+container is then recreated from its own Compose files, and every restore
+resource, the bucket and the backup set are removed by exact name; a
+removal that fails does not stop the others, and the run then fails
+naming what was left.
+
+A run takes two to three minutes, about one of them with the fixture's
+Directus serving the restored copy. Give it at least ten minutes (a
+600000 ms tool timeout, for example) and never interrupt it: the switch
+back and the cleanup run in the test's own `finally`, which a killed
+process (Ctrl-C, a timeout, a crash) skips. The next `npm run test:restore`
+then refuses to start, but a suite that binds only the Directus container
+would not notice, so recover the fixture before anything else runs:
+
+1. Stop the fixture's Directus container (`docker stop <container>`) and
+   recreate it, with the Compose environment it was created with, from the
+   Compose files its
+   `com.docker.compose.project.config_files` label lists, without
+   `compose.restore.yaml`: `docker compose --env-file /dev/null -p
+   <project> -f <file> … up -d --no-build --no-deps directus`. Wait for
+   `/server/ping` to answer 200, check that `GET /license` answers
+   `active` with source `env`, and that the label no longer lists the
+   override.
+2. Remove `<name>_database` (`docker rm --force --volumes`), then
+   `<name>_database_data` and `<name>_uploads_data` (`docker volume rm`),
+   each only after its `finki.restore.disposable` label reads `<name>`.
+3. Delete the objects of the `synthetic-restore-…` bucket, then the bucket.
+4. Delete every `restore-…` directory under `DIRECTUS_RESTORE_BACKUP_DIR`
+   (backup sets hold a full dump, the override the restore database
+   password), file by file.
+5. The fixture's own database still holds the rehearsal's project with
+   **Data / Process pending** paused: resume the schedule, undo the
+   rehearsal's edits as `revertsFixture` in `test/restore-project.mjs`
+   does (the publish Flow and its claim operation, the bookmark, the
+   password user, the appearance settings, the files and the checkpoint
+   Flows it added) and tear the model down to marker-only.
+
 ## Native previews in Directus
 
 Directus Studio's collection table is the native replacement for the spreadsheet preview/helper tabs. Setup creates global table presets with the most useful fields and sorting, once; later runs keep whatever Studio changed. Studio search checks the displayed collection's string and numeric fields, and the filter builder supports nested include/exclude conditions.

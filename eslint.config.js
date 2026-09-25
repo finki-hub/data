@@ -117,6 +117,39 @@ const config = [
     },
   },
   {
+    // The restore rehearsal runs Docker (the source project's own Compose
+    // recreate, the disposable restore database and one-off containers
+    // that fill and read the restore volumes), streams the dump and the
+    // uploads archive through it, and writes, verifies and removes the
+    // backup set and the override under the operator-named private backup
+    // directory; its manifest records when the backup was taken (Node 24
+    // ships no Temporal). The private root asks Git whether the
+    // operator-named backup directory lies in a repository.
+    files: ['test/restore-docker.mjs', 'test/restore-private-root.ts'],
+    rules: {
+      'security/detect-child-process': 'off',
+      'security/detect-non-literal-fs-filename': 'off',
+      'sonarjs/no-os-command-from-path': 'off',
+    },
+  },
+  {
+    files: [
+      'test/restore-backup.mjs',
+      'test/restore-private-root.test.ts',
+      'test/restore-switch.mjs',
+      'test/restore-verify.mjs',
+    ],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  {
+    files: ['test/restore-backup.mjs'],
+    rules: {
+      'unicorn/prefer-temporal': 'off',
+    },
+  },
+  {
     // The stress scenario reads the memory files of the fixture containers'
     // cgroups, whose directory is named by the container id.
     files: ['test/relational/stress-helpers.mjs'],
