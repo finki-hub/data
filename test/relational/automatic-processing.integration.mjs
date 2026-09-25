@@ -10,7 +10,7 @@ import {
   processPendingFlow,
 } from '../../src/flows/process-pending.js';
 import { runSetup } from '../../src/setup.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   checksAfterSeeding,
   cleansUp,
@@ -35,7 +35,6 @@ import {
 } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   pauseAutomaticProcessing,
   userCollections,
   withDataModel,

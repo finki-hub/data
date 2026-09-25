@@ -131,25 +131,25 @@ const networksSchema = z.record(
   }),
 );
 
-// The names the Directus container can reach the S3 container by: its
-// container name and its aliases on each network the two share (both
-// read as `docker inspect --format '{{json .NetworkSettings.Networks}}'`).
-// No shared network, no name.
-export const s3HostsOf = (
-  s3: { readonly name: string; readonly networks: unknown },
+// The names the Directus container can reach another container by (the
+// S3 container, or the database): its container name and its aliases on
+// each network the two share (both read as `docker inspect --format
+// '{{json .NetworkSettings.Networks}}'`). No shared network, no name.
+export const hostsOf = (
+  container: { readonly name: string; readonly networks: unknown },
   directusNetworks: unknown,
 ): string[] => {
   const reachable = new Set(
     Object.keys(networksSchema.parse(directusNetworks)),
   );
-  const shared = Object.entries(networksSchema.parse(s3.networks)).filter(
-    ([network]) => reachable.has(network),
-  );
+  const shared = Object.entries(
+    networksSchema.parse(container.networks),
+  ).filter(([network]) => reachable.has(network));
   if (shared.length === 0) {
     return [];
   }
   return [
-    s3.name,
+    container.name,
     ...shared.flatMap(([, { Aliases, DNSNames }]) => [
       ...(Aliases ?? []),
       ...(DNSNames ?? []),

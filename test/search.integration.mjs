@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { isolatedTargets, targetFrom } from './isolated-target.mjs';
 import {
   anonymousSearch,
   options,
   response,
   search,
   searchResponse,
-  targetFrom,
   withSearchFixture,
 } from './search-integration-helpers.mjs';
 
@@ -62,6 +62,80 @@ test('requires an explicit loopback URL, token, and synthetic marker', () => {
       .base.hostname,
     '[::1]',
   );
+});
+
+// Docker must not be asked anything for these refusals.
+const noDocker = {
+  networks: () => assert.fail('no Docker command'),
+  ports: () => assert.fail('no Docker command'),
+  setting: () => assert.fail('no Docker command'),
+};
+const markerPattern = /Target marker must exist exactly once/u;
+const bucketPattern = /Set DIRECTUS_S3_TEST_BUCKET/u;
+const endpointPattern = /Set DIRECTUS_S3_TEST_ENDPOINT/u;
+const unknownS3Pattern = /Unknown S3 requirement/u;
+const directusContainerPattern = /Set the directus container/u;
+const unknownContainerPattern = /Unknown container requirement/u;
+
+// The environment without any S3 or container variable.
+const plainEnvironment = () =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) =>
+        !name.startsWith('DIRECTUS_S3_TEST_') &&
+        name !== 'DIRECTUS_COORDINATION_RESTART_CONTAINER' &&
+        name !== 'DIRECTUS_AUTOMATIC_DATABASE_CONTAINER',
+    ),
+  );
+
+test('refuses an unmarked target, a partial S3 target and missing or unknown requirements before any write', async () => {
+  const environment = plainEnvironment();
+  const accepted = await isolatedTargets(environment, {}, noDocker);
+  assert.deepEqual(accepted.containers, { database: null, directus: null });
+  assert.equal(accepted.s3, null);
+  // The loopback fixture without the marker value it was given.
+  await assert.rejects(
+    isolatedTargets(
+      {
+        ...environment,
+        DIRECTUS_SEARCH_TEST_MARKER_VALUE: 'synthetic-not-this-fixture',
+      },
+      {},
+      noDocker,
+    ),
+    markerPattern,
+  );
+  // Refused before any request: the target is a loopback port nothing
+  // listens on, so a request would fail with another error.
+  const unreachable = {
+    ...environment,
+    DIRECTUS_SEARCH_TEST_URL: 'http://127.0.0.1:9',
+  };
+  const refusals = [
+    [
+      { ...unreachable, DIRECTUS_S3_TEST_ENDPOINT: 'http://127.0.0.1:9' },
+      { s3: 'optional' },
+      bucketPattern,
+    ],
+    [unreachable, { s3: 'required' }, endpointPattern],
+    [unreachable, { s3: 'sometimes' }, unknownS3Pattern],
+    [unreachable, { containers: ['directus'] }, directusContainerPattern],
+    [
+      {
+        ...unreachable,
+        DIRECTUS_AUTOMATIC_DATABASE_CONTAINER: 'synthetic-database',
+      },
+      { containers: ['database'] },
+      directusContainerPattern,
+    ],
+    [unreachable, { containers: ['s3'] }, unknownContainerPattern],
+  ];
+  for (const [variables, requirements, pattern] of refusals) {
+    await assert.rejects(
+      isolatedTargets(variables, requirements, noDocker),
+      pattern,
+    );
+  }
 });
 
 test('denies anonymous options and malformed searches', async () => {

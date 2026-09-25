@@ -19,7 +19,7 @@ import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { publishAssetsFlowId } from '../../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../../src/flows/snapshot-import.js';
 import { runSetup } from '../../src/setup.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   createMany,
   settle,
@@ -27,7 +27,6 @@ import {
 } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   assertNoAccessResidue,
   userCollections,
   withDataModel,

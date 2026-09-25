@@ -5,20 +5,20 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { exportDefinitions } from '../../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { publicationFlows } from '../../src/flows/prepare-public-assets.js';
 import { snapshotFolder } from '../../src/flows/snapshot-folder.js';
 import { runSetup } from '../../src/setup.js';
 import { privateSentinels } from '../fixtures/synthetic-data.js';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
 import {
   settle,
   withOperationsReader,
 } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   pauseAutomaticProcessing,
   userCollections,
   withDataModel,
@@ -30,7 +30,6 @@ import {
   errorOf,
   legacyAssets,
   prepare,
-  publicFiles,
   readiness,
   restReader,
   runManual,
@@ -462,8 +461,9 @@ test('projects relational data into the existing public assets', async (t) => {
         await t.test('installs the publication templates as defined', () =>
           installsTemplates(context),
         );
-        await t.test('prepares four empty files for an empty project', () =>
-          preparesEmptyFiles(context),
+        await t.test(
+          'prepares every declared file empty for an empty project',
+          () => preparesEmptyFiles(context),
         );
         await t.test('seeds, converts and counts the synthetic fixture', () =>
           seedsAndCounts(context),

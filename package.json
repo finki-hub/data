@@ -41,7 +41,7 @@
     "test:csv": "node --env-file-if-exists=.env --test test/directus-csv-import.integration.mjs",
     "test:operations": "node test/relational/run-scenarios.mjs --scenario operations && node --import tsx --test test/operations.browser.mjs",
     "test:relational": "node test/relational/run-scenarios.mjs",
-    "test:s3": "node --import tsx --test test/publish-flow.integration.mjs",
+    "test:s3": "node --import tsx --test --test-concurrency=1 test/publish-flow.integration.mjs test/publish-workflow.integration.mjs",
     "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.mjs test/search-relational.integration.mjs"
   },
   "type": "module",

@@ -19,10 +19,9 @@ import {
   folders,
 } from '../../src/data-model/presentation/navigation.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   createItem,
   read,
   recording,

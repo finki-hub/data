@@ -21,12 +21,11 @@ import { runSetup } from '../../src/setup.js';
 import { academicYears } from '../../src/specs/public.js';
 import { loadWorkbook } from '../../src/workbook.js';
 import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
 import { settle } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   pauseAutomaticProcessing,
   recording,
   userCollections,

@@ -68,6 +68,7 @@ const config = [
       'src/migrations/enrollment-rules.ts',
       'src/migrations/labels.ts',
       'src/workbook-enrollment-reader.ts',
+      'test/fixtures/stress-oracle.ts',
       'test/relational-export-helpers.ts',
     ],
     rules: {
@@ -97,6 +98,7 @@ const config = [
     files: [
       'src/migrations/private-files.ts',
       'test/enrollment-proposal.test.ts',
+      'test/fixtures/stress-snapshot.ts',
       'test/import-cli.test.ts',
       'test/migration-cli.test.ts',
       'test/operations-browser-helpers.mjs',
@@ -115,13 +117,22 @@ const config = [
     },
   },
   {
+    // The stress scenario reads the memory files of the fixture containers'
+    // cgroups, whose directory is named by the container id.
+    files: ['test/relational/stress-helpers.mjs'],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  {
     // Node 24 ships no Temporal; the CLI entry points stamp the ledger, and
-    // the automatic processing suite reads the coordinator's timestamps to
-    // measure how long the schedule took.
+    // the automatic processing and stress suites read the coordinator's
+    // timestamps to measure how long the schedule took.
     files: [
       'src/cli.ts',
       'src/migrations/cli.ts',
       'test/relational/automatic-processing-helpers.mjs',
+      'test/relational/stress-helpers.mjs',
     ],
     rules: {
       'unicorn/prefer-temporal': 'off',

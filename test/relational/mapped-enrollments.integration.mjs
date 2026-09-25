@@ -17,10 +17,9 @@ import { flowFamilyCodes } from '../../src/flows/flow-template.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { installFlowFamily } from '../../src/flows/registry.js';
 import { mappedEnrollmentFlowIds } from '../../src/flows/shared.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   errorCode,
   json,
   request,

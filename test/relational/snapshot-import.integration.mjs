@@ -26,10 +26,9 @@ import {
   snapshotImportFlow,
   snapshotImportFlows,
 } from '../../src/flows/snapshot-import.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   createItem,
   userCollections,
   withDataModel,

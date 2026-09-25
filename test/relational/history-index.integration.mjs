@@ -16,10 +16,9 @@ import { installDataModel } from '../../src/data-model/install.js';
 import { flowFamilyCodes } from '../../src/flows/flow-template.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import { installFlowFamily } from '../../src/flows/registry.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   createItem,
   errorCode,
   json,

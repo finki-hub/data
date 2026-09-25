@@ -9,6 +9,7 @@ import { presetDefinitions } from '../../src/data-model/presentation/presets.js'
 import { modelRelations } from '../../src/data-model/relations.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { processPendingFlowId } from '../../src/flows/process-pending.js';
+import { assertMarkerPresent } from '../isolated-target.mjs';
 
 const systemPrefix = 'directus_';
 const restrictedUserPrefix = 'relational-restricted-';
@@ -82,19 +83,6 @@ export const schemaCounts = async (target) => {
     counts[key] = listing.data.length;
   }
   return counts;
-};
-
-export const assertMarkerPresent = async (target) => {
-  const marker = await read(
-    await request(
-      target,
-      `/items/${target.markerCollection}?filter[marker][_eq]=${encodeURIComponent(target.marker)}&limit=2`,
-      { token: target.token },
-    ),
-    200,
-  );
-  assert.equal(marker.data.length, 1, 'Target marker must exist exactly once');
-  assert.equal(marker.data[0].marker, target.marker);
 };
 
 // Collections ordered so that every "many" side is deleted before the

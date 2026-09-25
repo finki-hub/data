@@ -5,6 +5,7 @@ import { access, constants, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { z } from 'zod';
 
 import { editorPolicy } from '../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { get, post, remove } from './relational/history-index-helpers.mjs';
@@ -80,9 +81,22 @@ const unavailable = (cause) =>
     `agent-browser is not available (${cause}). Install it (npm i -g agent-browser && agent-browser install) and run npm run test:operations again; this suite refuses to skip its browser checks.`,
   );
 
+const sessionList = z.object({
+  data: z.object({ sessions: z.array(z.string()) }),
+});
+
+// The names of the CLI's active sessions (each has its own daemon).
+// Listing starts no daemon.
+const activeSessions = async (run) => {
+  const answer = await run(['session', 'list', '--json']);
+  assert.equal(answer.code, 0, 'agent-browser could not list its sessions');
+  return sessionList.parse(JSON.parse(answer.stdout)).data.sessions;
+};
+
 // The CLI, or a refusal that says what to do when it is missing: the
 // suite never skips its browser checks. `run(args, input)` answers
-// { code, stdout, stderr }.
+// { code, stdout, stderr }; `sessionsBefore` names the sessions that were
+// already active, which the run leaves alone.
 export const requireBrowser = async () => {
   const binary = await locate();
   if (binary === null) {
@@ -93,7 +107,11 @@ export const requireBrowser = async () => {
   if (answer.code !== 0) {
     throw unavailable(answer.stderr.trim() || `exit ${String(answer.code)}`);
   }
-  return { run, version: answer.stdout.trim() };
+  return {
+    run,
+    sessionsBefore: await activeSessions(run),
+    version: answer.stdout.trim(),
+  };
 };
 
 // One browser session: every command runs in it; `command` fails the test
@@ -261,8 +279,18 @@ export const login = async ({
   );
 };
 
-// Closes the sessions and deletes the vault profiles; answers what the
-// CLI reported, for the receipt.
+// The session the vault commands (auth save, delete, list) run in when no
+// --session is given: they start its daemon.
+const vaultSession = () => process.env.AGENT_BROWSER_SESSION || 'default';
+
+// Closes the sessions and deletes the vault profiles, then stops the
+// daemons of the sessions the run owns: its own sessions and the vault
+// commands' one (whose daemon they start, and which may register only a
+// moment later), unless it was already active before the run. Any other
+// session, whoever started it, is left alone. The owned sessions must stay
+// unlisted for three listings in a row, half a second apart; one still
+// listed is closed again every five seconds, for at most 30. Answers what
+// the CLI reported, for the receipt.
 export const closeBrowser = async (cli, sessions, profiles) => {
   const lines = [];
   for (const session of sessions) {
@@ -276,6 +304,27 @@ export const closeBrowser = async (cli, sessions, profiles) => {
   const listed = await cli.run(['auth', 'list']);
   const left = profiles.filter((profile) => listed.stdout.includes(profile));
   lines.push(`profiles left: ${left.length}`);
+  const owned = [
+    ...new Set([...sessions.map(({ name }) => name), vaultSession()]),
+  ].filter((name) => !cli.sessionsBefore.includes(name));
+  const closeAll = async (names) => {
+    for (const name of names) {
+      const answer = await cli.run(['--session', name, 'close']);
+      lines.push(`close ${name}: exit ${answer.code}`);
+    }
+  };
+  await closeAll(owned.filter((name) => name === vaultSession()));
+  let open = [];
+  let quiet = 0;
+  for (let attempt = 0; attempt < 60 && quiet < 3; attempt += 1) {
+    const active = await activeSessions(cli.run);
+    open = owned.filter((name) => active.includes(name));
+    quiet = open.length === 0 ? quiet + 1 : 0;
+    if (open.length > 0 && attempt % 10 === 0) await closeAll(open);
+    await sleep(500);
+  }
+  lines.push(`sessions of the run left: ${open.length}`);
+  assert.deepEqual(open, [], 'every session the run owns is closed');
   return lines;
 };
 

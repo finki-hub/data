@@ -1,13 +1,16 @@
 // `npm run test:relational [-- --scenario <name>]`: runs the fixture suites
-// test/relational/*.integration.mjs one after another, or only
-// test/relational/<name>.integration.mjs when a scenario is named. The
-// suites read the explicit target from DIRECTUS_SEARCH_TEST_* variables.
+// test/relational/*.integration.mjs one after another, or only the one
+// named. An opt-in scenario (test/relational/<name>.opt-in.mjs, such as
+// the full-size stress run) never runs by default, only when it is named,
+// so the default suite stays bounded. The suites read the explicit target
+// from DIRECTUS_SEARCH_TEST_* variables.
 import { spawn } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 const directory = import.meta.dirname;
 const suffix = '.integration.mjs';
+const optInSuffix = '.opt-in.mjs';
 const flag = '--scenario';
 
 const scenarioOf = (argv) => {
@@ -23,15 +26,24 @@ const scenarioOf = (argv) => {
 
 const entries = await readdir(directory);
 const suites = entries.filter((name) => name.endsWith(suffix)).toSorted();
+const optIn = entries.filter((name) => name.endsWith(optInSuffix)).toSorted();
 const scenario = scenarioOf(process.argv.slice(2));
 const selected =
   scenario === null
     ? suites
-    : suites.filter((name) => name === `${scenario}${suffix}`);
+    : [...suites, ...optIn].filter(
+        (name) =>
+          name === `${scenario}${suffix}` ||
+          name === `${scenario}${optInSuffix}`,
+      );
+const known = [
+  ...suites.map((name) => name.slice(0, -suffix.length)),
+  ...optIn.map((name) => `${name.slice(0, -optInSuffix.length)} (opt-in)`),
+];
 
 if (selected.length === 0) {
   process.stderr.write(
-    `Unknown scenario "${scenario}". Known: ${suites.map((name) => name.slice(0, -suffix.length)).join(', ')}.\n`,
+    `Unknown scenario "${scenario}". Known: ${known.join(', ')}.\n`,
   );
   process.exitCode = 2;
 } else {

@@ -3,8 +3,8 @@ import { describe, expect, test } from 'vitest';
 import {
   checkPublishLocation,
   containerPortOf,
+  hostsOf,
   type PublishSettings,
-  s3HostsOf,
   s3TargetFrom,
 } from './s3-target.js';
 
@@ -147,15 +147,15 @@ describe('the Docker readings', () => {
       },
     };
 
-    expect(s3HostsOf(s3, { fixture: {} })).toEqual([
+    expect(hostsOf(s3, { fixture: {} })).toEqual([
       'finki_s3_it_9e4d826c',
       's3',
       'finki_s3_it_9e4d826c',
       's3',
       '5e27ac0a0da5',
     ]);
-    expect(s3HostsOf(s3, { other: {} })).toEqual([]);
-    expect(() => s3HostsOf({ ...s3, networks: 'x' }, {})).toThrow();
+    expect(hostsOf(s3, { other: {} })).toEqual([]);
+    expect(() => hostsOf({ ...s3, networks: 'x' }, {})).toThrow();
   });
 });
 

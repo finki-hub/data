@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import { publishFileFlow } from '../src/flows/publish-one-file.js';
 import { publishAssetsFlow } from '../src/flows/publish-public-assets.js';
+import { dockerReads } from './docker-reads.mjs';
 import {
   installFlow,
   runsSince,
@@ -15,8 +16,8 @@ import { remove } from './relational/history-index-helpers.mjs';
 import {
   checkPublishLocation,
   containerPortOf,
+  hostsOf,
   publishSettingNames,
-  s3HostsOf,
 } from './s3-target.js';
 
 // The S3 side, the manual trigger, the probe variants and the injected
@@ -31,7 +32,6 @@ import {
 const runCommand = promisify(execFile);
 const keyPattern = /<Key>(?<key>[^<]+)<\/Key>/gu;
 const folderPattern = /^\/tmp\/s3mockFileStore\d+\/synthetic-[a-z0-9-]+$/u;
-const trailingNewline = /\n$/u;
 
 export const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
@@ -84,10 +84,8 @@ export const deleteObject = async (s3, key) => {
 
 // The container port a container publishes on a loopback host and port,
 // or null.
-const publishedPort = async (container, host, port) => {
-  const { stdout } = await runCommand('docker', ['port', container]);
-  return containerPortOf(stdout, host, port);
-};
+const publishedPort = async (container, host, port) =>
+  containerPortOf(await dockerReads.ports(container), host, port);
 
 // The container must publish exactly the endpoint's loopback port before
 // anything is run inside it; answers the port it serves inside Docker.
@@ -99,33 +97,6 @@ export const verifyContainer = async (s3) => {
   );
   assert.ok(port !== null, `${s3.container} does not publish ${s3.endpoint}`);
   return port;
-};
-
-const networksOf = async (container) => {
-  const { stdout } = await runCommand('docker', [
-    'inspect',
-    '--format',
-    '{{json .NetworkSettings.Networks}}',
-    container,
-  ]);
-  return JSON.parse(stdout);
-};
-
-// One setting of a container's environment, or null when it is unset
-// (printenv exits 1). Only the non-secret publishSettingNames are read.
-const settingOf = async (container, name) => {
-  try {
-    const { stdout } = await runCommand('docker', [
-      'exec',
-      container,
-      'printenv',
-      name,
-    ]);
-    return stdout.replace(trailingNewline, '');
-  } catch (error) {
-    if (error?.code === 1) return null;
-    throw error;
-  }
 };
 
 // Where the uploads land is decided by the Directus container's publish
@@ -145,15 +116,16 @@ export const verifyPublishLocation = async (target, s3) => {
     `${s3.directusContainer} does not serve the fixture target`,
   );
   const port = await verifyContainer(s3);
-  const hosts = s3HostsOf(
-    { name: s3.container, networks: await networksOf(s3.container) },
-    await networksOf(s3.directusContainer),
+  const hosts = hostsOf(
+    { name: s3.container, networks: await dockerReads.networks(s3.container) },
+    await dockerReads.networks(s3.directusContainer),
   );
+  // Only the non-secret publishSettingNames are read.
   const settings = Object.fromEntries(
     await Promise.all(
       publishSettingNames.map(async (name) => [
         name,
-        await settingOf(s3.directusContainer, name),
+        await dockerReads.setting(s3.directusContainer, name),
       ]),
     ),
   );

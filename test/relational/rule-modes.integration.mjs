@@ -21,7 +21,7 @@ import {
   legacyEnrollmentFlowIds,
   mappedEnrollmentFlowIds,
 } from '../../src/flows/shared.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   databaseContainer,
   removeFlow,
@@ -30,7 +30,6 @@ import {
 } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   errorCode,
   userCollections,
   withDataModel,

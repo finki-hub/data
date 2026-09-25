@@ -11,6 +11,7 @@ import { ruleSeedingFlowId } from '../src/flows/add-enrollment-rules.js';
 import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../src/flows/snapshot-import.js';
 import { runSetup } from '../src/setup.js';
+import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
   browserSession,
   browserUsers,
@@ -35,6 +36,10 @@ import {
   waitsForStatus,
 } from './operations-browser-steps.mjs';
 import {
+  editsRelationNatively,
+  keepsStateOnFailedImport,
+} from './operations-browser-workflow.mjs';
+import {
   bucketStatus,
   installProbe,
   listKeys,
@@ -51,7 +56,6 @@ import {
 } from './relational/automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   assertNoAccessResidue,
   pauseAutomaticProcessing,
   userCollections,
@@ -59,7 +63,6 @@ import {
 } from './relational/data-model-helpers.mjs';
 import { count, get } from './relational/history-index-helpers.mjs';
 import { s3TargetFrom } from './s3-target.js';
-import { targetFrom } from './search-integration-helpers.mjs';
 
 // `npm run test:operations` (second half): the Data operations dashboard
 // in a real browser through the locally installed agent-browser CLI, on
@@ -67,8 +70,10 @@ import { targetFrom } from './search-integration-helpers.mjs';
 // sees Run wait (and say why) while the status cannot be read, seeds the
 // rules of a new year, imports a generated snapshot (the file chosen in
 // the Flow's own dialog) and finds the next Run's dialog empty, publishes,
-// meets a failed publication and retries it, sees a partial one file by
-// file, and adds a panel for a new manual Flow without a rebuild; an
+// edits a relation in Studio's item form and publishes it, meets a failed
+// publication and retries it, sees a partial one file by file, adds a
+// panel for a new manual Flow without a rebuild, and imports a malformed
+// snapshot that leaves the active users and every object intact; an
 // editor reads the status, runs nothing and follows a review link.
 // Everything is synthetic; the run removes what it created. Without
 // agent-browser it fails, never skips.
@@ -358,9 +363,12 @@ const servesEditor = async ({ cli, editor, profiles, shot, state, target }) => {
 const finishes = async (context) => {
   const { admin, cli, editor, profiles, s3, state, t, target } = context;
   try {
-    const closed = await closeBrowser(cli, [admin, editor], profiles);
-    t.diagnostic(closed.join('; '));
-    await cleansUp({ s3, state, target });
+    try {
+      const closed = await closeBrowser(cli, [admin, editor], profiles);
+      t.diagnostic(closed.join('; '));
+    } finally {
+      await cleansUp({ s3, state, target });
+    }
   } finally {
     const resume = await pauseAutomaticProcessing(target);
     context.resumes.push(resume);
@@ -381,6 +389,10 @@ const steps = [
     reopensEmpty,
   ],
   ['publishes to the local S3 bucket from its panel', publishStep],
+  [
+    "edits a relation in Studio's item form and publishes it from the dashboard",
+    editsRelationNatively,
+  ],
   ['offers a precise retry after a failed publication', retriesFailure],
   [
     'shows one outcome per declared file of a partial publication',
@@ -389,6 +401,10 @@ const steps = [
   [
     'lets an administrator add a Run operation panel for a new manual Flow without a rebuild',
     addsPanel,
+  ],
+  [
+    'keeps the active snapshot and every published object when an import from the dashboard fails',
+    keepsStateOnFailedImport,
   ],
   [
     'lets an editor read the status and follow a review link, and run nothing',

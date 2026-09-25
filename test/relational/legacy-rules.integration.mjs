@@ -21,11 +21,10 @@ import {
   legacyEnrollmentFlowIds,
   mappedEnrollmentFlowIds,
 } from '../../src/flows/shared.js';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { seededRules } from '../legacy-enrollment-helpers.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   errorCode,
   json,
   request,
@@ -66,7 +65,7 @@ import {
   resultsPath,
   rulesPath,
   runEnrollments,
-  years,
+  workbookYears,
 } from './legacy-rules-helpers.mjs';
 import {
   anonymousTrigger,
@@ -95,12 +94,17 @@ const overBudget =
   /^plan: Moodle user (?<user>\d+) holds 800001 bytes of Courses history, more than the 800000-byte budget of one legacy rule page; nothing was planned\.$/u;
 const legacyFamilyFailed =
   /^family: Enrollment family legacy_regex failed \(family: LEGACY_COUNT_FAILED legacy: LEGACY_COUNT_FAILED /u;
-const mappedPair = { 'ma/2025/2026': 2, 'mb/2025/2026': 0 };
+// The two mapped pairs, in the newest year row the suite created, with
+// their counts.
+const mappedPairs = (state, [ma, mb]) => ({
+  [`ma/${state.mappedYear}`]: ma,
+  [`mb/${state.mappedYear}`]: mb,
+});
 
 // The installed counts must equal the checkpoint derivation of the seed
 // for every legacy pair, plus the two mapped pairs.
 const expectParity = async (target, state, seed = state.seed) => {
-  const expected = { ...(await oracle(seed)), ...mappedPair };
+  const expected = { ...(await oracle(seed)), ...mappedPairs(state, [2, 0]) };
   const installed = await installedCounts(target, state);
   assert.deepEqual(installed, expected);
   return expected;
@@ -261,24 +265,29 @@ const seeds = async (target, state) => {
     state.courseIds.set(key, id);
     state.courseKeys.set(id, key);
   }
-  for (const [index, label] of years.entries()) {
-    const id = await create(target, state, [
-      'academic_years',
-      { label, sort: years.length - index },
-    ]);
-    state.yearIds.set(label, id);
-    state.yearLabels.set(id, label);
+  const yearRows = workbookYears.map((label, index) => ({
+    label,
+    sort: workbookYears.length - index,
+  }));
+  for (const row of yearRows) {
+    const id = await create(target, state, ['academic_years', row]);
+    state.yearIds.set(row.label, id);
+    state.yearLabels.set(id, row.label);
   }
+  // The mapped rules name the newest year row created here.
+  state.mappedYear = yearRows.toSorted(
+    (left, right) => right.sort - left.sort,
+  )[0].label;
   const seeded = await seededRules();
   const ruleOf = ({ academic_year, course, pattern }) => ({
-    academic_year: state.yearIds.get(years[academic_year - 1]),
+    academic_year: state.yearIds.get(workbookYears[academic_year - 1]),
     course: state.courseIds.get(`c${course}`),
     mode: 'legacy_regex',
     pattern,
     review_note: 'Synthetic legacy rule of the fixture suite.',
   });
   const mappedRule = (key) => ({
-    academic_year: state.yearIds.get('2025/2026'),
+    academic_year: state.yearIds.get(state.mappedYear),
     course: state.courseIds.get(key),
     mode: 'mapped_entries',
   });
@@ -302,7 +311,7 @@ const seeds = async (target, state) => {
   await create(target, state, [
     'moodle_course_mappings',
     {
-      academic_year: state.yearIds.get('2025/2026'),
+      academic_year: state.yearIds.get(state.mappedYear),
       course: state.courseIds.get('ma'),
       entry: entries.get('Beta Course-2024/2025').id,
     },
@@ -598,7 +607,7 @@ const refusesInvalidPattern = async (target, state) => {
   const created = await post(
     target,
     rulesPath,
-    years.map((label) => ({
+    workbookYears.map((label) => ({
       academic_year: state.yearIds.get(label),
       course,
       mode: 'legacy_regex',
@@ -805,8 +814,7 @@ const installsZerosWithoutUsers = async (target, state) => {
   const installed = await installedCounts(target, state);
   assert.deepEqual(installed, {
     ...(await oracle({ ...state.seed, histories: [] })),
-    'ma/2025/2026': 0,
-    'mb/2025/2026': 0,
+    ...mappedPairs(state, [0, 0]),
   });
   assert.ok(Object.values(installed).every((value) => value === 0));
 };

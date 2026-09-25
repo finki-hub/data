@@ -6,9 +6,9 @@ import { searchBookmark } from '../src/checkpoint-presets.js';
 import { installPresentation } from '../src/data-model/presentation.js';
 import { curriculumBookmark } from '../src/data-model/presentation/presets.js';
 import { runSetup } from '../src/setup.js';
+import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   assertNoAccessResidue,
   createItem,
   errorCode,
@@ -26,7 +26,6 @@ import {
   removeHistoryRunner,
 } from './relational/history-runner.mjs';
 import { callAs, withAccessUsers } from './relational/operations-helpers.mjs';
-import { targetFrom } from './search-integration-helpers.mjs';
 import {
   entryFields,
   fileIds,

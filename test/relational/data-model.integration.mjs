@@ -6,11 +6,10 @@ import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import { applySchemaConstraints } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
 import { modelRelations } from '../../src/data-model/relations.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { databaseContainer, psql } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   assertNoAccessResidue,
   createItem,
   errorCode,

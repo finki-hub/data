@@ -5,43 +5,7 @@ import { destroySearchFixture, withCleanup } from './search-cleanup.mjs';
 import { collectionDefinition, moodleUsers } from './search-fixture.mjs';
 import { setRestrictedFields } from './search-permission.mjs';
 
-const markerCollectionPattern = /^synthetic_search_marker_[a-z0-9]+$/u;
-const markerPattern = /^synthetic-[a-z0-9-]+$/u;
 const endpoint = '/finki-hub-course-history';
-
-export const targetFrom = (environment) => {
-  const url = environment.DIRECTUS_SEARCH_TEST_URL;
-  const token = environment.DIRECTUS_SEARCH_TEST_TOKEN;
-  const markerCollection = environment.DIRECTUS_SEARCH_TEST_MARKER_COLLECTION;
-  const marker = environment.DIRECTUS_SEARCH_TEST_MARKER_VALUE;
-  assert.ok(
-    url,
-    'Set DIRECTUS_SEARCH_TEST_URL to an explicit disposable target',
-  );
-  assert.ok(
-    token,
-    'Set DIRECTUS_SEARCH_TEST_TOKEN to a disposable-target token',
-  );
-  assert.ok(markerCollection, 'Set DIRECTUS_SEARCH_TEST_MARKER_COLLECTION');
-  assert.ok(marker, 'Set DIRECTUS_SEARCH_TEST_MARKER_VALUE');
-  const base = new URL(url);
-  assert.ok(
-    base.protocol === 'http:' || base.protocol === 'https:',
-    'Target URL must use HTTP(S)',
-  );
-  assert.ok(
-    ['127.0.0.1', '[::1]'].includes(base.hostname),
-    'Target URL must be loopback-only',
-  );
-  assert.equal(base.pathname, '/', 'Target URL must not include a path');
-  assert.match(
-    markerCollection,
-    markerCollectionPattern,
-    'Marker collection is not disposable',
-  );
-  assert.match(marker, markerPattern, 'Marker value is not synthetic');
-  return { base, marker, markerCollection, token };
-};
 
 const request = (target, path, requestOptions = {}) => {
   const headers = new Headers(requestOptions.headers);

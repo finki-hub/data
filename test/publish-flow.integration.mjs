@@ -3,12 +3,14 @@ import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
+import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { prepareAssetsFlowId } from '../src/flows/prepare-public-assets.js';
 import {
   publishAssetsFlowId,
   publishFlows,
 } from '../src/flows/publish-public-assets.js';
 import { runSetup } from '../src/setup.js';
+import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
   bucketStatus,
   deleteObject,
@@ -34,7 +36,6 @@ import {
 } from './relational/automatic-processing-helpers.mjs';
 import {
   adminRequest,
-  assertMarkerPresent,
   pauseAutomaticProcessing,
   userCollections,
   withDataModel,
@@ -53,7 +54,6 @@ import {
   status,
 } from './relational/history-index-helpers.mjs';
 import { s3TargetFrom } from './s3-target.js';
-import { targetFrom } from './search-integration-helpers.mjs';
 
 // `npm run test:s3`: the relational publish Flows against an explicit
 // disposable S3 target (s3-target.ts refuses anything else), over the
@@ -63,13 +63,19 @@ import { targetFrom } from './search-integration-helpers.mjs';
 // the suite removes the files it published and the objects it created,
 // and tears the model down.
 
-const [first = '', second = '', third = '', fourth = ''] = declaredFilenames;
+// The files in registry order: the injected failures hit the second
+// upload, and each file's own source collection changes its object.
+const [first = '', second = ''] = declaredFilenames;
+const collectionOf = (filename) =>
+  exportDefinitions.find((definition) => definition.filename === filename)?.rows
+    .collection ?? '';
+const except = (filename) =>
+  declaredFilenames.filter((key) => key !== filename);
 const storage = 'publish';
 const waitMs = 5_000;
 const byText = (left, right) => collator.compare(left, right);
 const nothingToResume = () => Promise.resolve();
 const unsortedYear = /academic_year_unsorted/u;
-const roomsFailed = /rooms\.json \(PUBLISH_UPLOAD_FAILED\)/u;
 
 // The digests Publish / Prepare public assets answers for the current rows.
 const prepared = async (target) => {
@@ -326,7 +332,7 @@ const refusesWhileBlocked = async ({ s3, state, t, target }) => {
 
 const overwrites = async ({ s3, state, t, target }) => {
   const renamed = await rename(target, {
-    collection: 'rooms',
+    collection: collectionOf(second),
     suffix: 'Overwritten',
   });
   await nextSecond();
@@ -343,7 +349,7 @@ const overwrites = async ({ s3, state, t, target }) => {
   }
   assert.ok(current[second].body.includes(renamed));
   assert.notEqual(current[second].sha256, state.objects[second].sha256);
-  for (const key of [first, third, fourth]) {
+  for (const key of except(second)) {
     assert.equal(current[key].sha256, state.objects[key].sha256, key);
   }
   const files = await publishedFiles(target);
@@ -357,16 +363,14 @@ const overwrites = async ({ s3, state, t, target }) => {
 };
 
 // Every source file changes, then the second upload in registry order
-// meets a read-only bucket folder: the first, third and fourth files are
-// still uploaded.
+// meets a read-only bucket folder: every other file is still uploaded.
 const survivesSecondFailure = async ({ s3, state, t, target }) => {
-  await rename(target, { collection: 'courses', suffix: 'Partial' });
-  await rename(target, { collection: 'rooms', suffix: 'Partial' });
-  await rename(target, { collection: 'staff', suffix: 'Partial' });
-  await rename(target, { collection: 'students', suffix: 'Partial' });
+  for (const { rows } of exportDefinitions) {
+    await rename(target, { collection: rows.collection, suffix: 'Partial' });
+  }
   const expected = await prepared(target);
   const before = await status(target);
-  await installProbe(target, [second, third], waitMs);
+  await installProbe(target, declaredFilenames.slice(1, 3), waitMs);
   const installed = await status(target);
   assert.equal(
     installed.fingerprints.current.calculation,
@@ -403,10 +407,13 @@ const survivesSecondFailure = async ({ s3, state, t, target }) => {
   assert.equal(run.status, 502, JSON.stringify(run.body));
   const refusal = errorOf(run.body);
   assert.equal(refusal.code, 'PUBLICATION_PARTIAL');
-  assert.match(refusal.message, roomsFailed);
+  assert.ok(
+    refusal.message.includes(`${second} (PUBLISH_UPLOAD_FAILED)`),
+    refusal.message,
+  );
   t.diagnostic(`partial: ${refusal.message}`);
   const current = await objects(s3);
-  for (const key of [first, third, fourth]) {
+  for (const key of except(second)) {
     assert.equal(current[key].sha256, expected[key], `${key} is new`);
   }
   assert.equal(current[second].sha256, state.objects[second].sha256);
@@ -449,7 +456,10 @@ const convergesOnRetry = async ({ s3, t, target }) => {
 };
 
 const failsEveryUpload = async ({ s3, t, target }) => {
-  await rename(target, { collection: 'staff', suffix: 'Unreachable' });
+  await rename(target, {
+    collection: collectionOf(first),
+    suffix: 'Unreachable',
+  });
   const before = digests(await objects(s3));
   const restore = await readOnlyBucket(s3);
   let run;
@@ -493,14 +503,14 @@ const failsEveryUpload = async ({ s3, t, target }) => {
 // published (the snapshot the files hold), and the newer revision stays
 // pending until the next publication.
 const leavesNewerRevisionPending = async ({ s3, t, target }) => {
-  await rename(target, { collection: 'staff', suffix: 'Prepared' });
+  await rename(target, { collection: collectionOf(first), suffix: 'Prepared' });
   const expected = await prepared(target);
   await installProbe(target, [second], waitMs);
   const since = wallClock();
   const running = trigger(target, probeParentId);
   await probeRuns(target, since, 1);
   const renamed = await rename(target, {
-    collection: 'rooms',
+    collection: collectionOf(second),
     suffix: 'During',
   });
   const run = await running;

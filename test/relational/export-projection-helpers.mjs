@@ -34,13 +34,6 @@ export const conversionSteps = [
   'equivalencies',
 ];
 
-export const publicFiles = [
-  'courses.json',
-  'rooms.json',
-  'staff.json',
-  'students.json',
-];
-
 // POSTs a manual Flow on Data Operations like Studio's button and answers
 // the status, the body and how long the call took.
 export const runManual = async (target, id, { token } = {}) => {

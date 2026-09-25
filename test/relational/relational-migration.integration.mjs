@@ -24,7 +24,7 @@ import { runMigrationCli } from '../../src/migrations/run.js';
 import { collectionSpecs } from '../../src/model.js';
 import { collectionKeys } from '../../src/schema.js';
 import { makeSyntheticDataset } from '../fixtures/synthetic-data.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
   json,

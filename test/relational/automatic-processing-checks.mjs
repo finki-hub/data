@@ -13,6 +13,7 @@ import {
   countsOf,
   createMany,
   databaseContainer,
+  dispatcherRuns,
   installFlow,
   intervalMs,
   isCurrent,
@@ -113,19 +114,6 @@ const removeMany = async (target, collection, ids) => {
     [204, 403].includes(response.status),
     `${collection} ${response.status}`,
   );
-};
-
-// Directus records a Flow run once its last operation finished, so the
-// dispatcher's run lands a moment after the status its child wrote (a
-// failure, a completion). Waits briefly for the expected count.
-const dispatcherRuns = async (target, since, expected) => {
-  const started = Date.now();
-  let runs = await runsSince(target, dispatcherFlowId, since);
-  while (runs < expected && Date.now() - started < 10_000) {
-    await sleep(250);
-    runs = await runsSince(target, dispatcherFlowId, since);
-  }
-  return runs;
 };
 
 const failedAfter = (at) => (report) =>

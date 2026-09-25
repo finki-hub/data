@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
+import { dispatcherFlowId } from '../../src/flows/count-enrollments.js';
 import { insertionOrder } from '../../src/flows/flow-template.js';
 import { get, patch, post, remove, status } from './history-index-helpers.mjs';
 
@@ -145,6 +146,20 @@ export const runsSince = async (target, flowId, since) => {
   return Number(row?.count ?? 0);
 };
 
+// Directus records a Flow run once its last operation finished, so the
+// dispatcher's run lands a moment after the status its child wrote (a
+// failure, a completion). Waits briefly for the expected count of
+// "Data / Count enrollments" runs since a moment.
+export const dispatcherRuns = async (target, since, expected) => {
+  const started = Date.now();
+  let runs = await runsSince(target, dispatcherFlowId, since);
+  while (runs < expected && Date.now() - started < 10_000) {
+    await sleep(250);
+    runs = await runsSince(target, dispatcherFlowId, since);
+  }
+  return runs;
+};
+
 export const createMany = async (target, collection, rows) => {
   const created = await post(target, `/items/${collection}`, rows);
   return created.data.map(({ id }) => id);
@@ -168,14 +183,16 @@ export const countsOf = async (target, state) => {
   );
 };
 
-// One read-only SELECT on the fixture database. The helper refuses, before
-// Docker is called, anything that is not a single SELECT (no statement
-// separator) or that signals other backends; the session itself runs
-// every transaction read-only (default_transaction_read_only), so a
-// SELECT that would write (SELECT INTO, setval, nextval) fails in the
+// One read-only SELECT on the fixture database (by default the container
+// DIRECTUS_AUTOMATIC_DATABASE_CONTAINER names; a suite that validated its
+// containers through isolatedTargets passes the bound one). The helper
+// refuses, before Docker is called, anything that is not a single SELECT
+// (no statement separator) or that signals other backends; the session
+// itself runs every transaction read-only (default_transaction_read_only),
+// so a SELECT that would write (SELECT INTO, setval, nextval) fails in the
 // database, and psql stops at the first error.
-export const psql = async (sql) => {
-  assert.match(databaseContainer ?? '', containerPattern);
+export const psql = async (sql, container = databaseContainer) => {
+  assert.match(container ?? '', containerPattern);
   assert.match(sql, selectPattern, 'only SELECT statements are allowed');
   assert.ok(!sql.includes(';'), 'exactly one statement is allowed');
   assert.doesNotMatch(sql, signallingPattern, 'no signalling function');
@@ -183,7 +200,7 @@ export const psql = async (sql) => {
     'exec',
     '-e',
     'PGOPTIONS=-c default_transaction_read_only=on',
-    databaseContainer,
+    container,
     'psql',
     '-v',
     'ON_ERROR_STOP=1',
@@ -219,9 +236,12 @@ export const waitForDirectus = async (target) => {
   return assert.fail('Directus did not answer /server/ping after the restart');
 };
 
-export const restartDirectus = async (target) => {
-  assert.match(restartContainer ?? '', containerPattern);
-  await runCommand('docker', ['restart', restartContainer]);
+// Restarts the Directus container (by default the one
+// DIRECTUS_COORDINATION_RESTART_CONTAINER names; a suite that validated its
+// containers through isolatedTargets passes the bound one).
+export const restartDirectus = async (target, container = restartContainer) => {
+  assert.match(container ?? '', containerPattern);
+  await runCommand('docker', ['restart', container]);
   return waitForDirectus(target);
 };
 

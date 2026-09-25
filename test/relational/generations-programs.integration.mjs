@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 
+import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { courses as coursesDefinition } from '../../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { readQuery } from '../../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
 import { legacyImportColumns } from '../../src/data-model/presentation/groups.js';
@@ -18,11 +19,10 @@ import {
 } from '../../src/migrations/generations.js';
 import { publicAssetsFlowId } from '../../src/public-assets-flow.js';
 import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
 import { settle } from './automatic-processing-helpers.mjs';
 import {
-  assertMarkerPresent,
   pauseAutomaticProcessing,
   read,
   request,
@@ -31,7 +31,6 @@ import {
 } from './data-model-helpers.mjs';
 import {
   legacyAssets,
-  publicFiles,
   readiness,
   sha256,
 } from './export-projection-helpers.mjs';

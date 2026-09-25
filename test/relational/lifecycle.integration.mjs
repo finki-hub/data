@@ -28,7 +28,7 @@ import {
   lifecycleDataset,
   syntheticWorkbook,
 } from '../fixtures/synthetic-workbook.js';
-import { targetFrom } from '../search-integration-helpers.mjs';
+import { targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
   destroyDataModel,

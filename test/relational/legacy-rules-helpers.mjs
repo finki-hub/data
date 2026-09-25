@@ -20,7 +20,11 @@ export const legacyRunPath = `/flows/trigger/${legacyRunFlowId}`;
 export const resultsPath = '/items/data_operation_results';
 export const enrollmentsPath = '/items/course_enrollments';
 export const rulesPath = '/items/course_enrollment_rules';
-export const years = [...academicYears];
+// The workbook-era academic years (src/specs/public.ts). The imported
+// rules name them by position and the checkpoint derivation (the oracle)
+// counts them, so the suite uses the list only where it tests the
+// imported rules; everything else names the year rows it created.
+export const workbookYears = [...academicYears];
 
 // Filler lines of synthetic histories: 100 distinct short lines that match
 // no rule, so a long history adds bytes and entries without counts.
@@ -181,7 +185,7 @@ export const oracle = async (seed) => {
   });
   const counts = {};
   for (const update of updates) {
-    for (const year of years) {
+    for (const year of workbookYears) {
       counts[`${update.id}/${year}`] =
         update[`enrollment_${year.replace('/', '_')}`];
     }

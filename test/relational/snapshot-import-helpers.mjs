@@ -127,7 +127,9 @@ const cell = (value) => {
 };
 
 // The header in reverse contract order: the import maps columns by name.
-export const csvOrder = snapshotFields.map((_, index) => 37 - index);
+export const csvOrder = snapshotFields.map(
+  (_, index) => snapshotFields.length - 1 - index,
+);
 
 export const csvRecord = (values) =>
   `${csvOrder.map((index) => cell(values[index] ?? null)).join(',')}\n`;
