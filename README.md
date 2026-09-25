@@ -811,13 +811,11 @@ Every issue is one entry of the readiness-check registry
 (`exports/readiness-registry.ts`): its code, severity (`blocker` or
 `warning`), where its count comes from (a bounded native aggregate, a check
 counted in code, the coordinator status or the snapshot status), the files
-it gates, an optional Needs review bookmark, whether its records each carry
+it gates, an optional Needs review view, whether its records each carry
 a curriculum `generation` column (so one view shows and filters by it,
-today the equivalency members), and a description. `ready` is true exactly
-when every blocker counts zero. The registry is code, not rows, so no
-Studio edit can turn a blocker into a warning; the Needs review bookmarks
-setup installs are the entries that declare one (today **Needs mapping**
-and **Equivalency labels without an entry**).
+never one view per generation row), and a description. `ready` is true
+exactly when every blocker counts zero. The registry is code, not rows, so
+no Studio edit can turn a blocker into a warning.
 
 Blockers: `history_index_*` and `enrollments_*` (`pending`, `running`,
 `failed`, from the coordinator status), `snapshot_import_running`,
@@ -878,6 +876,43 @@ check several codes share runs once.
 `data_operations.publication_outcomes` keeps the outcome of each declared
 file of the last publication, keyed by filename, for any number of files
 (see Publishing).
+
+### Needs review views
+
+Every registry entry that declares a review view gets one shared Studio
+bookmark on the collection of its records, and the Readiness panel of the
+dashboard links the check to that bookmark (other checks link their
+collection). `npm run setup` creates the bookmarks that are missing and
+never changes one that exists, so a check declared later gets its view on
+the next setup, and a Studio edit of a view is kept. The views are
+generated from `exports/review-views.ts` and `exports/key-order.ts` of the
+data-operations extension; today:
+
+| Bookmark | Collection | Check | Lists |
+| --- | --- | --- | --- |
+| **Needs mapping** | `moodle_course_entries` | `entry_needs_mapping` | entries still `needs_mapping` without a mapping |
+| **Mapped entries awaiting review** | `moodle_course_entries` | `mapped_entry_awaiting_review` | entries still `needs_mapping` with a mapping, and its course and year |
+| **Curriculum links to check** | `course_equivalency_members` | `curriculum_link_unresolved` | the 2018 members that name a course, beside the generations of that course's links (a missing link cannot be a filter, so the view lists the candidates) |
+| **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
+| **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
+| **Assignments without staff or label**, **Assignments shown by their label only**, **Assignments without a known role** | `teaching_assignments` | `assignment_unresolved`, `assignment_review_label`, `assignment_role_missing` | the published rows each check counts (a professor row that `professors_override` replaces counts nowhere) |
+| **Council members without a student** | `student_council` | `council_member_unresolved` | memberships without a student |
+| **Published academic years / curriculum generations / study programs without a sort** | the key source's collection | `academic_year_unsorted` and the like | published rows without a position; a program shows its generation and name |
+
+Curriculum views show the generation and filter through the
+`curriculum_generations` relation, so a new generation's rows appear in
+the existing views. A view filters with plain field and relational paths
+(never `_some`/`_none`) and with `_empty`/`_nempty` for text (the REST API
+refuses an empty string as a filter value); Studio runs it as the viewer,
+so the viewer's permissions apply. Except **Curriculum links to check**,
+each view lists exactly the records its check counts; the Readiness panel
+says under that link that it lists every candidate and that its columns
+show which count.
+
+Keep a view's bookmark name when editing it. Setup recognises a view by
+its collection and name: after a rename, the next `npm run setup` creates
+the declared bookmark again beside the renamed one, and the Readiness
+panel links the declared name.
 
 ## Data operations dashboard
 
@@ -1033,15 +1068,45 @@ management. Setup creates this shared bookmark once from
   with a matching count, 50 people per page, profile links, and expandable histories.
 - Click **Course history** to toggle between most and fewest courses first across
   all matching users. Changing the sort returns to the first page.
-- The page header's native search and filters still apply. Course selections are
-  temporary and reset when the layout is reopened; they are not saved bookmarks.
+- The page header's native search and filters still apply, including filters on
+  related fields such as **History Memberships → Entry → Label** or the course
+  of an entry's mappings. They run as the signed-in user: a field that user may
+  not read answers 403. A filter path passes each collection once, from a
+  person through their own memberships to the entries, their mappings and on,
+  and names at most `MAX_RELATIONAL_DEPTH` fields (10 by default, as for the
+  REST API). A path back to a membership or a person (such as **Entry →
+  Memberships** or **History Memberships → Moodle User**), `_some`/`_none`
+  quantifiers and implicit `$FOLLOW(...)` relations are refused. Course
+  selections are temporary and reset when the layout is reopened; they are not
+  saved bookmarks.
 
-Choices come from the current imported Moodle histories. Matching is case-sensitive
-against complete newline-separated entries, including year/semester, not substrings
-or regex. The scraper's CSV format is unchanged. Up to 20 selections are supported
+Choices come from the current imported Moodle histories of the users the signed-in
+user may read, never from the history-entry table, so Search never offers or
+matches another user's lines. Matching is case-sensitive against complete
+newline-separated entries of the raw `Courses` text, including year/semester, not
+substrings or regex; it does not go through the history index or the mappings, so a
+line that is unmapped, ignored or not indexed yet is found like any other. To reach
+the mappings of a person's lines, open the person: the **History Memberships** list
+shows each line with its review state and the course and academic year of its
+mappings. The scraper's CSV format is unchanged. Up to 20 selections are supported
 per group. Use **Refresh data** after importing a new snapshot to reload choices
 and results. Both private endpoints use the caller's Directus permissions; no
 collection data is duplicated or published to S3.
+
+Directus 12.3.1 checks the signed-in user's field permissions on every segment of
+a filter path, but joins the related rows without that user's row permissions
+(only `_some`/`_none` apply them), and an implicit `$FOLLOW(collection, field)`
+segment skips even the field check; this holds for the REST API too. So a role
+that may read only some Moodle users may read, of `moodle_history_memberships`,
+only `id` and `entry` of those users' rows (for example with the condition
+`moodle_user.Name` starts with the same prefix), never the `moodle_user` field,
+and must not be granted the `memberships` alias of `moodle_course_entries`.
+With a global memberships read, that field or that alias, a REST filter through
+them answers questions about other users. Search needs none of them, and the raw
+`Courses` text shows a person's lines. The person's **History Memberships** list
+needs the memberships' `moodle_user` and `sort` fields and reads of the mappings,
+courses and years it shows, so it is for roles that read every Moodle user. A
+read of `moodle_course_entries` itself lists every line, without its holders.
 
 The layout and its companion endpoint are one bundle in
 `directus/extensions/directus-extension-course-search`. Compiled files are included

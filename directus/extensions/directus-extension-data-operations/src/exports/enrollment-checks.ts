@@ -46,6 +46,11 @@ export const enrollmentCheck: ReadinessCheck = {
   },
 };
 
+// The history entries still marked needs_mapping.
+export const awaitingMapping: Filter = {
+  review_state: { _eq: 'needs_mapping' },
+};
+
 // Mappings whose course and year have no rule are never counted
 // (follow-up 36); entries still marked needs_mapping are listed apart from
 // the ones that already carry a mapping. None of this blocks: Moodle lines
@@ -76,7 +81,7 @@ export const mappingCheck: ReadinessCheck = {
     entries: {
       collection: 'moodle_course_entries',
       fields: ['id'],
-      filter: { review_state: { _eq: 'needs_mapping' } },
+      filter: awaitingMapping,
       sort: ['id'],
     },
     mappings: {

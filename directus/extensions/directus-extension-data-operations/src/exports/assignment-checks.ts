@@ -1,6 +1,9 @@
+import type { Filter } from '@directus/types';
+
 import type { IssueCounts, ReadinessCheck, Row } from './types.js';
 
-import { isRole } from './course-values.js';
+import { assignmentRoles, isRole } from './course-values.js';
+import { blank, filled } from './text-filters.js';
 import { idOf, sourceRows, textOf } from './values.js';
 
 // The assignment checks of courses.json, as native reads of ids, keys and
@@ -61,8 +64,46 @@ const mergedCourses = (tally: Tally): number =>
       .map(([list]) => list.split('/', 1)[0]),
   ).size;
 
-// The rows a course publishes: its assistants, and its professors unless
-// a professors_override replaces them.
+// The role whose rows a course's professors_override replaces; the rows
+// of every other role are always published.
+const overriddenRole: (typeof assignmentRoles)[number] = 'professor';
+
+// The rows the checks below count, as plain filters for their Needs review
+// views: a row of a course with a role outside the vocabulary, and the
+// published rows (a known role, not replaced by the override) without a
+// staff member, with or without a display label.
+export const roleMissing: Filter = {
+  _and: [
+    { course: { _nnull: true } },
+    {
+      _or: [
+        { role: { _null: true } },
+        { role: { _nin: [...assignmentRoles] } },
+      ],
+    },
+  ],
+};
+
+const publishedWithoutStaff = (label: Filter): Filter => ({
+  _and: [
+    { course: { _nnull: true } },
+    { role: { _in: [...assignmentRoles] } },
+    {
+      _or: [
+        { role: { _neq: overriddenRole } },
+        blank('course.professors_override'),
+      ],
+    },
+    { staff: { _null: true } },
+    label,
+  ],
+});
+
+export const unresolvedRow = publishedWithoutStaff(blank('display_override'));
+export const labelOnlyRow = publishedWithoutStaff(filled('display_override'));
+
+// The rows a course publishes: those of every role but the overridden
+// one, and that role's rows unless the override replaces them.
 export const assignmentCheck: ReadinessCheck = {
   evaluate: (sources): IssueCounts => {
     const overridden = new Set(
@@ -79,7 +120,7 @@ export const assignmentCheck: ReadinessCheck = {
       const role = row['role'];
       if (!isRole(role)) {
         count(tally, 'assignment_role_missing');
-      } else if (role === 'assistant' || !overridden.has(row['course'])) {
+      } else if (role !== overriddenRole || !overridden.has(row['course'])) {
         tallyRow(tally, row);
       }
     }

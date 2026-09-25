@@ -16,11 +16,20 @@ import {
 import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
 import { keyOrderEntries } from './key-order.js';
 import { notCurrentCalculations } from './readiness-facts.js';
+import {
+  councilWithoutStudent,
+  equivalencyWithoutCourse,
+  reviewViews,
+} from './review-views.js';
 
 // The readiness-check registry: every issue readiness reports, in answer
 // order, declared once (a new check is one entry, with a check or an
 // aggregate that counts it). `ready` is true exactly when every blocker
 // counts zero; blockers hold back the files they gate, warnings nothing.
+// An entry with a `review` gets its Needs review bookmark from setup and
+// the dashboard links it there (review-views.ts, key-order.ts); an entry
+// whose records no plain filter can list (a missing row, a duplicate)
+// links its page.
 
 const status: ReadinessSource = { kind: 'status' };
 const snapshot: ReadinessSource = { kind: 'snapshot' };
@@ -127,15 +136,18 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   blocker({
     code: 'curriculum_link_unresolved',
     description:
-      'An equivalency member of the 2018 generation names a curriculum value of a course that has no 2018 link.',
-    page: 'course_equivalencies',
+      'An equivalency member of the 2018 generation names a curriculum value of a course that has no 2018 link; its view lists the members that name a course, beside the curriculum links of that course.',
+    generationScoped: true,
+    page: 'course_equivalency_members',
+    review: reviewViews.curriculumLinksToCheck,
     source: checkedBy(curriculumCheck),
   }),
   warning({
     code: 'equivalency_without_course',
     description: 'An equivalency names no course: unused historical metadata.',
     page: 'course_equivalencies',
-    source: counted({ course: { _null: true } }),
+    review: reviewViews.equivalencyWithoutCourse,
+    source: counted(equivalencyWithoutCourse),
   }),
   warning({
     code: 'equivalency_entry_unresolved',
@@ -143,13 +155,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
       'An equivalency carries a member label of a generation with a curriculum that is linked to no curriculum entry of that generation (counted per equivalency).',
     generationScoped: true,
     page: 'course_equivalency_members',
-    review: {
-      bookmark: 'Equivalency labels without an entry',
-      fields: ['generation', 'label', 'equivalency'],
-      filter: unlinkedMember,
-      icon: 'join_inner',
-      sort: ['generation', 'equivalency'],
-    },
+    review: reviewViews.unlinkedMembers,
     source: counted(unlinkedMember, 'equivalency'),
   }),
   blocker({
@@ -171,12 +177,14 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     description:
       'A published assignment row shows a literal label without a staff member.',
     page: 'teaching_assignments',
+    review: reviewViews.assignmentLabelOnly,
     source: assignments,
   }),
   blocker({
     code: 'assignment_role_missing',
     description: 'An assignment row of a course has no known role.',
     page: 'teaching_assignments',
+    review: reviewViews.assignmentRoleMissing,
     source: assignments,
   }),
   blocker({
@@ -191,26 +199,22 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     description:
       'A published assignment row has neither a staff member nor a label.',
     page: 'teaching_assignments',
+    review: reviewViews.assignmentUnresolved,
     source: assignments,
   }),
   warning({
     code: 'council_member_unresolved',
     description: 'A student council membership is linked to no student record.',
     page: 'student_council',
-    source: counted({ student: { _null: true } }),
+    review: reviewViews.councilWithoutStudent,
+    source: counted(councilWithoutStudent),
   }),
   warning({
     code: 'entry_needs_mapping',
     description:
       'A Moodle history entry without a mapping still needs one (or to be ignored); administrative lines stay here too.',
     page: 'moodle_course_entries',
-    review: {
-      bookmark: 'Needs mapping',
-      fields: ['label', 'review_reason'],
-      filter: { review_state: { _eq: 'needs_mapping' } },
-      icon: 'alt_route',
-      sort: ['label'],
-    },
+    review: reviewViews.needsMapping,
     source: mappings,
   }),
   warning({
@@ -218,6 +222,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     description:
       'A Moodle history entry carries a mapping but is still marked needs_mapping.',
     page: 'moodle_course_entries',
+    review: reviewViews.mappedAwaitingReview,
     source: mappings,
   }),
   warning({

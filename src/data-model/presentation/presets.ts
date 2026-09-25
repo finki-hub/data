@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { ReadinessEntry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
+
 import { readinessRegistry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { findModelCollection } from '../collections.js';
 
@@ -81,12 +83,16 @@ export const curriculumBookmark: PresetDefinition = presetSchema.parse({
 });
 
 // The shared Needs review bookmarks: one per readiness-registry entry
-// that declares a review view, on the collection whose records it counts
-// (today "Needs mapping": every history entry the index run created that
-// nobody has mapped or ignored yet). A check that declares a view gets its
-// bookmark from setup; nothing here names a check.
-export const reviewBookmarks: readonly PresetDefinition[] =
-  readinessRegistry.flatMap(({ page, review }) =>
+// that declares a review view, on its page collection (the collection
+// whose records it counts), in registry order. A check that declares a
+// view gets its bookmark from the create-missing planner on the next
+// setup, and the dashboard links the check to it by the same page and
+// name; nothing here names a check. A generation-scoped view is one
+// bookmark that shows the generation, never one per generation row.
+export const reviewPresets = (
+  registry: readonly ReadinessEntry[] = readinessRegistry,
+): readonly PresetDefinition[] =>
+  registry.flatMap(({ page, review }) =>
     review === undefined
       ? []
       : [
@@ -113,11 +119,8 @@ export const reviewBookmarks: readonly PresetDefinition[] =
   );
 
 // Default table views for the relational collections and for the checkpoint
-// collections that gained relations. A populated deployment keeps the views
-// its importer created; these only fill the gaps.
-export const presetDefinitions: readonly PresetDefinition[] = [
-  curriculumBookmark,
-  ...reviewBookmarks,
+// collections that gained relations.
+const defaultViews: readonly PresetDefinition[] = [
   // The curriculum links replace the imported per-generation columns.
   defaultView(
     'courses',
@@ -201,3 +204,19 @@ export const presetDefinitions: readonly PresetDefinition[] = [
     ['claim_token'],
   ),
 ];
+
+// Every shared preset the presentation declares for a readiness
+// registry: the curriculum bookmark, its Needs review bookmarks and the
+// default table views. A populated deployment keeps the views its
+// importer created; these only fill the gaps.
+export const presetDefinitionsFor = (
+  registry: readonly ReadinessEntry[],
+): readonly PresetDefinition[] => [
+  curriculumBookmark,
+  ...reviewPresets(registry),
+  ...defaultViews,
+];
+
+// The presets of the declared readiness registry.
+export const presetDefinitions: readonly PresetDefinition[] =
+  presetDefinitionsFor(readinessRegistry);

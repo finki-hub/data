@@ -40,6 +40,7 @@ export const keySources: Readonly<Record<KeySourceName, KeySource>> = {
     key: 'code',
     position: { field: 'sort', row: 'curriculum_generation' },
     sort: ['-sort', '-code'],
+    title: 'label',
   },
   published_programs: {
     collection: 'study_programs',
@@ -55,6 +56,7 @@ export const keySources: Readonly<Record<KeySourceName, KeySource>> = {
     parent: 'generation',
     position: { field: 'sort', row: 'study_program' },
     sort: ['generation', 'sort', 'code'],
+    title: 'name',
   },
   published_years: {
     collection: 'academic_years',

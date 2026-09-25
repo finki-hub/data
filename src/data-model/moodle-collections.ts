@@ -68,7 +68,17 @@ export const moodleCollections: readonly ModelCollection[] = [
       m2o('moodle_user', 'moodle_users', {
         alias: {
           field: 'history_memberships',
-          fields: ['entry', 'sort'],
+          // Each raw history line with its review state and the course
+          // and year of its mappings, so a user opened from Search leads
+          // to the mappings of their lines without Search itself matching
+          // through them.
+          fields: [
+            'entry',
+            'entry.review_state',
+            'entry.mappings.course',
+            'entry.mappings.academic_year',
+            'sort',
+          ],
           readOnly: true,
           template: '{{entry.label}}',
         },

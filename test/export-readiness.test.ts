@@ -194,7 +194,10 @@ describe('the readiness decision', () => {
       },
       ready: true,
       reviews: {
+        assignment_review_label: 'Assignments shown by their label only',
+        council_member_unresolved: 'Council members without a student',
         equivalency_entry_unresolved: 'Equivalency labels without an entry',
+        equivalency_without_course: 'Equivalencies without a course',
       },
       revision: 42,
       warnings: [
@@ -603,7 +606,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
       'curriculum_value_unlinked',
     ]);
     expect(blocked.links).toMatchObject({
-      curriculum_link_unresolved: '/admin/content/course_equivalencies',
+      curriculum_link_unresolved: '/admin/content/course_equivalency_members',
       curriculum_value_unlinked: '/admin/content/courses',
     });
 

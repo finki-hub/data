@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { isCalculation } from './coordination/domains.js';
+import { reviewScopes } from './exports/readiness-types.js';
 
 // The answers of the status endpoint (status-endpoint.ts), declared once:
 // the endpoint builds them (status-view.ts, readiness-view.ts) and the
@@ -139,6 +140,10 @@ const checkView = z.object({
   // The Studio page of the records: the review bookmark when the check
   // declares one and setup installed it, else the collection page.
   link: text,
+  // What the linked review view lists (`candidates`: more records than
+  // the count, with the columns that tell them apart); null for a
+  // collection page.
+  lists: z.enum(reviewScopes).nullable(),
   page: text,
   review: maybeText,
   severity: z.enum(['blocker', 'warning']),

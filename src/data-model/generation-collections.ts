@@ -132,7 +132,10 @@ export const generationCollections: readonly ModelCollection[] = [
       m2o('equivalency', 'course_equivalencies', {
         alias: {
           field: 'members',
-          fields: ['generation', 'label', 'entry'],
+          // The entry's code and name as their own columns, so a label
+          // linked to no entry shows empty cells rather than its entry
+          // template filled with placeholders (follow-up 61).
+          fields: ['generation', 'label', 'entry.code', 'entry.name'],
           template: '{{generation.code}}: {{label}}',
         },
         nullable: false,

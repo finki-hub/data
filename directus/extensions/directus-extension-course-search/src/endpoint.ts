@@ -3,6 +3,7 @@ import type { Accountability, Filter } from '@directus/types';
 import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
+import { filterPathProblem, relationalDepthLimit } from './filter-paths.js';
 import { courseCondition, splitHistory } from './history.js';
 import { nativeFilter } from './native-filter.js';
 
@@ -54,7 +55,8 @@ export const buildSearchQuery = (
   ...(criteria.search && { search: criteria.search }),
 });
 
-export default defineEndpoint((router, { getSchema, services }) => {
+export default defineEndpoint((router, { env, getSchema, services }) => {
+  const maxDepth = relationalDepthLimit(env);
   router.use((request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
     if (!request.accountability?.user) {
@@ -99,7 +101,17 @@ export default defineEndpoint((router, { getSchema, services }) => {
   router.post('/search', async (request, response, next) => {
     try {
       const parsed = criteriaSchema.safeParse(request.body);
-      if (!parsed.success) {
+      const schema = await getSchema();
+      // A filter path that passes a collection twice or names more fields
+      // than REST allows gets the same answer as an unsupported filter.
+      if (
+        !parsed.success ||
+        filterPathProblem(parsed.data.filter, {
+          maxDepth,
+          relations: schema.relations,
+          root: 'moodle_users',
+        }) !== undefined
+      ) {
         response.status(400).json({
           errors: [
             {
@@ -113,7 +125,7 @@ export default defineEndpoint((router, { getSchema, services }) => {
       const criteria = parsed.data;
       const items = new services.ItemsService('moodle_users', {
         accountability: request.accountability,
-        schema: await getSchema(),
+        schema,
       });
       const query = buildSearchQuery(criteria);
       const [data, counts] = await Promise.all([

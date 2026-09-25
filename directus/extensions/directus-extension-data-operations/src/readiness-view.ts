@@ -54,6 +54,7 @@ export const readinessView = ({
           bookmark === undefined
             ? collectionPage(page)
             : bookmarkPage(page, bookmark),
+        lists: bookmark === undefined ? null : (review?.lists ?? null),
         page,
         review: review?.bookmark ?? null,
         severity,

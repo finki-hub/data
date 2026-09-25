@@ -55,11 +55,14 @@ export type KeyPosition = {
 
 // A read whose rows each name one public key, in read order: the key is
 // the text of the row's `key` field. A nested source's rows belong to a
-// block row of another source: `parent` holds that row's id.
+// block row of another source: `parent` holds that row's id. `title`
+// names a row for a person beside its key text (its label or name), in
+// the Needs review view of its order blockers.
 export type KeySource = SourceRead & {
   readonly key: string;
   readonly parent?: string;
   readonly position: KeyPosition;
+  readonly title?: string;
 };
 
 // The closed vocabulary of public value forms, as the reference serializer

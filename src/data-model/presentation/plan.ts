@@ -144,9 +144,10 @@ const planGroups = (
 
 const planPresets = (
   state: PresentationState,
+  presets: readonly PresetDefinition[],
   tally: PresentationTally,
 ): readonly PresetDefinition[] =>
-  presetDefinitions.filter((preset) => {
+  presets.filter((preset) => {
     const collection = state.collections.get(preset.collection);
     const create =
       collection !== undefined &&
@@ -165,9 +166,13 @@ const planPresets = (
   });
 
 // Diffs the declared presentation against the live listings. Everything is
-// additive and applied at most once per element; nothing is deleted.
+// additive and applied at most once per element; nothing is deleted. A
+// preset (default view or bookmark) is created only while no global
+// preset of its collection and name exists, so a check or view declared
+// later gets its bookmark on the next setup and an edited one is kept.
 export const planPresentation = (
   state: PresentationState,
+  presets: readonly PresetDefinition[] = presetDefinitions,
 ): PresentationPlan => {
   const tally = new PresentationTally();
   const newFolders = folders.filter((folder) => {
@@ -191,7 +196,7 @@ export const planPresentation = (
     folders: newFolders,
     groups: planGroups(statuses, fields, tally),
     placements,
-    presets: planPresets(state, tally),
+    presets: planPresets(state, presets, tally),
     summary: tally.summary(),
   };
 };

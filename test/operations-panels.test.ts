@@ -524,6 +524,36 @@ describe('the readiness view', () => {
     ).toBeTruthy();
   });
 
+  test('says which linked review views list candidates rather than the counted records', () => {
+    const installed = new Map<string, number>(
+      readinessRegistry.flatMap(({ page, review }) =>
+        review === undefined
+          ? []
+          : [[bookmarkKey(page, review.bookmark), 7] as const],
+      ),
+    );
+    const view = readinessViewSchema.parse(
+      readinessView({ answer, audience: 'editor', bookmarks: installed }),
+    );
+
+    expect(view.checks.map(({ code, lists }) => [code, lists])).toEqual(
+      readinessRegistry.map(({ code, review }) => [
+        code,
+        review?.lists ?? null,
+      ]),
+    );
+    expect(
+      view.checks.filter(({ lists }) => lists === 'candidates').length,
+    ).toBeGreaterThan(0);
+    expect(
+      readinessView({
+        answer,
+        audience: 'editor',
+        bookmarks: new Map(),
+      }).checks.every(({ lists }) => lists === null),
+    ).toBeTruthy();
+  });
+
   test('links a check to its installed review bookmark', () => {
     const [name] = reviewBookmarks();
     const entry = readinessRegistry.find(

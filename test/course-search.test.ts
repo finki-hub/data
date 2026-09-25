@@ -2,11 +2,20 @@ import { describe, expect, test } from 'vitest';
 
 import { buildSearchQuery } from '../directus/extensions/directus-extension-course-search/src/endpoint.js';
 import {
+  filterPathProblem,
+  type PathRelation,
+  relationalDepthLimit,
+} from '../directus/extensions/directus-extension-course-search/src/filter-paths.js';
+import {
   courseCondition,
   profileUrl,
   splitHistory,
 } from '../directus/extensions/directus-extension-course-search/src/history.js';
 import { nativeFilter } from '../directus/extensions/directus-extension-course-search/src/native-filter.js';
+import {
+  modelRelations,
+  toRelationPayload,
+} from '../src/data-model/relations.js';
 
 describe('Course history boundaries', () => {
   test('preserves nonempty raw LF and CRLF history entries', () => {
@@ -137,12 +146,193 @@ describe('Native course-search filters', () => {
     expect(nativeFilter.safeParse(nest(5_000)).success).toBeFalsy();
   });
 
+  test('preserves the relational paths Studio writes for a related field', () => {
+    const studio = {
+      _and: [
+        {
+          history_memberships: { entry: { label: { _contains: 'Networks' } } },
+        },
+        {
+          history_memberships: {
+            entry: { mappings: { course: { name: { _eq: 'Algorithms' } } } },
+          },
+        },
+        { 'count(history_memberships)': { _gt: 2 } },
+      ],
+    };
+
+    expect(nativeFilter.parse(studio)).toStrictEqual(studio);
+    expect(
+      nativeFilter.parse({
+        history_memberships: {
+          entry: { label: { _eq: 'A', _neq: undefined } },
+        },
+      }),
+    ).toStrictEqual({
+      history_memberships: { entry: { label: { _eq: 'A' } } },
+    });
+  });
+
+  test.each([
+    [
+      'a _some quantifier',
+      { history_memberships: { _some: { entry: { id: { _eq: 1 } } } } },
+    ],
+    [
+      'a _none quantifier',
+      { history_memberships: { _none: { entry: { id: { _eq: 1 } } } } },
+    ],
+    [
+      'a group inside a relational path',
+      { history_memberships: { _and: [{ entry: { id: { _eq: 1 } } }] } },
+    ],
+    [
+      'an unknown operator at the end of a path',
+      { history_memberships: { entry: { label: { _regex: '.*' } } } },
+    ],
+    [
+      'operators mixed with a relational field',
+      { history_memberships: { _null: true, entry: { id: { _eq: 1 } } } },
+    ],
+    ['an operator where a field belongs', { _unknown: { _eq: 1 } }],
+    [
+      'an implicit $FOLLOW relation inside a path',
+      {
+        history_memberships: {
+          entry: {
+            '$FOLLOW(moodle_history_memberships, entry)': {
+              moodle_user: { Courses: { _contains: 'Hidden' } },
+            },
+          },
+        },
+      },
+    ],
+    [
+      'an implicit $FOLLOW relation at the root',
+      {
+        '$FOLLOW(moodle_history_memberships, moodle_user)': {
+          entry: { label: { _eq: 'Hidden' } },
+        },
+      },
+    ],
+    [
+      'an implicit relation inside a function',
+      { 'count($FOLLOW(moodle_history_memberships, entry))': { _gt: 1 } },
+    ],
+  ])('rejects %s', (_label, filter) => {
+    expect(nativeFilter.safeParse(filter).success).toBeFalsy();
+  });
+
   test('drops undefined optional operators before producing a Directus filter', () => {
     expect(
       nativeFilter.parse({ Name: { _eq: 'Ada', _neq: undefined } }),
     ).toStrictEqual({
       Name: { _eq: 'Ada' },
     });
+  });
+});
+
+// The relations setup installs, as Directus reports them.
+const installed: readonly PathRelation[] =
+  modelRelations.map(toRelationPayload);
+const searchRules = {
+  maxDepth: 10,
+  relations: installed,
+  root: 'moodle_users',
+};
+
+// A synthetic chain c0.next -> c1 -> ... in which no collection repeats,
+// and a filter naming `fields` fields along it.
+const chainRelations: readonly PathRelation[] = Array.from(
+  { length: 16 },
+  (_, index) => ({
+    collection: `c${String(index)}`,
+    field: 'next',
+    meta: null,
+    related_collection: `c${String(index + 1)}`,
+  }),
+);
+const chain = (fields: number): unknown => {
+  let filter: unknown = { value: { _eq: 1 } };
+  for (let field = 1; field < fields; field += 1) filter = { next: filter };
+  return filter;
+};
+
+describe('Search filter paths', () => {
+  test('accept the paths Studio writes through the caller own memberships', () => {
+    for (const filter of [
+      { history_memberships: { entry: { label: { _contains: 'A' } } } },
+      {
+        _and: [
+          {
+            history_memberships: {
+              entry: { mappings: { course: { name: { _eq: 'Algorithms' } } } },
+            },
+          },
+          { 'count(history_memberships)': { _gt: 2 } },
+        ],
+      },
+      { Name: { _eq: 'Ada' } },
+    ]) {
+      expect(filterPathProblem(filter, searchRules)).toBeUndefined();
+    }
+  });
+
+  test.each([
+    [
+      'from an entry back to every membership of it',
+      {
+        history_memberships: {
+          entry: {
+            memberships: { moodle_user: { Courses: { _nnull: true } } },
+          },
+        },
+      },
+      'moodle_history_memberships',
+    ],
+    [
+      'from a membership back to a Moodle user',
+      { history_memberships: { moodle_user: { Mail: { _nnull: true } } } },
+      'moodle_users',
+    ],
+    [
+      'through a count of an entry memberships',
+      { history_memberships: { entry: { 'count(memberships)': { _gt: 1 } } } },
+      'moodle_history_memberships',
+    ],
+    [
+      'inside an _or group',
+      {
+        _or: [
+          { Name: { _eq: 'Ada' } },
+          { history_memberships: { moodle_user: { Name: { _eq: 'Bo' } } } },
+        ],
+      },
+      'moodle_users',
+    ],
+  ])('refuse a path %s', (_label, filter, collection) => {
+    expect(filterPathProblem(filter, searchRules)).toBe(
+      `A filter path passes ${collection} twice`,
+    );
+  });
+
+  test('name at most as many fields as the REST depth limit allows', () => {
+    const rules = { maxDepth: 10, relations: chainRelations, root: 'c0' };
+
+    expect(filterPathProblem(chain(10), rules)).toBeUndefined();
+    expect(filterPathProblem(chain(11), rules)).toBe(
+      'A filter path names at most 10 fields',
+    );
+    expect(
+      filterPathProblem({ _and: [{ value: { _eq: 1 } }, chain(11)] }, rules),
+    ).toBe('A filter path names at most 10 fields');
+  });
+
+  test('take Directus own limit, never below two fields', () => {
+    expect(relationalDepthLimit({ MAX_RELATIONAL_DEPTH: 10 })).toBe(10);
+    expect(relationalDepthLimit({ MAX_RELATIONAL_DEPTH: '4' })).toBe(4);
+    expect(relationalDepthLimit({ MAX_RELATIONAL_DEPTH: 1 })).toBe(2);
+    expect(relationalDepthLimit({})).toBe(2);
   });
 });
 

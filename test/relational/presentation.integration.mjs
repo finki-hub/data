@@ -102,6 +102,9 @@ const appliesOnce = async (target, directus, state) => {
   assert.deepEqual(await snapshot(target), state.applied);
 };
 
+// Bookmarks ordered by name, whatever the database collation.
+const byName = (left, right) => left.bookmark.localeCompare(right.bookmark);
+
 const installsStudioMetadata = async (target) => {
   const overview = await get(target, '/fields/courses/overview');
   assert.equal(overview.type, 'alias');
@@ -179,35 +182,25 @@ const installsStudioMetadata = async (target) => {
     target,
     '/presets?limit=-1&fields=bookmark,collection,filter,user,role&filter[bookmark][_nnull]=true&sort=bookmark',
   );
-  assert.deepEqual(bookmarks, [
-    {
-      bookmark: 'Curriculum by generation',
-      collection: 'curriculum_entries',
-      filter: null,
-      role: null,
-      user: null,
-    },
-    {
-      bookmark: 'Equivalency labels without an entry',
-      collection: 'course_equivalency_members',
-      filter: {
-        _and: [
-          { _and: [{ label: { _nnull: true } }, { label: { _neq: '' } }] },
-          { entry: { _null: true } },
-          { generation: { has_curriculum: { _eq: true } } },
-        ],
-      },
-      role: null,
-      user: null,
-    },
-    {
-      bookmark: 'Needs mapping',
-      collection: 'moodle_course_entries',
-      filter: { review_state: { _eq: 'needs_mapping' } },
-      role: null,
-      user: null,
-    },
-  ]);
+  // The curriculum bookmark and one Needs review bookmark per registry
+  // entry that declares a view, each on its page collection.
+  assert.deepEqual(
+    bookmarks.toSorted(byName),
+    presetDefinitions
+      .filter(({ bookmark }) => bookmark !== null)
+      .map(({ bookmark, collection, filter }) => ({
+        bookmark,
+        collection,
+        filter,
+        role: null,
+        user: null,
+      }))
+      .toSorted(byName),
+  );
+  assert.ok(
+    bookmarks.some(({ bookmark }) => bookmark === 'Needs mapping'),
+    'the Needs mapping bookmark is installed',
+  );
 };
 
 // The API-side half of the browser QA: the trigger rejects a link whose

@@ -1,14 +1,32 @@
-import type { FieldFilterOperator, Filter } from '@directus/types';
+import type { FieldFilter, FieldFilterOperator, Filter } from '@directus/types';
 
 import { z } from 'zod';
+
+// The native filter of the Search bookmark's page header, checked before
+// it reaches Directus: `_and`/`_or` groups of field conditions. A field
+// condition is its operators, or, through a relation of the field, the
+// conditions on the related collection's fields: the plain nested path
+// Studio's filter builder writes for a relational field, such as
+// { history_memberships: { entry: { label: { _eq: ... } } } }. The search
+// runs the filter through the item API as the caller, so Directus checks
+// the caller's field permission on every segment of the path, and a
+// denied one answers 403; filter-paths.ts keeps a path from joining
+// other users' rows, whose row permissions Directus does not apply. A key
+// that starts with `_` is an operator, never a field: `_some`/`_none`
+// quantifiers and groups inside a relational path are refused (Directus
+// 12.3.1 silently drops a quantifier holding two conditions, follow-up
+// 35). A key holding `$` is refused too: Studio never writes one, and an
+// implicit `$FOLLOW(collection, field)` relation skips even the field
+// permission check of its segment.
 
 type Comparable = number | string;
 type CourseSearchFieldFilterOperator = FieldFilterOperator & {
   _nicontains?: string;
   _niends_with?: string;
 };
+type FieldCondition = NativeFilterOperators | RelationalCondition;
 type NativeFilterInput =
-  | Readonly<Record<string, NativeFilterOperators>>
+  | Readonly<Record<string, FieldCondition>>
   | { readonly _and: readonly NativeFilterInput[] }
   | { readonly _or: readonly NativeFilterInput[] };
 
@@ -40,6 +58,8 @@ type NativeFilterOperators = {
   readonly _null?: boolean | undefined;
   readonly _starts_with?: string | undefined;
 };
+
+type RelationalCondition = { readonly [field: string]: FieldCondition };
 
 type Scalar = boolean | null | number | string;
 
@@ -92,11 +112,21 @@ const nestingDepth = (value: unknown): number => {
   return depth;
 };
 
+// A field, relation or function key such as `count(history_memberships)`;
+// never an operator or an implicit `$FOLLOW(...)` relation.
+const fieldKey = z
+  .string()
+  .regex(/^[^$_][^$]*$/u, 'An operator or implicit relation is no field');
+
+const fieldCondition: z.ZodType<FieldCondition> = z.lazy(() =>
+  z.union([operators, z.record(fieldKey, fieldCondition)]),
+);
+
 const nativeFilterInput: z.ZodType<NativeFilterInput> = z.lazy(() =>
   z.union([
     z.object({ _and: z.array(nativeFilterInput) }).strict(),
     z.object({ _or: z.array(nativeFilterInput) }).strict(),
-    z.record(z.string(), operators),
+    z.record(fieldKey, fieldCondition),
   ]),
 );
 
@@ -151,6 +181,25 @@ const isOrFilter = (
 ): input is { readonly _or: readonly NativeFilterInput[] } =>
   '_or' in input && Array.isArray(input._or);
 
+// Operators hold only `_` keys; a relational condition names fields.
+const isOperators = (
+  condition: FieldCondition,
+): condition is NativeFilterOperators =>
+  Object.keys(condition).every((key) => key.startsWith('_'));
+
+const toFieldFilter = (
+  condition: FieldCondition,
+): CourseSearchFieldFilterOperator | FieldFilter => {
+  if (isOperators(condition)) {
+    return toFieldFilterOperators(condition);
+  }
+  const output: FieldFilter = {};
+  for (const [field, inner] of Object.entries(condition)) {
+    output[field] = toFieldFilter(inner);
+  }
+  return output;
+};
+
 const toDirectusFilter = (input: NativeFilterInput): Filter => {
   if (isAndFilter(input)) {
     return { _and: input._and.map(toDirectusFilter) };
@@ -159,9 +208,9 @@ const toDirectusFilter = (input: NativeFilterInput): Filter => {
     return { _or: input._or.map(toDirectusFilter) };
   }
 
-  const output: Record<string, CourseSearchFieldFilterOperator> = {};
-  for (const [field, fieldOperators] of Object.entries(input)) {
-    output[field] = toFieldFilterOperators(fieldOperators);
+  const output: FieldFilter = {};
+  for (const [field, condition] of Object.entries(input)) {
+    output[field] = toFieldFilter(condition);
   }
   return output;
 };

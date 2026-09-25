@@ -275,9 +275,12 @@ const relatedCollection = (collection: string, field: string): string => {
 const record = z.record(z.string(), z.unknown());
 const operators = z
   .strictObject({
+    _empty: z.literal(true),
     _eq: z.unknown(),
     _in: z.array(z.unknown()),
     _neq: z.unknown(),
+    _nempty: z.literal(true),
+    _nin: z.array(z.unknown()),
     _nnull: z.literal(true),
     _null: z.literal(true),
   })
@@ -292,37 +295,26 @@ const holds = (value: unknown, test: z.infer<typeof operators>): boolean =>
   (test._eq === undefined || (present(value) && value === test._eq)) &&
   (test._neq === undefined || (present(value) && value !== test._neq)) &&
   (test._in === undefined || test._in.includes(value)) &&
+  (test._nin === undefined || (present(value) && !test._nin.includes(value))) &&
   (test._nnull === undefined || present(value)) &&
-  (test._null === undefined || !present(value));
+  (test._null === undefined || !present(value)) &&
+  (test._empty === undefined || !present(value) || value === '') &&
+  (test._nempty === undefined || (present(value) && value !== ''));
 
 type Place = { readonly collection: string; readonly store: FakeStore };
 
-const linked = (place: Place, row: FakeItem, field: string) => {
+// A row of a store, or the all-NULL row of a LEFT JOIN without a match.
+type Candidate = Readonly<Record<string, unknown>>;
+
+const linked = (place: Place, row: Candidate, field: string) => {
   const target = relatedCollection(place.collection, field);
   const found = rowsOf(place.store, target).find(({ id }) => id === row[field]);
   return { found, place: { collection: target, store: place.store } };
 };
 
-// The filters the definitions and the readiness registry use: _and, _or,
-// plain operators and M2O paths.
-const matches = (place: Place, row: FakeItem, filter: unknown): boolean =>
-  Object.entries(record.parse(filter ?? {})).every(([key, test]) => {
-    if (key === '_and' || key === '_or') {
-      const inner = z.array(z.unknown()).parse(test);
-      const holdsFor = (part: unknown) => matches(place, row, part);
-      return key === '_and' ? inner.every(holdsFor) : inner.some(holdsFor);
-    }
-    const condition = operators.safeParse(test);
-    if (condition.success) {
-      return holds(row[key], condition.data);
-    }
-    const { found, place: next } = linked(place, row, key);
-    return found !== undefined && matches(next, found, test);
-  });
-
 // The rows an O2M or M2M alias of the row lists (for an M2M, its junction
 // rows), in id order, or null when `field` is no alias.
-const aliased = (place: Place, row: FakeItem, field: string) => {
+const aliased = (place: Place, row: Candidate, field: string) => {
   const model = findModelCollection(place.collection);
   const declaration =
     model === undefined
@@ -335,10 +327,34 @@ const aliased = (place: Place, row: FakeItem, field: string) => {
   return {
     place: { collection, store: place.store },
     rows: rowsOf(place.store, collection)
-      .filter((candidate) => candidate[parent] === row.id)
+      .filter((candidate) => candidate[parent] === row['id'])
       .toSorted((left, right) => Number(left.id) - Number(right.id)),
   };
 };
+
+// The filters the definitions, the readiness registry and its review
+// views use: _and, _or, plain operators, M2O paths and O2M paths. An O2M
+// path is a LEFT JOIN the way Directus runs it: the row matches when one
+// of its related rows does, or, without any, when an all-NULL row would.
+const matches = (place: Place, row: Candidate, filter: unknown): boolean =>
+  Object.entries(record.parse(filter ?? {})).every(([key, test]) => {
+    if (key === '_and' || key === '_or') {
+      const inner = z.array(z.unknown()).parse(test);
+      const holdsFor = (part: unknown) => matches(place, row, part);
+      return key === '_and' ? inner.every(holdsFor) : inner.some(holdsFor);
+    }
+    const condition = operators.safeParse(test);
+    if (condition.success) {
+      return holds(row[key], condition.data);
+    }
+    const listed = aliased(place, row, key);
+    if (listed !== null) {
+      const joined = listed.rows.length === 0 ? [{ id: null }] : listed.rows;
+      return joined.some((item) => matches(listed.place, item, test));
+    }
+    const { found, place: next } = linked(place, row, key);
+    return found !== undefined && matches(next, found, test);
+  });
 
 // The explicit fields of a row the way Directus answers them: `a.b`
 // follows the M2O relation a and answers { a: { b } }, null without a row;

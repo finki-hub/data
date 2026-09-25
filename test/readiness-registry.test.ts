@@ -2,6 +2,10 @@ import { describe, expect, test } from 'vitest';
 
 import type { FakeItem } from './migration-test-helpers.js';
 
+import {
+  namingMembers,
+  unlinkedMember,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-checks.js';
 import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { keyOrderEntries } from '../directus/extensions/directus-extension-data-operations/src/exports/key-order.js';
@@ -21,7 +25,7 @@ import {
   registryReads,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { findModelCollection } from '../src/data-model/collections.js';
-import { reviewBookmarks } from '../src/data-model/presentation/presets.js';
+import { reviewPresets } from '../src/data-model/presentation/presets.js';
 import {
   activeSnapshotEdited,
   snapshotImportFailed,
@@ -33,6 +37,9 @@ import {
 } from './relational-export-helpers.js';
 
 const codes = readinessRegistry.map(({ code }) => code);
+
+// A filter that names a generation row by its id.
+const generationRowPattern = /"generation":\{"_(?:eq|in)"/u;
 const filenames = exportDefinitions.map(({ filename }) => filename);
 
 // Every filter the registry declares: its aggregates, its checks' reads
@@ -114,58 +121,89 @@ describe('the readiness-check registry', () => {
   });
 
   test('names one Needs review bookmark per name and installs exactly those', () => {
-    const bookmarks = readinessRegistry.flatMap(({ review }) =>
-      review === undefined ? [] : [review.bookmark],
+    const reviewed = readinessRegistry.flatMap(({ page, review }) =>
+      review === undefined ? [] : [{ page, review }],
     );
+    const bookmarks = reviewed.map(({ review }) => review.bookmark);
 
     expect(new Set(bookmarks).size).toBe(bookmarks.length);
-    expect(reviewBookmarks.map(({ bookmark }) => bookmark)).toEqual(bookmarks);
-    expect(reviewBookmarks).toEqual([
-      {
-        bookmark: 'Equivalency labels without an entry',
-        collection: 'course_equivalency_members',
-        filter: {
-          _and: [
-            { _and: [{ label: { _nnull: true } }, { label: { _neq: '' } }] },
-            { entry: { _null: true } },
-            { generation: { has_curriculum: { _eq: true } } },
-          ],
-        },
-        icon: 'join_inner',
+    expect(reviewPresets()).toEqual(
+      reviewed.map(({ page, review }) => ({
+        bookmark: review.bookmark,
+        collection: page,
+        filter: review.filter,
+        icon: review.icon ?? findModelCollection(page)?.icon,
         layout: 'tabular',
         layout_options: { tabular: { spacing: 'comfortable' } },
         layout_query: {
           tabular: {
-            fields: ['generation', 'label', 'equivalency'],
+            fields: review.fields,
             limit: 50,
             page: 1,
-            sort: ['generation', 'equivalency'],
+            sort: review.sort,
           },
         },
         role: null,
         search: null,
         user: null,
+      })),
+    );
+    expect(
+      reviewPresets().find(({ bookmark }) => bookmark === 'Needs mapping'),
+    ).toMatchObject({
+      collection: 'moodle_course_entries',
+      filter: {
+        _and: [
+          { review_state: { _eq: 'needs_mapping' } },
+          { mappings: { id: { _null: true } } },
+        ],
       },
-      {
-        bookmark: 'Needs mapping',
-        collection: 'moodle_course_entries',
-        filter: { review_state: { _eq: 'needs_mapping' } },
-        icon: 'alt_route',
-        layout: 'tabular',
-        layout_options: { tabular: { spacing: 'comfortable' } },
-        layout_query: {
-          tabular: {
-            fields: ['label', 'review_reason'],
-            limit: 50,
-            page: 1,
-            sort: ['label'],
-          },
-        },
-        role: null,
-        search: null,
-        user: null,
-      },
+      layout_query: { tabular: { fields: ['label', 'review_reason'] } },
+    });
+  });
+
+  test('shows curriculum views by generation and program views by generation and name', () => {
+    const views = new Map(
+      readinessRegistry.flatMap(({ code, review }) =>
+        review === undefined ? [] : [[code, review]],
+      ),
+    );
+    const scoped = readinessRegistry.filter(
+      ({ generationScoped, review }) =>
+        generationScoped && review !== undefined,
+    );
+
+    expect(scoped.map(({ code }) => code)).toEqual([
+      'study_program_unsorted',
+      'curriculum_link_unresolved',
+      'equivalency_entry_unresolved',
     ]);
+
+    for (const { review } of scoped) {
+      expect(review?.fields[0]).toBe('generation');
+      // Through the relation, never one generation row by its id.
+      expect(JSON.stringify(review?.filter)).not.toMatch(generationRowPattern);
+    }
+
+    expect(views.get('study_program_unsorted')).toMatchObject({
+      bookmark: 'Published study programs without a sort',
+      fields: ['generation', 'code', 'name', 'sort', 'published'],
+      lists: 'counted',
+    });
+    expect(views.get('curriculum_link_unresolved')).toMatchObject({
+      filter: namingMembers,
+      lists: 'candidates',
+    });
+    expect(views.get('curriculum_link_unresolved')?.fields).toEqual(
+      expect.arrayContaining([
+        'generation',
+        'equivalency.course',
+        'equivalency.course.curricula.generation',
+      ]),
+    );
+    expect(views.get('equivalency_entry_unresolved')?.filter).toEqual(
+      unlinkedMember,
+    );
   });
 
   test('holds the initial entries of the plan with their severity and source', () => {
@@ -236,9 +274,9 @@ describe('the readiness-check registry', () => {
     expect(unscopable(readinessRegistry)).toEqual([]);
     expect(
       unscopable(
-        changed('curriculum_link_unresolved', { generationScoped: true }),
+        changed('equivalency_without_course', { generationScoped: true }),
       ),
-    ).toEqual(['curriculum_link_unresolved']);
+    ).toEqual(['equivalency_without_course']);
     expect(
       readinessRegistry
         .filter(({ page }) =>
@@ -295,6 +333,7 @@ describe('the registry rules', () => {
           bookmark: 'Needs mapping',
           fields: ['label'],
           filter: {},
+          lists: 'counted',
           sort: ['label'],
         },
       }),
@@ -311,6 +350,7 @@ describe('the registry rules', () => {
               _some: { course: { _null: true }, entry: { _null: true } },
             },
           },
+          lists: 'counted',
           sort: ['label'],
         },
       }),
@@ -324,10 +364,24 @@ describe('the registry rules', () => {
           bookmark: 'Unresolved curriculum links',
           fields: ['course', 'course_2018'],
           filter: { course: { _nnull: true } },
+          lists: 'candidates',
           sort: ['course'],
         },
       }),
       'generation-scoped review of curriculum_link_unresolved does not show the generation',
+    ],
+    [
+      'a counted view filtering otherwise than its count',
+      changed('council_member_unresolved', {
+        review: {
+          bookmark: 'Council members without a student',
+          fields: ['name'],
+          filter: { student: { _nnull: true } },
+          lists: 'counted',
+          sort: ['name'],
+        },
+      }),
+      'review of council_member_unresolved filters otherwise than its count',
     ],
   ])('names %s', (_label, registry, problem) => {
     expect(registryProblems(registry, filenames)).toContain(problem);
@@ -419,10 +473,15 @@ describe('readiness derived from the registry', () => {
     const answer = await readinessAction(exportDefinitions, deps(store));
 
     expect(answer.reviews).toEqual({
+      // The converted fixture keeps six imported labels without staff,
+      // an unmatched council index, two equivalency labels without an
+      // entry (a generation-scoped review, follow-up 51) and three
+      // equivalencies without a course.
+      assignment_review_label: 'Assignments shown by their label only',
+      council_member_unresolved: 'Council members without a student',
       entry_needs_mapping: 'Needs mapping',
-      // The converted fixture keeps two equivalency labels without an
-      // entry (a generation-scoped review, follow-up 51).
       equivalency_entry_unresolved: 'Equivalency labels without an entry',
+      equivalency_without_course: 'Equivalencies without a course',
     });
   });
 });

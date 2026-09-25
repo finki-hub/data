@@ -2,13 +2,19 @@ import type { ReadinessCheck, SourceRead } from './types.js';
 
 import { usesSomeOrNone } from './read-rules.js';
 import { countRead } from './readiness-run.js';
-import { type ReadinessEntry, severities } from './readiness-types.js';
+import {
+  generationField,
+  type ReadinessEntry,
+  reviewScopes,
+  severities,
+} from './readiness-types.js';
 
 // The structural rules of the readiness-check registry, checked before any
 // read like the definition rules: one entry per code, a severity from the
 // closed set, a blocker gating declared files and a warning gating none,
 // one Needs review bookmark per name, a generation-scoped view that shows
-// the generation, and reads under the same rules as every export read.
+// the generation, a view of a count that lists exactly what it counts,
+// and reads under the same rules as every export read.
 
 export type LabelledRead = readonly [string, SourceRead];
 
@@ -36,22 +42,33 @@ export const registryReads = (
   return reads;
 };
 
-// A Needs review view lists fields, filters without `_some`/`_none`, and
-// shows the generation when its records belong to one.
-const reviewProblems = ({
-  code,
-  generationScoped,
-  review,
-}: ReadinessEntry): string[] => {
+// Whether a counted view of a count entry filters otherwise than its
+// count (the same filter, compared as data).
+const drifts = ({ review, source }: ReadinessEntry): boolean =>
+  review?.lists === 'counted' &&
+  source.kind === 'count' &&
+  JSON.stringify(review.filter) !== JSON.stringify(source.filter);
+
+// A Needs review view lists fields, says what it lists, filters without
+// `_some`/`_none`, lists exactly what a count counts, and shows the
+// generation when its records belong to one.
+const reviewProblems = (entry: ReadinessEntry): string[] => {
+  const { code, generationScoped, review } = entry;
   if (review === undefined) {
     return [];
   }
   return [
     ...(review.fields.length === 0 ? [`review of ${code} lists no field`] : []),
+    ...(reviewScopes.includes(review.lists)
+      ? []
+      : [`review of ${code} lists an unknown scope`]),
     ...(usesSomeOrNone(review.filter)
       ? [`review of ${code} filters with _some or _none`]
       : []),
-    ...(generationScoped && !review.fields.includes('generation')
+    ...(drifts(entry)
+      ? [`review of ${code} filters otherwise than its count`]
+      : []),
+    ...(generationScoped && !review.fields.includes(generationField)
       ? [`generation-scoped review of ${code} does not show the generation`]
       : []),
   ];

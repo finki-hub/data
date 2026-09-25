@@ -7,6 +7,7 @@ import type {
   SourceRows,
 } from './types.js';
 
+import { filled } from './text-filters.js';
 import { pathValue, sourceRows } from './values.js';
 
 // The curriculum checks of courses.json, as native reads of ids and keys
@@ -18,11 +19,6 @@ import { pathValue, sourceRows } from './values.js';
 // leave the public file silently, so it blocks until the link exists. Both
 // checks concern the historical workbook only and leave with its import
 // columns in the deferred cleanup.
-
-// A text column holding a non-empty value.
-const filled = (field: string): Filter => ({
-  _and: [{ [field]: { _nnull: true } }, { [field]: { _neq: '' } }],
-});
 
 // An equivalency member label of a generation with a curriculum that
 // names no entry of it.
@@ -55,10 +51,20 @@ const linkedPairs = (sources: SourceRows): ReadonlySet<string> =>
 // course's equivalency when no override named one (its 2018 lookup).
 const equivalencyGeneration = '2018';
 
-// A course an equivalency names through its member of that generation (an
-// entry, or a label that matched none) while the course has no link of
-// that generation: the checkpoint derivation published the member's name,
-// the link that would carry it is missing.
+// The members of that generation that name a course's value: an entry, or
+// a label that matched none, of an equivalency with a course.
+export const namingMembers: Filter = {
+  _and: [
+    { equivalency: { course: { _nnull: true } } },
+    { generation: { code: { _eq: equivalencyGeneration } } },
+    { _or: [{ entry: { _nnull: true } }, filled('label')] },
+  ],
+};
+
+// A course an equivalency names through its member of that generation
+// while the course has no link of that generation: the checkpoint
+// derivation published the member's name, the link that would carry it
+// is missing.
 export const curriculumCheck: ReadinessCheck = {
   evaluate: (sources): IssueCounts => {
     const linked = linkedPairs(sources);
@@ -78,13 +84,7 @@ export const curriculumCheck: ReadinessCheck = {
     members: {
       collection: 'course_equivalency_members',
       fields: ['equivalency.course'],
-      filter: {
-        _and: [
-          { equivalency: { course: { _nnull: true } } },
-          { generation: { code: { _eq: equivalencyGeneration } } },
-          { _or: [{ entry: { _nnull: true } }, filled('label')] },
-        ],
-      },
+      filter: namingMembers,
       sort: ['id'],
     },
   },
