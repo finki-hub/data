@@ -24,11 +24,13 @@ type Input<Action extends CoordinatorInput['action']> = Extract<
   { action: Action }
 >;
 
-// Every token-bearing action reads the singleton FOR UPDATE first: the
-// decision it takes still holds when its guarded write runs, a source
-// statement committing meanwhile waits on that row inside its own trigger,
-// and the lock order (singleton, then candidate rows) is the one the claim
-// and its recovery use, so no cycle is possible.
+// Every token-bearing action reads the singleton FOR UPDATE first (an
+// attempt after a database conflict first adds its retry to that row,
+// under the same lock): the decision it takes still holds when its guarded
+// write runs, a source statement committing meanwhile waits on that row
+// inside its own trigger, and the lock order (singleton, then candidate
+// rows) is the one the claim and its recovery use, so no cycle is
+// possible.
 
 // A plan starts, or restarts, the staging of the claim: every candidate row
 // staged under the claim so far is discarded in the same transaction, so a
@@ -39,14 +41,14 @@ export const planPagesAction = (
   input: { readonly source: PageSource; readonly token: string },
   context: ActionContext,
 ) =>
-  guarded(context, async (port) => {
+  guarded(context, input.token, async (port) => {
     const state = await port.readState(true);
     const verdict = verifyClaim(state, {
       owner: context.owner,
       token: input.token,
     });
     if (verdict === 'source_changed') {
-      return overtaken(verdict, input.token);
+      return overtaken(verdict);
     }
     if (verdict !== 'ok' || state.claim === null) {
       throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);
@@ -69,7 +71,7 @@ export const stagePageAction = (
   input: Input<'stage_page'>,
   context: ActionContext,
 ) =>
-  guarded(context, async (port) => {
+  guarded(context, input.token, async (port) => {
     const duplicates = duplicatePairs(input.rows);
     if (duplicates.length > 0) {
       throw coordinationError(
@@ -85,7 +87,7 @@ export const stagePageAction = (
       token: input.token,
     });
     if (decision.kind === 'source_changed') {
-      return overtaken(decision.kind, input.token);
+      return overtaken(decision.kind);
     }
     if (decision.kind === 'page_unplanned') {
       throw coordinationError(

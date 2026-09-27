@@ -88,6 +88,7 @@ const lastErrorOf = ({ fingerprints, pending, state }: DomainView) => {
     code: error.code,
     domain: error.domain,
     message: error.message,
+    retries: error.retries,
     revision: error.revision,
   };
 };
@@ -136,7 +137,11 @@ const statusOf = ({
     historyIndex,
     importState: state.importState,
     lastError: lastErrorOf(view),
-    lastRun: { finishedAt: state.finishedAt, startedAt: state.startedAt },
+    lastRun: {
+      finishedAt: state.finishedAt,
+      retries: state.lastRunRetries,
+      startedAt: state.startedAt,
+    },
     pending,
     process: context.owner,
     publication: {

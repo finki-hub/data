@@ -113,6 +113,9 @@ export type Claim = {
   // The id range and row count of every planned page, as the plan read
   // them at the claimed revision; empty for a plan stored without them.
   readonly ranges: readonly PageRange[];
+  // How often the transactions of the run so far ran again after a
+  // deadlock or serialization failure (conflict-retry.ts).
+  readonly retries: number;
   readonly revision: number;
   readonly staged: readonly string[];
   readonly startedAt: string;
@@ -127,6 +130,8 @@ export type LastError = {
   // What the failing step said (ids and counts only), cut to
   // errorMessageLength; null when the release named no cause.
   readonly message: null | string;
+  // The released claim's retries after a database conflict.
+  readonly retries: number;
   readonly revision: null | number;
 };
 
@@ -144,6 +149,8 @@ export type OperationsState = {
   // source revision itself stands in while a column was never written.
   readonly inputRevisions: Readonly<Record<CalculationDomain, number>>;
   readonly lastError: LastError | null;
+  // The last completed claim's retries after a database conflict.
+  readonly lastRunRetries: number;
   readonly publicationFingerprint: null | string;
   // The outcome of each declared file of the last publication that
   // recorded one (a completion, a failed run that attempted its files, or

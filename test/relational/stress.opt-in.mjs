@@ -29,7 +29,7 @@ import {
   snapshotFiles,
   uploadSnapshot,
 } from '../publish-workflow-helpers.mjs';
-import { stagedOrOver } from '../publish-workflow-races.mjs';
+import { stagedOrOver, watchesInstall } from '../publish-workflow-races.mjs';
 import { psql, waitForStatus } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
@@ -371,7 +371,11 @@ const deletesDuringInstall = (context) =>
           return Math.round(performance.now() - started);
         }),
       );
-      const settledRun = await waitUntil(target, current('enrollments'), 2_000);
+      const { install, report: settled } = await watchesInstall(target, {
+        before: staged.report,
+        until: current('enrollments'),
+        wait: { limitMs: longRun, pollMs: 250 },
+      });
       await setSchedule(target, false);
       await assertCounts(context, 'after the parent deletes');
       const left = await get(
@@ -383,7 +387,8 @@ const deletesDuringInstall = (context) =>
         followUp11: {
           deadlocks: (await deadlocks(context)) - before,
           deleteMs,
-          lastError: settledRun.report.lastError?.code ?? null,
+          install,
+          lastError: settled.lastError?.code ?? null,
           pages: staged.report.claim.pages,
         },
       });

@@ -60,11 +60,11 @@ export const checkPlanSource = async (
 // history over the page budget or a rule of an undeclared mode refuses the
 // whole plan, and the transaction leaves the claim as it was.
 export const planEnrollmentsAction = (token: string, context: ActionContext) =>
-  guarded(context, async (port) => {
+  guarded(context, token, async (port) => {
     const state = await port.readState(true);
     const verdict = verifyClaim(state, { owner: context.owner, token });
     if (verdict === 'source_changed') {
-      return overtaken(verdict, token);
+      return overtaken(verdict);
     }
     if (verdict !== 'ok' || state.claim === null) {
       throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);

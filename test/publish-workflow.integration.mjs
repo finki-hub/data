@@ -26,6 +26,7 @@ import {
   deletesParentsAtInstall,
   keepsConcurrentEdits,
   recoversAfterRestart,
+  retriesInstallAfterDeadlock,
 } from './publish-workflow-races.mjs';
 import {
   countsAutomatically,
@@ -50,9 +51,10 @@ import {
 // promotion; the native schedule counts; readiness and the manual publish
 // write every declared file. Then each failure (malformed import,
 // unresolved link, invalid pattern, missing permission, restart,
-// concurrent edits and deletes, S3 failure) leaves the active snapshot
-// and every published object intact, and the extension scenarios add a
-// year and a generation as rows. The run removes what it created.
+// concurrent edits and deletes, a deadlock at the install, S3 failure)
+// leaves the active snapshot and every published object intact, and the
+// extension scenarios add a year and a generation as rows. The run
+// removes what it created.
 
 const size = { courses: 12, labels: 300, referenceRows: 20, users: 1_500 };
 const nothingToResume = () => Promise.resolve();
@@ -107,6 +109,10 @@ const steps = [
   [
     'keeps counts consistent when parents are deleted while a run installs (follow-up 11)',
     deletesParentsAtInstall,
+  ],
+  [
+    'completes an install that lost a deadlock in place after one retry',
+    retriesInstallAfterDeadlock,
   ],
   [
     'records a storage failure per file, keeps the objects and converges on a retry',

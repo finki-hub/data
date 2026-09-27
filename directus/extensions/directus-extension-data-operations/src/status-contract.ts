@@ -100,10 +100,15 @@ export const statusViewSchema = z.object({
       code: text,
       domain: maybeText,
       message: maybeText,
+      retries: count,
       revision,
     })
     .nullable(),
-  lastRun: z.object({ finishedAt: maybeText, startedAt: maybeText }),
+  lastRun: z.object({
+    finishedAt: maybeText,
+    retries: count,
+    startedAt: maybeText,
+  }),
   publication: z.object({
     // Every declared file uploaded at lastRevision.
     complete: z.boolean(),

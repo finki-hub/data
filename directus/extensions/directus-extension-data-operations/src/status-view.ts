@@ -146,6 +146,7 @@ const lastErrorOf = (
         code: error.code,
         domain: error.domain,
         message: audience === 'administrator' ? error.message : null,
+        retries: error.retries,
         revision: error.revision,
       };
 };

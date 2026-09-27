@@ -28,6 +28,7 @@ export const columns = [
   '"claim_fingerprint"',
   '"claim_pages"',
   '"claim_staged"',
+  '"claim_retries"',
   isoText('"claim_started_at"', 'claim_started_iso'),
   isoText('"claim_heartbeat_at"', 'claim_heartbeat_iso'),
   '(EXTRACT(EPOCH FROM (clock_timestamp() - "claim_heartbeat_at")) * 1000)::double precision AS "claim_heartbeat_age_ms"',
@@ -37,6 +38,7 @@ export const columns = [
   '"last_failed_revision"',
   '"last_failed_domain"',
   '"last_failed_fingerprint"',
+  '"last_error_retries"',
   '"calculation_fingerprint"',
   '"publication_fingerprint"',
   '"import_state"',
@@ -44,6 +46,7 @@ export const columns = [
   '"publication_outcomes"',
   isoText('"started_at"', 'started_iso'),
   isoText('"finished_at"', 'finished_iso'),
+  '"last_run_retries"',
 ].join(', ');
 
 // SET fragment that clears every claim column.
@@ -57,6 +60,7 @@ export const claimClear = [
   '"claim_heartbeat_at" = NULL',
   '"claim_pages" = NULL',
   '"claim_staged" = NULL',
+  '"claim_retries" = 0',
 ].join(', ');
 
 // The input revision of the claimed domain, as inputRevision computes it:
@@ -84,6 +88,7 @@ const optionalString = z.string().nullable();
 const optionalNumber = z.number().nullable();
 const optionalInt = z.number().int().nullable();
 const stringList = z.array(z.string()).nullable();
+const retries = z.number().int().nonnegative();
 
 // A planned page as plan_pages stores it; a bare token is a plan stored
 // before the ranges were kept, which serves the stage decisions only.
@@ -105,6 +110,7 @@ export const stateRow = z.object({
   claim_heartbeat_iso: optionalString,
   claim_owner: optionalString,
   claim_pages: z.array(plannedPage).nullable(),
+  claim_retries: retries,
   claim_revision: optionalInt,
   claim_staged: stringList,
   claim_started_iso: optionalString,
@@ -118,9 +124,11 @@ export const stateRow = z.object({
   last_error_code: optionalString,
   last_error_iso: optionalString,
   last_error_message: optionalString,
+  last_error_retries: retries,
   last_failed_domain: optionalString,
   last_failed_fingerprint: optionalString,
   last_failed_revision: optionalInt,
+  last_run_retries: retries,
   publication_fingerprint: optionalString,
   // A value edited out of shape by hand (or an outcome map of an earlier
   // shape) is reported as no outcome.
@@ -157,6 +165,7 @@ const claimOf = (row: StateRow): OperationsState['claim'] =>
         ranges: (row.claim_pages ?? []).filter(
           (page) => typeof page !== 'string',
         ),
+        retries: row.claim_retries,
         revision: row.claim_revision ?? -1,
         staged: row.claim_staged ?? [],
         startedAt: row.claim_started_iso ?? '',
@@ -185,8 +194,10 @@ export const toState = (row: StateRow): OperationsState => ({
             : null,
           fingerprint: row.last_failed_fingerprint,
           message: row.last_error_message,
+          retries: row.last_error_retries,
           revision: row.last_failed_revision,
         },
+  lastRunRetries: row.last_run_retries,
   publicationFingerprint: row.publication_fingerprint,
   publicationOutcomes: row.publication_outcomes,
   publicationState: row.publication_state,

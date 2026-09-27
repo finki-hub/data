@@ -44,7 +44,7 @@ const verifyHistoryPage = (
     token: input.token,
   });
   if (decision.kind === 'source_changed') {
-    return overtaken(decision.kind, input.token);
+    return overtaken(decision.kind);
   }
   if (decision.kind === 'page_unplanned') {
     throw coordinationError(
@@ -137,7 +137,7 @@ export const indexPageAction = (
   input: Input,
   context: ActionContext,
 ): Promise<IndexPageResult> =>
-  guarded(context, async (port) => {
+  guarded(context, input.token, async (port) => {
     const duplicates = duplicateUserIds(input.rows);
     if (duplicates.length > 0) {
       throw coordinationError(

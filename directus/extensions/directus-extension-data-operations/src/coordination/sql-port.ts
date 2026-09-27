@@ -30,6 +30,7 @@ import {
   planSql,
   recordSql,
   releaseSql,
+  retriesSql,
   ruleModesSql,
   stagedSql,
   stateSql,
@@ -72,6 +73,8 @@ const markRow = z.object({
 });
 
 export const sqlPort = (client: SqlClient): CoordinationPort => ({
+  addRetries: (token, owner, retries) =>
+    matched(client, retriesSql, [retries, token, owner]),
   adoptOwnRevision: (token, owner) =>
     matched(
       client,

@@ -62,12 +62,14 @@ const pagesMissing = (
 // a source change is recorded all the same, with publication kept pending
 // for the newer revision (decideCompletion); one overtaken by a graph
 // change keeps the outcomes of what it uploaded with its release, since an
-// upload cannot be discarded.
+// upload cannot be discarded. The answer and the status (lastRun) carry
+// how often the transactions of the run ran again after a database
+// conflict (guarded, action-support.ts).
 export const completeAction = (
   input: Input<'complete'>,
   context: ActionContext,
 ) =>
-  guarded(context, async (port) => {
+  guarded(context, input.token, async (port) => {
     const state = await port.readState(true);
     const fingerprint = currentFor(
       await port.currentFingerprints(),
@@ -98,7 +100,7 @@ export const completeAction = (
       decision.kind === 'source_changed' ||
       decision.kind === 'fingerprint_changed'
     ) {
-      return overtaken(decision.kind, input.token, files);
+      return overtaken(decision.kind, files);
     }
     if (decision.kind === 'unplanned' || decision.kind === 'pages_missing') {
       throw pagesMissing(decision);
@@ -135,6 +137,7 @@ export const completeAction = (
       completed: true,
       domain: claim.domain,
       installed,
+      retries: claim.retries,
       revision: claim.revision,
       // The newer source revision a publication left pending, if any.
       ...(claim.domain === 'publication' && {

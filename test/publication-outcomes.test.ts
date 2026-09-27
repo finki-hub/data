@@ -418,6 +418,7 @@ describe('a publication superseded by a source change', () => {
       completed: true,
       domain: publication,
       installed: 0,
+      retries: 0,
       pendingRevision: prepared + 1,
       revision: prepared,
     });

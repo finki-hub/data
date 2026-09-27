@@ -78,7 +78,7 @@ const idle: StatusView = {
   importState: 'completed',
   keySources: [],
   lastError: null,
-  lastRun: { finishedAt: null, startedAt: null },
+  lastRun: { finishedAt: null, retries: 0, startedAt: null },
   publication: {
     complete: false,
     files: [],

@@ -56,6 +56,7 @@ import {
   ageText,
   instantText,
   orderedChecks,
+  retriedText,
   stateLabel,
   toneOf,
   waitingText,
@@ -333,9 +334,10 @@ const report: StatusReport = {
     code: 'PUBLICATION_PARTIAL',
     domain: 'publication',
     message: 'rooms.json (PUBLISH_UPLOAD_FAILED)',
+    retries: 0,
     revision: 7,
   },
-  lastRun: { finishedAt: null, startedAt: null },
+  lastRun: { finishedAt: null, retries: 0, startedAt: null },
   pending: ['publication'],
   process: 'synthetic-process-owner',
   publication: {
@@ -392,6 +394,7 @@ describe('the status view', () => {
       state: 'partial',
     });
     expect(view.lastError?.message).toBe('rooms.json (PUBLISH_UPLOAD_FAILED)');
+    expect(view.lastError?.retries).toBe(0);
   });
 
   test('gives an editor no failure text, token, owner or fingerprint', () => {
@@ -588,6 +591,11 @@ describe('the status labels', () => {
     expect(instantText('2026-09-24T16:20:01.123Z')).toBe(
       '2026-09-24 16:20:01 UTC',
     );
+    expect([0, 1, 2].map(retriedText)).toEqual([
+      '',
+      ', after 1 retry on a database conflict',
+      ', after 2 retries on a database conflict',
+    ]);
     expect([12, 300, 9_000, null].map(ageText)).toEqual([
       '12 s',
       '5 min',

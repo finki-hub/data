@@ -2,6 +2,7 @@ import type { StoredOutcomes } from './outcomes.js';
 import type { CoordinationPort, CoordinationStore } from './port.js';
 import type { Claim, OperationsState } from './state.js';
 
+import { retryingConflicts } from './conflict-retry.js';
 import { abandonedClaim } from './decisions.js';
 import { type CoordinationError, coordinationError } from './errors.js';
 import { abandonmentCode, interruptedCode } from './failures.js';
@@ -63,7 +64,6 @@ export type Overtaken = {
   readonly files?: StoredOutcomes;
   readonly kind: 'overtaken';
   readonly reason: Overtaking;
-  readonly token: string;
 };
 
 export type Overtaking = 'fingerprint_changed' | 'source_changed';
@@ -72,12 +72,11 @@ export const done = <T>(value: T): Outcome<T> => ({ kind: 'done', value });
 
 export const overtaken = (
   reason: Overtaking,
-  token: string,
   files?: StoredOutcomes,
 ): Overtaken =>
   files === undefined
-    ? { kind: 'overtaken', reason, token }
-    : { files, kind: 'overtaken', reason, token };
+    ? { kind: 'overtaken', reason }
+    : { files, kind: 'overtaken', reason };
 
 export const unreachable = (value: never): never => {
   throw new TypeError(`Unexpected coordination case: ${String(value)}`);
@@ -113,14 +112,36 @@ export const releaseClaim = async (
   await port.discardCandidates(release.token);
 };
 
-// Runs one action transaction. A run overtaken by a source or graph change
-// is released in a second, committed transaction before the refusal is
-// thrown: a throw inside the first one would roll the release back.
+// Runs one transaction of the claim's run, again after a deadlock or a
+// serialization failure (conflict-retry.ts). An attempt after a retry adds
+// it to the claim first; that statement locks the singleton as the read
+// FOR UPDATE would, so the lock order holds, and matches nothing once the
+// claim is lost. The claim's total ends in the status with its completion
+// (lastRun) or its release (lastError).
+const claimTransaction = <T>(
+  context: ActionContext,
+  token: string,
+  work: (port: CoordinationPort) => Promise<T>,
+): Promise<T> =>
+  retryingConflicts((retries) =>
+    context.store.transaction(async (port) => {
+      if (retries > 0) {
+        await port.addRetries(token, context.owner, retries);
+      }
+      return work(port);
+    }),
+  );
+
+// Runs one action transaction of the claim `token`. A run overtaken by a
+// source or graph change is released in a second, committed transaction
+// before the refusal is thrown: a throw inside the first one would roll
+// the release back.
 export const guarded = async <T>(
   context: ActionContext,
+  token: string,
   work: (port: CoordinationPort) => Promise<Outcome<T>>,
 ): Promise<T> => {
-  const outcome = await context.store.transaction(work);
+  const outcome = await claimTransaction(context, token, work);
   if (outcome.kind === 'done') {
     return outcome.value;
   }
@@ -128,12 +149,12 @@ export const guarded = async <T>(
     outcome.reason === 'source_changed'
       ? 'SOURCE_CHANGED'
       : 'FINGERPRINT_CHANGED';
-  const { files, token } = outcome;
+  const { files } = outcome;
   const message =
     files === undefined
       ? overtakenMessages[outcome.reason]
       : overtakenPublicationMessages[outcome.reason];
-  await context.store.transaction((port) =>
+  await claimTransaction(context, token, (port) =>
     releaseClaim(
       port,
       files === undefined

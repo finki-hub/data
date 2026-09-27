@@ -725,11 +725,22 @@ S3 timeouts (`STORAGE_PUBLISH_SOCKET_TIMEOUT`,
 Two races end in a PostgreSQL deadlock, which aborts one side: creating an
 entry label through the API while the index writer inserts the same label,
 and deleting a course (or another row whose deletion cascades into
-`course_enrollments`) while an enrollment run installs its counts. Repeat an aborted write. A calculation that lost fails; the delete
-itself is an edit of its inputs, so the next tick reruns the counts, and the
-installation is not retried in place (at full size the rerun costs a whole
-run, see [Sizing](#sizing)); a history run that lost waits for **Data /
-Mark pending**.
+`course_enrollments`) while an enrollment run installs its counts. Directus
+retries its own aborted item write. The coordinator runs each transaction of
+a claimed run (planning, staging or indexing a page, completing) again after
+a deadlock (`40P01`) or a serialization failure (`40001`), and never after
+any other error: at most three attempts, 50-100 ms and then 100-200 ms apart,
+each checking the claim, its revision and the Flow graph again, so a claim
+lost or overtaken meanwhile refuses as before. The claim adds up the retries
+of every transaction of its run (`claim_retries`); the completion's answer
+and the status carry the total, as `lastRun.retries` for a completed run and
+`lastError.retries` for a released one, and the dashboard names them. An
+index page that lost finds the label the API created and goes on. An install
+that lost to a delete meets the committed delete when it runs again: the
+delete changed its inputs, so the run is overtaken (`SOURCE_CHANGED`, not a
+failure) and the next tick counts again, as after any edit during a run (at
+full size a whole run, see [Sizing](#sizing)). A run whose three attempts
+all conflict fails with the database's error.
 
 The coordinator fingerprints two Flow graphs. A Flow belongs to the
 **calculation graph** when one of its coordinator steps claims a
@@ -1540,10 +1551,10 @@ that is included in the 0.6 s above. The legacy family
 dominates: its cost grows with history pages times legacy rule pages, one
 activity row per page. Converting reviewed legacy rules to mapped rules is
 what shrinks it; a mapped pair costs one Flow run and one heartbeat
-transaction (about 13 ms, so 10,000 pairs take about two minutes). Losing a
-deadlock to a parent delete during the install (see
-[Automatic processing](#automatic-processing)) costs a whole rerun, about
-three minutes at this size.
+transaction (about 13 ms, so 10,000 pairs take about two minutes). A parent
+delete during the install (see [Automatic processing](#automatic-processing))
+changes the counts' inputs, so it costs a whole rerun, about three minutes at
+this size, whether or not the install lost a deadlock to it.
 
 ## Extending
 
@@ -1888,7 +1899,9 @@ Some suites also take the test project's Docker containers:
 `DIRECTUS_COORDINATION_RESTART_CONTAINER` (its Directus container, which
 restart scenarios `docker restart`) and
 `DIRECTUS_AUTOMATIC_DATABASE_CONTAINER` (its database container, which
-statistics subtests `docker exec` into for read-only `psql`). Every suite
+statistics subtests `docker exec` into for read-only `psql`; the one
+exception is the forced install deadlock of `npm run test:s3`, whose
+session only takes locks and rolls back). Every suite
 that uses them binds them to the target before it uses them, with
 read-only Docker commands (`npm run test:search` and `npm run test:csv`
 never use Docker): the Directus container must publish the target's port,

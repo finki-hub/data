@@ -43,6 +43,7 @@ type FakeClaim = {
   owner: string;
   pages: null | string[];
   ranges: PageRange[];
+  retries: number;
   revision: number;
   staged: string[];
   startedAtMs: number;
@@ -68,6 +69,7 @@ export type FakeData = {
   history: FakeHistory;
   inputRevisions: Record<CalculationDomain, number>;
   lastError: OperationsState['lastError'];
+  lastRunRetries: number;
   publicationFingerprint: null | string;
   publicationOutcomes: null | StoredOutcomes;
   publicationState: string;
@@ -87,6 +89,7 @@ const freshData = (): FakeData => ({
   history: freshHistory(),
   inputRevisions: { enrollments: 0, history_index: 0 },
   lastError: null,
+  lastRunRetries: 0,
   publicationFingerprint: null,
   publicationOutcomes: null,
   publicationState: 'idle',
@@ -246,6 +249,7 @@ export class FakeCoordination {
               owner: claim.owner,
               pages: claim.pages,
               ranges: claim.ranges,
+              retries: claim.retries,
               revision: claim.revision,
               staged: claim.staged,
               startedAt: stamp(claim.startedAtMs) ?? '',
@@ -257,6 +261,7 @@ export class FakeCoordination {
       importState: 'idle',
       inputRevisions: { ...data.inputRevisions },
       lastError: data.lastError,
+      lastRunRetries: data.lastRunRetries,
       publicationFingerprint: data.publicationFingerprint,
       publicationOutcomes: data.publicationOutcomes,
       publicationState: data.publicationState,
@@ -284,6 +289,7 @@ export class FakeCoordination {
         domain: claim.domain,
         fingerprint: claim.fingerprint,
         message: input.message ?? null,
+        retries: claim.retries,
         revision: claim.revision,
       };
     }
@@ -321,6 +327,14 @@ export class FakeCoordination {
   #port(): CoordinationPort {
     const data = () => this.#data;
     return {
+      addRetries: async (token, owner, retries) => {
+        const claim = this.#liveClaim(token, owner, false);
+        if (claim === null) {
+          return false;
+        }
+        claim.retries += retries;
+        return true;
+      },
       adoptOwnRevision: async (token, owner) => {
         const claim = this.#liveClaim(token, owner, false);
         if (claim === null) {
@@ -361,6 +375,7 @@ export class FakeCoordination {
         } else {
           data().calculationFingerprint = claim.fingerprint;
         }
+        data().lastRunRetries = claim.retries;
         data().startedAtMs = claim.startedAtMs;
         data().finishedAtMs = this.#now;
         data().claim = null;
@@ -487,6 +502,7 @@ export class FakeCoordination {
           owner: input.owner,
           pages: null,
           ranges: [],
+          retries: 0,
           revision: input.sourceRevision,
           staged: [],
           startedAtMs: this.#now,

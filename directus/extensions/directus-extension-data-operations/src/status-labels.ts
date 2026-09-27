@@ -43,6 +43,15 @@ export const stateLabel = (state: null | string): string =>
 export const instantText = (iso: null | string): string =>
   iso === null ? '--' : `${iso.replace('T', ' ').slice(0, 19)} UTC`;
 
+// A run's retries after a database conflict as a clause of its line:
+// ", after 1 retry on a database conflict"; nothing without one.
+export const retriedText = (retries: number): string => {
+  if (retries === 0) {
+    return '';
+  }
+  return `, after ${String(retries)} ${retries === 1 ? 'retry' : 'retries'} on a database conflict`;
+};
+
 // Seconds as "12 s", "4 min" or "3 h".
 export const ageText = (seconds: null | number): string => {
   if (seconds === null) {

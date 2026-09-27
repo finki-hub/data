@@ -159,6 +159,7 @@ const baseState = (
   importState: 'idle',
   inputRevisions: { enrollments: 3, history_index: 3 },
   lastError: null,
+  lastRunRetries: 0,
   publicationFingerprint: graphA,
   publicationOutcomes: null,
   publicationState: 'idle',
@@ -178,6 +179,7 @@ const liveClaim = (
   owner: processA,
   pages: [firstPage, secondPage],
   ranges: [],
+  retries: 0,
   revision: 3,
   staged: [firstPage, secondPage],
   startedAt: 't+0',
@@ -250,22 +252,8 @@ describe('claim decisions', () => {
       kind: 'claim',
     });
 
-    const failed = baseState({
-      dirtyDomains: [publication],
-      lastError: {
-        at: 't+9',
-        code: 'PUBLISH_FAILED',
-        domain: publication,
-        fingerprint: graphA,
-        message: null,
-        revision: 3,
-      },
-    });
-
-    expect(decideClaim(failed, request).kind).toBe('failed');
-
-    for (const code of ['SOURCE_CHANGED', 'FINGERPRINT_CHANGED']) {
-      const overtaken = baseState({
+    const releasedAs = (code: string) =>
+      baseState({
         dirtyDomains: [publication],
         lastError: {
           at: 't+9',
@@ -273,9 +261,16 @@ describe('claim decisions', () => {
           domain: publication,
           fingerprint: graphA,
           message: null,
+          retries: 0,
           revision: 3,
         },
       });
+    const failed = releasedAs('PUBLISH_FAILED');
+
+    expect(decideClaim(failed, request).kind).toBe('failed');
+
+    for (const code of ['SOURCE_CHANGED', 'FINGERPRINT_CHANGED']) {
+      const overtaken = releasedAs(code);
 
       expect(decideClaim(overtaken, request).kind).toBe('claim');
     }
@@ -652,6 +647,7 @@ describe('pages over the persistence port', () => {
       completed: true,
       domain: enrollments,
       installed: 2,
+      retries: 0,
       revision,
     });
     expect(fake.data.enrollments).toEqual([
@@ -718,6 +714,7 @@ describe('pages over the persistence port', () => {
       completed: true,
       domain: enrollments,
       installed: 1,
+      retries: 0,
       revision,
     });
     expect(fake.data.enrollments).toEqual([

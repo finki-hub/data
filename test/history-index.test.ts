@@ -183,6 +183,7 @@ const liveState = (claim: object): OperationsState => ({
     owner: processA,
     pages: null,
     ranges: [],
+    retries: 0,
     revision: 1,
     staged: [],
     startedAt: 't',
@@ -195,6 +196,7 @@ const liveState = (claim: object): OperationsState => ({
   importState: 'idle',
   inputRevisions: { enrollments: 1, history_index: 1 },
   lastError: null,
+  lastRunRetries: 0,
   publicationFingerprint: null,
   publicationOutcomes: null,
   publicationState: 'idle',
@@ -488,6 +490,7 @@ describe('index writer', () => {
       completed: true,
       domain: history,
       installed: 0,
+      retries: 0,
       revision: before + 1,
     });
     expect(fake.data.dirtyDomains).toEqual(['enrollments', 'publication']);
@@ -615,6 +618,7 @@ describe('multi-page runs', () => {
       completed: true,
       domain: history,
       installed: 0,
+      retries: 0,
       revision: start + 2,
     });
     expect(fake.data.history.memberships).toHaveLength(pageSize * 2 + 6);

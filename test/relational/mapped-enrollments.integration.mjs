@@ -359,6 +359,7 @@ const stagesAndCompletes = async (target, state) => {
     completed: true,
     domain: 'enrollments',
     installed: 6,
+    retries: 0,
     revision: state.claim.revision,
   });
   assert.deepEqual(await enrollmentCounts(target, state), firstCounts);

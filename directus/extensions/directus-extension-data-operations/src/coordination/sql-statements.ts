@@ -96,7 +96,7 @@ const failureColumn = (column: string, value: string): string =>
 // Bindings: error code, error message, publication state, the per-file
 // outcomes JSON (or null, which keeps the recorded outcomes), token.
 export const releaseSql = `UPDATE "data_operations" SET ${failureColumn('last_error_code', '?')},
-  ${failureColumn('last_error_message', '?')},
+  ${failureColumn('last_error_message', '?')}, ${failureColumn('last_error_retries', '"claim_retries"')},
   ${failureColumn('last_error_at', 'clock_timestamp()')}, ${failureColumn('last_failed_revision', '"claim_revision"')},
   ${failureColumn('last_failed_domain', '"claim_domain"')}, ${failureColumn('last_failed_fingerprint', '"claim_fingerprint"')},
   "publication_state" = CASE WHEN "claim_domain" = 'publication' THEN ? ELSE "publication_state" END,
@@ -115,9 +115,13 @@ export const finishSql = `UPDATE "data_operations" SET "dirty_domains" = ?::json
   "publication_fingerprint" = CASE WHEN "claim_domain" = 'publication' THEN "claim_fingerprint" ELSE "publication_fingerprint" END,
   "publication_state" = CASE WHEN "claim_domain" = 'publication' THEN 'completed' ELSE "publication_state" END,
   "publication_outcomes" = CASE WHEN "claim_domain" = 'publication' THEN ?::json ELSE "publication_outcomes" END,
-  "started_at" = "claim_started_at", "finished_at" = clock_timestamp(), ${claimClear}
+  "last_run_retries" = "claim_retries", "started_at" = "claim_started_at", "finished_at" = clock_timestamp(), ${claimClear}
 WHERE "claim_token" = ? AND "claim_owner" = ? AND "claim_revision" = ?
   AND (${inputsUnchanged} OR (?::boolean AND "claim_domain" = 'publication')) AND "claim_fingerprint" = ?`;
+
+// Bindings: retries, token, owner.
+export const retriesSql = `UPDATE "data_operations" SET "claim_retries" = "claim_retries" + ?::integer
+WHERE "claim_token" = ? AND "claim_owner" = ?`;
 
 // Bindings: lease in milliseconds, token, owner.
 export const heartbeatSql = `UPDATE "data_operations" SET "claim_heartbeat_at" = clock_timestamp() + ?::integer * interval '1 millisecond'

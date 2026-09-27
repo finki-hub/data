@@ -63,6 +63,14 @@ const restartContainer = process.env.DIRECTUS_COORDINATION_RESTART_CONTAINER;
 const claimMismatch = 'COORDINATION_CLAIM_MISMATCH';
 const pageUnplanned = 'COORDINATION_PAGE_UNPLANNED';
 const unrecordedUpload = /without being recorded/u;
+// The answer of a complete that needed no retry.
+const completion = (domain, installed, more) => ({
+  completed: true,
+  domain,
+  installed,
+  retries: 0,
+  ...more,
+});
 
 const get = async (target, path) => {
   const body = await read(
@@ -430,7 +438,7 @@ const claimsOnce = async (target, state) => {
   );
   assert.deepEqual(
     await act(target, { action: 'complete', token: winner.token }),
-    { completed: true, domain: 'history_index', installed: 0, revision: 10 },
+    completion('history_index', 0, { revision: 10 }),
   );
   report = await status(target);
   assert.equal(report.claim, null);
@@ -613,7 +621,7 @@ const stagesPages = async (target, state) => {
 const installsCounts = async (target, state) => {
   assert.deepEqual(
     await act(target, { action: 'complete', token: state.token }),
-    { completed: true, domain: 'enrollments', installed: 2, revision: 11 },
+    completion('enrollments', 2, { revision: 11 }),
   );
   const installed = await get(
     target,
@@ -778,13 +786,7 @@ const retriesFailure = async (target) => {
   );
   assert.deepEqual(
     await act(target, { action: 'complete', files, token: retried.token }),
-    {
-      completed: true,
-      domain: 'publication',
-      installed: 0,
-      pendingRevision: null,
-      revision: 11,
-    },
+    completion('publication', 0, { pendingRevision: null, revision: 11 }),
   );
   report = await status(target);
   assert.equal(report.publication.state, 'completed');
@@ -891,13 +893,7 @@ const recoversAfterRestart = async (target, state) => {
       files: everyFileUploaded,
       token: fresh.token,
     }),
-    {
-      completed: true,
-      domain: 'publication',
-      installed: 0,
-      pendingRevision: null,
-      revision: 12,
-    },
+    completion('publication', 0, { pendingRevision: null, revision: 12 }),
   );
   report = await status(target);
   assert.deepEqual(report.pending, []);

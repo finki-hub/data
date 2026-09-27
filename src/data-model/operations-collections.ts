@@ -110,6 +110,12 @@ export const operationsCollections: readonly ModelCollection[] = [
       scalar('claim_owner', 'string'),
       scalar('started_at', 'timestamp'),
       scalar('finished_at', 'timestamp'),
+      scalar('last_run_retries', 'integer', {
+        defaultValue: 0,
+        note: 'How often the transactions of the last completed run ran again after a database deadlock or serialization failure.',
+        nullable: false,
+        readOnly: true,
+      }),
       scalar('last_error_code', 'string'),
       enumField('import_state', importChoices, {
         defaultValue: 'idle',
@@ -149,10 +155,22 @@ export const operationsCollections: readonly ModelCollection[] = [
         note: 'Page tokens staged so far under the current claim.',
         readOnly: true,
       }),
+      scalar('claim_retries', 'integer', {
+        defaultValue: 0,
+        note: 'How often the transactions of the current claim ran again after a database deadlock or serialization failure.',
+        nullable: false,
+        readOnly: true,
+      }),
       scalar('last_error_at', 'timestamp', { readOnly: true }),
       scalar('last_failed_revision', 'integer', { readOnly: true }),
       enumField('last_failed_domain', claimChoices, { readOnly: true }),
       scalar('last_failed_fingerprint', 'string', { readOnly: true }),
+      scalar('last_error_retries', 'integer', {
+        defaultValue: 0,
+        note: 'How often the transactions of the last failed or discarded run ran again after a database deadlock or serialization failure.',
+        nullable: false,
+        readOnly: true,
+      }),
       scalar('calculation_fingerprint', 'string', {
         note: 'Flow-graph fingerprint of the last accepted calculation.',
         readOnly: true,

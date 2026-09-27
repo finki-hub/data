@@ -19,6 +19,13 @@ export type ClaimInsert = {
 // Every writer returns whether its guard matched: a false means the claim
 // is no longer the one the caller holds, and the caller must not proceed.
 export type CoordinationPort = {
+  // Guard: claim token and owner. Adds the retries of a transaction that
+  // ran again after a database conflict to the claim's count.
+  readonly addRetries: (
+    token: string,
+    owner: string,
+    retries: number,
+  ) => Promise<boolean>;
   // Guard: claim token and owner. Makes the claim's revision the current
   // source revision. Sound only under the singleton lock, right after a
   // statement of this run on a source table: nothing else can have moved

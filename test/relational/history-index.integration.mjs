@@ -307,6 +307,7 @@ const indexesThroughCoordinator = async (target, state) => {
       completed: true,
       domain: 'history_index',
       installed: 0,
+      retries: 0,
       revision: report.revisions.source,
     },
   );
@@ -804,6 +805,7 @@ const refusesForeignDomain = async (target, state) => {
       completed: true,
       domain: 'enrollments',
       installed: 0,
+      retries: 0,
       revision: claim.revision,
     },
   );

@@ -2,7 +2,7 @@
 import type { StatusView } from './status-contract.js';
 
 import StatusBadge from './status-badge.vue';
-import { bytesText, instantText } from './status-labels.js';
+import { bytesText, instantText, retriedText } from './status-labels.js';
 
 // The calculation domains, the running claim, the last failure, every
 // declared file with its last outcome, and the Moodle snapshot.
@@ -24,7 +24,7 @@ defineProps<{ status: StatusView }>();
     <p v-if="status.claim" class="note">
       Running: {{ status.claim.label }} since {{ instantText(status.claim.startedAt) }}{{ status.claim.stale ? ' (stale: released as abandoned by the next claim)' : '' }}
     </p>
-    <p class="note">Last run {{ instantText(status.lastRun.startedAt) }} to {{ instantText(status.lastRun.finishedAt) }}</p>
+    <p class="note">Last run {{ instantText(status.lastRun.startedAt) }} to {{ instantText(status.lastRun.finishedAt) }}{{ retriedText(status.lastRun.retries) }}</p>
   </section>
 
   <section class="block" aria-label="Published files">
@@ -61,7 +61,7 @@ defineProps<{ status: StatusView }>();
     <v-notice type="danger" class="failure">
       <span>
         <strong>{{ status.lastError.code }}</strong> in {{ status.lastError.domain ?? 'unknown' }} at revision {{ status.lastError.revision ?? '--' }},
-        {{ instantText(status.lastError.at) }}. Retry: run the operation again, or mark the domain pending (Data / Mark pending).
+        {{ instantText(status.lastError.at) }}{{ retriedText(status.lastError.retries) }}. Retry: run the operation again, or mark the domain pending (Data / Mark pending).
       </span>
     </v-notice>
     <details v-if="status.lastError.message" class="message">
