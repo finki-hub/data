@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { Person, SearchController } from './index.js';
+import { countText } from './count-text.js';
 import { profileUrl, splitHistory } from './history.js';
 
 defineProps<{ people: Person[]; included: string[]; sort: SearchController['sort'] }>();
@@ -40,7 +41,7 @@ function toggle(id: string | number, event: Event) {
           </td>
           <td>
             <details @toggle="toggle(person.id, $event)">
-              <summary>{{ person['Courses Count'] ?? splitHistory(person.Courses).length }} courses <span class="muted">· View history</span></summary>
+              <summary>{{ countText(person['Courses Count'] ?? splitHistory(person.Courses).length, 'course', 'courses') }} <span class="muted">· View history</span></summary>
               <ul v-if="expanded.has(person.id)">
                 <li v-for="(course, index) in splitHistory(person.Courses)" :key="`${index}-${course}`" :class="{ matched: included.includes(course) }">{{ course }}</li>
               </ul>

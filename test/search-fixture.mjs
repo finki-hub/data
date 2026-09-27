@@ -62,4 +62,17 @@ export const moodleUsers = [
       Profile_old: 'https://profiles.example/old',
     }),
   })),
+  // 48 users with a stored count (1 to 3, so names break the ties) and
+  // four without one, whose raw histories are longer than any stored
+  // count: a count order puts them last in both directions.
+  ...Array.from({ length: 48 }, (_, index) => ({
+    Courses: 'Unscored Entry',
+    'Courses Count': (index % 3) + 1,
+    Name: `Unscored ${String(index + 1).padStart(3, '0')}`,
+  })),
+  ...['D', 'B', 'C', 'A'].map((letter) => ({
+    Courses: 'Unscored Entry\nFirst\nSecond\nThird\nFourth',
+    'Courses Count': null,
+    Name: `Unscored Blank ${letter}`,
+  })),
 ];

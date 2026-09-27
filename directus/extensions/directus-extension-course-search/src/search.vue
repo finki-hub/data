@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SearchController } from './index.js';
+import { countText } from './count-text.js';
 import CoursePicker from './course-picker.vue';
 import Results from './results.vue';
 
@@ -29,7 +30,7 @@ defineProps<{ controller: SearchController }>();
       <section class="results-section" :aria-busy="controller.loading">
         <div class="results-heading">
           <div aria-live="polite">
-            <h3>{{ controller.loading ? 'Finding users…' : `${controller.total.toLocaleString()} matching users` }}</h3>
+            <h3>{{ controller.loading ? 'Finding users…' : countText(controller.total, 'matching user', 'matching users') }}</h3>
           </div>
           <v-button v-if="controller.hasCriteria" secondary small @click="controller.reset">Clear course selections</v-button>
         </div>

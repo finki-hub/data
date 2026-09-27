@@ -1,5 +1,15 @@
+import type { Filter, Query } from '@directus/types';
+
 import { describe, expect, test } from 'vitest';
 
+import {
+  type ItemsReader,
+  pageSegments,
+  pageSize,
+  readPage,
+  type SearchSort,
+} from '../directus/extensions/directus-extension-course-search/src/count-order.js';
+import { countText } from '../directus/extensions/directus-extension-course-search/src/count-text.js';
 import { buildSearchQuery } from '../directus/extensions/directus-extension-course-search/src/endpoint.js';
 import {
   filterPathProblem,
@@ -359,5 +369,221 @@ describe('Course history search query', () => {
       },
       search: 'priority',
     });
+  });
+});
+
+type SyntheticUser = {
+  readonly 'Courses Count': null | number;
+  readonly id: number;
+  readonly Name: string;
+};
+
+// A caller-scoped ItemsService stand-in over synthetic users: it applies
+// the count segment the page adds to the search filter, sorts like
+// PostgreSQL (NULL last ascending, first descending) and records every
+// query it was given.
+const syntheticItems = (users: readonly SyntheticUser[]) => {
+  const queries: Query[] = [];
+  // The count segment readPage adds to the caller's filter, if any.
+  const segment = (filter: Filter | null | undefined) => {
+    const text = JSON.stringify(filter ?? {});
+    return (user: SyntheticUser) => {
+      if (text.includes('"_nnull":true')) {
+        return user['Courses Count'] !== null;
+      }
+      return text.includes('"_null":true')
+        ? user['Courses Count'] === null
+        : true;
+    };
+  };
+  const value = (user: SyntheticUser, field: string) => {
+    if (field === 'Name') {
+      return user.Name;
+    }
+    return field === 'id' ? user.id : user['Courses Count'];
+  };
+  const compare =
+    (sort: readonly string[]) =>
+    (left: SyntheticUser, right: SyntheticUser): number => {
+      for (const key of sort) {
+        const descending = key.startsWith('-');
+        const field = descending ? key.slice(1) : key;
+        const [a, b] = [value(left, field), value(right, field)];
+        if (a === b) {
+          continue;
+        }
+        if (a === null || b === null) {
+          return (a === null) === descending ? -1 : 1;
+        }
+        return a < b === descending ? 1 : -1;
+      }
+      return 0;
+    };
+  const reader: ItemsReader = {
+    readByQuery: async (query) => {
+      queries.push(query);
+      const matching = users.filter(segment(query.filter));
+      if (query.aggregate !== undefined && query.aggregate !== null) {
+        return [{ count: { id: String(matching.length) } }];
+      }
+      const offset = query.offset ?? 0;
+      return matching
+        .toSorted(compare(query.sort ?? []))
+        .slice(offset, offset + (query.limit ?? 0));
+    },
+  };
+  return { queries, reader };
+};
+
+const syntheticUsers: SyntheticUser[] = Array.from(
+  { length: 105 },
+  (_, index) => ({
+    'Courses Count': index % 7 === 0 || index >= 90 ? null : index % 4,
+    id: index + 1,
+    Name: `Synthetic ${String(105 - index).padStart(3, '0')}`,
+  }),
+);
+
+const syntheticCollator = new Intl.Collator('en');
+
+const byName = (left: SyntheticUser, right: SyntheticUser): number =>
+  syntheticCollator.compare(left.Name, right.Name) || left.id - right.id;
+
+const everyPage = async (
+  users: readonly SyntheticUser[],
+  sort: SearchSort,
+): Promise<unknown[]> => {
+  const { reader } = syntheticItems(users);
+  const pages: unknown[] = [];
+  for (let page = 1; page <= Math.ceil(users.length / pageSize); page += 1) {
+    const rows = await readPage(reader, {
+      fields: ['id', 'Name', 'Courses Count'],
+      page,
+      query: { filter: { _and: [] } },
+      sort,
+    });
+
+    expect(rows).toHaveLength(
+      Math.min(pageSize, users.length - (page - 1) * pageSize),
+    );
+
+    pages.push(...rows);
+  }
+  return pages;
+};
+
+describe('Course history count order', () => {
+  test('splits a page between the counted and the uncounted users', () => {
+    expect(pageSegments(1, 60)).toEqual({
+      counted: { limit: 50, offset: 0 },
+      uncounted: { limit: 0, offset: 0 },
+    });
+    expect(pageSegments(2, 60)).toEqual({
+      counted: { limit: 10, offset: 50 },
+      uncounted: { limit: 40, offset: 0 },
+    });
+    expect(pageSegments(3, 60)).toEqual({
+      counted: { limit: 0, offset: 100 },
+      uncounted: { limit: 50, offset: 40 },
+    });
+    expect(pageSegments(1, 0)).toEqual({
+      counted: { limit: 0, offset: 0 },
+      uncounted: { limit: 50, offset: 0 },
+    });
+  });
+
+  test('ranks users without a stored count after every counted user in both directions', async () => {
+    const counted = syntheticUsers.filter(
+      (user) => user['Courses Count'] !== null,
+    );
+    const uncounted = syntheticUsers
+      .filter((user) => user['Courses Count'] === null)
+      .toSorted(byName);
+
+    await expect(everyPage(syntheticUsers, '-Courses Count')).resolves.toEqual([
+      ...counted.toSorted(
+        (left, right) =>
+          (right['Courses Count'] ?? 0) - (left['Courses Count'] ?? 0) ||
+          byName(left, right),
+      ),
+      ...uncounted,
+    ]);
+    await expect(everyPage(syntheticUsers, 'Courses Count')).resolves.toEqual([
+      ...counted.toSorted(
+        (left, right) =>
+          (left['Courses Count'] ?? 0) - (right['Courses Count'] ?? 0) ||
+          byName(left, right),
+      ),
+      ...uncounted,
+    ]);
+  });
+
+  test('reads through the caller query with the count segment added and the name order unchanged', async () => {
+    const { queries, reader } = syntheticItems(syntheticUsers);
+    const base: Filter = { Name: { _starts_with: 'Synthetic' } };
+    await readPage(reader, {
+      fields: ['id'],
+      page: 2,
+      query: { filter: base, search: 'synthetic' },
+      sort: '-Courses Count',
+    });
+
+    expect(queries).toEqual([
+      {
+        aggregate: { count: ['id'] },
+        filter: { _and: [base, { 'Courses Count': { _nnull: true } }] },
+        search: 'synthetic',
+      },
+      {
+        fields: ['id'],
+        filter: { _and: [base, { 'Courses Count': { _nnull: true } }] },
+        limit: 27,
+        offset: 50,
+        search: 'synthetic',
+        sort: ['-Courses Count', 'Name', 'id'],
+      },
+      {
+        fields: ['id'],
+        filter: { _and: [base, { 'Courses Count': { _null: true } }] },
+        limit: 23,
+        offset: 0,
+        search: 'synthetic',
+        sort: ['Name', 'id'],
+      },
+    ]);
+
+    queries.length = 0;
+    await readPage(reader, {
+      fields: ['id'],
+      page: 1,
+      query: { filter: base },
+      sort: 'Name',
+    });
+
+    expect(queries).toEqual([
+      {
+        fields: ['id'],
+        filter: base,
+        limit: 50,
+        offset: 0,
+        sort: ['Name', 'id'],
+      },
+    ]);
+  });
+});
+
+describe('Search count labels', () => {
+  test('use the singular for exactly one and the plural otherwise', () => {
+    expect(countText(1, 'course', 'courses')).toBe('1 course');
+    expect(countText(0, 'course', 'courses')).toBe('0 courses');
+    expect(countText(2, 'matching user', 'matching users')).toBe(
+      '2 matching users',
+    );
+    expect(countText(1, 'matching user', 'matching users')).toBe(
+      '1 matching user',
+    );
+    expect(countText(1_234, 'course', 'courses')).toBe(
+      `${(1_234).toLocaleString()} courses`,
+    );
   });
 });

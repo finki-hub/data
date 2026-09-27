@@ -212,6 +212,60 @@ test('matches exact LF and CRLF history entries through native filters', async (
   });
 });
 
+// Both pages of a count order over the users of 'Unscored Entry'.
+const unscoredPages = async (target, sort) => {
+  const pages = [];
+  for (const page of [1, 2]) {
+    pages.push(
+      await search(target, target.token, {
+        exclude: [],
+        include: ['Unscored Entry'],
+        page,
+        sort,
+      }),
+    );
+  }
+  assert.deepEqual(
+    pages.map(({ data, total }) => [data.length, total]),
+    [
+      [50, 52],
+      [2, 52],
+    ],
+  );
+  return pages.flatMap(({ data }) => data);
+};
+
+const blanks = [
+  'Unscored Blank A',
+  'Unscored Blank B',
+  'Unscored Blank C',
+  'Unscored Blank D',
+];
+
+test('ranks users without a stored course count after every counted user in both directions', async () => {
+  const target = targetFrom(process.env);
+  await withSearchFixture(target, false, async () => {
+    for (const [sort, direction] of [
+      ['-Courses Count', -1],
+      ['Courses Count', 1],
+    ]) {
+      const rows = await unscoredPages(target, sort);
+      const counted = rows.slice(0, 48);
+      assert.ok(
+        counted.every((row) => row['Courses Count'] !== null),
+        sort,
+      );
+      const expected = counted.toSorted(
+        (left, right) =>
+          direction * (left['Courses Count'] - right['Courses Count']) ||
+          (left.Name < right.Name ? -1 : 1),
+      );
+      assert.deepEqual(names({ data: counted }), names({ data: expected }));
+      assert.deepEqual(names({ data: rows.slice(48) }), blanks, sort);
+    }
+  });
+});
+
 test('paginates, sorts by history size, and applies restricted row and field access', async () => {
   const target = targetFrom(process.env);
   await withSearchFixture(target, true, async (fixture) => {
@@ -264,6 +318,25 @@ test('paginates, sorts by history size, and applies restricted row and field acc
     });
     assert.equal(scopedSearch.total, 1);
     assert.deepEqual(names(scopedSearch), ['Visible Searcher']);
+    // A count order reads its segments as the caller too.
+    for (const sort of ['-Courses Count', 'Courses Count']) {
+      for (const [entry, visible] of [
+        ['Visible Entry', ['Visible Searcher']],
+        ['Unscored Entry', []],
+      ]) {
+        const scoped = await search(target, fixture.restrictedToken, {
+          exclude: [],
+          include: [entry],
+          page: 1,
+          sort,
+        });
+        assert.deepEqual(
+          [scoped.total, names(scoped)],
+          [visible.length, visible],
+          `${sort} ${entry}`,
+        );
+      }
+    }
     await fixture.setRestrictedFields([
       'id',
       'Name',

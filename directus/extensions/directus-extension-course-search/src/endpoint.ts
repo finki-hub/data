@@ -3,6 +3,7 @@ import type { Accountability, Filter } from '@directus/types';
 import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
+import { countOf, readPage } from './count-order.js';
 import { filterPathProblem, relationalDepthLimit } from './filter-paths.js';
 import { courseCondition, splitHistory } from './history.js';
 import { nativeFilter } from './native-filter.js';
@@ -26,9 +27,15 @@ const criteriaSchema = z.object({
   sort: z.enum(['Name', 'Courses Count', '-Courses Count']).default('Name'),
 });
 const historyRows = z.array(z.object({ Courses: z.string().nullish() }));
-const countRows = z.array(
-  z.object({ count: z.object({ id: z.coerce.number().int().min(0) }) }),
-);
+const resultFields = [
+  'id',
+  'Name',
+  'Mail',
+  'Profile_new',
+  'Profile_old',
+  'Courses',
+  'Courses Count',
+] as const;
 
 type CourseSearchQuery = {
   readonly filter: Filter;
@@ -129,27 +136,15 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
       });
       const query = buildSearchQuery(criteria);
       const [data, counts] = await Promise.all([
-        items.readByQuery({
-          ...query,
-          fields: [
-            'id',
-            'Name',
-            'Mail',
-            'Profile_new',
-            'Profile_old',
-            'Courses',
-            'Courses Count',
-          ],
-          limit: 50,
-          offset: (criteria.page - 1) * 50,
-          sort:
-            criteria.sort === 'Name'
-              ? ['Name', 'id']
-              : [criteria.sort, 'Name', 'id'],
+        readPage(items, {
+          fields: resultFields,
+          page: criteria.page,
+          query,
+          sort: criteria.sort,
         }),
         items.readByQuery({ ...query, aggregate: { count: ['id'] } }),
       ]);
-      response.json({ data, total: countRows.parse(counts)[0]?.count.id ?? 0 });
+      response.json({ data, total: countOf(counts) });
     } catch (error) {
       next(error);
     }

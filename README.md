@@ -1368,7 +1368,10 @@ data management. Setup creates this shared bookmark once from
 - Remove individual selections or clear both groups. Results update automatically,
   with a matching count, 50 people per page, profile links, and expandable histories.
 - Click **Course history** to toggle between most and fewest courses first across
-  all matching users. Changing the sort returns to the first page.
+  all matching users, ties by name. Changing the sort returns to the first page.
+  People without a stored `Courses Count` (the list shows the number of lines
+  of their raw history instead) come after everyone with one, in both
+  directions, by name.
 - The page header's native search and filters still apply, including filters on
   related fields such as **History Memberships → Entry → Label** or the course
   of an entry's mappings. They run as the signed-in user: a field that user may
