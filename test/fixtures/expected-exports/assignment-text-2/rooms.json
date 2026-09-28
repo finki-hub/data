@@ -1,0 +1,1 @@
+[{"name":"Synthetic Room 101","type":"lab","location":"Synthetic Building A","description":"Ground floor laboratory","floor":"0","capacity":"24","mrbs":"https://mrbs.example/rooms/101"},{"name":"Synthetic Hall 2","location":"Synthetic Building B","floor":"2","capacity":"0"},{"name":"Synthetic Storage","type":"storage","location":"Synthetic Building A","floor":"-1"}]
