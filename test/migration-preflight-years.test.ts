@@ -4,8 +4,8 @@ import type { MigrationReport } from '../src/migrations/report.js';
 
 import { readInventory } from '../src/migrations/inventory.js';
 import { preflight } from '../src/migrations/preflight.js';
+import { academicYears } from '../src/specs/public.js';
 import {
-  academicYears,
   courseNames,
   makeSyntheticDataset,
   type SyntheticDataset,

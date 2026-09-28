@@ -103,8 +103,6 @@ describe('workbook readers', () => {
       icon: 'school',
       key: 'courses',
       note: 'Synthetic test collection.',
-      previewFields: ['name'],
-      previewSort: 'name',
       sort: 1,
       source: { kind: 'rows', sheet: 'Synthetic courses' },
     } as const satisfies CollectionSpec;

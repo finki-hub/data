@@ -160,8 +160,9 @@ const installsStudioMetadata = async (target) => {
   );
   assert.equal(provenance.meta.group, 'legacy_imported');
   assert.equal(provenance.meta.readonly, true);
+  // Nothing fills the copied council name any more: it stays hidden.
   const council = await get(target, '/fields/student_council/name');
-  assert.equal(council.meta.hidden, false);
+  assert.equal(council.meta.hidden, true);
   assert.equal(council.meta.readonly, true);
   const councilCollection = await get(target, '/collections/student_council');
   assert.equal(

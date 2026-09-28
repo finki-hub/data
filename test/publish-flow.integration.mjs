@@ -10,6 +10,7 @@ import {
   publishFlows,
 } from '../src/flows/publish-public-assets.js';
 import { runSetup } from '../src/setup.js';
+import { expectedFiles } from './expected-exports.js';
 import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
   bucketStatus,
@@ -23,7 +24,6 @@ import {
   proveCanary,
   readObject,
   readOnlyBucket,
-  sha256,
   trigger,
   verifyPublishLocation,
 } from './publish-flow-helpers.mjs';
@@ -42,7 +42,6 @@ import {
 } from './relational/data-model-helpers.mjs';
 import {
   convert,
-  legacyAssets,
   seedCheckpoint,
 } from './relational/export-projection-helpers.mjs';
 import {
@@ -252,9 +251,9 @@ const creates = async ({ s3, state, t, target }) => {
   assert.equal(run.body.published, true);
   const report = await observed({ label: 'create', run, t, target });
   assert.equal(run.body.revision, report.revisions.source);
-  // The JSON contract: the legacy serializer over the live checkpoint rows
-  // gives the same bytes the objects hold.
-  const legacy = await legacyAssets(target);
+  // The JSON contract: the objects hold exactly the committed parity files
+  // (test/fixtures/expected-exports/parity).
+  const committed = await expectedFiles('parity');
   const current = await objects(s3);
   for (const key of declaredFilenames) {
     const object = current[key];
@@ -263,7 +262,7 @@ const creates = async ({ s3, state, t, target }) => {
     assert.equal(object.sha256, expected[key], key);
     assert.equal(
       object.sha256,
-      sha256(JSON.stringify(legacy[key.replace('.json', '')])),
+      committed[key.replace('.json', '')].sha256,
       key,
     );
     assert.ok(Array.isArray(JSON.parse(object.body)), key);

@@ -43,8 +43,6 @@ export type CollectionSpec = {
   readonly icon: string;
   readonly key: CollectionKey;
   readonly note: string;
-  readonly previewFields: readonly string[];
-  readonly previewSort: string;
   readonly sort: number;
   readonly source: CollectionSource;
 };

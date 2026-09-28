@@ -9,7 +9,6 @@ import {
   validateFile,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { snapshotFields } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
-import serializeAssets from '../../directus/flows/serialize-assets.cjs';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { validateReadinessFlowId } from '../../src/flows/validate-readiness.js';
 import { runConversion } from '../../src/migrations/conversion.js';
@@ -99,19 +98,6 @@ export const convert = async (directus) => {
     },
   );
   assert.deepEqual(outcome.completed, conversionSteps);
-};
-
-// The legacy serializer over the live checkpoint rows, read the way the
-// checkpoint Publish public assets Flow reads them.
-export const legacyAssets = async (target) => {
-  const rows = (collection) =>
-    get(target, `/items/${collection}?fields=*&sort=id&limit=-1`);
-  return serializeAssets({
-    read_courses: await rows('courses'),
-    read_rooms: await rows('rooms'),
-    read_staff: await rows('staff'),
-    read_students: await rows('students'),
-  });
 };
 
 export const sha256 = (text) => createHash('sha256').update(text).digest('hex');

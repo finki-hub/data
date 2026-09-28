@@ -38,7 +38,7 @@ const malformedPattern =
   /^Import failed: Invalid boolean "maybe" in active at row 3\. Nothing was sent to Directus\.$/u;
 const jsSuffixPattern = /\.js$/u;
 const interruptedPattern =
-  /^Import interrupted: The import stopped while running the initial derived-data rebuild: synthetic outage\. The rows and the relational conversion are complete, so npm run import now refuses this project\./u;
+  /^Import interrupted: The import stopped while writing the workbook rows: synthetic outage\. Directus had confirmed 8 of the \d+ workbook rows, so npm run import now refuses this project: it holds a partial import\./u;
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 
 const scratch = { directory: '' };
@@ -230,7 +230,7 @@ describe('import command', () => {
       }),
     ).resolves.toBe(exitCodes.blocked);
     expect(run.stderr.join('\n')).toContain(
-      'Import incomplete: the workbook rows were imported and the checkpoint derivation ran, but the relational conversion is blocked by {"ambiguous_student_index":1}.',
+      'Import incomplete: the workbook rows were imported, but the relational conversion is blocked by {"ambiguous_student_index":1}.',
     );
     expect(
       importSummary.parse(JSON.parse(run.stdout.join('\n'))),
@@ -241,10 +241,11 @@ describe('import command', () => {
 
   test('reports an import interrupted after its first write with exit code 4 and its remedy', async () => {
     const fake = fakeImportDirectus(emptyStore());
-    const failing: ImportFake['request'] = (pathname, init, mode) =>
-      pathname.startsWith('/flows/trigger/')
+    // The staff rows follow the eight course rows.
+    const failing: ImportFake['request'] = (pathname, init) =>
+      init?.method === 'POST' && pathname.startsWith('/items/staff')
         ? Promise.reject(new Error('synthetic outage'))
-        : fake.request(pathname, init, mode);
+        : fake.request(pathname, init);
     const run = cli({ ...fake, request: failing });
 
     await expect(

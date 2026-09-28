@@ -63,7 +63,6 @@ const config = [
   },
   {
     files: [
-      'directus/extensions/directus-extension-rebuild-derived-data/derive.js',
       'directus/flows/count-history-page.cjs',
       'src/migrations/enrollment-rules.ts',
       'src/migrations/labels.ts',
@@ -112,6 +111,14 @@ const config = [
       'test/relational/snapshot-import-helpers.mjs',
       'test/relational/snapshot-import.integration.mjs',
     ],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  {
+    // The committed expected exports are read by case and file name from
+    // their fixture directory.
+    files: ['test/expected-exports.ts'],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',
     },

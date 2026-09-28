@@ -1,6 +1,5 @@
 import type { DirectusRequest } from './directus-request.js';
 
-import { installCheckpointPresets } from './checkpoint-presets.js';
 import {
   applySchemaConstraints,
   applySourceInvalidation,
@@ -14,9 +13,9 @@ import { installSnapshotFolder } from './flows/snapshot-folder.js';
 
 // What `npm run setup` installs, in order: the schema (realigning the
 // choices and validation of every declared enum), the database constraints
-// and source-invalidation triggers, the Studio presentation, the checkpoint
-// table views with the Search bookmark, the private folder of the Moodle
-// snapshot files, every registered Flow family through one loop
+// and source-invalidation triggers, the Studio presentation (its default
+// table views and bookmarks, the Search bookmark among them), the private
+// folder of the Moodle snapshot files, every registered Flow family through one loop
 // (registry.ts: automatic processing last, so the first tick of its
 // schedule finds every child), the Data operations dashboard whose panels
 // name those Flows, and the editor policy. Every step is idempotent;
@@ -32,7 +31,6 @@ export const runSetup = async (request: DirectusRequest) => {
   const constraints = await applySchemaConstraints(request);
   const invalidation = await applySourceInvalidation(request);
   const presentation = await installPresentation(request);
-  const presets = await installCheckpointPresets(request);
   const folders = await installSnapshotFolder(request);
   const flows = await installFlowFamilies(request);
   const dashboard = await installOperationsDashboard(request);
@@ -46,7 +44,6 @@ export const runSetup = async (request: DirectusRequest) => {
     folders,
     invalidation,
     presentation,
-    presets,
   };
 };
 

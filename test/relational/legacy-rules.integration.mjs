@@ -21,6 +21,7 @@ import {
   legacyEnrollmentFlowIds,
   mappedEnrollmentFlowIds,
 } from '../../src/flows/shared.js';
+import { expectedEnrollments } from '../expected-exports.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { seededRules } from '../legacy-enrollment-helpers.js';
 import {
@@ -61,7 +62,6 @@ import {
   installLegacyRunFlow,
   legacyRunFlowId,
   longHistory,
-  oracle,
   resultsPath,
   rulesPath,
   runEnrollments,
@@ -101,10 +101,14 @@ const mappedPairs = (state, [ma, mb]) => ({
   [`mb/${state.mappedYear}`]: mb,
 });
 
-// The installed counts must equal the checkpoint derivation of the seed
-// for every legacy pair, plus the two mapped pairs.
-const expectParity = async (target, state, seed = state.seed) => {
-  const expected = { ...(await oracle(seed)), ...mappedPairs(state, [2, 0]) };
+// The installed counts must equal the committed checkpoint counts of the
+// seed (test/fixtures/expected-exports/<case>/enrollments.json) for every
+// legacy pair, plus the two mapped pairs.
+const expectParity = async (target, state, name = 'legacy-rules') => {
+  const expected = {
+    ...(await expectedEnrollments(name)),
+    ...mappedPairs(state, [2, 0]),
+  };
   const installed = await installedCounts(target, state);
   assert.deepEqual(installed, expected);
   return expected;
@@ -324,7 +328,7 @@ const seeds = async (target, state) => {
 // One claim, one plan of both families, the mapped page through the Task
 // 11 page Flow, the legacy family through the installed parent, one
 // completion: every pair is installed, zeros included, and equals the
-// checkpoint derivation of the same seed.
+// committed checkpoint counts of the same seed.
 const countsBothFamilies = async (target, state, context) => {
   const started = performance.now();
   const run = await runEnrollments(target);
@@ -596,7 +600,7 @@ const expectVisibleFailure = async (target, state, { reason, run }) => {
 
 // A course whose name is not a valid Unicode expression seeds literal
 // default rules that do not compile: the run fails naming the first rule
-// id and course id, as the checkpoint derivation fails on that course.
+// id and course id.
 const refusesInvalidPattern = async (target, state) => {
   const before = await status(target);
   Object.assign(state, { completed: before.revisions.completed });
@@ -622,12 +626,6 @@ const refusesInvalidPattern = async (target, state) => {
   const named = invalidRule.exec(message)?.groups ?? {};
   assert.equal(Number(named.rule), created.data[0].id);
   assert.equal(Number(named.course), course);
-  await assert.rejects(
-    oracle({
-      ...state.seed,
-      courses: [...state.seed.courses, { key: 'cpp', name: 'C++ Course' }],
-    }),
-  );
   await remove(target, `/items/courses/${course}`);
   state.items = state.items.filter(
     ([collection, id]) => collection !== 'courses' || id !== course,
@@ -688,7 +686,8 @@ const refusesOverBudget = async (target, state) => {
 
 // Three histories of 300,000 bytes push the users past the byte budget:
 // the plan splits them into two history pages, each counted in its own
-// Run Script; the counts still equal the checkpoint derivation. Each large
+// Run Script; the counts still equal the committed checkpoint counts
+// (legacy-rules-split: the seed plus the three histories). Each large
 // history ends in a run of "a", so a pathological rule would time out on
 // both pages (see stopsAtFirstFailedPage).
 const bigHistory = historyOf(300_000, [
@@ -737,11 +736,7 @@ const splitsAtBudget = async (target, state, context) => {
     token: run.claim.token,
   });
   assert.equal(completed.installed, 122);
-  const seed = {
-    ...state.seed,
-    histories: [...state.seed.histories, big, big, big],
-  };
-  const expected = await expectParity(target, state, seed);
+  const expected = await expectParity(target, state, 'legacy-rules-split');
   assert.equal(expected['c3/2020/2021'], 3);
   Object.assign(state, { splitExpected: expected });
   context.diagnostic(JSON.stringify({ cells: timings }));
@@ -813,7 +808,7 @@ const installsZerosWithoutUsers = async (target, state) => {
   assert.equal(run.body.installed, 122);
   const installed = await installedCounts(target, state);
   assert.deepEqual(installed, {
-    ...(await oracle({ ...state.seed, histories: [] })),
+    ...(await expectedEnrollments('legacy-rules-empty')),
     ...mappedPairs(state, [0, 0]),
   });
   assert.ok(Object.values(installed).every((value) => value === 0));
@@ -896,7 +891,7 @@ test('counts legacy regex enrollment rules in bounded native Flows', async (t) =
         () => seeds(target, state),
       );
       await t.test(
-        'installs every pair of both families from one claim, equal to the checkpoint derivation',
+        'installs every pair of both families from one claim, equal to the committed checkpoint counts',
         (context) => countsBothFamilies(target, state, context),
       );
       await t.test(

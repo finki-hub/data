@@ -10,6 +10,7 @@ import { exportDefinitions } from '../../directus/extensions/directus-extension-
 import { publicationFlows } from '../../src/flows/prepare-public-assets.js';
 import { snapshotFolder } from '../../src/flows/snapshot-folder.js';
 import { runSetup } from '../../src/setup.js';
+import { expectedFiles } from '../expected-exports.js';
 import { privateSentinels } from '../fixtures/synthetic-data.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
@@ -28,7 +29,6 @@ import {
   convert,
   engineFiles,
   errorOf,
-  legacyAssets,
   prepare,
   readiness,
   restReader,
@@ -144,7 +144,7 @@ const seedsAndCounts = async ({ directus, t, target }) => {
   t.diagnostic(`seeded fixture settled after ${settled.elapsedMs} ms`);
 };
 
-const preparesLegacyFiles = async ({ state, t, target }) => {
+const preparesCommittedFiles = async ({ state, t, target }) => {
   const report = await status(target);
   const answer = await readiness(target);
   assertBounded(answer);
@@ -154,14 +154,14 @@ const preparesLegacyFiles = async ({ state, t, target }) => {
   const files = await prepared(target);
   assert.equal(files.revision, report.revisions.source);
   t.diagnostic(`prepared in ${files.elapsedMs} ms: ${JSON.stringify(files)}`);
-  const expected = await legacyAssets(target);
+  const expected = await expectedFiles('parity');
   for (const filename of publicFiles) {
-    const body = JSON.stringify(expected[filename.replace('.json', '')]);
+    const { body, sha256: digest } = expected[filename.replace('.json', '')];
     assert.deepEqual(digestOf(files, filename), {
       bytes: Buffer.byteLength(body, 'utf8'),
       filename,
       rows: JSON.parse(body).length,
-      sha256: sha256(body),
+      sha256: digest,
     });
     for (const sentinel of privateSentinels)
       assert.ok(!body.includes(sentinel));
@@ -337,16 +337,13 @@ const followsRenames = async ({ state, target }) => {
   const renamed = rows.find((row) => row.name === theta);
   assert.equal(renamed.professors, 'Prof. Theta Renamed');
   assert.equal(renamed['2023-code'], 'SYN23-007-R');
-  // No copied-field rebuild ran: the checkpoint course columns still hold
-  // the seeded values.
+  // Nothing fills the checkpoint copies of these values: they stay empty,
+  // so the renamed values came from the relations.
   const copied = await get(
     target,
     `/items/courses/${state.theta}?fields=professors,code_2023`,
   );
-  assert.deepEqual(copied, {
-    code_2023: 'SYN23-007',
-    professors: 'Prof. Theta',
-  });
+  assert.deepEqual(copied, { code_2023: null, professors: null });
   assert.deepEqual(
     rows.filter((row) => row.name !== theta),
     before.filter((row) => row.name !== theta),
@@ -469,8 +466,8 @@ test('projects relational data into the existing public assets', async (t) => {
           seedsAndCounts(context),
         );
         await t.test(
-          'is ready and prepares exactly the legacy files over the same rows',
-          () => preparesLegacyFiles(context),
+          'is ready and prepares exactly the committed parity files',
+          () => preparesCommittedFiles(context),
         );
         await t.test('lets administrators only check and prepare', () =>
           refusesNonAdministrators(context),

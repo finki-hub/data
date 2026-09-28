@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { searchBookmark } from '../src/checkpoint-presets.js';
 import { installPresentation } from '../src/data-model/presentation.js';
-import { curriculumBookmark } from '../src/data-model/presentation/presets.js';
+import {
+  curriculumBookmark,
+  searchBookmark,
+} from '../src/data-model/presentation/presets.js';
 import { runSetup } from '../src/setup.js';
 import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {

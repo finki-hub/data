@@ -21,7 +21,6 @@ import {
   validateReadinessFlow,
   validateReadinessFlowId,
 } from '../src/flows/validate-readiness.js';
-import { publicAssetsFlowId } from '../src/public-assets-flow.js';
 import { managedFlowIds } from './automatic-processing-helpers.js';
 
 const stepOf = (
@@ -109,14 +108,13 @@ describe('the publication Flows', () => {
     expect(exportsOperation).toBe(exportsOperationId);
   });
 
-  test('stand beside the checkpoint Publish public assets Flow under their own ids', () => {
+  test('take distinct ids of the publication family', () => {
     const ids = publicationFlows.flatMap(idsOf);
 
     expect(publicationFlows.map(({ id }) => id)).toEqual([
       validateReadinessFlowId,
       prepareAssetsFlowId,
     ]);
-    expect(ids).not.toContain(publicAssetsFlowId);
     expect(new Set(ids).size).toBe(ids.length);
     expect(
       ids.every((id) => id.startsWith('6a1d9f0e-2b3c-4d5e-8f70-0000000014')),

@@ -16,8 +16,8 @@ import {
   type SourceMapEntry,
   sourceMapEntrySchema,
 } from '../src/migrations/source-map.js';
+import { academicYears } from '../src/specs/public.js';
 import {
-  academicYears,
   makeSyntheticDataset,
   type SyntheticDataset,
   type SyntheticRow,

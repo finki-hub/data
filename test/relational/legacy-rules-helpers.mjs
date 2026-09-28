@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 
-import { deriveCourses } from '../../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 import { dispatcherFlowId } from '../../src/flows/count-enrollments.js';
 import { insertionOrder } from '../../src/flows/flow-template.js';
 import { academicYears } from '../../src/specs/public.js';
 import { makeSyntheticDataset } from '../fixtures/synthetic-data.js';
 import { get, patch, post, trigger } from './history-index-helpers.mjs';
 
-// Synthetic Flows, seeds and the oracle of the legacy rule fixture suite
+// Synthetic Flows and seeds of the legacy rule fixture suite
 // (legacy-rules.integration.mjs). The installed templates are operation
 // triggered; the synthetic manual "Synthetic enrollment run" takes one
 // enrollments claim and hands it to the installed dispatcher, which plans
@@ -21,9 +20,9 @@ export const resultsPath = '/items/data_operation_results';
 export const enrollmentsPath = '/items/course_enrollments';
 export const rulesPath = '/items/course_enrollment_rules';
 // The workbook-era academic years (src/specs/public.ts). The imported
-// rules name them by position and the checkpoint derivation (the oracle)
-// counts them, so the suite uses the list only where it tests the
-// imported rules; everything else names the year rows it created.
+// rules name them by position and the committed checkpoint counts key
+// them, so the suite uses the list only where it tests the imported
+// rules; everything else names the year rows it created.
 export const workbookYears = [...academicYears];
 
 // Filler lines of synthetic histories: 100 distinct short lines that match
@@ -171,30 +170,10 @@ export const runEnrollments = (target, body = {}) =>
     ...body,
   });
 
-// The checkpoint derivation over the seeded courses, patterns and
-// histories: the count of every course/year keyed "<course key>/<year>".
-export const oracle = async (seed) => {
-  const updates = await deriveCourses({
-    courseEnrollmentPatterns: seed.patterns,
-    courseEquivalencies: [],
-    courses: seed.courses.map(({ key, name }) => ({ id: key, name })),
-    curriculum2018: [],
-    curriculum2023: [],
-    moodleUsers: seed.histories.map((Courses) => ({ Courses })),
-    teachingAssignments: [],
-  });
-  const counts = {};
-  for (const update of updates) {
-    for (const year of workbookYears) {
-      counts[`${update.id}/${year}`] =
-        update[`enrollment_${year.replace('/', '_')}`];
-    }
-  }
-  return counts;
-};
-
-// The seed the checkpoint derivation sees: the Task 2 courses, pattern
-// rows and histories plus the long synthetic history.
+// The seed: the Task 2 courses, pattern rows and histories plus the long
+// synthetic history. The committed checkpoint counts of the suite
+// (test/fixtures/expected-exports/legacy-rules*/enrollments.json) key its
+// pairs "<course key>/<year>".
 export const baseSeed = () => {
   const dataset = makeSyntheticDataset();
   return {

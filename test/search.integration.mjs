@@ -71,7 +71,6 @@ const noDocker = {
   setting: () => assert.fail('no Docker command'),
 };
 const markerPattern = /Target marker must exist exactly once/u;
-const bucketPattern = /Set DIRECTUS_S3_TEST_BUCKET/u;
 const endpointPattern = /Set DIRECTUS_S3_TEST_ENDPOINT/u;
 const unknownS3Pattern = /Unknown S3 requirement/u;
 const directusContainerPattern = /Set the directus container/u;
@@ -88,7 +87,7 @@ const plainEnvironment = () =>
     ),
   );
 
-test('refuses an unmarked target, a partial S3 target and missing or unknown requirements before any write', async () => {
+test('refuses an unmarked target, a missing S3 target and missing or unknown requirements before any write', async () => {
   const environment = plainEnvironment();
   const accepted = await isolatedTargets(environment, {}, noDocker);
   assert.deepEqual(accepted.containers, { database: null, directus: null });
@@ -112,11 +111,6 @@ test('refuses an unmarked target, a partial S3 target and missing or unknown req
     DIRECTUS_SEARCH_TEST_URL: 'http://127.0.0.1:9',
   };
   const refusals = [
-    [
-      { ...unreachable, DIRECTUS_S3_TEST_ENDPOINT: 'http://127.0.0.1:9' },
-      { s3: 'optional' },
-      bucketPattern,
-    ],
     [unreachable, { s3: 'required' }, endpointPattern],
     [unreachable, { s3: 'sometimes' }, unknownS3Pattern],
     [unreachable, { containers: ['directus'] }, directusContainerPattern],

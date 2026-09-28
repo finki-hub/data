@@ -65,11 +65,12 @@ export type KeySource = SourceRead & {
   readonly title?: string;
 };
 
-// The closed vocabulary of public value forms, as the reference serializer
-// (directus/flows/serialize-assets.cjs) writes them: text as is, a number
-// as its decimal text, a numeric boolean as "1"/"0", any other boolean as
-// "TRUE"/"FALSE". Every rule omits null, undefined and ''; false and 0
-// are kept. A value of another type is refused, never converted.
+// The closed vocabulary of public value forms, as the checkpoint's files
+// (committed under test/fixtures/expected-exports) carry them: text as
+// is, a number as its decimal text, a numeric boolean as "1"/"0", any
+// other boolean as "TRUE"/"FALSE". Every rule omits null, undefined and
+// ''; false and 0 are kept. A value of another type is refused, never
+// converted.
 export const valueRules = [
   'text',
   'number',

@@ -9,10 +9,9 @@ export const exportsOperation = 'finki-hub-exports';
 const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 
 // The two hex digits of every managed Flow family, declared once: an id,
-// an operation and a failure branch accept only these codes (and the
-// checkpoint code below), and `flowFamilies` (registry.ts) installs
-// exactly these families. A new family is one code here and one registry
-// entry.
+// an operation and a failure branch accept only these codes, and
+// `flowFamilies` (registry.ts) installs exactly these families. A new
+// family is one code here and one registry entry.
 export const flowFamilyCodes = {
   automation: '13',
   history: '09',
@@ -27,23 +26,14 @@ export const flowFamilyCodes = {
 export type FlowFamilyCode =
   (typeof flowFamilyCodes)[keyof typeof flowFamilyCodes];
 
-// The code of the checkpoint Flows the workbook import installs once
-// (Rebuild derived data, Publish public assets). It is no managed family:
-// setup never installs it and the registry never lists it, until the
-// deferred cleanup removes it; its Flows are built from the same helpers.
-export const checkpointFamilyCode = '07';
-
-// Every code a deterministic id may carry.
-export type FlowIdCode = FlowFamilyCode | typeof checkpointFamilyCode;
-
 // A deterministic UUID: two hex digits name the Flow family, the suffix one
 // Flow or operation inside it.
-export const familyId = (family: FlowIdCode, suffix: string): string =>
+export const familyId = (family: FlowFamilyCode, suffix: string): string =>
   `${idPrefix}${family}${suffix}`;
 
 // The id maker of one family.
 export const familyIds =
-  (family: FlowIdCode) =>
+  (family: FlowFamilyCode) =>
   (suffix: string): string =>
     familyId(family, suffix);
 
@@ -73,10 +63,6 @@ export const rulesId = familyIds(flowFamilyCodes.rules);
 // The storage writer every published file goes through: the existing
 // publish-json operation, one single-entry filename map per call.
 export const publishJsonOperation = 'finki-hub-publish-json';
-
-// A deterministic UUID of the checkpoint Flows the workbook import installs
-// (Rebuild derived data, Publish public assets).
-export const checkpointFlowId = familyIds(checkpointFamilyCode);
 
 export type OperationTemplate = {
   readonly id: string;
@@ -110,7 +96,7 @@ export type OperationEdges = {
 export type OperationSpec = {
   readonly edges?: OperationEdges;
   // The Flow family the operation belongs to; its id carries the code.
-  readonly family: FlowIdCode;
+  readonly family: FlowFamilyCode;
   readonly key: string;
   readonly name: string;
   readonly options: Readonly<Record<string, unknown>>;

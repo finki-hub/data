@@ -405,30 +405,6 @@ describe('converter steps resume', () => {
   });
 });
 
-// A request whose POST responses for one collection hand back ids below the
-// rows' real ones, as a lagging id sequence would.
-const laggingSequence = (
-  prepared: Prepared,
-  collection: string,
-): DirectusRequest => {
-  const fake = fakeItemsDirectus(prepared.store);
-  return async (pathname, init) => {
-    const result = await fake.request(pathname, init);
-    if (
-      init?.method === 'POST' &&
-      pathname.startsWith(`/items/${collection}`) &&
-      Array.isArray(result)
-    ) {
-      return result.map((row: unknown) =>
-        typeof row === 'object' && row !== null && 'id' in row
-          ? { ...row, id: Number(row.id) - 1_000 }
-          : row,
-      );
-    }
-    return result;
-  };
-};
-
 const rowAt = (rows: readonly FakeItem[], index: number): FakeItem => {
   const row = rows[index];
   if (row === undefined) {
@@ -437,63 +413,9 @@ const rowAt = (rows: readonly FakeItem[], index: number): FakeItem => {
   return row;
 };
 
-const ledgerStatuses = (store: FakeStore) =>
-  rowsOf(store, ledgerCollection).map((row) => [row['step'], row['status']]);
-
-const belowOriginals = /at or below the last original assignment row/u;
-
-describe('role rows and the checkpoint derivation', () => {
-  test('a role row an earlier attempt wrote below the originals fails the assignments step before it writes', async () => {
-    const base = uniqueDataset();
-    const prepared = await prepare({
-      ...base,
-      teaching_assignments: [
-        {
-          id: 2,
-          course_name: 'Alpha Course',
-          professors: null,
-          assistants: null,
-          course: 1,
-          staff: null,
-          role: 'professor',
-          sort: 1,
-          display_override: 'Prof. Zed Alpha, Prof. Abe Alpha',
-          source_collection: 'teaching_assignments',
-          source_id: 21,
-        },
-        ...base.teaching_assignments.map((row) => ({
-          ...row,
-          id: row.id + 20,
-        })),
-      ],
-    });
-    const before = rowsOf(prepared.store, 'teaching_assignments').length;
-
-    await expect(runSteps(prepared)).rejects.toThrow(belowOriginals);
-
-    expect(ledgerStatuses(prepared.store)).toEqual([
-      ['curricula', 'completed'],
-      ['rules', 'completed'],
-      ['assignments', 'failed'],
-    ]);
-    expect(rowsOf(prepared.store, 'teaching_assignments')).toHaveLength(before);
-  });
-
-  test('ids handed back at or below the originals fail the assignments step instead of blanking the derivation', async () => {
-    const prepared = await prepare(uniqueDataset());
-
-    await expect(
-      runSteps(prepared, {
-        request: laggingSequence(prepared, 'teaching_assignments'),
-      }),
-    ).rejects.toThrow(belowOriginals);
-
-    expect(ledgerStatuses(prepared.store).at(-1)).toEqual([
-      'assignments',
-      'failed',
-    ]);
-  });
-
+// Role rows an interrupted run wrote are recognised by their source row
+// and role, whatever an editor changed in them before the resumed run.
+describe('role rows after an interruption', () => {
   test('a reorder and a resolved review row after an interruption never make the resumed run write a pair twice', async () => {
     const prepared = await prepare(
       withStaff(uniqueDataset(), ['Prof. Abe Alpha', 'Prof. Zed Alpha']),

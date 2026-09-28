@@ -5,12 +5,8 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 
-import {
-  checkpointPreset,
-  searchBookmark,
-} from '../../src/checkpoint-presets.js';
 import { findModelCollection } from '../../src/data-model/collections.js';
-import { derivedDataFlowId } from '../../src/derived-data-flow.js';
+import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { toApiField } from '../../src/directus.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
@@ -21,18 +17,13 @@ import { exitCodes } from '../../src/lifecycle.js';
 import { ledgerCollection } from '../../src/migrations/ledger-claim.js';
 import { runMigrationCli } from '../../src/migrations/run.js';
 import { collectionSpecs } from '../../src/model.js';
-import { publicAssetsFlowId } from '../../src/public-assets-flow.js';
 import { runSetup } from '../../src/setup.js';
 import { countMigrationData, loadWorkbook } from '../../src/workbook.js';
 import {
   lifecycleDataset,
   syntheticWorkbook,
 } from '../fixtures/synthetic-workbook.js';
-import { isolatedTargets } from '../isolated-target.mjs';
-import {
-  publishesAsAdministrator,
-  refusesEditor,
-} from './checkpoint-flows-helpers.mjs';
+import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
   destroyDataModel,
@@ -56,13 +47,9 @@ const stepNames = [
   'council',
   'equivalencies',
 ];
-const checkpointFlowIds = [derivedDataFlowId, publicAssetsFlowId];
 // Every Flow setup installs: the registered families, in install order.
 const setupFlows = flowTemplates();
-const templateFlowIds = new Set([
-  ...checkpointFlowIds,
-  ...setupFlows.map(({ id }) => id),
-]);
+const templateFlowIds = new Set(setupFlows.map(({ id }) => id));
 const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
 const nothingSentPattern = /Nothing was sent to Directus\.$/u;
 const migrationEndpointPattern = /^\/finki-hub-data-operations\/migrations\//u;
@@ -125,9 +112,9 @@ const cliIo = (runToken) => {
   const io = {
     createRequest: (config) => {
       const real = createDirectusRequest(config);
-      return (pathname, init, mode) => {
+      return (pathname, init) => {
         calls.push({ method: init?.method ?? 'GET', pathname });
-        return real(pathname, init, mode);
+        return real(pathname, init);
       };
     },
     now: () => clockValue,
@@ -401,7 +388,6 @@ const assertImported = async (target, context, summary) => {
     completed: stepNames,
     skipped: [],
   });
-  assert.equal(summary.rebuild.courses, data.courses.length);
   for (const [collection, rows] of Object.entries(summary.rows)) {
     assert.equal(await count(target, collection), rows);
   }
@@ -419,26 +405,8 @@ const assertImported = async (target, context, summary) => {
   );
 };
 
-// The old derivation ran once over the imported rows: professors from the
-// first assignment row or the override, council names from the students.
-const assertRebuilt = async (target) => {
-  const courses = await list(target, 'courses', ['name', 'professors']);
-  const professors = new Map(courses.map((row) => [row.name, row.professors]));
-  assert.equal(
-    professors.get('Alpha Course'),
-    'Prof. Zed Alpha, Prof. Abe Alpha',
-  );
-  assert.equal(professors.get('Beta Course'), 'Prof. Beta Override');
-  const council = await list(target, 'student_council', [
-    'index_number',
-    'name',
-  ]);
-  assert.equal(
-    council.find((row) => row.index_number === 'SYN-0002').name,
-    'Synthetic Student Two',
-  );
-};
-
+// Every shared preset the presentation declares exists once: the default
+// views, the bookmarks and Search.
 const assertPresets = async (target) => {
   const presets = await get(
     target,
@@ -447,21 +415,16 @@ const assertPresets = async (target) => {
   const global = presets.filter(
     ({ role, user }) => user === null && role === null,
   );
-  for (const spec of collectionSpecs) {
+  for (const { bookmark, collection } of presetDefinitions) {
     assert.equal(
       global.filter(
-        ({ bookmark, collection }) =>
-          collection === spec.key && bookmark === null,
+        (preset) =>
+          preset.collection === collection && preset.bookmark === bookmark,
       ).length,
       1,
-      `${spec.key} has one default view`,
+      `${collection} ${bookmark ?? 'default view'} exists once`,
     );
   }
-  assert.equal(
-    global.filter(({ bookmark }) => bookmark === searchBookmark.bookmark)
-      .length,
-    1,
-  );
 };
 
 const importConverts = async (target, context) => {
@@ -472,14 +435,11 @@ const importConverts = async (target, context) => {
   await pauseAutomaticProcessing(target);
   const summary = aggregateOnly(run.stdout[0]);
   await assertImported(target, context, summary);
-  await assertRebuilt(target);
   await assertPresets(target);
   assert.deepEqual(
-    run.calls
-      .filter(({ pathname }) => pathname.startsWith('/flows/trigger/'))
-      .map(({ pathname }) => pathname),
-    [`/flows/trigger/${derivedDataFlowId}`],
-    'the import rebuilds once and never publishes',
+    run.calls.filter(({ pathname }) => pathname.startsWith('/flows/trigger/')),
+    [],
+    'the import runs no Flow and never publishes',
   );
   const normalized = await normalizedTargets(target);
   for (const [collection, rows] of Object.entries(normalized)) {
@@ -508,27 +468,25 @@ const upgradeSeesConversionDone = async (target, context) => {
   assert.deepEqual(applied.written, {});
 };
 
-// Studio-style edits: a Flow option of the Rebuild Flow and of the Mark
-// pending template, and the icon of the Search bookmark.
+// Studio-style edits: a Flow option of the Mark pending template and the
+// icon of the Search bookmark.
 const editInStudio = async (target) => {
-  for (const id of [derivedDataFlowId, markPendingFlowId]) {
-    const [flow] = await get(
+  const [flow] = await get(
+    target,
+    `/flows?fields=id,options&filter[id][_eq]=${markPendingFlowId}`,
+  );
+  await read(
+    await request(
       target,
-      `/flows?fields=id,options&filter[id][_eq]=${id}`,
-    );
-    await read(
-      await request(
-        target,
-        `/flows/${id}`,
-        json(
-          'PATCH',
-          { options: { ...flow.options, requireConfirmation: false } },
-          target.token,
-        ),
+      `/flows/${markPendingFlowId}`,
+      json(
+        'PATCH',
+        { options: { ...flow.options, requireConfirmation: false } },
+        target.token,
       ),
-      200,
-    );
-  }
+    ),
+    200,
+  );
   const [search] = await get(
     target,
     '/presets?fields=id&filter[bookmark][_eq]=Search&limit=1',
@@ -558,7 +516,11 @@ const setupPreservesStudioEdits = async (target, directus) => {
     flowFamilies.map(({ code }) => [code, []]),
   );
   assert.equal(summary.fields.aligned, 0);
-  assert.deepEqual(summary.presets, { created: 0, skipped: 14 });
+  assert.deepEqual(summary.presentation.presets, {
+    adopted: 0,
+    created: 0,
+    skipped: presetDefinitions.length,
+  });
   assert.ok(
     recorder
       .mutations()
@@ -568,7 +530,7 @@ const setupPreservesStudioEdits = async (target, directus) => {
   assert.deepEqual(await studioSnapshot(target), before);
   const [edited] = await get(
     target,
-    `/flows?fields=options&filter[id][_eq]=${derivedDataFlowId}`,
+    `/flows?fields=options&filter[id][_eq]=${markPendingFlowId}`,
   );
   assert.equal(edited.options.requireConfirmation, false);
 };
@@ -591,8 +553,8 @@ const secondImportRefused = async (target, context) => {
 };
 
 // The project the checkpoint importer left behind: its thirteen
-// collections, table views and Search bookmark, holding the same workbook
-// rows, with no relational collection.
+// collections holding the same workbook rows, with no relational
+// collection.
 const createCheckpointProject = async (target, data) => {
   for (const spec of collectionSpecs) {
     await read(
@@ -617,23 +579,7 @@ const createCheckpointProject = async (target, data) => {
       ),
       200,
     );
-    await read(
-      await request(
-        target,
-        '/presets',
-        json('POST', checkpointPreset(spec).body, target.token),
-      ),
-      200,
-    );
   }
-  await read(
-    await request(
-      target,
-      '/presets',
-      json('POST', searchBookmark.body, target.token),
-    ),
-    200,
-  );
   for (const spec of collectionSpecs) {
     const rows = data[spec.key];
     for (let start = 0; start < rows.length; start += 250) {
@@ -653,9 +599,8 @@ const upgradeMatchesImport = async (target, directus, context) => {
   await destroyDataModel(target);
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
   await createCheckpointProject(target, context.data);
-  const setup = await runSetup(directus);
+  await runSetup(directus);
   await pauseAutomaticProcessing(target);
-  assert.deepEqual(setup.presets, { created: 0, skipped: 14 });
   await assert.rejects(access(context.absent), 'the workbook is absent');
   const { applied, report } = await upgrade(target, context, 'old-schema');
   assert.equal(report.migratable, true);
@@ -685,13 +630,12 @@ const setupThenImport = async (target, directus, context) => {
   const run = importCli(target, context.workbook);
   assert.equal(await run.run(), exitCodes.ok, run.stderr.join('\n'));
   const summary = aggregateOnly(run.stdout[0]);
-  assert.deepEqual(summary.setup.presets, { created: 0, skipped: 14 });
-  assert.deepEqual(summary.flows, {
-    created: [],
-    skipped: ['Rebuild derived data', 'Publish public assets'],
+  assert.deepEqual(summary.setup.presentation.presets, {
+    adopted: 0,
+    created: 0,
+    skipped: presetDefinitions.length,
   });
   await assertImported(target, context, summary);
-  await assertRebuilt(target);
   assert.deepEqual(
     await normalizedTargets(target),
     context.runs.get('imported'),
@@ -741,12 +685,12 @@ const restoreFlows = async (target, before) => {
   );
 };
 
-const scenarios = async (t, { context, directus, s3, target }) => {
+const scenarios = async (t, { context, directus, target }) => {
   await t.test('a malformed workbook aborts before Directus is contacted', () =>
     badWorkbookAborts(target, context),
   );
   await t.test(
-    'an import into the marker-only project installs the model, converts through the ledger and rebuilds',
+    'an import into the marker-only project installs the model and converts through the ledger',
     async () => {
       context.runs.set('imported', await importConverts(target, context));
     },
@@ -763,15 +707,6 @@ const scenarios = async (t, { context, directus, s3, target }) => {
     secondImportRefused(target, context),
   );
   await t.test(
-    'the checkpoint Flows the import installed refuse a Data editor with 403 before any write, and the administrator still rebuilds',
-    (subtest) => refusesEditor({ s3, t: subtest, target }),
-  );
-  await t.test(
-    'the administrator still publishes through the checkpoint Publish public assets',
-    { skip: s3 === null && 'needs the S3 variables (DIRECTUS_S3_TEST_*)' },
-    (subtest) => publishesAsAdministrator({ s3, t: subtest, target }),
-  );
-  await t.test(
     'an equivalent checkpoint project upgrades to the same relational rows without the workbook',
     () => upgradeMatchesImport(target, directus, context),
   );
@@ -782,9 +717,8 @@ const scenarios = async (t, { context, directus, s3, target }) => {
 };
 
 test('separates fresh setup, the one-time workbook import and populated upgrades on the fixture', async (t) => {
-  // The S3 target is optional: without it the administrator's checkpoint
-  // publication is skipped and the editor's refusal checks no bucket.
-  const { s3, target } = await isolatedTargets(process.env, { s3: 'optional' });
+  const target = targetFrom(process.env);
+  await assertMarkerPresent(target);
   const directus = adminRequest(target);
   const directory = await mkdtemp(
     path.join(os.tmpdir(), 'relational-lifecycle-'),
@@ -815,7 +749,7 @@ test('separates fresh setup, the one-time workbook import and populated upgrades
     };
     await withDataModel(target, async () => {
       try {
-        await scenarios(t, { context, directus, s3, target });
+        await scenarios(t, { context, directus, target });
       } finally {
         await t.test(
           'removes the Flows it created and restores the ones it edited',

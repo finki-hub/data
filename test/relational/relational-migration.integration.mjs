@@ -4,8 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { deriveCourses } from '../../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
-import serializeAssets from '../../directus/flows/serialize-assets.cjs';
 import {
   applySchemaConstraints,
   applySourceInvalidation,
@@ -228,8 +226,8 @@ const counts = async (target) => {
 };
 
 // The scalar columns of every checkpoint row (the spec columns, never the
-// link columns the migration sets), the four public serializations and the
-// source fingerprint: everything the migration must leave as it found it.
+// link columns the migration sets) and the source fingerprint: everything
+// the migration must leave as it found it.
 const checkpointSnapshot = async (target, directus) => {
   const rows = {};
   for (const collection of collectionKeys) {
@@ -241,12 +239,6 @@ const checkpointSnapshot = async (target, directus) => {
   return {
     fingerprint: fingerprintInventory(await readInventory(directus, {})),
     rows,
-    serialized: serializeAssets({
-      read_courses: rows.courses,
-      read_rooms: rows.rooms,
-      read_staff: rows.staff,
-      read_students: rows.students,
-    }),
   };
 };
 
@@ -682,7 +674,6 @@ const assertAssignments = async (target) => {
     originals.every((row) => row.course === null),
     'original rows keep their text and gain no link',
   );
-  return { assignments, originals };
 };
 
 const assertLinks = async (target) => {
@@ -748,19 +739,10 @@ const assertLinks = async (target) => {
   );
 };
 
-// The old rows, the four public serializations and the fingerprint are as
-// they were before the apply, and the checkpoint derivation, run over the
-// fixture as it is now, still displays the original text rows because every
-// role row has a higher id.
-const assertUntouched = async (target, directus, runs) => {
-  const { assignments, before, originals } = runs;
+// The old rows and the fingerprint are as they were before the apply.
+const assertUntouched = async (target, directus, before) => {
   const snapshot = await checkpointSnapshot(target, directus);
   assert.equal(snapshot.fingerprint, before.fingerprint);
-  assert.deepEqual(
-    snapshot.serialized,
-    before.serialized,
-    'the four public serializations are unchanged',
-  );
   for (const collection of collectionKeys) {
     const rows =
       collection === 'teaching_assignments'
@@ -772,20 +754,6 @@ const assertUntouched = async (target, directus, runs) => {
       `${collection} scalar columns unchanged`,
     );
   }
-  const sources = {
-    courseEnrollmentPatterns: snapshot.rows.course_enrollment_patterns,
-    courseEquivalencies: snapshot.rows.course_equivalencies,
-    courses: snapshot.rows.courses,
-    curriculum2018: snapshot.rows.curriculum_2018,
-    curriculum2023: snapshot.rows.curriculum_2023,
-    moodleUsers: snapshot.rows.moodle_users,
-    teachingAssignments: originals,
-  };
-  assert.deepEqual(
-    await deriveCourses({ ...sources, teachingAssignments: assignments }),
-    await deriveCourses(sources),
-    'the old derivation is unchanged by the role rows',
-  );
 };
 
 const applyResumesWithoutDuplicates = async (target, directus, runs) => {
@@ -830,9 +798,9 @@ const applyResumesWithoutDuplicates = async (target, directus, runs) => {
   });
   const { alphaCurrent, entries } = await assertEntriesAndLinks(target);
   await assertRules(target);
-  const { assignments, originals } = await assertAssignments(target);
+  await assertAssignments(target);
   await assertLinks(target);
-  await assertUntouched(target, directus, { assignments, before, originals });
+  await assertUntouched(target, directus, before);
   const again = cli(target);
   assert.equal(
     await again.run(applyWith(second.report, receipt)),

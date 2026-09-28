@@ -28,6 +28,7 @@ import {
   presetDefinitions,
   presetDefinitionsFor,
   reviewPresets,
+  searchBookmark,
 } from '../src/data-model/presentation/presets.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import {
@@ -43,7 +44,6 @@ import {
   bookmarkNames,
   effectiveFieldMeta,
   freshState,
-  resolves,
   reviewBody,
   reviewedBy,
   withExtraCheck,
@@ -213,12 +213,6 @@ const changesBaseline = (patch: (typeof presentationFieldPatches)[number]) => {
       JSON.stringify(baseline[key] ?? null) !== JSON.stringify(value),
   );
 };
-
-const unresolvedPresetPaths = presetDefinitions.flatMap((preset) =>
-  [...preset.layout_query.tabular.fields, ...preset.layout_query.tabular.sort]
-    .filter((path) => !resolves(preset.collection, path))
-    .map((path) => `${preset.collection}: ${path}`),
-);
 
 const byShape = (
   writes: readonly RecordedRequest[],
@@ -447,9 +441,9 @@ describe('field presentation', () => {
     ).toEqual([]);
   });
 
-  test('keeps the copied council name visible but read-only beside the linked student', () => {
+  test('hides the copied council name nothing fills any more, beside the linked student', () => {
     expect(effectiveFieldMeta('student_council', 'name')).toMatchObject({
-      hidden: false,
+      hidden: true,
       readonly: true,
     });
     expect(effectiveFieldMeta('student_council', 'student')).toMatchObject({
@@ -573,72 +567,6 @@ describe('navigation', () => {
   });
 });
 
-describe('presets', () => {
-  test('defines one curriculum bookmark, narrowed by the native generation filter, and none per generation', () => {
-    expect(curriculumBookmark).toMatchObject({
-      bookmark: 'Curriculum by generation',
-      collection: 'curriculum_entries',
-      filter: null,
-      role: null,
-      user: null,
-    });
-    expect(curriculumBookmark.layout_query.tabular.sort).toEqual([
-      'generation',
-      'catalog_order',
-    ]);
-    expect(curriculumBookmark.layout_query.tabular.fields[0]).toBe(
-      'generation',
-    );
-    expect(
-      presetDefinitions.filter(
-        ({ bookmark, collection }) =>
-          collection === 'curriculum_entries' && bookmark !== null,
-      ),
-    ).toEqual([curriculumBookmark]);
-    // No bookmark names a generation row: a new row needs none.
-    expect(
-      presetDefinitions.filter(({ filter }) =>
-        JSON.stringify(filter ?? {}).includes('"generation":{"_eq"'),
-      ),
-    ).toEqual([]);
-  });
-
-  test('declares no shared bookmark beyond the curriculum one and the registry review views', () => {
-    expect(
-      presetDefinitions.filter(({ bookmark }) => bookmark !== null),
-    ).toEqual([curriculumBookmark, ...reviewPresets()]);
-  });
-
-  test('keeps the imported per-generation columns out of the default Courses view', () => {
-    const courses = presetDefinitions.find(
-      ({ bookmark, collection }) =>
-        bookmark === null && collection === 'courses',
-    );
-
-    expect(courses?.layout_query.tabular.fields).toEqual([
-      'name',
-      'tags',
-      'curricula',
-      'assignments',
-    ]);
-  });
-
-  test('lists only fields that exist on the collection or its relation targets', () => {
-    expect(unresolvedPresetPaths).toEqual([]);
-
-    const defaults = presetDefinitions.filter(
-      ({ bookmark }) => bookmark === null,
-    );
-
-    expect(new Set(defaults.map(({ collection }) => collection)).size).toBe(
-      defaults.length,
-    );
-    expect(defaults.map(({ collection }) => collection)).not.toContain(
-      'data_operations',
-    );
-  });
-});
-
 describe('the Needs review bookmarks', () => {
   test('are exactly the registry entries that carry a review, one each, on the page of the check', async () => {
     const { request, requests } = fakeDirectus(freshState());
@@ -652,6 +580,7 @@ describe('the Needs review bookmarks', () => {
     expect(createdBookmarks(mutations(requests))).toEqual([
       curriculumBookmark.bookmark,
       ...reviewedBy(readinessRegistry).map(({ bookmark }) => bookmark),
+      searchBookmark.bookmark,
     ]);
     expect(installed.length).toBeGreaterThan(2);
     expect(installed.map(({ bookmark }) => bookmark)).toContain(

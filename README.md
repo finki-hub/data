@@ -28,7 +28,6 @@ Contents:
 - [Backup and restore](#backup-and-restore)
 - [Sizing](#sizing)
 - [Extending](#extending): the one place each growing set is declared
-- [Checkpoint derivation and publication (slated for removal)](#checkpoint-derivation-and-publication-slated-for-removal)
 - [Development and tests](#development-and-tests)
 
 ## Supported paths
@@ -37,8 +36,8 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, default table views, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view), a table view per checkpoint collection, the **Search** bookmark, the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing), the **Data operations** dashboard and the **Data editor** policy. Writes no records, but once it has run the schedule keeps the derived data current on its own. |
-| New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty and no checkpoint Rebuild or Publish Flow exists under another id, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection editors browse, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing), the **Data operations** dashboard and the **Data editor** policy. Writes no records, but once it has run the schedule keeps the derived data current on its own. |
+| New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
 `npm run migrate`, the in-place upgrade of a project that already holds
@@ -212,22 +211,13 @@ application collection (the checkpoint collections the workbook fills, the
 relational collections, the Moodle staging and index collections, the
 migration ledger) holds a record, and prints the record count of each; the
 empty schema `npm run setup` creates, including its coordination status row,
-is accepted. It also refuses a project that holds a Flow running the
-checkpoint derivation or publication (an operation of type
-`finki-hub-rebuild-derived-data` or `finki-hub-publish-json`) under an id
-other than the import's own, for example an emptied old deployment, instead
-of installing a second **Rebuild derived data** and **Publish public assets**
-beside it; the message lists those Flows. On an accepted project it:
+is accepted. On an accepted project it:
 
 1. runs exactly what `npm run setup` runs, so importing into an empty project
    equals setup followed by the import;
-2. installs the checkpoint **Rebuild derived data** and **Publish public
-   assets** Flows once, under stable ids (an existing Flow with that id is
-   left as it is; both are slated for removal, see
-   [Checkpoint derivation and publication](#checkpoint-derivation-and-publication-slated-for-removal));
-3. writes the workbook's source rows into the checkpoint collections in
+2. writes the workbook's source rows into the checkpoint collections in
    batches of 250 (see [What the workbook fills](#what-the-workbook-fills));
-4. converts those rows into the relational collections through the
+3. converts those rows into the relational collections through the
    migration ledger. The academic years it seeds are the ones the
    **Слушатели** sheet heads, in its order (published, the oldest sorting
    first), with one fallback `legacy_regex` rule per course and year. The
@@ -239,8 +229,9 @@ beside it; the message lists those Flows. On an accepted project it:
    curriculum generations and study programs it seeds come from the
    curriculum sheets (their program columns); the generations with a
    curriculum sheet and their programs are published, the label-only 2013
-   generation is not;
-5. runs **Rebuild derived data** once. It never publishes.
+   generation is not.
+
+It runs no Flow and never publishes.
 
 The import is not one transaction, and its check for an empty project and
 its first write are not atomic against another writer: let nobody write to
@@ -248,10 +239,10 @@ the project while it runs.
 
 If the preflight finds an ambiguous relationship that blocks the relational
 conversion (for example a council index shared by two students), the rows
-and the workbook's academic years stay imported and the derivation still
-runs, but the rest of the relational conversion is skipped and the command
-exits with code 3. Resolve the listed findings in Studio, then finish with
-`npm run migrate` (see
+and the workbook's academic years stay imported, but the rest of the
+relational conversion is skipped and the command exits with code 3.
+Resolve the listed findings in Studio, then finish with `npm run migrate`
+(see
 [Upgrading a populated project](#upgrading-a-populated-project-slated-for-removal)),
 which converts the academic years the project holds (so every year the
 workbook named).
@@ -267,30 +258,13 @@ and the message names the phase and the one way to finish:
   every application record (the empty schema may stay), then import again.
   Do not upgrade the partial rows with `npm run migrate`.
 - **While converting:** every row was written. Finish with `npm run migrate`
-  (dry-run, then apply), whose ledger resumes the conversion, then run
-  **Rebuild derived data** from Studio, since the initial rebuild did not
-  run. If the academic years themselves were not all written (the message
-  says so), the upgrade would miss the ones not written: restore the
-  pre-import backup or remove every application record, then import
-  again.
-- **While rebuilding:** run **Rebuild derived data** from Studio. If the
-  conversion was blocked, the message lists the findings; resolve them and
-  finish with `npm run migrate`.
+  (dry-run, then apply), whose ledger resumes the conversion. If the
+  academic years themselves were not all written (the message says so),
+  the upgrade would miss the ones not written: restore the pre-import
+  backup or remove every application record, then import again.
 
-The import installs **Publish public assets** before it writes the first
-row, as an active manual Flow on `courses`, `rooms`, `staff` and `students`.
-It reads with full rights, skips readiness and the export definitions, and
-writes every checkpoint file into the publish location, so never run it.
-Directus lets any user who may read one of those collections trigger it,
-but like every managed manual Flow it starts with the `Administrator?`
-condition and refuses everyone else with 403 (`Only administrators may
-publish the public files.`) before it reads anything; **Rebuild derived
-data** does the same (`Only administrators may rebuild the derived
-data.`), and the import runs it with the administrator token it was
-given. Publish through **Publish / Public assets (relational)** once
-readiness passes (see [Publishing](#publishing)). The relational
-publication does not need the checkpoint Flow: it writes through the
-**Publish JSON files** operation itself.
+Publish through **Publish / Public assets (relational)** once readiness
+passes (see [Publishing](#publishing)).
 
 There is no update, merge, reconciliation, or ongoing Google Sheets
 synchronization mode. After the import, Directus is the source of truth.
@@ -561,18 +535,21 @@ database guards the table and what the **Data editor** policy grants:
 Retired fields are hidden pending cleanup approval, never silently deleted:
 
 - The course form ends with two collapsed, read-only groups: the columns the
-  checkpoint derivation computes (**Legacy Calculated**), which no published
-  file reads, and the six per-generation columns of the workbook
-  (`name_2023`, `credits_2023`, `available_2023`, `name_2018_override`,
-  `credits_2018`, `available_2018`, **Legacy Import**), which the import
-  copied once into the curriculum links. The default Courses view shows the
-  relational fields instead. An administrator can still clear an imported
-  value through the API when dropping it from the public file is intended
-  (see `curriculum_value_unlinked` under
+  checkpoint derivation computed (**Legacy Calculated**), which nothing
+  fills or publishes any more, and the six per-generation columns of the
+  workbook (`name_2023`, `credits_2023`, `available_2023`,
+  `name_2018_override`, `credits_2018`, `available_2018`, **Legacy
+  Import**), which the import copied once into the curriculum links. The
+  default Courses view shows the relational fields instead. An
+  administrator can still clear an imported value through the API when
+  dropping it from the public file is intended (see
+  `curriculum_value_unlinked` under
   [Readiness](#readiness-and-needs-review-views)).
 - `teaching_assignments` keeps each original text row with its imported
   labels in a collapsed group, beside the role-bearing rows the conversion
-  adds; `student_council` keeps the copied `name` beside the student link;
+  adds; `student_council` keeps its copied `name` hidden, since nothing
+  fills it any more (the linked student names a member, the index labels an
+  unlinked one);
   `course_equivalencies` keeps its per-generation label columns beside its
   members.
 - The checkpoint collections and columns stay in the database until a
@@ -1080,11 +1057,7 @@ To put another operation on the dashboard, see
 
 Publication is manual and administrator-only: nothing is published
 automatically, and nothing becomes public except through a declared
-export definition (see [Extending](#a-key-or-a-new-published-file)). The
-only other writer is the checkpoint **Publish public assets** Flow on a
-project filled by the workbook import, which refuses every
-non-administrator and must not be run (see
-[Checkpoint derivation and publication](#checkpoint-derivation-and-publication-slated-for-removal)).
+export definition (see [Extending](#a-key-or-a-new-published-file)).
 
 **Every publication replaces the objects the public consumers read.** The
 publish location is the live bucket once `STORAGE_PUBLISH_*` names it, and
@@ -1238,9 +1211,6 @@ these when editing:
   Run enrollment family**, the relational filter shape of the count query
   (see [Mapped enrollment counts](#enrollment-counts-from-explicit-mappings))
   and the first `Administrator?` condition of every manual Flow.
-- Never delete the checkpoint **Rebuild derived data** or **Publish public
-  assets** Flow of an imported project to refresh it: no command reinstalls
-  them on a project that holds data. Both are slated for removal.
 
 ### Activity rows, retention and caching
 
@@ -1288,15 +1258,6 @@ The private endpoints of the extensions check the caller:
   `Administrator?` condition: import, promotion, publication,
   recalculation and rule seeding are administrator-only, whoever can see a
   button.
-- The two checkpoint Flows the workbook import installs, **Rebuild derived
-  data** and **Publish public assets** (see
-  [Checkpoint derivation and publication](#checkpoint-derivation-and-publication-slated-for-removal)),
-  are manual Flows on source collections whose operations run with full
-  rights, so Directus lets anyone who may read one of those collections
-  trigger them, a **Data editor** included. Each starts with the same
-  `Administrator?` condition and refuses everyone else with 403 before it
-  reads or writes anything, so the rebuild and the checkpoint publication
-  are administrator-only too.
 
 The **Data editor** policy that `npm run setup` installs is derived from
 the collection roles (`src/editor-policy.ts`) and kept equal to that
@@ -1647,8 +1608,9 @@ publication order, and a definition module (today `courses.ts`, `rooms.ts`,
   `enrollmentCount`) and its value rule: `text` (as is), `number` (its
   decimal text), `numeric_boolean` (`"1"`/`"0"`) or `boolean`
   (`"TRUE"`/`"FALSE"`); every rule omits null, undefined and `''` and keeps
-  `false` and `0`, as `directus/flows/serialize-assets.cjs` does. The map is
-  the file's whole allowlist: no other key can be published;
+  `false` and `0`, as the checkpoint's files committed under
+  `test/fixtures/expected-exports` do. The map is the file's whole
+  allowlist: no other key can be published;
 - `maxBytes`, the size bound of the compact JSON.
 
 A key the data decides comes from a key source (`exports/key-sources.ts`, a
@@ -1677,7 +1639,9 @@ To change a file or add one:
    key with its rule. When the file needs data that must be complete
    first, add a readiness check that gates it (below).
 2. Update the expected output in the tests: `test/relational-export.test.ts`
-   pins today's declared files to the reference serializer, and
+   pins today's declared files byte for byte to the checkpoint's files
+   committed under `test/fixtures/expected-exports` (with their
+   `SHA256SUMS`; `test/expected-exports.ts` reads them), and
    `test/export-definitions.test.ts` shows a new definition end to end.
 3. `npm run build:operations`, then restart Directus.
 
@@ -1822,40 +1786,6 @@ the coordinator's actions and domains (`coordination/domains.ts`), the
 value-rule vocabulary of the export definitions, the Search allowlist and
 the scraper header set. Nothing here is a general rules language.
 
-## Checkpoint derivation and publication (slated for removal)
-
-The workbook import still installs the checkpoint model's two Flows, both
-kept only until a separately approved cleanup removes them:
-
-- **Rebuild derived data** (active, manual, on the source collections,
-  administrators only) runs once at the end of the import and recomputes
-  the checkpoint's calculated course columns (the **Legacy Calculated**
-  group) and the council members' copied names from the checkpoint
-  collections. No published file reads them, so it never needs to run for
-  publication; the import's exit 4 messages still name it as a step of
-  finishing an interrupted import. Its calculated fields are read-only in
-  Studio so their source remains unambiguous.
-- **Publish public assets** (active, manual, on the collections the
-  checkpoint published, administrators only) serializes the checkpoint
-  columns into the files the checkpoint knew (`courses.json`,
-  `rooms.json`, `staff.json`, `students.json`) and ignores the export
-  definitions and readiness. **Do not run it**: it would replace the
-  public files with checkpoint data. Publish through **Publish / Public
-  assets (relational)** (see [Publishing](#publishing)).
-
-Both start with the `Administrator?` condition of every managed manual
-Flow. Anyone who may read one of their collections, a **Data editor**
-included, passes the trigger endpoint, and the Flow then refuses them with
-403 (`Only administrators may rebuild the derived data.`, `Only
-administrators may publish the public files.`) before it reads or writes
-anything (see [Access](#access)).
-
-`npm run setup` installs neither, and no command can reinstall either on a
-project that holds data, so never delete one to refresh it. The storage
-writer of the checkpoint Publish, **Publish JSON files**
-(`finki-hub-publish-json`), stays: the relational publication uses it
-too.
-
 ## Development and tests
 
 Fixture-free checks, which need no Directus:
@@ -1873,13 +1803,13 @@ The fixture suites run against a disposable Directus only, never a project
 holding data. None has a default target or reads `.env`; each validates its
 target before its first request, and a suite refuses to run without a
 container, S3 target or browser it requires (only the optional subtests
-of `npm run test:relational`, which need a container or the S3 target,
-are reported as skipped). The
-target is a licensed Directus built from this repository (the local image
-with the extensions mounted), reachable on loopback, that holds a marker
-collection and, between runs, nothing of the data model: the
-suites install the model through setup themselves and tear it down
-afterwards, and refuse a target that already carries a model collection.
+of `npm run test:relational`, which need a container, are reported as
+skipped). The target is a licensed Directus built from this repository
+(the local image with the extensions mounted), reachable on loopback,
+that holds a marker collection and, between runs, nothing of the data
+model: the suites install the model through setup themselves and tear it
+down afterwards, and refuse a target that already carries a model
+collection.
 The managed Flow templates stay installed across teardowns (a suite that
 edits one restores it), and a suite that drives the coordinator by hand
 pauses **Data / Process pending** while it runs. Give the test project a
@@ -1931,7 +1861,7 @@ bucket name and any value naming `amazonaws.com` or
 | --- | --- | --- |
 | `npm run test:csv` | `test/directus-csv-import.integration.mjs`: creates a uniquely named hidden collection, imports generated Cyrillic, CJK and emoji text across CSV read boundaries through the native importer, checks every value and deletes the collection. It reads and changes nothing else. | nothing |
 | `npm run test:search` | `test/search.integration.mjs` and `test/search-relational.integration.mjs`: Search and its permissions over generated users and the relational aliases. | nothing |
-| `npm run test:relational` | Every `test/relational/*.integration.mjs` scenario in turn; `npm run test:relational -- --scenario <name>` runs one (an unknown name lists the known ones and exits 2). | optionally the containers, bound to the target before the first scenario (the database container only together with the Directus one): without them the restart and database-statistics subtests are reported as skipped; optionally the S3 variables: without them the `lifecycle` scenario skips the administrator's run of the checkpoint **Publish public assets** and checks the Data editor's refusal without reading the bucket |
+| `npm run test:relational` | Every `test/relational/*.integration.mjs` scenario in turn; `npm run test:relational -- --scenario <name>` runs one (an unknown name lists the known ones and exits 2). | optionally the containers, bound to the target before the first scenario (the database container only together with the Directus one): without them the restart and database-statistics subtests are reported as skipped |
 | `npm run test:relational -- --scenario stress` | The opt-in full-size run (`test/relational/stress.opt-in.mjs`, never part of the default run): the [Sizing](#sizing) figures, about 13 minutes. | both containers and the S3 variables |
 | `npm run test:operations` | The `operations` scenario, then `test/operations.browser.mjs`, which drives the dashboard in a real browser through the locally installed `agent-browser` CLI (it fails, never skips, without it). `OPERATIONS_BROWSER_SCREENSHOTS` names a directory for its screenshots (a temporary one otherwise). | the S3 variables |
 | `npm run test:s3` | `test/publish-flow.integration.mjs` (the publish Flows against the local bucket, including an injected storage failure) and `test/publish-workflow.integration.mjs` (the complete workflow from setup to publication, with the failure, restart, race and extension scenarios). | both containers and the S3 variables |
@@ -2024,5 +1954,5 @@ would not notice, so recover the test project before anything else runs:
    **Data / Process pending** paused: resume the schedule, undo the
    rehearsal's edits as `revertsFixture` in `test/restore-project.mjs`
    does (the publish Flow and its claim operation, the bookmark, the
-   password user, the appearance settings, the files and the checkpoint
-   Flows it added) and tear the model down to marker-only.
+   password user, the appearance settings, and the files and Flows it
+   added) and tear the model down to marker-only.

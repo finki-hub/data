@@ -18,8 +18,6 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import { statusAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/status.js';
 import { dataModelCollectionKeys } from '../src/data-model/collections.js';
-import { derivedDataFlowId } from '../src/derived-data-flow.js';
-import { importWorkbook } from '../src/directus.js';
 import {
   editorForbiddenGrants,
   forbiddenByRole,
@@ -36,21 +34,10 @@ import {
 } from '../src/flows/process-pending.js';
 import { installFlowFamily } from '../src/flows/registry.js';
 import {
-  findLegacyFlows,
-  LegacyFlowsError,
-  legacyOperationTypes,
-} from '../src/legacy-flows.js';
-import { exitCodes, isRefusal } from '../src/lifecycle.js';
-import {
   readSnapshotReadiness,
   snapshotReadiness,
 } from '../src/snapshot-readiness.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
-import {
-  lifecycleDataset,
-  workbookContent,
-} from './fixtures/synthetic-workbook.js';
-import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
 
 const history = 'history_index';
@@ -59,15 +46,6 @@ const collator = new Intl.Collator('en');
 const byText = (left: string, right: string): number =>
   collator.compare(left, right);
 
-// The error a promise rejected with, or null when it resolved.
-const caught = async (work: Promise<unknown>): Promise<unknown> => {
-  try {
-    await work;
-  } catch (error) {
-    return error;
-  }
-  return null;
-};
 const enrollments = 'enrollments';
 const publication = 'publication';
 
@@ -166,79 +144,6 @@ describe('source invalidation of the completed source model', () => {
         'review_reason',
       ]),
     ).toEqual([enrollments, publication]);
-  });
-});
-
-const store = () => emptyStore();
-
-describe('checkpoint Flows of an old deployment (follow-ups 26 and 27)', () => {
-  test('recognises the checkpoint Rebuild and Publish Flows by operation type, not by name or id', () => {
-    expect([...legacyOperationTypes].toSorted(byText)).toEqual([
-      'finki-hub-publish-json',
-      'finki-hub-publish-public-assets',
-      'finki-hub-rebuild-derived-data',
-    ]);
-  });
-
-  test('refuses an import beside checkpoint Flows of another id before any write', async () => {
-    const legacy = store();
-    legacy.flows.push(
-      {
-        id: 'old-publish',
-        name: 'Synthetic renamed publisher',
-        status: 'active',
-      },
-      { id: derivedDataFlowId, name: 'Rebuild derived data', status: 'active' },
-    );
-    legacy.operations.push(
-      { flow: 'old-publish', id: 'op-1', type: 'finki-hub-publish-json' },
-      {
-        flow: derivedDataFlowId,
-        id: 'op-2',
-        type: 'finki-hub-rebuild-derived-data',
-      },
-    );
-    const fake = fakeImportDirectus(legacy);
-
-    await expect(findLegacyFlows(fake.request)).resolves.toEqual([
-      {
-        id: 'old-publish',
-        name: 'Synthetic renamed publisher',
-        status: 'active',
-        types: ['finki-hub-publish-json'],
-      },
-    ]);
-
-    const error = await caught(
-      importWorkbook(
-        fake.request,
-        workbookContent(lifecycleDataset()),
-        fake.io,
-      ),
-    );
-
-    expect(error).toBeInstanceOf(LegacyFlowsError);
-    expect(isRefusal(error)).toBeTruthy();
-    expect(exitCodes.refused).toBe(2);
-    expect(String(error)).toContain(
-      '"Synthetic renamed publisher" (old-publish, active, finki-hub-publish-json)',
-    );
-    expect(fake.mutations()).toEqual([]);
-    expect(fake.setups()).toBe(0);
-  });
-
-  test('accepts a project whose only checkpoint Flows are the import’s own', async () => {
-    const own = store();
-    own.flows.push({ id: derivedDataFlowId, name: 'Rebuild derived data' });
-    own.operations.push({
-      flow: derivedDataFlowId,
-      id: 'op-2',
-      type: 'finki-hub-rebuild-derived-data',
-    });
-
-    await expect(
-      findLegacyFlows(fakeImportDirectus(own).request),
-    ).resolves.toEqual([]);
   });
 });
 

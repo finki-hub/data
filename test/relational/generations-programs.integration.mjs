@@ -3,13 +3,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { isDeepStrictEqual } from 'node:util';
 
 import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { courses as coursesDefinition } from '../../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { readQuery } from '../../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
 import { legacyImportColumns } from '../../src/data-model/presentation/groups.js';
-import { derivedDataFlowId } from '../../src/derived-data-flow.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { runImportCli } from '../../src/import-run.js';
 import { exitCodes } from '../../src/lifecycle.js';
@@ -17,23 +15,18 @@ import {
   specProgramHeaders,
   workbookPrograms,
 } from '../../src/migrations/generations.js';
-import { publicAssetsFlowId } from '../../src/public-assets-flow.js';
+import { expectedFiles } from '../expected-exports.js';
 import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
 import { settle } from './automatic-processing-helpers.mjs';
 import {
   pauseAutomaticProcessing,
-  read,
   request,
   userCollections,
   withDataModel,
 } from './data-model-helpers.mjs';
-import {
-  legacyAssets,
-  readiness,
-  sha256,
-} from './export-projection-helpers.mjs';
+import { readiness } from './export-projection-helpers.mjs';
 import {
   addGeneration,
   generationId,
@@ -48,7 +41,7 @@ import { get, patch } from './history-index-helpers.mjs';
 
 // Task 25 on the fixture: curriculum generations and study programs are
 // rows. A generated workbook import seeds them; the public files stay the
-// legacy serializer's until an administrator publishes a new generation
+// committed parity files until an administrator publishes a new generation
 // and its programs, whose sorts readiness keeps unique; the database
 // guards refuse every row that names the wrong generation and a new code
 // of a published row; the six imported course columns publish nothing.
@@ -56,7 +49,6 @@ import { get, patch } from './history-index-helpers.mjs';
 const nothingToResume = () => Promise.resolve();
 const clockValue = '2026-09-24T12:00:00.000Z';
 const coursesFile = 'courses.json';
-const importedFlows = new Set([derivedDataFlowId, publicAssetsFlowId]);
 const invalidKey = 'INVALID_FOREIGN_KEY';
 const stillReferenced =
   /violates foreign key constraint \\"curriculum_entries_generation_foreign\\"/u;
@@ -167,16 +159,17 @@ const importsWorkbook = async ({ context, t, target }) => {
   t.diagnostic(`imported workbook settled after ${settled.elapsedMs} ms`);
 };
 
-// The four prepared files equal the legacy serializer over the same rows.
-const matchesLegacy = async ({ context, target }) => {
+// The four prepared files equal the committed parity files, the workbook's
+// dataset.
+const matchesCommitted = async ({ context, target }) => {
   const answer = await readiness(target);
   assert.equal(answer.ready, true, JSON.stringify(answer));
   const digests = await preparedDigests(target);
-  const expected = await legacyAssets(target);
+  const expected = await expectedFiles('parity');
   for (const filename of publicFiles) {
     assert.equal(
       digests[filename],
-      sha256(JSON.stringify(expected[filename.replace('.json', '')])),
+      expected[filename.replace('.json', '')].sha256,
       filename,
     );
   }
@@ -477,30 +470,6 @@ const ignoresImportColumns = async ({ context, target }) => {
   );
 };
 
-// The import installs the checkpoint Rebuild and Publish Flows, which the
-// model teardown keeps: the run removes the ones it created.
-const removesImportedFlows = async (target, before) => {
-  const flows = await get(target, '/flows?fields=id&limit=-1');
-  for (const { id } of flows) {
-    if (importedFlows.has(id) && !before.has(id)) {
-      await read(
-        await request(target, `/flows/${id}`, {
-          method: 'DELETE',
-          token: target.token,
-        }),
-        204,
-      );
-    }
-  }
-  const after = await get(target, '/flows?fields=id&limit=-1');
-  assert.ok(
-    isDeepStrictEqual(
-      new Set(after.map(({ id }) => id).filter((id) => importedFlows.has(id))),
-      before,
-    ),
-  );
-};
-
 test('manages curriculum generations and study programs as rows on the fixture', async (t) => {
   const target = targetFrom(process.env);
   const directory = await mkdtemp(
@@ -513,10 +482,6 @@ test('manages curriculum generations and study programs as rows on the fixture',
     dataset,
     workbook: path.join(directory, 'synthetic.xlsx'),
   };
-  const flows = await get(target, '/flows?fields=id&limit=-1');
-  const flowsBefore = new Set(
-    flows.map(({ id }) => id).filter((id) => importedFlows.has(id)),
-  );
   let resume = nothingToResume;
   try {
     await syntheticWorkbook(dataset).xlsx.writeFile(context.workbook);
@@ -530,8 +495,8 @@ test('manages curriculum generations and study programs as rows on the fixture',
             () => importsWorkbook(scenario),
           );
           await t.test(
-            'the four prepared files equal the legacy serializer over the same rows',
-            () => matchesLegacy(scenario),
+            'the four prepared files equal the committed parity files',
+            () => matchesCommitted(scenario),
           );
           await t.test(
             'a new generation and its programs publish nothing until both are published, then exactly their keys, in an order readiness keeps',
@@ -547,9 +512,6 @@ test('manages curriculum generations and study programs as rows on the fixture',
           );
         } finally {
           resume = await pauseAutomaticProcessing(target);
-          await t.test('removes the Flows the import created', () =>
-            removesImportedFlows(target, flowsBefore),
-          );
         }
       },
       { automatic: true },

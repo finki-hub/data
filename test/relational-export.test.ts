@@ -13,6 +13,13 @@ import { readinessAction } from '../directus/extensions/directus-extension-data-
 import { legacyImportColumns } from '../src/data-model/presentation/groups.js';
 import { academicYears } from '../src/specs/public.js';
 import {
+  assignmentTexts,
+  expectedFiles,
+  expectedKeys,
+  expectedRows,
+  type ExportCase,
+} from './expected-exports.js';
+import {
   courseNames,
   forbiddenPrivateFields,
   makeSyntheticDataset,
@@ -21,14 +28,12 @@ import {
 import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
 import {
   convertedStore,
-  derivedLegacyAssets,
   edit,
   engineAssets,
   generationIdOf,
   injecting,
-  legacyAssets,
   parityDataset,
-  referenceConstants,
+  publishedFiles,
   refusalOf,
   renamedCurrent,
   reversed,
@@ -54,6 +59,11 @@ const projected = async (
 ): Promise<Assets> =>
   assetsSchema.parse(await engineAssets(exportDefinitions, reader));
 
+// The four files the definitions publish over a store: each exact body
+// and its sha256, to compare with the committed expected files.
+const publishedOf = (store: Parameters<typeof storeReader>[0]) =>
+  publishedFiles(exportDefinitions, storeReader(store));
+
 // Parsed JSON compared as text, so key order, row order and every string
 // form count, not only deep equality.
 const sameJson = (left: unknown, right: unknown): boolean =>
@@ -78,8 +88,12 @@ const readinessOf = (store: Parameters<typeof storeReader>[0]) =>
       }),
   });
 
-const courseNamed = (assets: Assets, name: string) =>
+const courseNamed = (assets: Pick<Assets, 'courses'>, name: string) =>
   assets.courses.find((row) => row['name'] === name);
+
+// The course row of the name in a case's committed courses.json.
+const expectedCourse = async (name: ExportCase, course: string) =>
+  courseNamed({ courses: [...(await expectedRows(name, 'courses'))] }, course);
 
 const renamed =
   (field: string, from: string, to: string) =>
@@ -107,23 +121,6 @@ const importEdits: Readonly<Record<string, unknown>> = {
 
 const coursesFile = 'courses.json';
 
-const fieldMap = z.array(z.tuple([z.string(), z.string()]));
-const referenceMaps = z
-  .object({
-    courseFields: fieldMap,
-    roomFields: fieldMap,
-    staffFields: fieldMap,
-    studentFields: fieldMap,
-  })
-  .parse(
-    referenceConstants([
-      'courseFields',
-      'roomFields',
-      'staffFields',
-      'studentFields',
-    ]),
-  );
-
 const definitionOf = (filename: string) => {
   const definition = exportDefinitions.find(
     (candidate) => candidate.filename === filename,
@@ -146,9 +143,6 @@ const keysOf = async (filename: string, store?: FakeStore) => {
     ),
   );
 };
-
-const labelsOf = (map: ReadonlyArray<readonly [string, string]>) =>
-  map.map(([, label]) => label);
 
 // The keys a definition publishes as "1"/"0" over the converted fixture.
 const numericKeys = async (definition: (typeof exportDefinitions)[number]) => {
@@ -209,15 +203,15 @@ const crossedLink =
     );
   };
 
-describe('parity with the legacy serializer', () => {
-  test('projects the converted fixture into exactly the files the legacy serializer publishes', async () => {
-    const dataset = parityDataset();
-    const assets = await projected(await convertedStore(dataset));
-    const expected = legacyAssets(dataset);
+describe('parity with the committed public files', () => {
+  test('projects the converted fixture into exactly the committed parity files, byte for byte', async () => {
+    const store = await convertedStore(parityDataset());
+    const assets = await projected(store);
 
-    expect(assets).toEqual(expected);
-    expect(sameJson(assets, expected)).toBeTruthy();
-    // The oracle covers the value rules: false, zero, empty and null.
+    await expect(publishedOf(store)).resolves.toEqual(
+      await expectedFiles('parity'),
+    );
+    // The files cover the value rules: false, zero, empty and null.
     expect(courseNamed(assets, courseNames.beta)).toMatchObject({
       '2018-credits': '0',
       '2023-channel': '0',
@@ -240,7 +234,7 @@ describe('parity with the legacy serializer', () => {
     expect(assets.staff.map((row) => row['active'])).toContain('0');
   });
 
-  test('declares exactly the keys of the reference serializer, in its order', async () => {
+  test('declares exactly the committed keys of every file, in their order', async () => {
     expect(exportDefinitions.map(({ filename }) => filename)).toEqual([
       'courses.json',
       'rooms.json',
@@ -248,21 +242,21 @@ describe('parity with the legacy serializer', () => {
       'students.json',
     ]);
     await expect(keysOf(coursesFile)).resolves.toEqual(
-      labelsOf(referenceMaps.courseFields),
+      await expectedKeys('courses'),
     );
     await expect(keysOf('rooms.json')).resolves.toEqual(
-      labelsOf(referenceMaps.roomFields),
+      await expectedKeys('rooms'),
     );
     await expect(keysOf('staff.json')).resolves.toEqual(
-      labelsOf(referenceMaps.staffFields),
+      await expectedKeys('staff'),
     );
     await expect(keysOf('students.json')).resolves.toEqual(
-      labelsOf(referenceMaps.studentFields),
+      await expectedKeys('students'),
     );
   });
 
-  test('publishes "1"/"0" exactly where the reference does', async () => {
-    // numericBooleans holds active, channel_2018 and channel_2023.
+  test('publishes "1"/"0" exactly where the committed files do', async () => {
+    // The files publish active, 2023-channel and 2018-channel as 1/0.
     const numeric = await Promise.all(exportDefinitions.map(numericKeys));
 
     expect(numeric.flat()).toEqual(['2023-channel', '2018-channel', 'active']);
@@ -302,28 +296,38 @@ describe('parity with the legacy serializer', () => {
   });
 });
 
-describe('every difference from the legacy files blocks readiness', () => {
+describe('every difference from the committed files blocks readiness', () => {
   test('the unresolved lifecycle fixture differs only at its two review items, each a blocker until resolved', async () => {
-    const dataset = lifecycleDataset();
-    const store = await convertedStore(dataset);
+    const store = await convertedStore(lifecycleDataset());
     const assets = await projected(store);
-    const expected = legacyAssets(dataset);
 
     // The duplicate assignment row publishes its labels too, and a 2018
     // availability without a 2018 curriculum has no link to live on.
     expect(courseNamed(assets, courseNames.alpha)?.['professors']).toBe(
       'Prof. Zed Alpha, Prof. Later Alpha, Prof. Abe Alpha',
     );
-    expect(courseNamed(expected, courseNames.alpha)?.['professors']).toBe(
+
+    const expectedAlpha = await expectedCourse('lifecycle', courseNames.alpha);
+
+    expect(expectedAlpha?.['professors']).toBe(
       'Prof. Zed Alpha, Prof. Abe Alpha',
     );
     expect(courseNamed(assets, courseNames.gamma)).not.toHaveProperty(
       '2018-available',
     );
-    expect(courseNamed(expected, courseNames.gamma)).toHaveProperty(
-      '2018-available',
-      'FALSE',
-    );
+    await expect(
+      expectedCourse('lifecycle', courseNames.gamma),
+    ).resolves.toHaveProperty('2018-available', 'FALSE');
+
+    // Both review items live in courses.json: the other three files are
+    // already exactly the committed lifecycle ones.
+    const { rooms, staff, students } = await expectedFiles('lifecycle');
+
+    await expect(publishedOf(store)).resolves.toMatchObject({
+      rooms,
+      staff,
+      students,
+    });
     await expect(readinessOf(store)).resolves.toMatchObject({
       blockers: ['curriculum_value_unlinked', 'assignment_source_duplicate'],
       issueCounts: {
@@ -343,43 +347,35 @@ describe('every difference from the legacy files blocks readiness', () => {
     );
 
     await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
-    expect(
-      sameJson(await projected(store), legacyAssets(parityDataset())),
-    ).toBeTruthy();
-  });
-
-  test('re-derives the legacy files of the parity fixture unchanged', async () => {
-    const dataset = parityDataset();
-
-    expect(
-      sameJson(await derivedLegacyAssets(dataset), legacyAssets(dataset)),
-    ).toBeTruthy();
+    await expect(publishedOf(store)).resolves.toEqual(
+      await expectedFiles('parity'),
+    );
   });
 
   test.each([
     {
       change: renamedCurrent,
+      expected: 'renamed-current',
       generation: '2023',
       label: 'a 2023 name',
       name: courseNames.iota,
     },
     {
       change: unmatchedLegacy,
+      expected: 'unmatched-legacy',
       generation: '2018',
       label: 'an equivalency 2018 label',
       name: courseNames.zeta,
     },
   ] as const)(
-    '$label that matched no entry blocks until an editor links the label, then publishes exactly the legacy file',
-    async ({ change, generation, name }) => {
-      const dataset = change(parityDataset());
-      const store = await convertedStore(dataset);
-      const expected = await derivedLegacyAssets(dataset);
+    '$label that matched no entry blocks until an editor links the label, then publishes exactly the committed file',
+    async ({ change, expected, generation, name }) => {
+      const store = await convertedStore(change(parityDataset()));
       const course = rowsOf(store, 'courses').find(
         (row) => row['name'] === name,
       );
 
-      expect(courseNamed(expected, name)).toHaveProperty(
+      await expect(expectedCourse(expected, name)).resolves.toHaveProperty(
         `${generation}-name`,
         unmatchedLabel,
       );
@@ -394,34 +390,31 @@ describe('every difference from the legacy files blocks readiness', () => {
       withLinkedLabel(store, Number(course?.id), generation);
 
       await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
-      expect(sameJson(await projected(store), expected)).toBeTruthy();
+      await expect(publishedOf(store)).resolves.toEqual(
+        await expectedFiles(expected),
+      );
     },
   );
 
-  test.each([
-    'Prof. Zed Alpha, Prof. Abe Alpha',
-    'Prof. Zed Alpha; Prof. Abe Alpha',
-    'Prof. Zed Alpha;Prof. Abe Alpha',
-    'Prof. Zed Alpha\nProf. Abe Alpha',
-    'Prof. Zed Alpha,Prof. Abe Alpha',
-    'Prof. Zed Alpha ,  Prof. Abe Alpha',
-    ' Prof. Zed Alpha, Prof. Abe Alpha',
-    'Prof. Zed Alpha ',
-  ])(
-    'republishes the assignment text %j exactly although every part names a staff row',
-    async (text) => {
+  test.each(
+    assignmentTexts.map((text, index) => ({
+      expected: `assignment-text-${String(index + 1)}` as const,
+      text,
+    })),
+  )(
+    'republishes the assignment text $text exactly although every part names a staff row',
+    async ({ expected, text }) => {
       const base = parityDataset();
-      const dataset = {
+      const store = await convertedStore({
         ...base,
         teaching_assignments: base.teaching_assignments.map((row) =>
           row.id === 1 ? { ...row, professors: text } : row,
         ),
-      };
-      const store = await convertedStore(dataset);
+      });
 
-      expect(
-        sameJson(await projected(store), await derivedLegacyAssets(dataset)),
-      ).toBeTruthy();
+      await expect(publishedOf(store)).resolves.toEqual(
+        await expectedFiles(expected),
+      );
       await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
     },
   );
@@ -470,8 +463,11 @@ describe('year configuration', () => {
     expect(JSON.stringify(after)).not.toContain('2014/2015');
     expect(after.courses).toEqual(withoutKey(before, '2014/2015'));
     expect(after.rooms).toEqual(before.rooms);
+
+    const committedKeys = await expectedKeys('courses');
+
     await expect(keysOf(coursesFile, store)).resolves.toHaveLength(
-      labelsOf(referenceMaps.courseFields).length - 1,
+      committedKeys.length - 1,
     );
   });
 

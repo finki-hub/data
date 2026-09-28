@@ -1,10 +1,11 @@
 import type { Row, SourceRows, ValueRule } from './types.js';
 
-// The value rules of the reference serializer (serialize-assets.cjs), one
-// per public key instead of one per runtime type: what the reference did
-// by type (booleans, numbers, strings) each rule does for its own type,
-// and a value of any other type is refused. Absent means null, undefined
-// or the empty string, which the reference omits.
+// The value rules of the public files, one per public key instead of one
+// per runtime type: what the checkpoint did by type (booleans, numbers,
+// strings; its files are committed under test/fixtures/expected-exports)
+// each rule does for its own type, and a value of any other type is
+// refused. Absent means null, undefined or the empty string, which the
+// files omit.
 
 const absent: ReadonlySet<unknown> = new Set(['', null, undefined]);
 

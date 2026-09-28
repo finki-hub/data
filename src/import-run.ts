@@ -1,4 +1,4 @@
-import type { DirectusModeRequest } from './directus-request.js';
+import type { DirectusRequest } from './directus-request.js';
 
 import { type DirectusConfig, loadImportConfig } from './config.js';
 import { type ImportIo, importWorkbook } from './directus.js';
@@ -13,7 +13,7 @@ import {
 } from './workbook.js';
 
 export type ImportCliIo = ImportIo & {
-  readonly createRequest: (config: DirectusConfig) => DirectusModeRequest;
+  readonly createRequest: (config: DirectusConfig) => DirectusRequest;
   readonly stderr: (line: string) => void;
   readonly stdout: (line: string) => void;
 };
@@ -58,7 +58,7 @@ export const runImportCli = async (
     io.stdout(JSON.stringify({ mode: 'import', ...summary }));
     if (summary.conversion.status === 'blocked') {
       io.stderr(
-        `Import incomplete: the workbook rows were imported and the checkpoint derivation ran, but the relational conversion is blocked by ${JSON.stringify(summary.conversion.blockers)}. Resolve these ambiguous relationships in Studio, then finish with npm run migrate -- --dry-run --report <private path> and --apply.`,
+        `Import incomplete: the workbook rows were imported, but the relational conversion is blocked by ${JSON.stringify(summary.conversion.blockers)}. Resolve these ambiguous relationships in Studio, then finish with npm run migrate -- --dry-run --report <private path> and --apply.`,
       );
       return exitCodes.blocked;
     }

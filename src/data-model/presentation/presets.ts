@@ -1,60 +1,21 @@
-import { z } from 'zod';
-
 import type { ReadinessEntry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
 
 import { readinessRegistry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import courseSearch from '../../../directus/presets/course-search.json' with { type: 'json' };
 import { findModelCollection } from '../collections.js';
-
-const tabularQuerySchema = z.object({
-  fields: z.array(z.string()).min(1),
-  limit: z.number().int().positive(),
-  page: z.number().int().positive(),
-  sort: z.array(z.string()).min(1),
-});
-
-// The `POST /presets` body: `bookmark` names a shared bookmark, null makes
-// the preset the collection default; `filter` is one filter object.
-export const presetSchema = z.object({
-  bookmark: z.string().nullable(),
-  collection: z.string(),
-  filter: z.record(z.string(), z.unknown()).nullable(),
-  icon: z.string(),
-  layout: z.literal('tabular'),
-  layout_options: z.object({
-    tabular: z.object({ spacing: z.enum(['comfortable', 'compact', 'cozy']) }),
-  }),
-  layout_query: z.object({ tabular: tabularQuerySchema }),
-  role: z.null(),
-  search: z.null(),
-  user: z.null(),
-});
-
-export type PresetDefinition = z.infer<typeof presetSchema>;
-
-const defaultView = (
-  collection: string,
-  fields: readonly string[],
-  sort: readonly string[],
-): PresetDefinition => ({
-  bookmark: null,
-  collection,
-  filter: null,
-  icon: findModelCollection(collection)?.icon ?? 'table_view',
-  layout: 'tabular',
-  layout_options: { tabular: { spacing: 'comfortable' } },
-  layout_query: {
-    tabular: { fields: [...fields], limit: 25, page: 1, sort: [...sort] },
-  },
-  role: null,
-  search: null,
-  user: null,
-});
+import {
+  defaultView,
+  type PresetDefinition,
+  presetSchema,
+  type TabularPreset,
+  tabularPresetSchema,
+} from './preset-schema.js';
 
 // The one shared curriculum bookmark: every entry, generation first,
 // sorted by generation and catalog order. Editors narrow it to one
 // generation with Studio's native filter on `generation`, so a new
 // generation row needs no bookmark and no setup rerun.
-export const curriculumBookmark: PresetDefinition = presetSchema.parse({
+export const curriculumBookmark: TabularPreset = tabularPresetSchema.parse({
   bookmark: 'Curriculum by generation',
   collection: 'curriculum_entries',
   filter: null,
@@ -91,12 +52,12 @@ export const curriculumBookmark: PresetDefinition = presetSchema.parse({
 // bookmark that shows the generation, never one per generation row.
 export const reviewPresets = (
   registry: readonly ReadinessEntry[] = readinessRegistry,
-): readonly PresetDefinition[] =>
+): readonly TabularPreset[] =>
   registry.flatMap(({ page, review }) =>
     review === undefined
       ? []
       : [
-          presetSchema.parse({
+          tabularPresetSchema.parse({
             bookmark: review.bookmark,
             collection: page,
             filter: review.filter,
@@ -118,9 +79,13 @@ export const reviewPresets = (
         ],
   );
 
-// Default table views for the relational collections and for the checkpoint
-// collections that gained relations.
-const defaultViews: readonly PresetDefinition[] = [
+// The shared Search bookmark on the Moodle users, declared in
+// directus/presets/course-search.json.
+export const searchBookmark: PresetDefinition =
+  presetSchema.parse(courseSearch);
+
+// A default table view for every collection editors browse.
+const defaultViews: readonly TabularPreset[] = [
   // The curriculum links replace the imported per-generation columns.
   defaultView(
     'courses',
@@ -155,11 +120,11 @@ const defaultViews: readonly PresetDefinition[] = [
     ['course', 'role', 'staff', 'display_override'],
     ['course', 'sort'],
   ),
-  // The copied `name` stays listed beside the linked student until every
-  // council row carries a student link.
+  // The linked student names a member; the index is the only label of an
+  // unlinked one.
   defaultView(
     'student_council',
-    ['year', 'student.name', 'name', 'index_number', 'position'],
+    ['year', 'student.name', 'index_number', 'position'],
     ['-year'],
   ),
   defaultView('course_equivalencies', ['course', 'members'], ['course_2023']),
@@ -203,18 +168,46 @@ const defaultViews: readonly PresetDefinition[] = [
     ['claim_token', 'page_token', 'course', 'academic_year', 'count'],
     ['claim_token'],
   ),
+  defaultView(
+    'staff',
+    ['name', 'active', 'position', 'email', 'cabinet'],
+    ['name'],
+  ),
+  defaultView(
+    'rooms',
+    ['name', 'type', 'location', 'floor', 'capacity'],
+    ['location'],
+  ),
+  defaultView(
+    'students',
+    ['index_number', 'name', 'source_group'],
+    ['-source_group'],
+  ),
+  defaultView(
+    'discord_channels',
+    ['semester', 'channel', 'course_names'],
+    ['semester'],
+  ),
+  defaultView('deans_office', ['year', 'name', 'position'], ['-year']),
+  // The main Moodle users table.
+  defaultView(
+    'moodle_users',
+    ['Name', 'Mail', 'ID_new', 'ID_old', 'Courses Count', 'Courses'],
+    ['Name'],
+  ),
 ];
 
 // Every shared preset the presentation declares for a readiness
-// registry: the curriculum bookmark, its Needs review bookmarks and the
-// default table views. A populated deployment keeps the views its
-// importer created; these only fill the gaps.
+// registry: the curriculum bookmark, its Needs review bookmarks, the
+// default table views and the Search bookmark. A populated deployment
+// keeps the views its importer created; these only fill the gaps.
 export const presetDefinitionsFor = (
   registry: readonly ReadinessEntry[],
 ): readonly PresetDefinition[] => [
   curriculumBookmark,
   ...reviewPresets(registry),
   ...defaultViews,
+  searchBookmark,
 ];
 
 // The presets of the declared readiness registry.

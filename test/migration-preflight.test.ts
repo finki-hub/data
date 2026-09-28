@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  deriveCourses,
-  deriveStudentCouncil,
-} from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 import { readInventory } from '../src/migrations/inventory.js';
 import { preflight } from '../src/migrations/preflight.js';
 import {
@@ -11,16 +7,19 @@ import {
   migrationReportSchema,
   migrationVersion,
 } from '../src/migrations/report.js';
+import { academicYears } from '../src/specs/public.js';
 import {
-  academicYears,
+  expectedCouncil,
+  expectedEnrollments,
+  expectedRows,
+} from './expected-exports.js';
+import {
   courseNames,
   makeSyntheticDataset,
   metacharacterCourseName,
   privateSentinels,
   type SyntheticDataset,
   type SyntheticRow,
-  toCouncilSources,
-  toCourseSources,
   withMetacharacterCourse,
 } from './fixtures/synthetic-data.js';
 import {
@@ -28,15 +27,13 @@ import {
   type FakeStore,
   storeFromDataset,
 } from './migration-test-helpers.js';
+import { matchingHistories } from './relational-export-helpers.js';
 
 const hexPattern = /^[0-9a-f]{64}$/u;
 const studentName = 'Synthetic Student';
 const alphaCurrentName = 'Alpha Course (2023)';
 const alphaLegacyName = 'Alpha Legacy';
 const thetaProfessor = 'Prof. Theta';
-
-const enrollmentKey = (year: string): string =>
-  `enrollment_${year.replace('/', '_')}`;
 
 // The synthetic dataset without its deliberate duplicates: one curriculum row
 // per label, one equivalency label per course, one assignment and one pattern
@@ -114,34 +111,29 @@ const courseCandidate = (report: MigrationReport, name: string) => {
   return candidate;
 };
 
-// The derivation maps an empty curriculum code to null.
+// The checkpoint published an empty curriculum code as no key at all.
 const codeOf = (row: SyntheticRow | undefined): unknown =>
   row?.['code'] === '' ? null : (row?.['code'] ?? null);
 
-// Every candidate rule as an explicit pattern row, one per course and year.
-const frozenPatterns = (report: MigrationReport): readonly SyntheticRow[] =>
-  report.candidates.courses.flatMap((course, courseIndex) =>
-    course.rules.map((rule, ruleIndex) => ({
-      id: courseIndex * academicYears.length + ruleIndex + 1,
-      course_name: course.name,
-      academic_year: rule.academicYear,
-      pattern: rule.pattern,
-    })),
-  );
+// The committed checkpoint courses.json row of every synthetic course, by
+// its name (unique in the dataset).
+const publishedRows = await expectedRows('synthetic', 'courses');
+const publishedCourses = new Map(
+  publishedRows.map((row) => [row['name'], row]),
+);
 
-describe('curriculum candidates reproduce the locked derivation', () => {
+describe('curriculum candidates reproduce the committed checkpoint files', () => {
   test('resolves current entries through name_2023 with the first ascending id', async () => {
     const dataset = makeSyntheticDataset();
     const { report } = await reportFor(dataset);
-    const updates = await deriveCourses(toCourseSources(dataset));
 
     for (const course of report.candidates.courses) {
-      const update = updates.find((row) => row['id'] === course.id);
+      const published = publishedCourses.get(course.name);
       const precedentRow = dataset.curriculum_2023.find(
         (row) => row.id === course.current.precedent,
       );
 
-      expect(codeOf(precedentRow)).toBe(update?.['code_2023'] ?? null);
+      expect(codeOf(precedentRow)).toBe(published?.['2023-code'] ?? null);
     }
 
     expect(courseCandidate(report, courseNames.alpha).current).toEqual({
@@ -161,16 +153,15 @@ describe('curriculum candidates reproduce the locked derivation', () => {
   test('resolves legacy entries through the override, else the first equivalency, with the first ascending id', async () => {
     const dataset = makeSyntheticDataset();
     const { report } = await reportFor(dataset);
-    const updates = await deriveCourses(toCourseSources(dataset));
 
     for (const course of report.candidates.courses) {
-      const update = updates.find((row) => row['id'] === course.id);
+      const published = publishedCourses.get(course.name);
       const precedentRow = dataset.curriculum_2018.find(
         (row) => row.id === course.legacy.entry.precedent,
       );
 
-      expect(course.legacy.label).toBe(update?.['name_2018'] ?? null);
-      expect(codeOf(precedentRow)).toBe(update?.['code_2018'] ?? null);
+      expect(course.legacy.label).toBe(published?.['2018-name'] ?? null);
+      expect(codeOf(precedentRow)).toBe(published?.['2018-code'] ?? null);
     }
 
     expect(courseCandidate(report, courseNames.alpha).legacy).toEqual({
@@ -205,14 +196,13 @@ describe('curriculum candidates reproduce the locked derivation', () => {
   });
 });
 
-describe('assignment and rule candidates reproduce the locked derivation', () => {
+describe('assignment and rule candidates reproduce the committed checkpoint files', () => {
   test('uses the first ascending assignment and keeps its text literal', async () => {
     const dataset = makeSyntheticDataset();
     const { report } = await reportFor(dataset);
-    const updates = await deriveCourses(toCourseSources(dataset));
 
     for (const course of report.candidates.courses) {
-      const update = updates.find((row) => row['id'] === course.id);
+      const published = publishedCourses.get(course.name);
       const assignment = dataset.teaching_assignments.find(
         (row) => row.id === course.assignment.chosen,
       );
@@ -220,7 +210,7 @@ describe('assignment and rule candidates reproduce the locked derivation', () =>
         course.professorsOverride ?? assignment?.['professors'] ?? null;
 
       expect(professors === '' ? null : professors).toBe(
-        update?.['professors'] ?? null,
+        published?.['professors'] ?? null,
       );
     }
     const alpha = courseCandidate(report, courseNames.alpha);
@@ -428,30 +418,30 @@ describe('rule and council candidates reproduce the locked derivation', () => {
     expect(report.migratable).toBe(false);
   });
 
-  test('counts the same enrollments as the derivation when every rule is frozen as an explicit pattern', async () => {
+  test('counts the committed checkpoint enrollments when every candidate rule is frozen as an explicit pattern', async () => {
     const dataset = makeSyntheticDataset();
     const { report } = await reportFor(dataset);
-    const frozen = frozenPatterns(report);
-    const original = await deriveCourses(toCourseSources(dataset));
-    const seeded = await deriveCourses(
-      toCourseSources({ ...dataset, course_enrollment_patterns: frozen }),
-    );
-
-    expect(frozen).toHaveLength(dataset.courses.length * academicYears.length);
-
-    for (const [index, update] of original.entries()) {
-      for (const year of academicYears) {
-        expect(seeded[index]?.[enrollmentKey(year)]).toBe(
-          update[enrollmentKey(year)],
+    const histories = dataset.moodle_users.map((user) => user['Courses']);
+    const frozen: Record<string, number> = {};
+    for (const course of report.candidates.courses) {
+      for (const { academicYear, pattern } of course.rules) {
+        frozen[`${String(course.id)}/${academicYear}`] = matchingHistories(
+          pattern,
+          histories,
         );
       }
     }
+
+    expect(Object.keys(frozen)).toHaveLength(
+      dataset.courses.length * academicYears.length,
+    );
+    expect(frozen).toEqual(await expectedEnrollments('synthetic'));
   });
 
   test('resolves council members through the first student per index and keeps duplicates unresolved', async () => {
     const dataset = makeSyntheticDataset();
     const { report } = await reportFor(dataset);
-    const oracle = deriveStudentCouncil(toCouncilSources(dataset));
+    const council = await expectedCouncil();
 
     expect(report.candidates.council).toEqual([
       {
@@ -501,7 +491,7 @@ describe('rule and council candidates reproduce the locked derivation', () => {
         dataset.students.find((row) => row.id === member.student.precedent)?.[
           'name'
         ] ?? null;
-      const expected = oracle.find((row) => row['id'] === member.id)?.['name'];
+      const expected = council.find(({ id }) => id === member.id)?.name;
 
       expect(precedentName === '' ? null : precedentName).toBe(expected);
     }
@@ -815,95 +805,7 @@ describe('preflight warnings and mappings', () => {
   });
 });
 
-describe('preflight flows and mappings', () => {
-  test('lists persisted Flows and flags the legacy rebuild and publish Flows for cutover review', async () => {
-    const store = storeFromDataset(uniqueDataset(), { installed: true });
-    store.flows.push(
-      {
-        id: 'flow-a',
-        name: 'Rebuild derived data',
-        operation: 'op-a',
-        status: 'active',
-        trigger: 'manual',
-      },
-      {
-        id: 'flow-b',
-        name: 'Synthetic notification',
-        operation: null,
-        status: 'inactive',
-        trigger: 'event',
-      },
-      {
-        id: 'flow-c',
-        name: 'Synthetic renamed publisher',
-        operation: 'op-c',
-        status: 'active',
-        trigger: 'manual',
-      },
-    );
-    // The checkpoint Publish public assets Flow writes the four files with
-    // the finki-hub-publish-json operation (follow-up 26: the preflight
-    // looked for another type and reported it as an ordinary Flow).
-    store.operations.push(
-      {
-        flow: 'flow-a',
-        id: 'op-a',
-        key: 'rebuild',
-        options: {},
-        reject: null,
-        resolve: null,
-        type: 'finki-hub-rebuild-derived-data',
-      },
-      {
-        flow: 'flow-c',
-        id: 'op-c',
-        key: 'publish_assets',
-        options: {},
-        reject: null,
-        resolve: null,
-        type: 'finki-hub-publish-json',
-      },
-    );
-    const report = await reportOf(store);
-
-    expect(report.flows).toEqual([
-      {
-        id: 'flow-a',
-        name: 'Rebuild derived data',
-        operationTypes: ['finki-hub-rebuild-derived-data'],
-        status: 'active',
-        trigger: 'manual',
-      },
-      {
-        id: 'flow-b',
-        name: 'Synthetic notification',
-        operationTypes: [],
-        status: 'inactive',
-        trigger: 'event',
-      },
-      {
-        id: 'flow-c',
-        name: 'Synthetic renamed publisher',
-        operationTypes: ['finki-hub-publish-json'],
-        status: 'active',
-        trigger: 'manual',
-      },
-    ]);
-    expect(report.counts.flows).toBe(3);
-    expect(findings(report, 'legacy_flow_present')).toEqual([
-      expect.objectContaining({
-        collection: 'directus_flows',
-        label: 'flow-a',
-      }),
-      expect.objectContaining({
-        collection: 'directus_flows',
-        label: 'flow-c',
-      }),
-    ]);
-    expect(findings(report, 'persisted_flow')).toHaveLength(1);
-    expect(report.blockers).toEqual([]);
-  });
-
+describe('preflight mappings', () => {
   test('maps every planned target row and reuses rows that carry provenance', async () => {
     const store = storeFromDataset(uniqueDataset(), { installed: true });
     store.items.get('curriculum_entries')?.push(

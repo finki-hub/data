@@ -61,11 +61,11 @@ export const reviewViews = {
   },
   councilWithoutStudent: {
     bookmark: 'Council members without a student',
-    fields: ['year', 'name', 'index_number', 'position', 'student'],
+    fields: ['year', 'index_number', 'position', 'student'],
     filter: councilWithoutStudent,
     icon: 'how_to_reg',
     lists: 'counted',
-    sort: ['-year', 'name'],
+    sort: ['-year', 'index_number'],
   },
   // The equivalency members the link check reads: beside each, the
   // generations of the curriculum links of the course it names, so a

@@ -70,7 +70,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     field: 'legacy_calculated',
     headerIcon: 'history',
     members: derivedFields('courses'),
-    note: 'Columns the checkpoint derivation computes for the published JSON. Kept for compatibility; not edited by hand.',
+    note: 'Columns the removed checkpoint derivation computed. Nothing fills or publishes them any more; kept until the cleanup drops them, not edited by hand.',
     readOnly: true,
     sort: 6,
     start: 'closed',

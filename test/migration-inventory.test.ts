@@ -8,9 +8,7 @@ import { PagingError } from '../src/migrations/paging.js';
 import { preflight } from '../src/migrations/preflight.js';
 import { type MigrationReport } from '../src/migrations/report.js';
 import { collectionKeys } from '../src/schema.js';
-import { academicYears as specAcademicYears } from '../src/specs/public.js';
 import {
-  academicYears,
   makeSyntheticDataset,
   privateSentinels,
   type SyntheticDataset,
@@ -274,10 +272,6 @@ describe('inventory', () => {
     expect(Object.keys(clean.fields).toSorted(byName)).toEqual(
       [...collectionKeys].toSorted(byName),
     );
-  });
-
-  test('seeds rules for the same academic years as the derivation', () => {
-    expect([...specAcademicYears]).toEqual([...academicYears]);
   });
 });
 

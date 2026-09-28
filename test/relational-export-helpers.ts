@@ -1,6 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { compileFunction, createContext } from 'node:vm';
 import { z } from 'zod';
 
 import type {
@@ -17,100 +14,14 @@ import {
   type SourceReader,
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
-import { deriveCourses } from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
 import {
   courseNames,
   type SyntheticDataset,
-  toCourseSources,
 } from './fixtures/synthetic-data.js';
 import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
 import { prepare, rowsOf, runSteps } from './relational-migration-helpers.js';
-
-type ModuleShell = { exports: unknown };
-type Loader = (module: ModuleShell) => void;
-
-const isLoader = (value: unknown): value is Loader =>
-  typeof value === 'function';
-
-const isFunction = (value: unknown): value is (data: unknown) => unknown =>
-  typeof value === 'function';
-
-// The reference public contract: the checkpoint serializer, unchanged.
-export const referenceSource = await readFile(
-  join(import.meta.dirname, '..', 'directus', 'flows', 'serialize-assets.cjs'),
-  'utf8',
-);
-
-// Compiles the reference the way the Run Script operation isolates it: a
-// CommonJS-style body in a fresh context that sees a module shell only.
-const moduleOf = (source: string): unknown => {
-  const loader: unknown = compileFunction(source, ['module'], {
-    parsingContext: createContext({}),
-  });
-  if (!isLoader(loader)) {
-    throw new TypeError('The script did not compile to a loader');
-  }
-  const shell: ModuleShell = { exports: null };
-  loader(shell);
-  return shell.exports;
-};
-
-// Named top-level constants of the reference, read by appending an export.
-export const referenceConstants = (names: readonly string[]): unknown =>
-  structuredClone(
-    moduleOf(`${referenceSource}\nmodule.exports = { ${names.join(', ')} };`),
-  );
-
-const assetsSchema = z.strictObject({
-  courses: z.array(z.record(z.string(), z.string())),
-  rooms: z.array(z.record(z.string(), z.string())),
-  staff: z.array(z.record(z.string(), z.string())),
-  students: z.array(z.record(z.string(), z.string())),
-});
-
-export type Assets = z.infer<typeof assetsSchema>;
-
-type LegacyInput = Readonly<
-  Record<'courses' | 'rooms' | 'staff' | 'students', readonly unknown[]>
->;
-
-// The four files the checkpoint Publish public assets Flow publishes from
-// the checkpoint rows of a dataset.
-export const legacyAssets = (dataset: LegacyInput): Assets => {
-  const serialize = moduleOf(referenceSource);
-  if (!isFunction(serialize)) {
-    throw new TypeError('serialize-assets.cjs must export a function');
-  }
-  return assetsSchema.parse(
-    structuredClone(
-      serialize({
-        read_courses: dataset.courses,
-        read_rooms: dataset.rooms,
-        read_staff: dataset.staff,
-        read_students: dataset.students,
-      }),
-    ),
-  );
-};
-
-// The legacy files of a dataset whose source columns were changed: the
-// checkpoint derivation recomputes the derived course columns first, as the
-// checkpoint Rebuild Flow did before every publication.
-export const derivedLegacyAssets = async (
-  dataset: SyntheticDataset,
-): Promise<Assets> => {
-  const derived = await deriveCourses(toCourseSources(dataset));
-  const updates = new Map(derived.map((update) => [update['id'], update]));
-  return legacyAssets({
-    ...dataset,
-    courses: dataset.courses.map((course) => ({
-      ...course,
-      ...updates.get(course.id),
-    })),
-  });
-};
 
 // The two review items of the importable lifecycle dataset whose
 // relational representation would change the published text; readiness
@@ -182,19 +93,30 @@ const pattern = z.object({
   pattern: z.string(),
 });
 
-// The count rows the legacy rule Flows install: each Moodle user whose raw
-// history matches the rule's pattern (Unicode mode) counts once.
+// How many raw histories a legacy pattern matches, compiled once in
+// Unicode mode as the legacy rule Flows compile it: each Moodle user
+// counts once however often the history lists the entry.
+export const matchingHistories = (
+  rulePattern: string,
+  histories: readonly unknown[],
+): number => {
+  const matcher = new RegExp(rulePattern, 'u');
+  return histories.filter(
+    (history) => typeof history === 'string' && matcher.test(history),
+  ).length;
+};
+
+// The count rows the legacy rule Flows install for every rule of a store.
 const countRows = (store: FakeStore): FakeItem[] => {
-  const histories = rowsOf(store, 'moodle_users').flatMap((user) =>
-    typeof user['Courses'] === 'string' ? [user['Courses']] : [],
+  const histories = rowsOf(store, 'moodle_users').map(
+    (user) => user['Courses'],
   );
   return rowsOf(store, 'course_enrollment_rules').map((rule, index) => {
     const parsed = pattern.parse(rule);
-    const matcher = new RegExp(parsed.pattern, 'u');
     return {
       academic_year: parsed.academic_year,
       computed_revision: 1,
-      count: histories.filter((history) => matcher.test(history)).length,
+      count: matchingHistories(parsed.pattern, histories),
       course: parsed.course,
       id: index + 1,
     };
@@ -450,7 +372,7 @@ export const reversed =
   };
 
 // A reader that adds the given columns to every row it answers, as a read
-// with fields ['*'] would hand private columns to the serializer.
+// with fields ['*'] would hand private columns to the export engine.
 export const injecting =
   (reader: SourceReader, columns: Readonly<Record<string, unknown>>) =>
   async (read: SourceRead): Promise<readonly unknown[]> => {
@@ -476,6 +398,25 @@ export const engineAssets = async (
     files[definition.filename.replace(jsonSuffix, '')] = rowList.parse(
       JSON.parse(file.body),
     );
+  }
+  return files;
+};
+
+// Every file of the definitions as the engine publishes it: the exact
+// compact JSON body and its sha256, keyed by its name without `.json`.
+export const publishedFiles = async (
+  definitions: readonly ExportDefinition[],
+  reader: SourceReader,
+): Promise<Record<string, { body: string; sha256: string }>> => {
+  const files: Record<string, { body: string; sha256: string }> = {};
+  for (const definition of definitions) {
+    const sources = await readFileSources(definition, reader);
+    const { body, sha256 } = validateFile(
+      definition,
+      serializeFile(definition, sources),
+      { keys: fileKeys(definition, sources), rows: sources.rows.length },
+    );
+    files[definition.filename.replace(jsonSuffix, '')] = { body, sha256 };
   }
   return files;
 };

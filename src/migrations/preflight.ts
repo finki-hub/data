@@ -1,7 +1,6 @@
 import type { Inventory } from './inventory.js';
 
 import { findModelCollection } from '../data-model/collections.js';
-import { isLegacyFlow } from '../legacy-flows.js';
 import { type CollectionKey, collectionKeys } from '../schema.js';
 import { academicYears as checkpointYears } from '../specs/public.js';
 import { isBlocker, sortFindings } from './findings.js';
@@ -18,36 +17,6 @@ import {
   type MigrationReport,
   migrationVersion,
 } from './report.js';
-
-const flowSummaries = (
-  inventory: Inventory,
-): {
-  readonly findings: readonly Finding[];
-  readonly flows: MigrationReport['flows'];
-} => {
-  const flows = inventory.flows.map((flow) => ({
-    id: flow.id,
-    name: flow.name,
-    operationTypes: inventory.operations
-      .filter((operation) => operation.flow === flow.id)
-      .map(({ type }) => type),
-    status: flow.status,
-    trigger: flow.trigger,
-  }));
-  const findings = flows.map((flow) => {
-    const base = { collection: 'directus_flows', ids: [], label: flow.id };
-    return isLegacyFlow(flow.id, flow.operationTypes)
-      ? finding('legacy_flow_present', {
-          ...base,
-          message: `Flow ${quote(flow.name)} (${flow.status}) runs the checkpoint derivation or publication (${flow.operationTypes.join(', ')}); it must be retired or re-pointed at cutover, never overwritten by the migration.`,
-        })
-      : finding('persisted_flow', {
-          ...base,
-          message: `Flow ${quote(flow.name)} (${flow.status}, ${flow.trigger ?? 'no trigger'}) is user-edited and is preserved; review it against the relational model at cutover.`,
-        });
-  });
-  return { findings, flows };
-};
 
 // Curriculum rows no course resolves to: retained, listed for review.
 const unreferencedFindings = (
@@ -176,11 +145,9 @@ export const preflight = (
     indexes,
   });
   const rows = rowCandidates(inventory.checkpoint, indexes, academicYears);
-  const flows = flowSummaries(inventory);
   const findings = sortFindings([
     ...courses.findings,
     ...rows.findings,
-    ...flows.findings,
     ...unreferencedFindings(inventory, courses.candidates),
     ...fieldFindings(inventory),
     ...targetFindings(inventory),
@@ -212,7 +179,6 @@ export const preflight = (
       operations: inventory.operations.length,
     },
     fields: inventory.fields,
-    flows: flows.flows,
     ledger,
     mappings: buildMappings(inventory, {
       academicYears,

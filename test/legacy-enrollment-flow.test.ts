@@ -15,14 +15,10 @@ import {
   historyRanges,
   legacyRuleRanges,
 } from '../directus/extensions/directus-extension-data-operations/src/enrollment-ranges.js';
-import {
-  deriveCourses,
-  DerivedDataError,
-} from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
+import { expectedEnrollments } from './expected-exports.js';
 import {
   makeSyntheticDataset,
   metacharacterCourseName,
-  toCourseSources,
   withMetacharacterCourse,
 } from './fixtures/synthetic-data.js';
 import {
@@ -90,11 +86,7 @@ const flagsInScript = /new RegExp\([^)]*'[a-fh-z]*g[a-z]*'\)/u;
 const forbiddenInScript = /\bconsole\b|\brequire\(|\bimport\b|\bprocess\b/u;
 const nameOrHistory = /Alpha|C\+\+|Course-|Theta/u;
 
-const enrollmentPrefix = 'enrollment_';
 const alphaEntry = 'Alpha Course-2025/2026';
-
-const enrollmentKey = (year: string): string =>
-  `${enrollmentPrefix}${year.replace('/', '_')}`;
 
 const count = (
   users: readonly LegacyUser[],
@@ -124,20 +116,20 @@ const countsOf = (
   return counts;
 };
 
-// The checkpoint counts of every course/year, by course id and year id.
-const oracleCounts = async (
-  dataset = makeSyntheticDataset(),
-): Promise<Map<string, number>> => {
-  const updates = await deriveCourses(toCourseSources(dataset));
+// The committed checkpoint counts of the synthetic dataset, by course id
+// and year id.
+const committedCounts = async (): Promise<Map<string, number>> => {
   const counts = new Map<string, number>();
-  for (const update of updates) {
-    const entries = Object.entries(update).filter(([key]) =>
-      key.startsWith(enrollmentPrefix),
+  const committed = await expectedEnrollments('synthetic');
+  for (const [key, value] of Object.entries(committed)) {
+    const separator = key.indexOf('/');
+    counts.set(
+      countKey(
+        Number(key.slice(0, separator)),
+        yearId(key.slice(separator + 1)),
+      ),
+      value,
     );
-    for (const [key, value] of entries) {
-      const year = key.slice(enrollmentPrefix.length).replace('_', '/');
-      counts.set(countKey(Number(update['id']), yearId(year)), Number(value));
-    }
   }
   return counts;
 };
@@ -359,7 +351,7 @@ describe('enrollments plan order', () => {
 });
 
 describe('legacy page count script', () => {
-  test('agrees with the checkpoint derivation for every course and academic year', async () => {
+  test('agrees with the committed checkpoint counts for every course and academic year', async () => {
     const dataset = makeSyntheticDataset();
     const rules = await seededRules(dataset);
     const users = usersOf(dataset);
@@ -370,7 +362,7 @@ describe('legacy page count script', () => {
     expect(result.rows.every((row) => row.count > 0)).toBeTruthy();
 
     const counted = countsOf([result]);
-    const oracle = await oracleCounts(dataset);
+    const oracle = await committedCounts();
 
     expect(oracle.size).toBe(rules.length);
     expect(
@@ -392,9 +384,7 @@ describe('legacy page count script', () => {
     }
 
     expect(countsOf(results)).toEqual(
-      new Map(
-        [...(await oracleCounts(dataset))].filter(([, value]) => value > 0),
-      ),
+      new Map([...(await committedCounts())].filter(([, value]) => value > 0)),
     );
   });
 
@@ -428,24 +418,15 @@ describe('legacy page count script', () => {
       { academic_year: 1, count: 1, course: 2 },
     ]);
 
-    const dataset = makeSyntheticDataset();
-    const oracle = await deriveCourses(
-      toCourseSources({
-        ...dataset,
-        course_enrollment_patterns: [
-          {
-            academic_year: '2025/2026',
-            course_name: 'Alpha Course',
-            id: 1,
-            pattern: '^$',
-          },
-        ],
-        moodle_users: dataset.moodle_users.filter(({ id }) => id >= 7),
-      }),
-    );
+    // The checkpoint counted ^$ for Alpha 2025/2026 over Moodle users 7
+    // to 9: the empty history of user 9 only.
+    const committed = await expectedEnrollments('empty-history-pattern');
+    const later = usersOf(makeSyntheticDataset()).filter(({ id }) => id >= 7);
 
-    // The checkpoint also counts the empty history (user 9) for ^$.
-    expect(oracle[0]?.[enrollmentKey('2025/2026')]).toBe(1);
+    expect(count(later, [rule(1, '^$')]).rows).toEqual([
+      { academic_year: 1, count: committed['1/2025/2026'], course: 1 },
+    ]);
+    expect(committed['1/2025/2026']).toBe(1);
   });
 
   test('compiles with the u flag only, so every user is tested afresh', () => {
@@ -474,16 +455,13 @@ describe('legacy page count script', () => {
     expect(sumScript).not.toMatch(forbiddenInScript);
   });
 
-  test('refuses a metacharacter course name by rule id, like the checkpoint refuses it', async () => {
+  test('refuses a metacharacter course name by rule id', async () => {
     const dataset = withMetacharacterCourse(makeSyntheticDataset());
     const rules = await seededRules(dataset);
     const message = refusalOf(() => count(usersOf(dataset), rules));
 
     expect(message).toMatch(compileRefusal);
     expect(message).not.toContain(metacharacterCourseName);
-    await expect(deriveCourses(toCourseSources(dataset))).rejects.toThrow(
-      DerivedDataError,
-    );
   });
 });
 

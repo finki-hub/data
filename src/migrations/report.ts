@@ -35,14 +35,12 @@ export const warningCodes = [
   'duplicate_student_index',
   'equivalency_label_after_precedent',
   'label_metacharacters',
-  'legacy_flow_present',
   'manual_link_retained',
   'model_not_installed',
   'orphan_assignment',
   'orphan_discord_course',
   'orphan_equivalency',
   'orphan_pattern',
-  'persisted_flow',
   'unknown_academic_year',
   'unknown_source_field',
   'unlinked_generation_values',
@@ -209,17 +207,6 @@ export const migrationReportSchema = z.object({
     operations: z.number().int(),
   }),
   fields: columnsSchema,
-  flows: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        operationTypes: z.array(z.string()).readonly(),
-        status: z.string(),
-        trigger: z.string().nullable(),
-      }),
-    )
-    .readonly(),
   ledger: ledgerSummarySchema.nullable(),
   mappings: z.array(sourceMapEntrySchema).readonly(),
   migratable: z.boolean(),

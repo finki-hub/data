@@ -348,8 +348,8 @@ const removesNew = async (target, collection, before) => {
 
 // Undoes on the fixture what the run added beside the model collections:
 // the publish Flow and its operation back to the template, the bookmark,
-// the user, the appearance settings, every file the run created and the
-// checkpoint Flows the workbook import installed.
+// the user, the appearance settings, and every file and Flow the run
+// created.
 export const revertsFixture = async ({ state, target }) => {
   if (state.flowTemplate) {
     await restoresFlowTemplate(target, state.flowTemplate);

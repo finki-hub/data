@@ -7,16 +7,6 @@ export type DirectusRequest = (
   init?: Parameters<typeof fetch>[1],
 ) => Promise<unknown>;
 
-export type DirectusResponseMode = 'data' | 'raw';
-
-// A request that can also hand back the undecoded body, which is how a
-// manual Flow trigger answers.
-export type DirectusModeRequest = (
-  pathname: string,
-  init?: Parameters<typeof fetch>[1],
-  responseMode?: DirectusResponseMode,
-) => Promise<unknown>;
-
 export type DirectusErrorDetails = {
   readonly code: null | string;
   readonly reason: null | string;
@@ -78,7 +68,6 @@ export const createDirectusRequest =
   async (
     pathname: string,
     init?: Parameters<typeof fetch>[1],
-    responseMode: DirectusResponseMode = 'data',
   ): Promise<unknown> => {
     const url = new URL(pathname, config.url);
     const headers = new Headers(init?.headers);
@@ -105,5 +94,5 @@ export const createDirectusRequest =
     }
 
     const body: unknown = await response.json();
-    return responseMode === 'raw' ? body : responseSchema.parse(body).data;
+    return responseSchema.parse(body).data;
   };

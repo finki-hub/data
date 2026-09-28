@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
@@ -21,11 +20,10 @@ import {
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { exportsOperation } from '../src/flows/flow-template.js';
+import { expectedFiles, publicFileNames } from './expected-exports.js';
 import {
   convertedStore,
   edit,
-  legacyAssets,
-  parityDataset,
   refusalOf,
   roomCapacity,
   storeReader,
@@ -77,9 +75,6 @@ const exportReads = new Set(
     ...Object.values(definition.related).map((read) => JSON.stringify(read)),
   ]),
 );
-
-const sha256 = (value: unknown): string =>
-  createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 const recordText = /Synthetic|Course|Prof\./u;
 
@@ -150,9 +145,8 @@ describe('the export operation', () => {
     expect(built).toBe(0);
   });
 
-  test('prepares exactly the legacy files and answers only their sizes and digests', async () => {
-    const dataset = parityDataset();
-    const expected = legacyAssets(dataset);
+  test('prepares exactly the committed parity files and answers only their sizes and digests', async () => {
+    const expected = await expectedFiles('parity');
     const answer = await runExportAction(
       { action: 'prepare' },
       { accountability: admin, deps: () => depsOf() },
@@ -161,14 +155,13 @@ describe('the export operation', () => {
 
     expect(durationMs.total).toBeGreaterThanOrEqual(durationMs.read);
     expect(summary).toEqual({
-      files: (['courses', 'rooms', 'staff', 'students'] as const).map(
-        (name) => ({
-          bytes: Buffer.byteLength(JSON.stringify(expected[name]), 'utf8'),
-          filename: `${name}.json`,
-          rows: expected[name].length,
-          sha256: sha256(expected[name]),
-        }),
-      ),
+      files: publicFileNames.map((name) => ({
+        bytes: Buffer.byteLength(expected[name].body, 'utf8'),
+        filename: `${name}.json`,
+        rows: z.array(z.unknown()).parse(JSON.parse(expected[name].body))
+          .length,
+        sha256: expected[name].sha256,
+      })),
       revision: 42,
       warnings: [
         'equivalency_without_course',

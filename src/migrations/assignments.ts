@@ -1,7 +1,6 @@
 import type { AssignmentRow } from './inventory-schemas.js';
 import type { Candidates, StaffCandidate } from './report.js';
 
-import { ConverterWriteError } from './batches.js';
 import {
   Collector,
   compositeKey,
@@ -18,9 +17,7 @@ import { staffListSeparator } from './preflight-staff.js';
 // every complete label matches exactly one staff row, or one review row
 // carrying the literal text when it does not. The original text row is
 // never modified; `course_name` repeats its label because the checkpoint
-// column is NOT NULL, and the professor/assistant columns stay empty so the
-// checkpoint derivation (first ascending id per course name) never sees a
-// new row before the original.
+// column is NOT NULL, and the professor/assistant columns stay empty.
 export type RoleRowRecord = {
   readonly assistants: null;
   readonly course: number;
@@ -210,20 +207,4 @@ export const convertTeachingAssignments = (
     roleRows(out, input, { course, label, row });
   }
   return out.result();
-};
-
-// The checkpoint derivation displays the first ascending id per course
-// name, so a role row must sort after every original text row. A row id
-// at or below the last original (a lagging id sequence) would silently
-// blank the published professors and assistants: the step fails instead.
-export const assertRoleRowsAppended = (
-  ids: Iterable<number>,
-  lastOriginal: number,
-): void => {
-  const early = [...ids].filter((id) => id <= lastOriginal);
-  if (early.length > 0) {
-    throw new ConverterWriteError(
-      `Converter bug: role rows ${listIds(early)} of teaching_assignments received ids at or below the last original assignment row ${String(lastOriginal)}, so the checkpoint derivation (first ascending id per course name) would display them instead of the original text. Remove the appended rows and advance the id sequence past the originals before running again; never retry blindly.`,
-    );
-  }
 };

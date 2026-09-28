@@ -7,11 +7,10 @@ import {
   findModelCollection,
 } from '../src/data-model/collections.js';
 import {
-  type DirectusModeRequest,
+  type DirectusRequest,
   DirectusRequestError,
 } from '../src/directus-request.js';
 import {
-  type FakeItem,
   fakeItemsDirectus,
   type FakeStore,
   type RecordedCall,
@@ -30,12 +29,8 @@ export const emptyStore = (): FakeStore => ({
 
 const aggregatePattern =
   /^\/items\/(?<collection>[^/?]+)\?aggregate\[count\]=\*$/u;
-const flowFilterPattern = /^\/flows\?.*filter\[id\]\[_eq\]=(?<id>[0-9a-f-]+)$/u;
-const flowPattern = /^\/flows\/(?<id>[0-9a-f-]+)$/u;
-const triggerPattern = /^\/flows\/trigger\/(?<id>[0-9a-f-]+)$/u;
 const itemsPattern = /^\/items\/(?<collection>[^/?]+)(?:\?|$)/u;
 
-const flowBody = z.looseObject({ id: z.string() });
 const itemsBody = z.union([
   z.array(z.record(z.string(), z.unknown())),
   z.record(z.string(), z.unknown()),
@@ -70,93 +65,22 @@ export type ImportFake = {
   readonly calls: RecordedCall[];
   readonly io: ImportIo;
   readonly mutations: () => readonly RecordedCall[];
-  readonly request: DirectusModeRequest;
+  readonly request: DirectusRequest;
   readonly setups: () => number;
   readonly store: FakeStore;
-  readonly triggers: Array<{ readonly id: string; readonly mode: string }>;
 };
 
 type FakeOptions = {
   readonly batchSize?: number;
-  readonly triggerResult?: unknown;
 };
 
-// What a handler answers for a request it does not serve.
+// What the handler answers for a request it does not serve.
 const unhandled = Symbol('unhandled');
-
-type Handler = (
-  pathname: string,
-  init: Parameters<typeof fetch>[1],
-  mode: string,
-) => unknown;
-
-// Answers the Flow endpoints the installer and the trigger use.
-const flowHandler =
-  (
-    store: FakeStore,
-    triggers: Array<{ readonly id: string; readonly mode: string }>,
-    options: FakeOptions,
-  ): Handler =>
-  (pathname, init, mode) => {
-    const method = init?.method ?? 'GET';
-    const filtered = flowFilterPattern.exec(pathname)?.groups?.['id'];
-    if (filtered !== undefined) {
-      return store.flows
-        .filter(({ id }) => id === filtered)
-        .map(({ id, operation }) => ({ id, operation: operation ?? null }));
-    }
-    // The legacy-Flow check of the import (findLegacyFlows): every
-    // operation's Flow and type, then the Flows it names.
-    if (
-      method === 'GET' &&
-      pathname === '/operations?fields=flow,type&limit=-1'
-    ) {
-      return store.operations.map((entry) => ({
-        flow: entry['flow'] ?? null,
-        type: entry['type'],
-      }));
-    }
-    if (
-      method === 'GET' &&
-      pathname === '/flows?fields=id,name,status&limit=-1'
-    ) {
-      return store.flows.map((entry) => ({
-        id: entry.id,
-        name: entry['name'],
-        status: entry['status'],
-      }));
-    }
-    const triggered = triggerPattern.exec(pathname)?.groups?.['id'];
-    if (triggered !== undefined) {
-      triggers.push({ id: triggered, mode });
-      return options.triggerResult ?? { courses: 0, studentCouncilMembers: 0 };
-    }
-    if (method === 'POST' && ['/flows', '/operations'].includes(pathname)) {
-      const created: FakeItem = flowBody.parse(bodyOf(init));
-      (pathname === '/flows' ? store.flows : store.operations).push(created);
-      return created;
-    }
-    const patched = flowPattern.exec(pathname)?.groups?.['id'];
-    if (method !== 'PATCH' || patched === undefined) {
-      return unhandled;
-    }
-    const index = store.flows.findIndex(({ id }) => id === patched);
-    const existing = store.flows[index];
-    if (existing === undefined) {
-      throw forbidden(`flow ${patched}`);
-    }
-    store.flows[index] = {
-      ...existing,
-      ...z.record(z.string(), z.unknown()).parse(bodyOf(init)),
-      id: existing.id,
-    };
-    return store.flows[index];
-  };
 
 // Answers the collection listing and the record counts.
 const schemaHandler =
-  (store: FakeStore): Handler =>
-  (pathname) => {
+  (store: FakeStore) =>
+  (pathname: string): unknown => {
     if (pathname === '/collections') {
       return store.items
         .keys()
@@ -178,33 +102,26 @@ const schemaHandler =
     return [{ count: String(rows.length) }];
   };
 
-// A Directus for the import: the collection listing, record counts, the
-// Flow and operation endpoints and the manual trigger, over the paged item
-// store of the migration tests, whose created rows carry every model column
-// the insert left out as null. The setup stand-in creates every model
-// collection empty (plus the coordination singleton row) as `npm run setup`
-// would.
+// A Directus for the import: the collection listing and record counts,
+// over the paged item store of the migration tests, whose created rows
+// carry every model column the insert left out as null. The setup stand-in
+// creates every model collection empty (plus the coordination singleton
+// row) as `npm run setup` would; the import itself touches no Flow.
 export const fakeImportDirectus = (
   store: FakeStore,
   options: FakeOptions = {},
 ): ImportFake => {
   const items = fakeItemsDirectus(store);
   const calls: RecordedCall[] = [];
-  const triggers: Array<{ readonly id: string; readonly mode: string }> = [];
-  const handlers = [
-    schemaHandler(store),
-    flowHandler(store, triggers, options),
-  ];
+  const schema = schemaHandler(store);
   let setups = 0;
-  const request: DirectusModeRequest = async (pathname, init, mode) => {
+  const request: DirectusRequest = async (pathname, init) => {
     const method = init?.method ?? 'GET';
     calls.push({ body: bodyOf(init), method, pathname });
     await Promise.resolve();
-    for (const handler of handlers) {
-      const answer = handler(pathname, init, mode ?? 'data');
-      if (answer !== unhandled) {
-        return answer;
-      }
+    const answer = schema(pathname);
+    if (answer !== unhandled) {
+      return answer;
     }
     const collection = itemsPattern.exec(pathname)?.groups?.['collection'];
     if (method !== 'POST' || collection === undefined) {
@@ -240,6 +157,5 @@ export const fakeImportDirectus = (
     request,
     setups: () => setups,
     store,
-    triggers,
   };
 };

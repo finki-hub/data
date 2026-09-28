@@ -23,20 +23,18 @@ export const fieldPresentations: readonly FieldPresentation[] = [
     collection: 'teaching_assignments',
     field: 'course_name',
     meta: {
-      note: 'Course label the checkpoint derivation still reads, so it stays required: type the course name until the derivation follows the course link.',
+      note: 'Course label of the imported assignment row. The column is still required: type the course name until the cleanup relaxes it.',
       sort: 12,
       width: 'full',
     },
   },
-  // The copied name stays visible read-only: council rows keep it as their
-  // only label until every student link is backfilled.
+  // The copied council name: nothing fills it any more (the checkpoint
+  // rebuild is gone), so it stays hidden and read-only; the linked student
+  // names the member and the index labels an unlinked one.
   {
     collection: 'student_council',
     field: 'name',
-    meta: {
-      note: 'Copied council name, kept read-only; the linked student record is the source of truth.',
-      readonly: true,
-    },
+    meta: { hidden: true, readonly: true },
   },
   ...moodleFieldPresentations,
 ];

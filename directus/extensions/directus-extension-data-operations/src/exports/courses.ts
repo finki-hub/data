@@ -16,12 +16,12 @@ import {
 } from './types.js';
 
 // courses.json: one row per course in id order, with the keys, order and
-// value forms of the reference serializer (serialize-assets.cjs), projected
-// from the relational rows on read. Its curriculum keys come from rows an
-// administrator publishes: every published generation with a curriculum
-// adds its availability key and a block of keys, and every published
-// program of it a state key. A new generation or program needs no change
-// here.
+// value forms of the checkpoint's file (committed under
+// test/fixtures/expected-exports), projected from the relational rows on
+// read. Its curriculum keys come from rows an administrator publishes:
+// every published generation with a curriculum adds its availability key
+// and a block of keys, and every published program of it a state key. A
+// new generation or program needs no change here.
 
 // name, code, level, semester, channel and prerequisite of a generation,
 // from the course's linked entry of that generation.
@@ -58,9 +58,9 @@ const credits: BlockField = {
   value: curriculum('credits'),
 };
 
-// The 2018 block lists its credits before its states, as the reference
-// serializer did; every other generation (2023 today, and any new one)
-// lists its states first.
+// The 2018 block lists its credits before its states, as the committed
+// checkpoint file does; every other generation (2023 today, and any new
+// one) lists its states first.
 const creditsFirst = '2018';
 
 const generationLayout: readonly BlockPart[] = [

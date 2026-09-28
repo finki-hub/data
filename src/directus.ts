@@ -1,34 +1,25 @@
 import { z } from 'zod';
 
 import type { DirectusConfig } from './config.js';
-import type { FlowTemplate } from './flows/flow-template.js';
 import type { CollectionSpec, MigrationData } from './schema.js';
 import type { WorkbookContent } from './workbook.js';
 
 import { applyBranding } from './branding.js';
-import { derivedDataFlow, derivedDataFlowId } from './derived-data-flow.js';
 import {
   createDirectusRequest,
-  type DirectusModeRequest,
   type DirectusRequest,
 } from './directus-request.js';
-import {
-  type FlowInstallSummary,
-  installFlowTemplates,
-} from './flows/install-flows.js';
 import {
   ImportInterruptedError,
   type ImportPhase,
 } from './import-interruption.js';
 import { countApplicationRecords, ExistingDataError } from './import-state.js';
-import { findLegacyFlows, LegacyFlowsError } from './legacy-flows.js';
 import { chunk, defaultBatchSize } from './migrations/batches.js';
 import {
   convertWorkbook,
   type WorkbookConversion,
 } from './migrations/workbook-adapter.js';
 import { collectionSpecs } from './model.js';
-import { loadPublicAssetsFlow } from './public-assets-flow.js';
 import { runSetup } from './setup.js';
 
 type ApiField = {
@@ -86,17 +77,8 @@ export type ImportIo = {
   readonly setup?: (request: DirectusRequest) => Promise<SetupReport>;
 };
 
-// What the rebuild operation answers when it ran; a Studio-edited Flow may
-// answer something else, which is reported as null rather than refused.
-const rebuildResult = z.object({
-  courses: z.number().int().nonnegative(),
-  studentCouncilMembers: z.number().int().nonnegative(),
-});
-
 export type ImportSummary = {
   readonly conversion: WorkbookConversion;
-  readonly flows: FlowInstallSummary;
-  readonly rebuild: null | z.infer<typeof rebuildResult>;
   readonly rows: Readonly<Record<string, number>>;
   readonly setup: SetupReport;
 };
@@ -139,54 +121,26 @@ const writeSourceRows = async (
   return Object.fromEntries(written);
 };
 
-// The initial rebuild the checkpoint importer always ran, through the
-// manual Flow with the import's administrator token (the Flow refuses
-// anyone else). It answers the operation result undecoded, or the
-// operation's error, which interrupts the import while rebuilding.
-const triggerRebuild = async (
-  request: DirectusModeRequest,
-): Promise<ImportSummary['rebuild']> => {
-  const parsed = rebuildResult.safeParse(
-    await request(
-      `/flows/trigger/${derivedDataFlowId}`,
-      json({ collection: 'courses' }),
-      'raw',
-    ),
-  );
-  return parsed.success ? parsed.data : null;
-};
-
 // The one-time workbook import. It refuses, before any write, a populated
-// project (see countApplicationRecords) and a project that holds checkpoint
-// Rebuild or Publish Flows under other ids (see findLegacyFlows); runs setup (so an import into an
-// empty project equals setup plus import); installs the checkpoint
-// Rebuild and Publish Flows once under stable ids; writes the workbook rows
-// into the checkpoint collections; converts them through the migration
-// ledger exactly as an upgrade would; and runs the initial derived-data
-// rebuild. Every refusal happens before the first row is written; a later
+// project (see countApplicationRecords); runs setup (so an import into an
+// empty project equals setup plus import); writes the workbook rows into
+// the checkpoint collections; and converts them through the migration
+// ledger exactly as an upgrade would. It runs no Flow and publishes
+// nothing. Every refusal happens before the first row is written; a later
 // failure raises ImportInterruptedError, whose message depends on how far
 // the import got. Only the lifecycle command (`npm run import`, through
 // loadImportConfig) calls it.
 export const importWorkbook = async (
-  request: DirectusModeRequest,
+  request: DirectusRequest,
   workbook: WorkbookContent,
   io: ImportIo,
 ): Promise<ImportSummary> => {
   const { data } = workbook;
-  const templates: readonly FlowTemplate[] = [
-    derivedDataFlow,
-    await loadPublicAssetsFlow(),
-  ];
   const records = await countApplicationRecords(request);
   if (Object.keys(records).length > 0) {
     throw new ExistingDataError(records);
   }
-  const legacy = await findLegacyFlows(request);
-  if (legacy.length > 0) {
-    throw new LegacyFlowsError(legacy);
-  }
   const setup = await (io.setup ?? runSetup)(request);
-  const flows = await installFlowTemplates(request, templates);
   const batchSize = io.batchSize ?? defaultBatchSize;
   const total = collectionSpecs.reduce(
     (sum, { key }) => sum + data[key].length,
@@ -194,7 +148,6 @@ export const importWorkbook = async (
   );
   let phase: ImportPhase = 'writing';
   let confirmed = 0;
-  let conversion: null | WorkbookConversion = null;
   try {
     const rows = await writeSourceRows(
       request,
@@ -204,18 +157,16 @@ export const importWorkbook = async (
       },
     );
     phase = 'converting';
-    conversion = await convertWorkbook(request, workbook, {
+    const conversion = await convertWorkbook(request, workbook, {
       batchSize,
       now: io.now,
       resume: false,
       runToken: io.runToken(),
     });
-    phase = 'rebuilding';
-    const rebuild = await triggerRebuild(request);
-    return { conversion, flows, rebuild, rows, setup };
+    return { conversion, rows, setup };
   } catch (error) {
     throw new ImportInterruptedError(
-      { confirmed, conversion, phase, total },
+      { confirmed, phase, total },
       { cause: error },
     );
   }
@@ -224,7 +175,7 @@ export const importWorkbook = async (
 // The branding command's client. It has no import method: the workbook
 // import runs only through importWorkbook, from `npm run import`.
 export class DirectusClient {
-  readonly #request: DirectusModeRequest;
+  readonly #request: DirectusRequest;
 
   public constructor(config: DirectusConfig) {
     this.#request = createDirectusRequest(config);

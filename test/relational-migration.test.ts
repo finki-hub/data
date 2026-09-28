@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest';
 
-import { deriveCourses } from '../directus/extensions/directus-extension-rebuild-derived-data/derive.js';
 import {
   convertCourseCurricula,
   type ExistingLink,
@@ -32,18 +31,19 @@ import {
   ruleKey,
   type RuleRecord,
 } from '../src/migrations/rules.js';
+import { academicYears } from '../src/specs/public.js';
+import { expectedEnrollments } from './expected-exports.js';
 import {
-  academicYears,
   courseNames,
   makeSyntheticDataset,
   type SyntheticDataset,
   thetaCrossNewlinePattern,
-  toCourseSources,
 } from './fixtures/synthetic-data.js';
 import {
   fakeItemsDirectus,
   storeFromDataset,
 } from './migration-test-helpers.js';
+import { matchingHistories } from './relational-export-helpers.js';
 import {
   codes,
   entryIdsOf,
@@ -72,23 +72,20 @@ const noRules: ReadonlyMap<string, ExistingRule> = new Map();
 
 // Every seeded rule as an explicit pattern row, one per course and year,
 // so the checkpoint derivation can be run over the frozen rules.
-const frozenDataset = (
+// What every seeded rule counts over the dataset's histories, keyed
+// "<course id>/<academic year label>" like the committed enrollments.
+const rulesCounts = (
   dataset: SyntheticDataset,
   rules: readonly RuleRecord[],
   labels: ReadonlyMap<number, string>,
-): SyntheticDataset => {
-  const names = new Map(
-    dataset.courses.map((course) => [course.id, String(course['name'])]),
+): Record<string, number> => {
+  const histories = dataset.moodle_users.map((user) => user['Courses']);
+  return Object.fromEntries(
+    rules.map((record) => [
+      `${String(record.course)}/${labels.get(record.academic_year) ?? ''}`,
+      matchingHistories(record.pattern, histories),
+    ]),
   );
-  return {
-    ...dataset,
-    course_enrollment_patterns: rules.map((record, index) => ({
-      id: index + 1,
-      course_name: names.get(record.course) ?? '',
-      academic_year: labels.get(record.academic_year) ?? '',
-      pattern: record.pattern,
-    })),
-  };
 };
 
 describe('curriculum entries', () => {
@@ -807,7 +804,7 @@ describe('enrollment rules', () => {
     ]);
   });
 
-  test('freezing the seeded rules as explicit pattern rows reproduces every enrollment count of the derivation', async () => {
+  test('the seeded rules count exactly the committed checkpoint enrollments', async () => {
     const dataset = makeSyntheticDataset();
     const { report } = await prepare(dataset);
     const yearIds = yearIdsOf();
@@ -818,15 +815,14 @@ describe('enrollment rules', () => {
       patterns: report.candidates.patterns,
       yearIds,
     });
-    const frozen = frozenDataset(
-      dataset,
-      conversion.writes.map(({ record }) => record),
-      labels,
-    );
 
-    await expect(deriveCourses(toCourseSources(frozen))).resolves.toEqual(
-      await deriveCourses(toCourseSources(dataset)),
-    );
+    expect(
+      rulesCounts(
+        dataset,
+        conversion.writes.map(({ record }) => record),
+        labels,
+      ),
+    ).toEqual(await expectedEnrollments('synthetic'));
   });
 
   test('reuses an existing rule row and retains and reports one whose mode or pattern was set by hand', async () => {

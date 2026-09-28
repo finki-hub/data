@@ -11,22 +11,16 @@ import { hostsOf, s3TargetFrom } from './s3-target.js';
 
 // The isolated targets every fixture suite takes, shared: an explicit
 // disposable Directus (URL and token, loopback only, with its synthetic
-// marker collection and value), an optional separate local S3 target
-// (s3-target.ts refuses anything that could be production), and the
-// optional Docker containers of that Directus and its database for the
-// restart and read-only statistics scenarios, each shown to belong to the
-// target before a suite touches it. Nothing defaults to a live project; a
-// suite reports statuses and counts only.
+// marker collection and value), a separate local S3 target when a suite
+// requires one (s3-target.ts refuses anything that could be production),
+// and the optional Docker containers of that Directus and its database for
+// the restart and read-only statistics scenarios, each shown to belong to
+// the target before a suite touches it. Nothing defaults to a live
+// project; a suite reports statuses and counts only.
 
 const markerCollectionPattern = /^synthetic_search_marker_[a-z0-9]+$/u;
 const markerPattern = /^synthetic-[a-z0-9-]+$/u;
 const containerPattern = /^[a-z0-9][a-z0-9_.-]{0,127}$/u;
-const s3Variables = [
-  'DIRECTUS_S3_TEST_ENDPOINT',
-  'DIRECTUS_S3_TEST_BUCKET',
-  'DIRECTUS_S3_TEST_CONTAINER',
-  'DIRECTUS_S3_TEST_DIRECTUS_CONTAINER',
-];
 
 export const targetFrom = (environment) => {
   const url = environment.DIRECTUS_SEARCH_TEST_URL;
@@ -82,14 +76,6 @@ export const assertMarkerPresent = async (target) => {
   assert.equal(marker.data[0].marker, target.marker);
 };
 
-// The S3 target when the environment names one, else null. Naming only
-// part of it is refused, never read as "no S3".
-export const optionalS3Target = (environment) => {
-  const named = s3Variables.filter((name) => (environment[name] ?? '') !== '');
-  if (named.length === 0) return null;
-  return s3TargetFrom(environment);
-};
-
 // One Docker container a scenario may restart or read statistics from,
 // named explicitly; null when the variable is unset.
 const containerOf = (environment, name) => {
@@ -140,8 +126,8 @@ const bindContainers = async ({ containers, docker, s3, target }) => {
 };
 
 // Every target a suite needs, validated before it writes anything: the
-// Directus target and its marker, the S3 target (required, optional or
-// none) and the containers it requires. Only the required containers are
+// Directus target and its marker, the S3 target (required or none) and the
+// containers it requires. Only the required containers are
 // answered, each bound to the target; the database container is bound
 // through the Directus one, which it therefore requires too. `docker`
 // runs the read-only Docker commands (a test passes its own).
@@ -153,7 +139,6 @@ export const isolatedTargets = async (
   const target = targetFrom(environment);
   const s3Targets = {
     none: () => null,
-    optional: () => optionalS3Target(environment),
     required: () => s3TargetFrom(environment),
   };
   assert.ok(Object.hasOwn(s3Targets, s3), `Unknown S3 requirement ${s3}`);

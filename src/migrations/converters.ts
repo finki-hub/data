@@ -5,11 +5,7 @@ import type { MigrationReport } from './report.js';
 import type { SourceMapEntry } from './source-map.js';
 
 import { applyCreates, applyUpdates } from './apply-writes.js';
-import {
-  assertRoleRowsAppended,
-  convertTeachingAssignments,
-  roleKey,
-} from './assignments.js';
+import { convertTeachingAssignments, roleKey } from './assignments.js';
 import { convertCouncilLinks } from './council.js';
 import { convertCourseCurricula } from './course-links.js';
 import { convertCurriculumEntries, convertProgramStates } from './curricula.js';
@@ -141,39 +137,19 @@ const rules: Run = async (context, { options, report }) => {
   return [...years.mappings, ...seeded.mappings];
 };
 
-const lastId = (rows: ReadonlyArray<{ readonly id: number }>): number => {
-  let last = 0;
-  for (const { id } of rows) {
-    last = Math.max(last, id);
-  }
-  return last;
-};
-
-// Role-bearing rows beside the original text rows. Every role row, the
-// ones an earlier attempt wrote and the ones written now, must carry an id
-// above every original row, or the step fails before and after writing.
+// Role-bearing rows beside the original text rows.
 const assignments: Run = async (context, { inventory, options, report }) => {
-  const collection = 'teaching_assignments';
-  const lastOriginal = lastId(inventory.checkpoint.teaching_assignments);
-  const present = await readRoleRows(context.request);
-  assertRoleRowsAppended(present.values().toArray().flat(), lastOriginal);
   const applied = await applyCreates(context, options, {
-    collection,
+    collection: 'teaching_assignments',
     conversion: convertTeachingAssignments({
       candidates: report.candidates.assignments,
-      existing: present,
+      existing: await readRoleRows(context.request),
       rows: inventory.checkpoint.teaching_assignments,
       staffByName: indexLabels(inventory.checkpoint.staff, (row) => row.name),
     }),
     group: (record) => roleKey(record.source_id, record.role),
     key: ['source_id', 'role', 'sort'],
   });
-  assertRoleRowsAppended(
-    applied.mappings.flatMap(({ targetCollection, targetId }) =>
-      targetCollection === collection && targetId !== null ? [targetId] : [],
-    ),
-    lastOriginal,
-  );
   return applied.mappings;
 };
 
