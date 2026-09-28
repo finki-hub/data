@@ -94,7 +94,6 @@ const reinstallsWithoutMutation = async (target, directus, state) => {
   assert.deepEqual(recorder.mutations(), []);
   assert.equal(recorder.calls.length, 1 + dataModelCollectionKeys.length * 2);
   assert.deepEqual(summary.collections, {
-    adopted: 0,
     created: 0,
     refused: 0,
     skipped: dataModelCollectionKeys.length,

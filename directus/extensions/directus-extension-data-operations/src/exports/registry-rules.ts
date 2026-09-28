@@ -5,7 +5,6 @@ import { countRead } from './readiness-run.js';
 import {
   generationField,
   type ReadinessEntry,
-  reviewScopes,
   severities,
 } from './readiness-types.js';
 
@@ -42,16 +41,16 @@ export const registryReads = (
   return reads;
 };
 
-// Whether a counted view of a count entry filters otherwise than its
-// count (the same filter, compared as data).
+// Whether the view of a count entry filters otherwise than its count (the
+// same filter, compared as data).
 const drifts = ({ review, source }: ReadinessEntry): boolean =>
-  review?.lists === 'counted' &&
+  review !== undefined &&
   source.kind === 'count' &&
   JSON.stringify(review.filter) !== JSON.stringify(source.filter);
 
-// A Needs review view lists fields, says what it lists, filters without
-// `_some`/`_none`, lists exactly what a count counts, and shows the
-// generation when its records belong to one.
+// A Needs review view lists fields, filters without `_some`/`_none`,
+// lists exactly what a count counts, and shows the generation when its
+// records belong to one.
 const reviewProblems = (entry: ReadinessEntry): string[] => {
   const { code, generationScoped, review } = entry;
   if (review === undefined) {
@@ -59,9 +58,6 @@ const reviewProblems = (entry: ReadinessEntry): string[] => {
   }
   return [
     ...(review.fields.length === 0 ? [`review of ${code} lists no field`] : []),
-    ...(reviewScopes.includes(review.lists)
-      ? []
-      : [`review of ${code} lists an unknown scope`]),
     ...(usesSomeOrNone(review.filter)
       ? [`review of ${code} filters with _some or _none`]
       : []),

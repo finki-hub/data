@@ -16,18 +16,13 @@ import {
   requiredFields,
   snapshotFields,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
-import {
-  specProgramHeaders,
-  workbookGenerations,
-  workbookPrograms,
-} from '../src/migrations/generations.js';
-import { academicYears } from '../src/specs/public.js';
+import { workbookGenerations } from '../src/migrations/generations.js';
 import {
   curriculumPlan,
   declarations,
   expectedFiles,
+  modelRows,
   referenceCollections,
-  specRows,
   yearRows,
 } from './fixtures/stress-fixture.js';
 import { expectedCounts, pairKey } from './fixtures/stress-oracle.js';
@@ -44,6 +39,8 @@ import {
   stressLines,
   stressRows,
 } from './fixtures/stress-snapshot.js';
+import { academicYears } from './fixtures/synthetic-data.js';
+import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
 
 // The generated stress fixture follows its declarations: the scraper
 // header set, the model's academic years, the generation and program rows
@@ -121,7 +118,7 @@ describe('the builder reads the declarations themselves', () => {
         }),
       ),
     );
-    expect(declarations.programs).toEqual(workbookPrograms(specProgramHeaders));
+    expect(declarations.programs).toEqual(syntheticPrograms);
   });
 });
 
@@ -413,7 +410,7 @@ describe('the expected files follow the export registry', () => {
     );
 
     for (const collection of collections) {
-      const rows = specRows(collection, 12);
+      const rows = modelRows(collection, 12);
 
       expect(rows).toHaveLength(12);
       expect(rows.every((row) => Object.keys(row).length > 0)).toBeTruthy();

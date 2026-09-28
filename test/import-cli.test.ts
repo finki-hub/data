@@ -20,25 +20,33 @@ import {
   fakeImportDirectus,
   type ImportFake,
 } from './import-test-helpers.js';
+import { parityDataset } from './relational-export-helpers.js';
 
 const packageScripts = z.object({ scripts: z.record(z.string(), z.string()) });
-const importSummary = z.looseObject({
-  conversion: z.looseObject({ status: z.string() }),
+const counts = z.record(z.string(), z.number().int());
+const checkSummary = z.strictObject({
+  blockers: counts,
+  mode: z.enum(['dry-run', 'import']),
+  rows: counts,
+  skipped: counts,
+  unstorable: counts,
+  warnings: counts,
+});
+const importSummary = checkSummary.extend({
   mode: z.literal('import'),
+  setup: z.record(z.string(), z.unknown()),
 });
 const target = {
   DIRECTUS_TOKEN: 'synthetic-token',
   DIRECTUS_URL: 'http://127.0.0.1:18055',
 };
 const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
-const specifierPattern = /from\s+'(?<specifier>[^']+)'/gu;
 const commandPattern = /^ *(?:command|entrypoint):/mu;
 const dockerCommandPattern = /^(?:CMD|ENTRYPOINT)\b/mu;
 const malformedPattern =
   /^Import failed: Invalid boolean "maybe" in active at row 3\. Nothing was sent to Directus\.$/u;
-const jsSuffixPattern = /\.js$/u;
 const interruptedPattern =
-  /^Import interrupted: The import stopped while writing the workbook rows: synthetic outage\. Directus had confirmed 8 of the \d+ workbook rows, so npm run import now refuses this project: it holds a partial import\./u;
+  /^Import interrupted: The import stopped while writing the relational rows: synthetic outage\. Directus had confirmed \d+ of the \d+ planned rows\. Set up a fresh project and import again\.$/u;
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 
 const scratch = { directory: '' };
@@ -60,7 +68,7 @@ const saved = async (
   return file;
 };
 
-const savedDataset = (dataset: SyntheticDataset = lifecycleDataset()) =>
+const savedDataset = (dataset: SyntheticDataset = parityDataset()) =>
   saved(syntheticWorkbook(dataset));
 
 // The CLI over a fake Directus; `requests` counts every request the CLI
@@ -95,7 +103,7 @@ const cli = (fake: ImportFake = fakeImportDirectus(emptyStore())) => {
 };
 
 const duplicateIndexDataset = (): SyntheticDataset => {
-  const base = lifecycleDataset();
+  const base = parityDataset();
   return {
     ...base,
     students: [
@@ -111,35 +119,30 @@ const duplicateIndexDataset = (): SyntheticDataset => {
 };
 
 describe('import command', () => {
-  test('dry-run reads the workbook without credentials and never contacts Directus', async () => {
+  test('dry-run reads the workbook without credentials, never contacts Directus and prints counts only', async () => {
     const run = cli();
     const workbook = await savedDataset();
 
     await expect(
       run.run(['--dry-run'], { WORKBOOK_PATH: workbook }),
     ).resolves.toBe(exitCodes.ok);
-    expect(JSON.parse(run.stdout.join('\n'))).toMatchObject({
-      courses: 8,
-      moodle_users: 9,
-      students: 3,
+
+    const summary = checkSummary.parse(JSON.parse(run.stdout.join('\n')));
+
+    expect(summary).toMatchObject({
+      blockers: {},
+      mode: 'dry-run',
+      rows: { courses: 8, moodle_users: 9, students: 3 },
+      skipped: {
+        duplicate_pattern: 1,
+        orphan_assignment: 1,
+        orphan_pattern: 1,
+      },
     });
+    expect(summary.warnings).toMatchObject({ unmatched_council_index: 1 });
+    expect([summary.blockers, summary.unstorable]).toEqual([{}, {}]);
     expect(run.requests.created).toBe(0);
     expect(run.stderr).toEqual([]);
-  });
-
-  test('dry-run previews the blockers an import would meet, with exit code 3 and no request', async () => {
-    const run = cli();
-
-    await expect(
-      run.run(['--dry-run'], {
-        WORKBOOK_PATH: await savedDataset(duplicateIndexDataset()),
-      }),
-    ).resolves.toBe(exitCodes.blocked);
-    expect(JSON.parse(run.stdout.join('\n'))).toMatchObject({ students: 4 });
-    expect(run.stderr).toEqual([
-      'Dry run: the relational conversion of this workbook would be blocked by {"ambiguous_student_index":1}. npm run import would write the rows, skip the conversion and exit 3, leaving a populated project to finish with npm run migrate. Correct these ambiguous relationships in the workbook first, or plan to resolve them in Studio after the import.',
-    ]);
-    expect(run.requests.created).toBe(0);
   });
 
   test('refuses to import without an explicit target', async () => {
@@ -180,28 +183,16 @@ describe('import command', () => {
     expect(run.fake.calls).toEqual([]);
   });
 
-  test('a file that is not a workbook, or a value its column cannot hold, fails the same way', async () => {
+  test('a file that is not a workbook fails the same way', async () => {
     const garbage = path.join(scratch.directory, 'not-a-workbook.xlsx');
     await writeFile(garbage, 'synthetic bytes, not a zip archive');
-    const base = lifecycleDataset();
-    const tooLong = await savedDataset({
-      ...base,
-      rooms: base.rooms.map((row, index) =>
-        index === 0 ? { ...row, name: 'Room '.repeat(60) } : row,
-      ),
-    });
     const run = cli();
 
     await expect(
       run.run([], { ...target, WORKBOOK_PATH: garbage }),
     ).resolves.toBe(exitCodes.failed);
-    await expect(
-      run.run([], { ...target, WORKBOOK_PATH: tooLong }),
-    ).resolves.toBe(exitCodes.failed);
+    expect(run.stderr).toHaveLength(1);
     expect(run.stderr[0]).toContain('could not be read as an .xlsx file');
-    expect(run.stderr[1]).toBe(
-      'Import failed: rooms row 1 of the workbook: name holds 300 characters, but the column stores at most 255. Correct the cell before importing. Nothing was sent to Directus.',
-    );
     expect(run.requests.created).toBe(0);
   });
 
@@ -220,28 +211,9 @@ describe('import command', () => {
     expect(run.stdout).toEqual([]);
   });
 
-  test('reports a blocked conversion with exit code 3 and the finding counts only', async () => {
-    const run = cli();
-
-    await expect(
-      run.run([], {
-        ...target,
-        WORKBOOK_PATH: await savedDataset(duplicateIndexDataset()),
-      }),
-    ).resolves.toBe(exitCodes.blocked);
-    expect(run.stderr.join('\n')).toContain(
-      'Import incomplete: the workbook rows were imported, but the relational conversion is blocked by {"ambiguous_student_index":1}.',
-    );
-    expect(
-      importSummary.parse(JSON.parse(run.stdout.join('\n'))),
-    ).toMatchObject({
-      conversion: { status: 'blocked' },
-    });
-  });
-
   test('reports an import interrupted after its first write with exit code 4 and its remedy', async () => {
     const fake = fakeImportDirectus(emptyStore());
-    // The staff rows follow the eight course rows.
+    // The staff rows follow the academic years, generations and programs.
     const failing: ImportFake['request'] = (pathname, init) =>
       init?.method === 'POST' && pathname.startsWith('/items/staff')
         ? Promise.reject(new Error('synthetic outage'))
@@ -265,9 +237,12 @@ describe('import command', () => {
 
     const line = run.stdout.join('\n');
 
-    expect(importSummary.parse(JSON.parse(line))).toMatchObject({
-      conversion: { status: 'converted' },
+    const summary = importSummary.parse(JSON.parse(line));
+
+    expect(summary).toMatchObject({
+      rows: { course_curricula: 12, courses: 8 },
     });
+    expect([summary.blockers, summary.unstorable]).toEqual([{}, {}]);
 
     for (const forbidden of forbiddenOnStdout) {
       expect(line).not.toContain(forbidden);
@@ -277,13 +252,103 @@ describe('import command', () => {
   });
 });
 
+describe('workbooks the import refuses', () => {
+  test('dry-run names every case an import would refuse by sheet and row, with exit code 3 and no request', async () => {
+    const run = cli();
+
+    await expect(
+      run.run(['--dry-run'], {
+        WORKBOOK_PATH: await savedDataset(lifecycleDataset()),
+      }),
+    ).resolves.toBe(exitCodes.blocked);
+    expect(
+      checkSummary.parse(JSON.parse(run.stdout.join('\n'))).blockers,
+    ).toEqual({ duplicate_assignment: 1, unlinked_generation_values: 1 });
+    expect(run.stderr).toEqual([
+      'Dry run: npm run import would refuse this workbook: correct these 2 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      '- duplicate_assignment: Наставен Кадар rows 2, 3',
+      '- unlinked_generation_values: Предмети (Export) row 4',
+    ]);
+    expect(run.requests.created).toBe(0);
+  });
+
+  test('names every value no column can hold with every blocking case in one run, with exit code 3 and no request', async () => {
+    const base = lifecycleDataset();
+    const tooLong = await savedDataset({
+      ...base,
+      rooms: base.rooms.map((row, index) =>
+        index === 0 ? { ...row, name: 'Room '.repeat(60) } : row,
+      ),
+    });
+    const refusals = [
+      '- Простории (Export) row 2: rooms.name holds 300 characters, but the column stores at most 255',
+      '- duplicate_assignment: Наставен Кадар rows 2, 3',
+      '- unlinked_generation_values: Предмети (Export) row 4',
+    ];
+    const dryRun = cli();
+    const run = cli();
+
+    await expect(
+      dryRun.run(['--dry-run'], { WORKBOOK_PATH: tooLong }),
+    ).resolves.toBe(exitCodes.blocked);
+    await expect(
+      run.run([], { ...target, WORKBOOK_PATH: tooLong }),
+    ).resolves.toBe(exitCodes.blocked);
+    expect(
+      checkSummary.parse(JSON.parse(dryRun.stdout.join('\n'))),
+    ).toMatchObject({
+      blockers: { duplicate_assignment: 1, unlinked_generation_values: 1 },
+      mode: 'dry-run',
+      unstorable: { 'rooms.name': 1 },
+    });
+    expect(dryRun.stderr).toEqual([
+      'Dry run: npm run import would refuse this workbook: correct these 3 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      ...refusals,
+    ]);
+    expect(run.stderr).toEqual([
+      'Import blocked: correct these 3 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      ...refusals,
+    ]);
+    expect(
+      checkSummary.parse(JSON.parse(run.stdout.join('\n'))).unstorable,
+    ).toEqual({ 'rooms.name': 1 });
+    expect([...dryRun.stdout, ...dryRun.stderr].join('\n')).not.toContain(
+      'Room ',
+    );
+    expect(dryRun.requests.created + run.requests.created).toBe(0);
+  });
+
+  test('refuses a blocked workbook before Directus is contacted, with exit code 3 and counts only', async () => {
+    const run = cli();
+
+    await expect(
+      run.run([], {
+        ...target,
+        WORKBOOK_PATH: await savedDataset(duplicateIndexDataset()),
+      }),
+    ).resolves.toBe(exitCodes.blocked);
+    expect(run.stderr).toEqual([
+      'Import blocked: correct these 1 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      '- ambiguous_student_index: ФСС row 2',
+    ]);
+    expect(checkSummary.parse(JSON.parse(run.stdout.join('\n')))).toMatchObject(
+      {
+        blockers: { ambiguous_student_index: 1 },
+        mode: 'import',
+      },
+    );
+    expect(run.requests.created).toBe(0);
+    expect(run.fake.calls).toEqual([]);
+  });
+});
+
 describe('lifecycle commands', () => {
   test('name their target and workbook on the invocation; none of them, the dry run included, reads .env', () => {
     const { scripts } = packageScripts.parse(packageJson);
 
     expect(scripts['setup']).toBe('node --import tsx src/setup-cli.ts');
     expect(scripts['import']).toBe('node --import tsx src/cli.ts');
-    expect(scripts['migrate']).toBe('node --import tsx src/migrations/cli.ts');
+    expect(scripts).not.toHaveProperty('migrate');
     expect(scripts['import:dry-run']).toBe(
       'node --import tsx src/cli.ts --dry-run',
     );
@@ -315,38 +380,5 @@ describe('lifecycle commands', () => {
     expect(compose).not.toMatch(commandPattern);
     expect(dockerfile).not.toMatch(dockerCommandPattern);
     expect(dockerfile).not.toContain('npm');
-  });
-
-  test('the populated upgrade never loads the workbook or its reader', async () => {
-    const files = new Set<string>();
-    const packages = new Set<string>();
-    const pending = [path.join(repositoryRoot, 'src/migrations/cli.ts')];
-    for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
-      if (files.has(file)) {
-        continue;
-      }
-      files.add(file);
-      const source = await readFile(file, 'utf8');
-      for (const match of source.matchAll(specifierPattern)) {
-        const specifier = match.groups?.['specifier'] ?? '';
-        if (specifier.startsWith('.')) {
-          pending.push(
-            path.resolve(
-              path.dirname(file),
-              specifier.replace(jsSuffixPattern, '.ts'),
-            ),
-          );
-        } else {
-          packages.add(specifier);
-        }
-      }
-    }
-    const modules = [...files].map((file) =>
-      path.relative(repositoryRoot, file),
-    );
-
-    expect(modules).toContain('src/migrations/converters.ts');
-    expect(modules.filter((module) => module.includes('workbook'))).toEqual([]);
-    expect(packages).not.toContain('exceljs');
   });
 });

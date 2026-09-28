@@ -1,7 +1,7 @@
 import type { ModelCollection } from '../schema.js';
 
 import { automaticProcessingFields } from './automatic-processing-fields.js';
-import { courseTemplate, provenanceFields } from './checkpoint-collections.js';
+import { courseTemplate } from './content-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
 import { enumField, m2o, scalar } from './fields.js';
 import {
@@ -40,12 +40,10 @@ export const operationsCollections: readonly ModelCollection[] = [
       enumField('mode', modeChoices, { note: modeNote, nullable: false }),
       scalar('pattern', 'text', { note: patternNote }),
       scalar('review_note', 'text'),
-      ...provenanceFields(),
     ],
     hidden: false,
     icon: 'rule',
     note: 'One active enrollment rule per course and academic year.',
-    origin: 'relational',
     singleton: false,
     sort: 21,
   },
@@ -89,7 +87,6 @@ export const operationsCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'functions',
     note: 'Derived enrollment counts; rewritten by the calculation Flows, never edited by hand.',
-    origin: 'relational',
     singleton: false,
     sort: 22,
   },
@@ -185,7 +182,6 @@ export const operationsCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'settings_suggest',
     note: 'Private coordination singleton for derivation, import and publication status. Mutated by administrators only.',
-    origin: 'relational',
     singleton: true,
     sort: 23,
   },
@@ -219,7 +215,6 @@ export const operationsCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'pending_actions',
     note: 'Temporary candidate counts staged under a claim; partial counts only, never raw users.',
-    origin: 'relational',
     singleton: false,
     sort: 24,
   },

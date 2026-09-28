@@ -119,13 +119,6 @@ const applyCollection = async (
   request: DirectusRequest,
   action: CollectionAction,
 ): Promise<void> => {
-  if (action.kind === 'adopt-collection') {
-    await request(
-      `/collections/${action.collection.collection}`,
-      json({ meta: collectionMeta(action.collection) }, 'PATCH'),
-    );
-    return;
-  }
   try {
     await request(
       '/collections',
@@ -153,14 +146,6 @@ const applyField = async (
         json({ schema: action.schema }, 'PATCH'),
       );
       return;
-    case 'adopt-meta': {
-      const { meta } = toFieldPayload(action.field, action.sort);
-      await request(
-        fieldPath(action.collection, action.field.field),
-        json({ meta }, 'PATCH'),
-      );
-      return;
-    }
     case 'create-alias':
       await request(
         `/fields/${action.collection}`,
@@ -205,8 +190,9 @@ const applyRelation = async (
 
 // Installs the relational data model over REST, idempotently. Missing
 // collections, fields, aliases, relations and single-column constraints are
-// created; unmanaged existing columns are adopted meta-only; relations whose
-// alias, sort, deselect or delete rule diverge are aligned; enum fields
+// created; a unique or index flag a Studio edit removed is restored;
+// relations whose alias, sort, deselect or delete rule diverge are aligned;
+// a table or column Directus does not manage is refused; enum fields
 // whose code-owned choices or rule drifted are realigned (`aligned`),
 // unless a live value falls outside the declared choices; incompatible
 // existing definitions and such values are refused before any mutation;

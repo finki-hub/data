@@ -2,7 +2,7 @@
 import type { CheckView } from './status-contract.js';
 
 import StatusBadge from './status-badge.vue';
-import { candidatesCue, checkLinkText } from './status-labels.js';
+import { checkLinkText } from './status-labels.js';
 
 // One readiness check: severity, code, count and the link to its records.
 defineProps<{ check: CheckView; linkable: (collection: string) => boolean }>();
@@ -16,7 +16,6 @@ defineProps<{ check: CheckView; linkable: (collection: string) => boolean }>();
     <td class="link">
       <router-link v-if="linkable(check.page)" :to="check.link">{{ checkLinkText(check) }}</router-link>
       <span v-else class="note">no access</span>
-      <small v-if="linkable(check.page) && check.lists === 'candidates'" class="note cue">{{ candidatesCue }}</small>
     </td>
   </tr>
 </template>
@@ -30,5 +29,4 @@ th { font-weight: 500; font-family: var(--theme--fonts--monospace--font-family, 
 .link a { color: var(--theme--primary); text-decoration: underline; text-underline-offset: 3px; }
 .zero { opacity: 0.65; }
 .note { color: var(--theme--foreground-subdued); }
-.cue { display: block; white-space: normal; font-size: 12px; line-height: 1.4; }
 </style>

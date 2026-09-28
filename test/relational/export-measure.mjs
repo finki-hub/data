@@ -119,7 +119,7 @@ const userRows = (count, courses, years) =>
 const assignmentsOf = (courseIds, staffIds) =>
   courseIds.flatMap((course, index) => {
     const staffAt = (offset) => staffIds[(index + offset) % staffIds.length];
-    const base = { course, course_name: measuredCourse(index) };
+    const base = { course };
     return [
       { ...base, role: 'professor', sort: 1, staff: staffAt(0) },
       { ...base, role: 'professor', sort: 2, staff: staffAt(7) },

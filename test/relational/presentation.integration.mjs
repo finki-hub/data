@@ -10,10 +10,7 @@ import {
   lockedWithoutGeneration,
 } from '../../src/data-model/presentation/curriculum-fields.js';
 import { presentationFieldPatches } from '../../src/data-model/presentation/fields.js';
-import {
-  fieldGroups,
-  legacyImportColumns,
-} from '../../src/data-model/presentation/groups.js';
+import { fieldGroups } from '../../src/data-model/presentation/groups.js';
 import {
   collectionPlacements,
   folders,
@@ -111,12 +108,9 @@ const installsStudioMetadata = async (target) => {
   assert.equal(overview.meta.interface, 'group-detail');
   const name = await get(target, '/fields/courses/name');
   assert.equal(name.meta.group, 'overview');
-  const legacy = await get(target, '/fields/courses/legacy_calculated');
-  assert.equal(legacy.meta.readonly, true);
-  assert.equal(legacy.meta.options.start, 'closed');
-  const professors = await get(target, '/fields/courses/professors');
-  assert.equal(professors.meta.group, 'legacy_calculated');
-  assert.equal(professors.meta.readonly, true);
+  const override = await get(target, '/fields/courses/professors_override');
+  assert.equal(override.meta.group, 'staff');
+  assert.equal(override.meta.readonly, false);
   const entry = await get(target, '/fields/course_curricula/entry');
   assert.deepEqual(entry.meta.options.filter, generationFilter);
   assert.equal(entry.meta.readonly, false);
@@ -138,15 +132,6 @@ const installsStudioMetadata = async (target) => {
   );
   assert.equal(junction.meta.junction_field, 'program');
   assert.equal(junction.meta.one_field, 'program_states');
-  // The imported per-generation columns: read-only, in a closed group.
-  const legacyImport = await get(target, '/fields/courses/legacy_import');
-  assert.equal(legacyImport.meta.readonly, true);
-  assert.equal(legacyImport.meta.options.start, 'closed');
-  for (const column of legacyImportColumns) {
-    const field = await get(target, `/fields/courses/${column}`);
-    assert.equal(field.meta.group, 'legacy_import', column);
-    assert.equal(field.meta.readonly, true, column);
-  }
   const assignments = await get(target, '/fields/courses/assignments');
   assert.deepEqual(assignments.meta.options.fields, [
     'role',
@@ -154,16 +139,7 @@ const installsStudioMetadata = async (target) => {
     'display_override',
   ]);
   assert.equal(assignments.meta.options.sort, 'sort');
-  const provenance = await get(
-    target,
-    '/fields/teaching_assignments/source_collection',
-  );
-  assert.equal(provenance.meta.group, 'legacy_imported');
-  assert.equal(provenance.meta.readonly, true);
-  // Nothing fills the copied council name any more: it stays hidden.
-  const council = await get(target, '/fields/student_council/name');
-  assert.equal(council.meta.hidden, true);
-  assert.equal(council.meta.readonly, true);
+  // The linked student names a council member; the index an unlinked one.
   const councilCollection = await get(target, '/collections/student_council');
   assert.equal(
     councilCollection.meta.display_template,
@@ -261,10 +237,9 @@ const editsCourseThroughRelations = async (target, state) => {
     generation: generations['2018'],
     sort: 1,
   });
-  // A converted checkpoint row still carries the required course label.
+  // An assignment needs its course, role and staff member only.
   const assignment = await createItem(target, 'teaching_assignments', {
     course: course.data.id,
-    course_name: 'Synthetic Presentation Course',
     role: 'professor',
     sort: 1,
     staff: professor.data.id,

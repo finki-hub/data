@@ -16,14 +16,12 @@ export const folders: readonly Folder[] = [
       'curriculum_entry_program_states',
       'curriculum_generations',
       'study_programs',
-      'curriculum_2023',
-      'curriculum_2018',
       'course_equivalencies',
       'course_equivalency_members',
       'academic_years',
       'discord_channels',
     ],
-    note: 'Courses, the curriculum entries they link to, the curriculum generations and study programs, and the checkpoint curriculum sheets.',
+    note: 'Courses, the curriculum entries they link to, the curriculum generations and study programs, and the course equivalencies.',
     sort: 1,
   },
   {
@@ -67,35 +65,20 @@ export const folders: readonly Folder[] = [
     members: [
       'course_enrollment_rules',
       'course_enrollments',
-      'course_enrollment_patterns',
       'data_operations',
       'data_operation_results',
-      'migration_ledger',
     ],
-    note: 'Enrollment rules, derived counts, the private operation state and the migration ledger.',
+    note: 'Enrollment rules, derived counts and the private operation state.',
     sort: 5,
   },
 ];
 
-// Collections whose display template changes with the relational model:
-// the council row shows the linked student instead of the copied name.
-const displayTemplates: Readonly<Partial<Record<string, string>>> = {
-  student_council: '{{year}} - {{student.name}}',
-};
-
 export const collectionPlacements: readonly CollectionPlacement[] =
   folders.flatMap((folder) =>
-    folder.members.map((collection, index) => {
-      const template = displayTemplates[collection];
-      return {
-        collection,
-        meta: {
-          ...(template !== undefined && { display_template: template }),
-          group: folder.collection,
-          sort: index + 1,
-        },
-      };
-    }),
+    folder.members.map((collection, index) => ({
+      collection,
+      meta: { group: folder.collection, sort: index + 1 },
+    })),
   );
 
 export const findFolder = (collection: string): Folder | undefined =>

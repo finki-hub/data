@@ -188,14 +188,13 @@ describe('the editor policy template and the snapshot readiness check', () => {
         { action: 'update', collection: 'moodle_course_mappings' },
         { action: 'create', collection: 'courses' },
         { action: 'read', collection: 'data_operations' },
-        // A Flow operation edited to write with $full on the schedule, a
-        // ledger step marked done, or a permission granted to oneself
-        // would each bypass the rules above; reading Flows (the manual
-        // buttons need it) stays allowed.
+        // A Flow operation edited to write with $full on the schedule, or
+        // a permission granted to oneself, would each bypass the rules
+        // above; reading Flows (the manual buttons need it) stays
+        // allowed.
         { action: 'read', collection: 'directus_flows' },
         { action: 'update', collection: 'directus_operations' },
         { action: 'create', collection: 'directus_flows' },
-        { action: 'update', collection: 'migration_ledger' },
         { action: 'create', collection: 'directus_permissions' },
         { action: 'update', collection: 'directus_access' },
       ]),
@@ -206,7 +205,6 @@ describe('the editor policy template and the snapshot readiness check', () => {
       { action: 'read', collection: 'data_operations' },
       { action: 'update', collection: 'directus_operations' },
       { action: 'create', collection: 'directus_flows' },
-      { action: 'update', collection: 'migration_ledger' },
       { action: 'create', collection: 'directus_permissions' },
       { action: 'update', collection: 'directus_access' },
     ]);

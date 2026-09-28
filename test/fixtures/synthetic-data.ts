@@ -1,20 +1,40 @@
-import type { CollectionKey, MigrationItem } from '../../src/schema.js';
+import type { MigrationItem, WorkbookKey } from '../../src/schema.js';
 
 /**
- * Deterministic, fully invented dataset covering every migration collection.
+ * Deterministic, fully invented dataset covering every part of the workbook.
  *
  * Every value is synthetic: names are Greek-letter placeholders, addresses use
  * `.example` domains only, and private-only columns carry sentinel strings so
  * tests can prove those values never reach a public output. Rows carry the
- * columns the workbook holds; what the checkpoint published for them is
+ * columns the workbook holds; what the public files hold for them is
  * committed under test/fixtures/expected-exports (test/expected-exports.ts).
  */
 
 export type SyntheticRow = MigrationItem & { readonly id: number };
 
 export type SyntheticDataset = Readonly<
-  Record<CollectionKey, readonly SyntheticRow[]>
+  Record<WorkbookKey, readonly SyntheticRow[]>
 >;
+
+// The academic years the synthetic workbook's enrollment sheet names,
+// newest first, unless a test names others.
+export const academicYears = [
+  '2025/2026',
+  '2024/2025',
+  '2023/2024',
+  '2022/2023',
+  '2021/2022',
+  '2020/2021',
+  '2019/2020',
+  '2018/2019',
+  '2017/2018',
+  '2016/2017',
+  '2015/2016',
+  '2014/2015',
+  '2013/2014',
+  '2012/2013',
+  '2011/2012',
+] as const;
 
 export const sentinelPrivateId = 'SENTINEL_PRIVATE_ID';
 export const sentinelPrivateMail = 'SENTINEL_PRIVATE_MAIL';

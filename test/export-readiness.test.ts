@@ -32,17 +32,17 @@ import {
   courseNames,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
+import { planOf } from './import-plan-helpers.js';
 import {
-  convertedStore,
   edit,
   generationIdOf,
+  importedStore,
   parityDataset,
   renamedCurrent,
+  rowsOf,
   storeReader,
   unmatchedLegacy,
-  withLinkedLabel,
 } from './relational-export-helpers.js';
-import { rowsOf } from './relational-migration-helpers.js';
 
 const current: CoordinationFacts = {
   calculation: 'graph-a',
@@ -70,7 +70,7 @@ const decide = async (situation: Situation = {}) =>
     {
       coordination: () => Promise.resolve(situation.coordination ?? current),
       reader: storeReader(
-        situation.store ?? (await convertedStore()),
+        situation.store ?? (await importedStore()),
         situation.log,
       ),
       snapshot: () => Promise.resolve(situation.snapshot ?? promoted),
@@ -98,14 +98,6 @@ const assignmentRow = (id: number, values: Partial<FakeItem>): FakeItem => ({
 });
 
 const recordText = /Synthetic|Prof\.|Asst\.|Course|@/u;
-
-// The course's name_2018_override set to the label.
-const withOverride =
-  (course: number, label: string) =>
-  (rows: FakeItem[]): FakeItem[] =>
-    rows.map((row) =>
-      row.id === course ? { ...row, name_2018_override: label } : row,
-    );
 
 // The course's columns set to the values.
 const withValues =
@@ -145,7 +137,7 @@ const nameOnly = (dataset: SyntheticDataset): SyntheticDataset => ({
   ),
 });
 
-// The warnings of the converted parity fixture: its three equivalencies
+// The warnings of the imported parity fixture: its three equivalencies
 // without a course, its two equivalency labels without an entry (Alpha's
 // decoy 2018 label, the orphan 2023 label), the six review labels of its
 // assignments and its council member whose index matched no student.
@@ -327,20 +319,6 @@ describe('the readiness decision', () => {
     });
   });
 
-  test('blocks a one-time conversion step that is still running or failed', async () => {
-    const store = edit(
-      await convertedStore(),
-      'migration_ledger',
-      append([{ id: 900, status: 'failed', step: 'assignments' }]),
-    );
-    const decision = await decide({ store });
-
-    expect(decision.blockers).toEqual(['conversion_incomplete']);
-    expect(decision.links['conversion_incomplete']).toBe(
-      '/admin/content/migration_ledger',
-    );
-  });
-
   test.each([
     [{ undeclared_code: 1 }],
     [{ declared_code: -1 }],
@@ -387,7 +365,7 @@ describe('the registry decides every code once', () => {
         `readiness code ${code} is declared twice`,
       ]);
       await expect(
-        decide({ log, registry, store: await convertedStore() }),
+        decide({ log, registry, store: await importedStore() }),
       ).rejects.toMatchObject({ code: 'EXPORT_INVALID_DEFINITION' });
       expect(log).toEqual([]);
     },
@@ -441,7 +419,7 @@ describe('the key order of courses.json', () => {
     'blocks $label, whose keys would move silently',
     async ({ blocker, ...change }) => {
       const decision = await decide({
-        store: withCurrentValues(await convertedStore(), change),
+        store: withCurrentValues(await importedStore(), change),
       });
 
       expect(decision.blockers).toEqual([blocker]);
@@ -452,7 +430,7 @@ describe('the key order of courses.json', () => {
   );
 
   test('blocks no generation or program that places no key, nor programs of two generations sharing a sort', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     const labelOnly = generationIdOf(store, '2013');
     // The label-only 2013 published with 2023's sort, a program of it
     // without a sort and an unpublished 2023 program sharing kn's sort.
@@ -491,14 +469,14 @@ describe('the enrollment and curriculum checks of courses.json', () => {
   test('blocks an exported course and year without a count row, and names a missing rule apart', async () => {
     const counted = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'course_enrollments',
         without((row) => row['course'] === 2 && row['academic_year'] === 3),
       ),
     });
     const newCourse = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'courses',
         append([{ id: 50, name: 'Synthetic New Course' }]),
       ),
@@ -519,7 +497,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
   test('counts a published year without counts or rules as missing for every course', async () => {
     const decision = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'academic_years',
         append([{ id: 99, label: '2026/2027', published: true, sort: 16 }]),
       ),
@@ -535,7 +513,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
   test('blocks nothing for a new year until it is published', async () => {
     const decision = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'academic_years',
         append([{ id: 99, label: '2026/2027', published: false, sort: 16 }]),
       ),
@@ -547,7 +525,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
   test('blocks a published year without a sort, which has no place among the year keys', async () => {
     const decision = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'academic_years',
         withValues(1, { sort: null }),
       ),
@@ -563,7 +541,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
   test('blocks two published years that share a sort, whose keys have no order, but not an unpublished one', async () => {
     const shared = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'academic_years',
         withValues(2, { sort: 15 }),
       ),
@@ -578,7 +556,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
 
     const unpublished = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'academic_years',
         append([{ id: 99, label: '2026/2027', published: false, sort: 15 }]),
       ),
@@ -588,110 +566,47 @@ describe('the enrollment and curriculum checks of courses.json', () => {
     expect(unpublished.ready).toBeTruthy();
   });
 
-  test('blocks a 2018 member an equivalency names and 2018 values while the course has no 2018 link, whatever its read-only override, until the link is back', async () => {
-    const store = await convertedStore();
-    const legacy = generationIdOf(store, '2018');
-    const link = rowsOf(store, 'course_curricula').find(
-      (row) => row['course'] === 7 && row['generation'] === legacy,
-    );
-    edit(
-      store,
-      'course_curricula',
-      without((row) => row === link),
-    );
-    const blocked = await decide({ store });
-
-    expect(blocked.blockers).toEqual([
-      'curriculum_link_unresolved',
-      'curriculum_value_unlinked',
-    ]);
-    expect(blocked.links).toMatchObject({
-      curriculum_link_unresolved: '/admin/content/course_equivalency_members',
-      curriculum_value_unlinked: '/admin/content/courses',
-    });
-
-    // A (read-only) override is import input now: it settles nothing.
-    edit(store, 'courses', withOverride(7, 'Theta Legacy'));
-    edit(
-      store,
-      'courses',
-      withValues(7, { available_2018: null, credits_2018: null }),
-    );
-
-    await expect(decide({ store })).resolves.toMatchObject({
-      blockers: ['curriculum_link_unresolved', 'curriculum_value_unlinked'],
-    });
-
-    edit(store, 'course_curricula', append(link === undefined ? [] : [link]));
-
-    await expect(decide({ store })).resolves.toMatchObject({ ready: true });
-  });
-
   test.each([
     [
-      'a 2023 name that matched no entry',
+      'a 2023 name that matches no entry',
       renamedCurrent(parityDataset()),
-      { curriculum_value_unlinked: 1 },
+      'unmatched_curriculum_2023_label',
     ],
     [
-      'a 2023 name without credits or availability that matched no entry',
+      'a 2023 name without credits or availability that matches no entry',
       nameOnly(renamedCurrent(parityDataset())),
-      { curriculum_value_unlinked: 1 },
+      'unmatched_curriculum_2023_label',
     ],
     [
-      'a 2018 equivalency label that matched no entry',
+      'a 2018 equivalency label that matches no entry',
       unmatchedLegacy(parityDataset()),
-      { curriculum_link_unresolved: 1, curriculum_value_unlinked: 1 },
+      'unmatched_curriculum_2018_label',
     ],
     [
       'a 2018 availability without any 2018 label',
       parityDataset({ gammaAvailability: true }),
-      { curriculum_value_unlinked: 1 },
+      'unlinked_generation_values',
+    ],
+    [
+      'a second teaching row of a course',
+      parityDataset({ duplicateAssignment: true }),
+      'duplicate_assignment',
     ],
   ])(
-    'blocks %s, a value the legacy file publishes and no link holds',
-    async (_label, dataset, blockers) => {
-      const decision = await decide({ store: await convertedStore(dataset) });
-
-      expect(decision.ready).toBeFalsy();
-      expect(
-        Object.fromEntries(
-          decision.blockers.map((code) => [code, decision.issueCounts[code]]),
-        ),
-      ).toEqual(blockers);
+    'leaves %s, a value the published file would lose or merge, to the import, which refuses it',
+    (_label, dataset, code) => {
+      expect(planOf(dataset).blockers.map((blocker) => blocker.code)).toEqual([
+        code,
+      ]);
     },
   );
-
-  test('settles an imported value once the course is linked, or once the value is cleared', async () => {
-    const linked = await decide({
-      store: withLinkedLabel(
-        await convertedStore(renamedCurrent(parityDataset())),
-        8,
-        '2023',
-      ),
-    });
-    const cleared = await decide({
-      store: edit(
-        await convertedStore(renamedCurrent(parityDataset())),
-        'courses',
-        withValues(8, {
-          available_2023: null,
-          credits_2023: null,
-          name_2023: '',
-        }),
-      ),
-    });
-
-    expect(linked.ready).toBeTruthy();
-    expect(cleared.ready).toBeTruthy();
-  });
 });
 
 describe('the assignment and mapping checks of courses.json', () => {
   test('blocks published assignment rows without a role or a label, and ignores professors an override replaces', async () => {
     const decision = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'teaching_assignments',
         append([
           assignmentRow(500, { role: null }),
@@ -711,50 +626,10 @@ describe('the assignment and mapping checks of courses.json', () => {
     });
   });
 
-  test('blocks a course whose published list merges two imported assignment rows until one is removed', async () => {
-    const store = await convertedStore(
-      parityDataset({ duplicateAssignment: true }),
-    );
-    const merged = await decide({ store });
-
-    expect(merged.blockers).toEqual(['assignment_source_duplicate']);
-    expect(merged.issueCounts).toMatchObject({
-      assignment_order_ambiguous: 2,
-      assignment_source_duplicate: 1,
-    });
-    expect(merged.links['assignment_source_duplicate']).toBe(
-      '/admin/content/teaching_assignments',
-    );
-
-    edit(
-      store,
-      'teaching_assignments',
-      without((row) => row['source_id'] === 2),
-    );
-
-    await expect(decide({ store })).resolves.toMatchObject({
-      issueCounts: baselineWarnings,
-      ready: true,
-    });
-  });
-
-  test('blocks the merged list of assistants when an override replaces the professors', async () => {
-    const store = edit(
-      await convertedStore(parityDataset({ duplicateAssignment: true })),
-      'courses',
-      withValues(1, { professors_override: 'Synthetic Override' }),
-    );
-
-    await expect(decide({ store })).resolves.toMatchObject({
-      blockers: ['assignment_source_duplicate'],
-      issueCounts: { assignment_order_ambiguous: 1 },
-    });
-  });
-
   test('warns, never blocks, about rows added in Studio that share a position', async () => {
     const decision = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'teaching_assignments',
         append([
           assignmentRow(500, { staff: 5 }),
@@ -768,7 +643,7 @@ describe('the assignment and mapping checks of courses.json', () => {
   });
 
   test('warns about mappings no rule counts and entries awaiting review, never blocking on them', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     edit(
       store,
       'moodle_course_entries',
@@ -803,7 +678,7 @@ describe('the assignment and mapping checks of courses.json', () => {
   test('answers codes, counts and pages, never a name or a label', async () => {
     const decision = await decide({
       store: edit(
-        await convertedStore(),
+        await importedStore(),
         'teaching_assignments',
         append([assignmentRow(501, {})]),
       ),

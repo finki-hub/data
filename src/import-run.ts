@@ -3,14 +3,11 @@ import type { DirectusRequest } from './directus-request.js';
 import { type DirectusConfig, loadImportConfig } from './config.js';
 import { type ImportIo, importWorkbook } from './directus.js';
 import { ImportInterruptedError } from './import-interruption.js';
+import { checkSummary, refusalCount, refusalLines } from './import-report.js';
 import { exitCodes, isRefusal } from './lifecycle.js';
-import { previewBlockers } from './migrations/workbook-adapter.js';
+import { type ImportPlan, planImport } from './migrations/plan.js';
 import { WorkbookDataError } from './workbook-values.js';
-import {
-  assertStorable,
-  countMigrationData,
-  loadWorkbook,
-} from './workbook.js';
+import { loadWorkbook, type WorkbookPlaces } from './workbook.js';
 
 export type ImportCliIo = ImportIo & {
   readonly createRequest: (config: DirectusConfig) => DirectusRequest;
@@ -25,11 +22,36 @@ const messageOf = (error: unknown): string =>
 const sentence = (message: string): string =>
   message.endsWith('.') ? message : `${message}.`;
 
+// Everything that refuses the import on stderr: the values no column can
+// hold, each named by sheet, row and column, and the blocking cases, one
+// line per code, each case named by its sheet and rows.
+const reportBlocked = (
+  {
+    dryRun,
+    places,
+    plan,
+  }: {
+    readonly dryRun: boolean;
+    readonly places: WorkbookPlaces;
+    readonly plan: ImportPlan;
+  },
+  stderr: (line: string) => void,
+): void => {
+  stderr(
+    `${dryRun ? 'Dry run: npm run import would refuse this workbook' : 'Import blocked'}: correct these ${String(refusalCount(plan))} case(s) in the workbook, then import again; nothing was sent to Directus.`,
+  );
+  for (const line of refusalLines(plan, places)) {
+    stderr(line);
+  }
+};
+
 // `npm run import [--dry-run]`: returns the exit code (see exitCodes) and
-// prints aggregate counts only. The workbook is read and checked before
-// Directus is contacted, so a bad workbook, like a dry-run, never reaches
-// it; the dry run also previews the conversion blockers the import would
-// meet.
+// prints aggregate counts only. Both commands read the workbook and run
+// the same check before Directus is contacted: a workbook that cannot be
+// read fails (exit 1); every value no column can hold and every case the
+// import cannot write as the workbook states it block (exit 3), all named
+// by sheet and row on stderr in one run. Only an unblocked import
+// contacts Directus.
 export const runImportCli = async (
   arguments_: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
@@ -38,30 +60,28 @@ export const runImportCli = async (
   try {
     const config = loadImportConfig(arguments_, environment);
     const workbook = await loadWorkbook(config.workbookPath);
-    assertStorable(workbook.data);
-    if (config.directus === null) {
-      io.stdout(JSON.stringify(countMigrationData(workbook.data), null, 2));
-      const blockers = previewBlockers(workbook);
-      if (Object.keys(blockers).length === 0) {
-        return exitCodes.ok;
+    const plan = planImport(workbook);
+    const summary = checkSummary(plan);
+    const dryRun = config.directus === null;
+    if (dryRun) {
+      io.stdout(JSON.stringify({ mode: 'dry-run', ...summary }, null, 2));
+    }
+    if (refusalCount(plan) > 0) {
+      if (!dryRun) {
+        io.stdout(JSON.stringify({ mode: 'import', ...summary }));
       }
-      io.stderr(
-        `Dry run: the relational conversion of this workbook would be blocked by ${JSON.stringify(blockers)}. npm run import would write the rows, skip the conversion and exit 3, leaving a populated project to finish with npm run migrate. Correct these ambiguous relationships in the workbook first, or plan to resolve them in Studio after the import.`,
-      );
+      reportBlocked({ dryRun, places: workbook.places, plan }, io.stderr);
       return exitCodes.blocked;
     }
-    const summary = await importWorkbook(
+    if (config.directus === null) {
+      return exitCodes.ok;
+    }
+    const imported = await importWorkbook(
       io.createRequest(config.directus),
-      workbook,
+      plan.collections,
       io,
     );
-    io.stdout(JSON.stringify({ mode: 'import', ...summary }));
-    if (summary.conversion.status === 'blocked') {
-      io.stderr(
-        `Import incomplete: the workbook rows were imported, but the relational conversion is blocked by ${JSON.stringify(summary.conversion.blockers)}. Resolve these ambiguous relationships in Studio, then finish with npm run migrate -- --dry-run --report <private path> and --apply.`,
-      );
-      return exitCodes.blocked;
-    }
+    io.stdout(JSON.stringify({ mode: 'import', ...summary, ...imported }));
     return exitCodes.ok;
   } catch (error) {
     if (isRefusal(error)) {

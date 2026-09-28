@@ -1,4 +1,4 @@
-import { courseTemplate } from '../data-model/checkpoint-collections.js';
+import { courseTemplate } from '../data-model/content-collections.js';
 import { academicYearTemplate } from '../data-model/curriculum-collections.js';
 import { mappedRuleMode, scriptText } from './shared.js';
 

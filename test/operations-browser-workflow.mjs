@@ -59,7 +59,6 @@ const seedsAssignment = async ({ s3, state, target }) => {
   const [assignment] = await createMany(target, 'teaching_assignments', [
     {
       course: course.id,
-      course_name: course.name,
       role: 'professor',
       sort: 1,
       staff: staff[0],

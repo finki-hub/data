@@ -1,22 +1,19 @@
 import ExcelJS from 'exceljs';
 
-import type {
-  CollectionKey,
-  CollectionSpec,
-  FieldSpec,
-  MigrationData,
-  MigrationItem,
-  Scalar,
-} from '../../src/schema.js';
-import type { WorkbookContent } from '../../src/workbook.js';
-
 import {
-  specProgramHeaders,
+  type ProgramHeaders,
   workbookPrograms,
 } from '../../src/migrations/generations.js';
-import { collectionSpecs } from '../../src/model.js';
-import { academicYears } from '../../src/specs/public.js';
 import {
+  type FieldSpec,
+  type MigrationData,
+  perWorkbookKey,
+  type Scalar,
+  type WorkbookSpec,
+} from '../../src/schema.js';
+import { workbookSpecs } from '../../src/specs/workbook.js';
+import {
+  academicYears,
   makeSyntheticDataset,
   type SyntheticDataset,
   type SyntheticRow,
@@ -42,13 +39,16 @@ const labelledStaff = [
   consultations: null,
 }));
 
-// The synthetic dataset as a workbook can carry it and a fresh import can
-// convert it: the ambiguities that block the relational conversion (a
+// The synthetic dataset without the ambiguities an import refuses (a
 // repeated curriculum name per generation, a second 2018 label for one
-// course, a council index two students share) are removed, a student gets
-// the name the index sheet needs, and every retained peculiarity stays (the
-// orphan curriculum, equivalency, assignment and pattern rows, the 2013-only
-// equivalency, the superseded pattern and the duplicate assignment row).
+// course, a council index two students share), a student with the name the
+// index sheet needs, and every other peculiarity kept: the orphan
+// curriculum, equivalency, assignment and pattern rows, the 2013-only
+// equivalency and the superseded pattern, which the import imports or
+// skips, and two cases that would change the published files (the
+// duplicate assignment row of Alpha and Gamma's 2018 availability without
+// a 2018 name), which refuse the import until resolved (parityDataset of
+// test/relational-export-helpers.ts).
 export const lifecycleDataset = (
   base = makeSyntheticDataset(),
 ): SyntheticDataset => ({
@@ -66,13 +66,13 @@ export const lifecycleDataset = (
 
 const studentSheets = ['Индекси - Година', 'Индекси - Други'] as const;
 
-const sourceFields = (spec: CollectionSpec): readonly FieldSpec[] =>
+const sourceFields = (spec: WorkbookSpec): readonly FieldSpec[] =>
   spec.fields.filter((field) => field.source !== undefined);
 
 // The worksheet column of every source field: its fixed position, or the
 // next column no fixed position takes.
 const columnsOf = (
-  spec: CollectionSpec,
+  spec: WorkbookSpec,
 ): ReadonlyArray<{ readonly column: number; readonly field: FieldSpec }> => {
   const fields = sourceFields(spec);
   const taken = new Set(fields.flatMap((field) => field.sourceColumn ?? []));
@@ -102,6 +102,34 @@ const setCell = (
   sheet.getRow(position.row).getCell(position.column).value = value;
 };
 
+// The duration line below the program code of a curriculum header.
+const durationLine = '\nтраење: 4 год.';
+
+// A header cell of the curriculum sheets: a program column is headed as
+// the real workbook heads it, the program code on the first line and its
+// duration on the second; the 2018 sheet links each such header to its
+// program page as rich text. ExcelJS types a hyperlink's text as a string,
+// although it reads and writes rich text there, so that value is set
+// through the cell's own setter.
+const setHeader = (
+  sheet: ExcelJS.Worksheet,
+  { column, spec }: { readonly column: number; readonly spec: WorkbookSpec },
+  field: FieldSpec,
+): void => {
+  const code = field.source ?? field.target;
+  const cell = sheet.getRow(1).getCell(column);
+  if (!field.target.startsWith('state_')) {
+    cell.value = code;
+  } else if (spec.key === 'curriculum_2018') {
+    Reflect.set(cell, 'value', {
+      hyperlink: `https://curriculum.example/2018/programs/${field.target}`,
+      text: { richText: [{ text: code }, { text: durationLine }] },
+    });
+  } else {
+    cell.value = `${code}${durationLine}`;
+  }
+};
+
 const text = (row: SyntheticRow, key: string): string => {
   const value = row[key];
   if (typeof value !== 'string') {
@@ -112,7 +140,7 @@ const text = (row: SyntheticRow, key: string): string => {
 
 const writeRows = (
   workbook: ExcelJS.Workbook,
-  spec: CollectionSpec,
+  spec: WorkbookSpec,
   rows: readonly SyntheticRow[],
 ): void => {
   if (spec.source.kind !== 'rows') {
@@ -121,7 +149,7 @@ const writeRows = (
   const sheet = workbook.addWorksheet(spec.source.sheet);
   const columns = columnsOf(spec);
   for (const { column, field } of columns) {
-    setCell(sheet, { column, row: 1 }, field.source ?? field.target);
+    setHeader(sheet, { column, spec }, field);
   }
   for (const [index, row] of rows.entries()) {
     for (const { column, field } of columns) {
@@ -208,8 +236,8 @@ const writeDiscord = (
 };
 
 // The year headers of the listener sheet: the given years in order (the
-// fifteen checkpoint years, newest first, unless a test names others),
-// then any year a pattern row names that they lack.
+// fifteen synthetic years, newest first, unless a test names others), then
+// any year a pattern row names that they lack.
 export const headerYears = (
   rows: readonly SyntheticRow[],
   years: readonly string[] = academicYears,
@@ -242,7 +270,7 @@ const writePatterns = (
 
 const writeSource = (
   workbook: ExcelJS.Workbook,
-  spec: CollectionSpec,
+  spec: WorkbookSpec,
   { rows, years }: { rows: readonly SyntheticRow[]; years: readonly string[] },
 ): void => {
   switch (spec.source.kind) {
@@ -260,15 +288,15 @@ const writeSource = (
   }
 };
 
-// An .xlsx workbook laid out the way the checkpoint readers expect, holding
-// the source columns of every row of the dataset (never a derived value)
-// and a listener sheet headed by the given academic years.
+// An .xlsx workbook laid out the way the workbook readers expect, holding
+// the source columns of every row of the dataset and a listener sheet
+// headed by the given academic years.
 export const syntheticWorkbook = (
   dataset: SyntheticDataset,
   years: readonly string[] = academicYears,
 ): ExcelJS.Workbook => {
   const workbook = new ExcelJS.Workbook();
-  for (const spec of collectionSpecs) {
+  for (const spec of workbookSpecs) {
     writeSource(workbook, spec, { rows: dataset[spec.key], years });
   }
   return workbook;
@@ -296,7 +324,7 @@ const normalized = (value: Scalar | undefined): Scalar => {
 };
 
 const readingOrder = (
-  spec: CollectionSpec,
+  spec: WorkbookSpec,
   rows: readonly SyntheticRow[],
   headers: readonly string[],
 ): readonly SyntheticRow[] => {
@@ -314,29 +342,24 @@ const readingOrder = (
   return rows;
 };
 
-// What the checkpoint readers return for the workbook written from the
-// dataset: the source columns only, in reading order, blanks as null.
+const specOf = (key: WorkbookSpec['key']): WorkbookSpec => {
+  const spec = workbookSpecs.find((candidate) => candidate.key === key);
+  if (spec === undefined) {
+    throw new TypeError(`No workbook spec reads ${key}`);
+  }
+  return spec;
+};
+
+// What the workbook readers return for the workbook written from the
+// dataset, after a save and a reload: the source columns only, in reading
+// order, blanks as null.
 export const workbookData = (
   dataset: SyntheticDataset,
   years: readonly string[] = academicYears,
-): MigrationData => {
-  const data: Record<CollectionKey, readonly MigrationItem[]> = {
-    course_enrollment_patterns: [],
-    course_equivalencies: [],
-    courses: [],
-    curriculum_2018: [],
-    curriculum_2023: [],
-    deans_office: [],
-    discord_channels: [],
-    moodle_users: [],
-    rooms: [],
-    staff: [],
-    student_council: [],
-    students: [],
-    teaching_assignments: [],
-  };
-  for (const spec of collectionSpecs) {
-    data[spec.key] = readingOrder(spec, dataset[spec.key], years).map((row) =>
+): MigrationData =>
+  perWorkbookKey((key) => {
+    const spec = specOf(key);
+    return readingOrder(spec, dataset[key], years).map((row) =>
       Object.fromEntries(
         sourceFields(spec).map((field) => [
           field.target,
@@ -344,46 +367,17 @@ export const workbookData = (
         ]),
       ),
     );
-  }
-  return data;
+  });
+
+// The program codes each curriculum sheet heads its program columns with.
+export const syntheticProgramHeaders: ProgramHeaders = {
+  curriculum_2018: specOf('curriculum_2018').fields.flatMap((field) =>
+    field.target.startsWith('state_') ? [field.source ?? ''] : [],
+  ),
+  curriculum_2023: specOf('curriculum_2023').fields.flatMap((field) =>
+    field.target.startsWith('state_') ? [field.source ?? ''] : [],
+  ),
 };
 
-// What the import reads from the workbook written from the dataset: its
-// rows, the academic years its listener sheet names and the study
-// programs its curriculum sheets head (the spec's headers, which the
-// written sheets carry).
-export const workbookContent = (
-  dataset: SyntheticDataset,
-  years: readonly string[] = academicYears,
-): WorkbookContent => ({
-  academicYears: headerYears(dataset.course_enrollment_patterns, years),
-  data: workbookData(dataset, years),
-  studyPrograms: workbookPrograms(specProgramHeaders),
-});
-
-// The rows of parsed workbook data with the ids a fresh table hands out
-// (1, 2, ...), as a populated checkpoint deployment holds them.
-export const withSequentialIds = (data: MigrationData): SyntheticDataset => {
-  const dataset: Record<CollectionKey, readonly SyntheticRow[]> = {
-    course_enrollment_patterns: [],
-    course_equivalencies: [],
-    courses: [],
-    curriculum_2018: [],
-    curriculum_2023: [],
-    deans_office: [],
-    discord_channels: [],
-    moodle_users: [],
-    rooms: [],
-    staff: [],
-    student_council: [],
-    students: [],
-    teaching_assignments: [],
-  };
-  for (const spec of collectionSpecs) {
-    dataset[spec.key] = data[spec.key].map((item, index) => ({
-      ...item,
-      id: index + 1,
-    }));
-  }
-  return dataset;
-};
+// The study programs the synthetic curriculum sheets head.
+export const syntheticPrograms = workbookPrograms(syntheticProgramHeaders);

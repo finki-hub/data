@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
-import { collectionSpecs } from '../src/model.js';
-import { type CollectionKey, collectionKeys } from '../src/schema.js';
+import { type WorkbookKey, workbookKeys } from '../src/schema.js';
+import { workbookSpecs } from '../src/specs/workbook.js';
 import {
   makeSyntheticDataset,
   privateSentinels,
@@ -19,29 +19,27 @@ const byNumber = (left: number, right: number): number => left - right;
 const exampleDomain = /^[a-z0-9.-]+\.example$/u;
 
 const stringValues = (dataset: SyntheticDataset): readonly string[] =>
-  collectionKeys.flatMap((key) =>
+  workbookKeys.flatMap((key) =>
     dataset[key].flatMap((row) =>
       Object.values(row).filter((value) => typeof value === 'string'),
     ),
   );
 
-// The columns of a collection the workbook fills: its spec fields but the
-// derived ones.
-const workbookTargets = (key: CollectionKey): readonly string[] =>
-  collectionSpecs
+// The columns of a workbook part: its spec fields.
+const workbookTargets = (key: WorkbookKey): readonly string[] =>
+  workbookSpecs
     .find((spec) => spec.key === key)
-    ?.fields.filter(({ derived }) => derived !== true)
-    .map(({ target }) => target) ?? [];
+    ?.fields.map(({ target }) => target) ?? [];
 
 describe('synthetic fixture', () => {
-  test('contains every migration collection with ascending unique ids', () => {
+  test('contains every part of the workbook with ascending unique ids', () => {
     const dataset = makeSyntheticDataset();
 
     expect(Object.keys(dataset).toSorted(byText)).toEqual(
-      [...collectionKeys].toSorted(byText),
+      [...workbookKeys].toSorted(byText),
     );
 
-    for (const key of collectionKeys) {
+    for (const key of workbookKeys) {
       const ids = dataset[key].map((row) => row.id);
 
       expect(ids).not.toHaveLength(0);
@@ -60,10 +58,10 @@ describe('synthetic fixture', () => {
     expect(second.courses[0]).not.toBe(first.courses[0]);
   });
 
-  test('uses exactly the workbook field keys of the spec plus id in every collection', () => {
+  test('uses exactly the workbook field keys of the spec plus id in every part', () => {
     const dataset = makeSyntheticDataset();
 
-    for (const key of collectionKeys) {
+    for (const key of workbookKeys) {
       const expected = ['id', ...workbookTargets(key)].toSorted(byText);
       const rows = dataset[key];
       for (const row of rows) {

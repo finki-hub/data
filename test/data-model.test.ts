@@ -28,16 +28,13 @@ import {
   toRelationPayload,
 } from '../src/data-model/relations.js';
 import { DirectusRequestError } from '../src/directus-request.js';
-import { collectionSpecs } from '../src/model.js';
 import {
-  collectionKeys,
   type CompositeKey,
   type ModelCollection,
   type ModelField,
   type ModelRelationField,
-  relationalCollectionKeys,
 } from '../src/schema.js';
-import { privateCollectionSpecs } from '../src/specs/private.js';
+import { privateWorkbookSpecs } from '../src/specs/private.js';
 import {
   emptyState,
   fakeDirectus,
@@ -136,47 +133,47 @@ const relationBody = z.object({
 });
 
 describe('target collections', () => {
-  test('declares every checkpoint and relational collection exactly once', () => {
-    expect(new Set(dataModelCollectionKeys)).toEqual(
-      new Set([...collectionKeys, ...relationalCollectionKeys]),
+  test('declares every collection exactly once, the imported content first', () => {
+    expect(dataModelCollectionKeys).toHaveLength(25);
+    expect(new Set(dataModelCollectionKeys).size).toBe(25);
+    expect(dataModelCollectionKeys.slice(0, 9)).toEqual([
+      'courses',
+      'staff',
+      'rooms',
+      'students',
+      'course_equivalencies',
+      'teaching_assignments',
+      'discord_channels',
+      'student_council',
+      'deans_office',
+    ]);
+    expect(dataModelCollectionKeys).not.toEqual(
+      expect.arrayContaining(['curriculum_2023']),
     );
-    expect(dataModelCollectionKeys).toHaveLength(29);
-    expect(new Set(dataModelCollectionKeys).size).toBe(29);
   });
 
-  test('adopts the checkpoint collections with their current fields first', () => {
-    for (const spec of collectionSpecs) {
-      const collection = findCollection(spec.key);
-
-      expect(collection.origin).toBe('checkpoint');
-      expect(collection.hidden).toBe(false);
-      expect(collection.singleton).toBe(false);
-      expect(
-        collection.fields
-          .slice(0, spec.fields.length)
-          .map(({ field, kind, nullable }) => ({ field, kind, nullable })),
-      ).toEqual(
-        spec.fields.map(({ kind, required, target }) => ({
-          field: target,
-          kind,
-          nullable: required !== true,
-        })),
-      );
-    }
-  });
-
-  test('keeps the old calculated course columns in place', () => {
-    const courses = findCollection('courses');
-
-    expect(courses.fields.map(({ field }) => field)).toContain(
-      'enrollment_2025_2026',
-    );
-    expect(findField('courses', 'professors').readOnly).toBeTruthy();
-    expect(courses.fields.filter(({ kind }) => kind === 'm2o')).toHaveLength(0);
+  test('keeps only the published columns on a course, and the course links its curriculum', () => {
+    expect(
+      findCollection('courses').fields.map(({ field, kind, nullable }) => [
+        field,
+        kind,
+        nullable,
+      ]),
+    ).toEqual([
+      ['name', 'string', false],
+      ['professors_override', 'text', true],
+      ['tags', 'string', true],
+    ]);
+    expect(
+      findCollection('teaching_assignments').fields.map(({ field }) => field),
+    ).toEqual(['course', 'staff', 'role', 'sort', 'display_override']);
+    expect(
+      findCollection('student_council').fields.map(({ field }) => field),
+    ).toEqual(['year', 'index_number', 'position', 'student']);
   });
 
   test('preserves the 38 Moodle scraper fields on the snapshot and the staging rows', () => {
-    const [spec] = privateCollectionSpecs;
+    const [spec] = privateWorkbookSpecs;
     const keys = spec.fields.map(({ target }) => target);
 
     expect(keys).toHaveLength(38);
@@ -552,7 +549,7 @@ describe('curriculum generations and study programs as rows', () => {
   test('keep equivalency members per generation, with a literal read-only label and a nullable entry', () => {
     expect(
       findCollection('course_equivalencies').fields.map(({ field }) => field),
-    ).toEqual(['course_2023', 'course_2018', 'course_2013', 'course']);
+    ).toEqual(['course']);
 
     const label = findField('course_equivalency_members', 'label');
 
@@ -619,7 +616,7 @@ describe('enumerations', () => {
   test('gives every enum one distinct value and a label per choice', () => {
     const enums = dataModelCollections.flatMap(enumsOf);
 
-    expect(enums.length).toBeGreaterThanOrEqual(8);
+    expect(enums.length).toBeGreaterThanOrEqual(7);
 
     for (const { collection, field } of enums) {
       const values = choiceValues(field);
@@ -780,7 +777,7 @@ describe('relations and aliases', () => {
     ).toEqual(['memberships', 'mappings']);
   });
 
-  test('keeps resolved checkpoint links nullable and transition rows reviewable', () => {
+  test('keeps the links of imported rows nullable and an unresolved label reviewable', () => {
     const mandatory = [
       ...relationFields('course_equivalencies'),
       ...relationFields('teaching_assignments'),
@@ -795,9 +792,6 @@ describe('relations and aliases', () => {
     expect(findField('teaching_assignments', 'display_override').kind).toBe(
       'text',
     );
-    expect(
-      findField('teaching_assignments', 'source_collection').readOnly,
-    ).toBeTruthy();
   });
 
   test('cascades mandatory links and nullifies optional ones', () => {
@@ -844,7 +838,6 @@ describe('installDataModel on fresh and installed projects', () => {
 
     expect(summary).toEqual({
       collections: {
-        adopted: 0,
         created: dataModelCollectionKeys.length,
         refused: 0,
         skipped: 0,
@@ -937,7 +930,6 @@ describe('installDataModel on fresh and installed projects', () => {
     expect(mutations(requests)).toEqual([]);
     expect(summary).toEqual({
       collections: {
-        adopted: 0,
         created: 0,
         refused: 0,
         skipped: dataModelCollectionKeys.length,

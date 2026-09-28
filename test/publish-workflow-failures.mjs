@@ -133,7 +133,7 @@ export const blocksUnresolvedLink = async (context) => {
   const { state, target } = context;
   const course = state.seeded.courses[1];
   const [row] = await createRows(target, 'teaching_assignments', [
-    { course: course.id, course_name: course.name, role: professor, sort: 9 },
+    { course: course.id, role: professor, sort: 9 },
   ]);
   try {
     await settle(target);

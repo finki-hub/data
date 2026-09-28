@@ -1,7 +1,9 @@
-import type { Finding, FindingCode, Resolution } from './report.js';
+// How a label names rows: `unique` when exactly one row carries it,
+// `ambiguous` when several do, `missing` when none does, `none` when there
+// is no label.
+export type Resolution = 'ambiguous' | 'missing' | 'none' | 'unique';
 
 export type LinkCandidate = {
-  readonly label: null | string;
   readonly matches: readonly number[];
   readonly precedent: null | number;
   readonly resolution: Resolution;
@@ -12,7 +14,7 @@ export type LabelIndex = ReadonlyMap<string, readonly number[]>;
 export const nonEmpty = (value: null | string | undefined): null | string =>
   (value ?? '') === '' ? null : (value ?? null);
 
-// Ascending row ids per exact label, the shape every checkpoint lookup used.
+// Ascending row ids per exact label, the shape every workbook lookup uses.
 // Built through Map.groupBy: the ESLint autofix for the get-then-set pattern
 // emits Map#getOrInsert, which Node 24 does not ship.
 export const indexLabels = <T extends { readonly id: number }>(
@@ -40,23 +42,26 @@ const resolutionOf = (count: number): Resolution => {
   return count === 1 ? 'unique' : 'ambiguous';
 };
 
-// The rows a label points at, with the id the checkpoint derivation would
-// have used (the first ascending match) recorded as the precedent.
+// The rows a label points at, with the first of them (the earliest row of
+// the workbook) recorded as the precedent.
 export const resolveLabel = (
   label: null | string,
   index: LabelIndex,
 ): LinkCandidate => {
   if (label === null) {
-    return { label: null, matches: [], precedent: null, resolution: 'none' };
+    return { matches: [], precedent: null, resolution: 'none' };
   }
   const matches = index.get(label) ?? [];
   return {
-    label,
     matches,
     precedent: matches[0] ?? null,
     resolution: resolutionOf(matches.length),
   };
 };
+
+// The one row a label names, or null when it names none or several.
+export const uniqueMatch = (link: LinkCandidate): null | number =>
+  link.resolution === 'unique' ? link.precedent : null;
 
 // Characters that change meaning inside a regular expression or a LIKE
 // pattern; a course name carrying one matches differently than it reads.
@@ -79,17 +84,3 @@ export const groupIds = <T extends { readonly id: number }>(
     .values()
     .filter((ids) => ids.length > 1)
     .toArray();
-
-export const listIds = (ids: readonly number[]): string => ids.join(', ');
-
-export const quote = (label: null | string): string => `"${label ?? ''}"`;
-
-export const finding = (
-  code: FindingCode,
-  details: {
-    readonly collection: string;
-    readonly ids: readonly number[];
-    readonly label: null | string;
-    readonly message: string;
-  },
-): Finding => ({ code, ...details, ids: [...details.ids] });

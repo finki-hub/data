@@ -9,13 +9,14 @@ import { SetupConfigError } from './setup-config.js';
 
 // Exit codes of the lifecycle commands (`npm run setup`, `npm run import`):
 // 0 done; 1 failed before any row was written (an unexpected error, which
-// a rerun may retry, or a workbook that cannot be read or stored); 2
-// refused because the invocation or the project is in a state the command
-// does not accept, before any record was written; 3 (import only) the
-// relational conversion is blocked until the reported findings are
-// resolved: the rows were imported, or with --dry-run would be; 4 (import
-// only) the import stopped after it began writing rows, and its message
-// names what was stored and how to finish.
+// a rerun may retry, or a workbook that cannot be read); 2 refused because
+// the invocation or the project is in a state the command does not
+// accept, before any record was written; 3 (import only) the workbook
+// holds values no column can hold or cases the import cannot write as it
+// states them, all named by sheet and row: nothing was sent to Directus,
+// and the operator corrects the workbook and imports again (--dry-run
+// reports the same); 4 (import only) the import stopped after it began
+// writing rows: set up a fresh project and import again.
 export const exitCodes = {
   blocked: 3,
   failed: 1,
@@ -34,7 +35,7 @@ const refusals = [
 ] as const;
 
 // An incompatible state: no target named, a populated project offered to
-// the fresh importer, existing definitions the model cannot adopt, a
+// the fresh importer, existing definitions the model cannot carry, a
 // half-installed Flow, or a Directus without the data-operations bundle.
 export const isRefusal = (error: unknown): boolean =>
   refusals.some((refusal) => error instanceof refusal);

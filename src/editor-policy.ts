@@ -34,8 +34,8 @@ export type ForbiddenGrant = {
 // collection, so withholding them hides that shortcut, and a hand edit of
 // a history would be overwritten by the next snapshot anyway. Every
 // collection that is no source is withheld by its role in the
-// collection-role registry: derived rows and the migration ledger are
-// read-only, candidate, staging and status rows are private. The managed
+// collection-role registry: derived rows are read-only, candidate, staging
+// and status rows are private. The managed
 // Flows run with $full and, on the schedule, without any accountability,
 // so writing a Flow or an operation (or a permission, policy or its
 // assignment) would lift every rule above.
@@ -50,7 +50,6 @@ export const forbiddenByRole: Readonly<
 > = {
   candidate: allActions,
   derived: writes,
-  migration: writes,
   staging: allActions,
   status: allActions,
 };
@@ -62,12 +61,9 @@ const roleReason = (
   declaration: BookkeepingDeclaration | GuardedDeclaration,
 ): string => {
   const what = capitalized(declaration.description);
-  if (isGuarded(declaration)) {
-    return `${what}, written by ${declaration.guard.writtenBy} only.`;
-  }
-  return declaration.role === 'status'
-    ? `${what}; its Flows and status are for administrators.`
-    : `${what}: a completed step is never run again, so a hand edit could skip or repeat a migration.`;
+  return isGuarded(declaration)
+    ? `${what}, written by ${declaration.guard.writtenBy} only.`
+    : `${what}; its Flows and status are for administrators.`;
 };
 
 const roleGrants: readonly ForbiddenGrant[] = collectionDeclarations.flatMap(
@@ -127,9 +123,8 @@ export const forbiddenGrantsIn = (
 //   (editor-policy-keys.ts); a new public key or a changed one stays an
 //   administrator's decision;
 // - read: a source editors must not write (moodle_users, owned by the
-//   snapshot import), the derived rows and the migration ledger;
-// - none: candidate, staging and status rows, and the checkpoint sources a
-//   cleanup may drop.
+//   snapshot import) and the derived rows;
+// - none: candidate, staging and status rows.
 // The policy is code-owned: setup keeps the installed one equal to this.
 // `keyed` defaults to the fields the declared key sources withhold.
 export const grantClasses = ['edit', 'keyed', 'read', 'none'] as const;
@@ -144,9 +139,6 @@ export const grantClassOf = (
 ): GrantClass => {
   if (!isSource(declaration)) {
     return forbiddenByRole[declaration.role].includes('read') ? 'none' : 'read';
-  }
-  if (declaration.optional === true) {
-    return 'none';
   }
   if (declaration.editorWrites === false) {
     return 'read';

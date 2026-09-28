@@ -7,21 +7,18 @@ import type { FakeItem, FakeStore } from './migration-test-helpers.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { pathValue } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import {
-  convertedStore,
   edit,
   generationIdOf,
+  importedStore,
   storeReader,
 } from './relational-export-helpers.js';
-import { rowsOf } from './relational-migration-helpers.js';
 
 // The Needs review views against the counts they explain: over synthetic
-// stores, a view that lists `counted` records lists exactly the records
-// its entry counts (for a countDistinct, rows whose distinct values are
-// the count), and a `candidates` view lists at least the counted ones.
-// Both run the view's own filter through the same fake reader as
-// readiness, which follows O2M paths as the LEFT JOINs Directus runs.
+// stores, a view lists exactly the records its entry counts (for a
+// countDistinct, rows whose distinct values are the count). It runs the
+// view's own filter through the same fake reader as readiness, which
+// follows O2M paths as the LEFT JOINs Directus runs.
 
 const rowList = z.array(z.record(z.string(), z.unknown()));
 
@@ -65,7 +62,6 @@ const assignment = (id: number, values: Readonly<Record<string, unknown>>) => ({
   id,
   role: 'assistant',
   sort: id,
-  source_id: null,
   staff: null,
   ...values,
 });
@@ -73,10 +69,10 @@ const assignment = (id: number, values: Readonly<Record<string, unknown>>) => ({
 // Every counted record kind at least once: history entries with and
 // without mappings, assignment rows of each kind (and the professors an
 // override replaces, which count nowhere), a published year, generation
-// and program without a sort, a council member and an equivalency with
-// an empty link, and a course whose 2018 link is gone.
+// and program without a sort, and a council member and an equivalency with
+// an empty link.
 const everyIssue = async (): Promise<FakeStore> => {
-  const store = await convertedStore();
+  const store = await importedStore();
   const legacy = generationIdOf(store, '2018');
   edit(
     store,
@@ -156,32 +152,14 @@ const everyIssue = async (): Promise<FakeStore> => {
       {
         id: 99,
         index_number: 'SYN-8888',
-        name: null,
         position: 'Member',
         student: null,
         year: 2_025,
       },
     ]),
   );
-  edit(
-    store,
-    'course_equivalencies',
-    append([
-      {
-        course: null,
-        course_2013: null,
-        course_2018: null,
-        course_2023: 'Synthetic',
-        id: 99,
-      },
-    ]),
-  );
-  const link = rowsOf(store, 'course_curricula').find(
-    (row) => row['course'] === 7 && row['generation'] === legacy,
-  );
-  return edit(store, 'course_curricula', (rows) =>
-    rows.filter((row) => row !== link),
-  );
+  edit(store, 'course_equivalencies', append([{ course: null, id: 99 }]));
+  return store;
 };
 
 // The rows a view lists, with the field its count distinguishes.
@@ -210,7 +188,7 @@ const countedBy = async (store: FakeStore, entry: Reviewed) => {
 
 describe('the Needs review views', () => {
   test.each([
-    ['the converted parity fixture', convertedStore],
+    ['the imported parity fixture', importedStore],
     ['a store holding every counted issue', everyIssue],
   ])(
     'list exactly what each counted entry counts in %s',
@@ -220,12 +198,8 @@ describe('the Needs review views', () => {
         exportDefinitions,
         deps(store),
       );
-      const counted = reviewed.filter(
-        ({ review }) => review.lists === 'counted',
-      );
-
       const compared = await Promise.all(
-        counted.map(async (entry) => ({
+        reviewed.map(async (entry) => ({
           code: entry.code,
           count: issueCounts[entry.code],
           listed: await countedBy(store, entry),
@@ -233,7 +207,7 @@ describe('the Needs review views', () => {
       );
 
       expect(compared).toEqual(
-        counted.map(({ code }) => ({
+        reviewed.map(({ code }) => ({
           code,
           count: issueCounts[code],
           listed: issueCounts[code],
@@ -251,7 +225,6 @@ describe('the Needs review views', () => {
 
     expect(
       reviewed
-        .filter(({ review }) => review.lists === 'counted')
         .filter(({ code }) => (issueCounts[code] ?? 0) === 0)
         .map(({ code }) => code),
     ).toEqual([]);
@@ -262,38 +235,5 @@ describe('the Needs review views', () => {
       entry_needs_mapping: 2,
       mapped_entry_awaiting_review: 1,
     });
-  });
-
-  test('list every counted course among the candidates of the curriculum link check', async () => {
-    const store = await everyIssue();
-    const { issueCounts } = await readinessAction(
-      exportDefinitions,
-      deps(store),
-    );
-    const candidates = reviewed.filter(
-      ({ review }) => review.lists === 'candidates',
-    );
-
-    expect(candidates.map(({ code }) => code)).toEqual([
-      'curriculum_link_unresolved',
-    ]);
-
-    const [entry] = candidates;
-    if (entry === undefined) throw new Error('no candidates view');
-    const rows = rowList.parse(
-      await storeReader(store)({
-        collection: entry.page,
-        fields: ['equivalency.course'],
-        filter: entry.review.filter,
-        sort: ['id'],
-      }),
-    );
-    const courses = new Set(
-      rows.map((row) => pathValue(row, 'equivalency.course')),
-    );
-
-    expect(issueCounts['curriculum_link_unresolved']).toBe(1);
-    expect(courses).toContain(7);
-    expect(courses.size).toBeGreaterThanOrEqual(1);
   });
 });

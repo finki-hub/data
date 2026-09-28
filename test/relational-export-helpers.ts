@@ -16,27 +16,29 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
+import { importWorkbook } from '../src/directus.js';
 import {
   courseNames,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
 import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
-import { prepare, rowsOf, runSteps } from './relational-migration-helpers.js';
+import { planOf } from './import-plan-helpers.js';
+import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 
-// The two review items of the importable lifecycle dataset whose
-// relational representation would change the published text; readiness
-// blocks on each until an editor resolves it.
+// The two review items of the lifecycle dataset whose relational
+// representation would change the published text; the import refuses the
+// workbook until the operator resolves each.
 type ReviewItems = {
-  // The duplicate assignment row of Alpha the checkpoint derivation never
-  // displayed (assignment_source_duplicate).
+  // The duplicate assignment row of Alpha, which the published file never
+  // listed (duplicate_assignment).
   readonly duplicateAssignment?: boolean;
   // Gamma's 2018 availability, a value without any 2018 curriculum that no
-  // course_curricula link holds (curriculum_value_unlinked).
+  // course_curricula link holds (unlinked_generation_values).
   readonly gammaAvailability?: boolean;
 };
 
-// The importable lifecycle dataset, by default with both review items
-// resolved as an editor would: the duplicate row removed, Gamma's 2018
+// The lifecycle dataset, by default with both review items resolved as the
+// operator would in the workbook: the duplicate row removed, Gamma's 2018
 // availability cleared.
 export const parityDataset = ({
   duplicateAssignment = false,
@@ -93,6 +95,9 @@ const pattern = z.object({
   pattern: z.string(),
 });
 
+export const rowsOf = (store: FakeStore, collection: string) =>
+  store.items.get(collection) ?? [];
+
 // How many raw histories a legacy pattern matches, compiled once in
 // Unicode mode as the legacy rule Flows compile it: each Moodle user
 // counts once however often the history lists the entry.
@@ -123,19 +128,22 @@ const countRows = (store: FakeStore): FakeItem[] => {
   });
 };
 
-// The relational rows of a dataset: the checkpoint rows converted by the
-// migration converters into a fake store, with the count rows its rules
-// produce.
-export const convertedStore = async (
+// The relational rows of a dataset: the workbook import of it into an
+// empty fake project, with the count rows its rules produce. A dataset
+// the import refuses fails here.
+export const importedStore = async (
   dataset: SyntheticDataset = parityDataset(),
 ): Promise<FakeStore> => {
-  const prepared = await prepare(dataset);
-  const { outcome } = await runSteps(prepared);
-  if (outcome.completed.length !== 5) {
-    throw new Error('The conversion did not complete');
+  const plan = planOf(dataset);
+  if (plan.blockers.length > 0) {
+    throw new Error(
+      `The import refuses the dataset: ${plan.blockers.map(({ code }) => code).join(', ')}`,
+    );
   }
-  prepared.store.items.set('course_enrollments', countRows(prepared.store));
-  return prepared.store;
+  const fake = fakeImportDirectus(emptyStore());
+  await importWorkbook(fake.request, plan.collections, fake.io);
+  fake.store.items.set('course_enrollments', countRows(fake.store));
+  return fake.store;
 };
 
 export const edit = (
@@ -158,32 +166,27 @@ export const generationIdOf = (store: FakeStore, code: string): number => {
   return id;
 };
 
-// What an editor does to publish an unmatched label as before: a
-// curriculum entry of the generation carrying the label, linked to the
-// course with the course's imported credits and availability.
+// What an editor does to publish a label no curriculum row carries: a
+// curriculum entry of the generation carrying the label, to which the
+// course's link of that generation is pointed, its credits and
+// availability kept.
 export const withLinkedLabel = (
   store: FakeStore,
   course: number,
   code: '2018' | '2023',
 ): FakeStore => {
-  const row = rowsOf(store, 'courses').find(({ id }) => id === course);
   const generation = generationIdOf(store, code);
   edit(store, 'curriculum_entries', (rows) => [
     ...rows,
     { generation, id: 900, name: unmatchedLabel },
   ]);
-  return edit(store, 'course_curricula', (rows) => [
-    ...rows,
-    {
-      available: row?.[`available_${code}`] ?? null,
-      course,
-      credits: row?.[`credits_${code}`] ?? null,
-      entry: 900,
-      generation,
-      id: 900,
-      sort: code === '2023' ? 1 : 2,
-    },
-  ]);
+  return edit(store, 'course_curricula', (rows) =>
+    rows.map((row) =>
+      row['course'] === course && row['generation'] === generation
+        ? { ...row, entry: 900 }
+        : row,
+    ),
+  );
 };
 
 const relatedCollection = (collection: string, field: string): string => {

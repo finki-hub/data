@@ -59,9 +59,6 @@ const labelsPerPair = 1.25;
 const studioColor = '#2ECDA7';
 // The source edit renames one course; the bookmark lists what it renamed.
 export const renamedSuffix = '(renamed)';
-// The import's ledger clock; a fixed synthetic instant.
-const clockValue = '2026-09-25T12:00:00.000Z';
-
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 // The appearance settings the branding writes.
@@ -143,8 +140,6 @@ const importsWorkbook = async ({ state, target }) => {
     },
     {
       createRequest: createDirectusRequest,
-      now: () => clockValue,
-      runToken: randomUUID,
       stderr: (line) => {
         errors.push(line);
       },
@@ -154,7 +149,7 @@ const importsWorkbook = async ({ state, target }) => {
     },
   );
   assert.equal(exitCode, exitCodes.ok, errors.join('\n'));
-  assert.equal(JSON.parse(summary[0] ?? '{}').conversion?.status, 'converted');
+  assert.deepEqual(JSON.parse(summary[0] ?? '{}').blockers, {});
 };
 
 // Setup, the generated workbook, one newer academic year (unpublished)

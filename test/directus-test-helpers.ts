@@ -2,14 +2,11 @@ import { vi } from 'vitest';
 import { z } from 'zod';
 
 import type { DirectusConfig } from '../src/config.js';
-import type { MigrationData } from '../src/schema.js';
 import type { WorkbookContent } from '../src/workbook.js';
 
-import {
-  specProgramHeaders,
-  workbookPrograms,
-} from '../src/migrations/generations.js';
-import { academicYears } from '../src/specs/public.js';
+import { type MigrationData, perWorkbookKey } from '../src/schema.js';
+import { academicYears } from './fixtures/synthetic-data.js';
+import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
 
 export type RequestRecord = {
   readonly body: unknown;
@@ -22,28 +19,15 @@ export const config: DirectusConfig = {
   url: new URL('https://directus.test'),
 };
 
-export const emptyData: MigrationData = {
-  course_enrollment_patterns: [],
-  course_equivalencies: [],
-  courses: [],
-  curriculum_2018: [],
-  curriculum_2023: [],
-  deans_office: [],
-  discord_channels: [],
-  moodle_users: [],
-  rooms: [],
-  staff: [],
-  student_council: [],
-  students: [],
-  teaching_assignments: [],
-};
+export const emptyData: MigrationData = perWorkbookKey(() => []);
 
-// An empty workbook: no rows, the checkpoint's academic years and the
-// study programs of the checkpoint's curriculum sheets.
+// An empty workbook: no rows, the synthetic academic years and the study
+// programs of the synthetic curriculum sheets.
 export const emptyWorkbook: WorkbookContent = {
   academicYears,
   data: emptyData,
-  studyPrograms: workbookPrograms(specProgramHeaders),
+  places: perWorkbookKey(() => []),
+  studyPrograms: syntheticPrograms,
 };
 
 export const toUrl = (input: Parameters<typeof fetch>[0]): URL => {

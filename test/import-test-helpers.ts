@@ -16,16 +16,9 @@ import {
   type RecordedCall,
 } from './migration-test-helpers.js';
 
-export const clockValue = '2026-09-22T12:00:00.000Z';
-
 export const setupReport: SetupReport = { setup: 'stand-in' };
 
-export const emptyStore = (): FakeStore => ({
-  flows: [],
-  items: new Map(),
-  limitMax: null,
-  operations: [],
-});
+export const emptyStore = (): FakeStore => ({ items: new Map() });
 
 const aggregatePattern =
   /^\/items\/(?<collection>[^/?]+)\?aggregate\[count\]=\*$/u;
@@ -103,8 +96,8 @@ const schemaHandler =
   };
 
 // A Directus for the import: the collection listing and record counts,
-// over the paged item store of the migration tests, whose created rows
-// carry every model column the insert left out as null. The setup stand-in
+// over the item store of the import tests, whose created rows carry every
+// model column the insert left out as null. The setup stand-in
 // creates every model collection empty (plus the coordination singleton
 // row) as `npm run setup` would; the import itself touches no Flow.
 export const fakeImportDirectus = (
@@ -149,8 +142,6 @@ export const fakeImportDirectus = (
       ...(options.batchSize !== undefined && {
         batchSize: options.batchSize,
       }),
-      now: () => clockValue,
-      runToken: () => 'import-run',
       setup,
     },
     mutations: () => calls.filter(({ method }) => method !== 'GET'),

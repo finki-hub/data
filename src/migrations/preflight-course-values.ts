@@ -1,39 +1,33 @@
-import type { CourseRow } from './inventory-schemas.js';
+import type { RuleCandidate } from './candidates.js';
 import type { Part } from './preflight-course-links.js';
-import type { CourseCandidate, Finding, RuleCandidate } from './report.js';
+import type { CourseRow } from './workbook-rows.js';
 
-import { finding, isValidPattern, listIds, nonEmpty, quote } from './labels.js';
+import { type Finding, finding } from './findings.js';
+import { isValidPattern, nonEmpty } from './labels.js';
 import { type Indexes, patternKey } from './preflight-indexes.js';
-import { assignmentStaff } from './preflight-staff.js';
 
-// `chosen` names the row whose pattern applies; a last row with an empty
-// pattern supplies nothing (the derivation refuses it, and the row is
-// reported as an invalid source row), so the rule falls back to the default
-// with no precedent recorded.
+// The rule of one course and year: the last pattern the workbook names
+// for them applies, and every earlier one is skipped. A last row with an
+// empty pattern supplies nothing (the row is reported as an invalid
+// source row), so the rule falls back to the default.
 const ruleOf = (
   name: string,
   year: string,
   indexes: Indexes,
-): { readonly finding: Finding | null; readonly rule: RuleCandidate } => {
+): { readonly findings: readonly Finding[]; readonly rule: RuleCandidate } => {
   const rows = indexes.patterns.get(patternKey(name, year)) ?? [];
   const last = rows.at(-1);
   const override = nonEmpty(last?.pattern);
-  const overrides = rows.map((row) => row.id);
   const pattern = override ?? `${name}-${year}`;
   return {
-    finding:
-      rows.length > 1
-        ? finding('duplicate_pattern', {
-            collection: 'course_enrollment_patterns',
-            ids: overrides,
-            label: name,
-            message: `${quote(name)} ${year} has pattern rows ${listIds(overrides)}; the current derivation applies the last ascending id ${String(last?.id)}. All rows are retained.`,
-          })
-        : null,
+    findings: rows
+      .slice(0, -1)
+      .map(({ id }) =>
+        finding('duplicate_pattern', 'course_enrollment_patterns', [id]),
+      ),
     rule: {
       academicYear: year,
-      chosen: override === null ? null : (last?.id ?? null),
-      overrides,
+      overrides: rows.map((row) => row.id),
       pattern,
       source: override === null ? 'default' : 'override',
       valid: isValidPattern(pattern),
@@ -41,10 +35,10 @@ const ruleOf = (
   };
 };
 
-// One enrollment rule per academic year the conversion seeds: the last
-// ascending pattern override when one exists, else the unescaped
-// `<name>-<year>` default, each compiled in Unicode mode exactly like the
-// checkpoint derivation.
+// One enrollment rule per academic year of the workbook: the last pattern
+// it names, else the unescaped `<name>-<year>` default, each compiled in
+// Unicode mode as the legacy rule Flows compile it. A rule that does not
+// compile could never count.
 export const rulesOf = (
   course: CourseRow,
   {
@@ -58,51 +52,21 @@ export const rulesOf = (
   },
 ): Part<'rules'> => {
   const results = academicYears.map((year) => ruleOf(name, year, indexes));
-  const invalidYears = results
-    .filter(({ rule }) => !rule.valid)
-    .map(({ rule }) => rule.academicYear);
-  const findings = results.flatMap(({ finding: item }) =>
-    item === null ? [] : [item],
-  );
-  if (invalidYears.length > 0) {
-    findings.push(
-      finding('invalid_regex', {
-        collection: 'courses',
-        ids: [course.id],
-        label: name,
-        message: `${quote(name)} has no valid unicode regular expression for ${invalidYears.join(', ')}; the current derivation fails on this course. Add a pattern override or rename before cutover.`,
-      }),
-    );
+  const findings = results.flatMap((result) => result.findings);
+  if (results.some(({ rule }) => !rule.valid)) {
+    findings.push(finding('invalid_regex', 'courses', [course.id]));
   }
   return { findings, value: results.map(({ rule }) => rule) };
 };
 
-// The first ascending assignment row of the course name supplies the
-// professor and assistant text the derivation displays; its staff links
-// are the same candidates the row carries in `candidates.assignments`,
-// where every assignment row (duplicates and orphans included) is resolved
-// and reported.
-export const assignmentOf = (
+// Two teaching rows of one course would publish the staff of both; the
+// published file lists one course's staff once.
+export const duplicateAssignment = (
   name: string,
   indexes: Indexes,
-): Part<'assignment'> & { readonly staff: CourseCandidate['staff'] } => {
+): readonly Finding[] => {
   const matches = name === '' ? [] : (indexes.assignments.get(name) ?? []);
-  const chosen = matches[0] ?? null;
-  const row = chosen === null ? undefined : indexes.assignmentRows.get(chosen);
-  const findings: Finding[] = [];
-  if (matches.length > 1) {
-    findings.push(
-      finding('duplicate_assignment', {
-        collection: 'teaching_assignments',
-        ids: matches,
-        label: name,
-        message: `${quote(name)} has assignment rows ${listIds(matches)}; the current derivation copies the first ascending id ${String(chosen)}. All rows are retained.`,
-      }),
-    );
-  }
-  return {
-    findings,
-    staff: row === undefined ? [] : assignmentStaff(row, indexes.staff),
-    value: { chosen, matches, rule: 'first_id' },
-  };
+  return matches.length > 1
+    ? [finding('duplicate_assignment', 'teaching_assignments', matches)]
+    : [];
 };

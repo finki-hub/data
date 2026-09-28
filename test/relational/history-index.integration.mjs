@@ -385,9 +385,12 @@ const runsFlowsAfterEdit = async (target, state) => {
     [betaCourse, 0],
     ['Delta Course', 1],
   ]);
+  // Filtered to the runner and bounded: every Flow run of the long-lived
+  // fixture stays in its activity table, and serialising all of them
+  // blocks Directus long enough for its pressure limiter to answer 503.
   const activity = await get(
     target,
-    `/activity?fields=item&filter[collection][_eq]=directus_flows&filter[action][_eq]=run&limit=-1`,
+    `/activity?fields=item&filter[collection][_eq]=directus_flows&filter[action][_eq]=run&filter[item][_eq]=${historyRunnerId}&limit=1`,
   );
   assert.ok(
     activity.some(({ item }) => item === historyRunnerId),

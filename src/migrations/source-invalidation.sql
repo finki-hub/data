@@ -13,9 +13,7 @@
 -- relationship are both covered. The history index and the enrollment
 -- counts also keep the revision of the last statement that touched their
 -- inputs (history_index_input_revision, enrollments_input_revision): a
--- running calculation is overtaken only by such a statement. Checkpoint overrides
--- (course_enrollment_patterns) mark publication only: the relational
--- counts read the enrollment rules the migration converted them into.
+-- running calculation is overtaken only by such a statement.
 --
 -- Applied by the bundled migration runner of the data-operations extension
 -- (POST /finki-hub-data-operations/migrations/source-invalidation) after the
@@ -127,28 +125,4 @@ CREATE OR REPLACE TRIGGER "finki_hub_entry_label_invalidation" AFTER UPDATE OF "
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_course_mappings" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollment_rules" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-DO $$
-BEGIN
-  IF to_regclass('"curriculum_2023"') IS NOT NULL THEN
-    EXECUTE 'CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_2023" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()';
-  END IF;
-END
-$$
-;
-DO $$
-BEGIN
-  IF to_regclass('"curriculum_2018"') IS NOT NULL THEN
-    EXECUTE 'CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_2018" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()';
-  END IF;
-END
-$$
-;
-DO $$
-BEGIN
-  IF to_regclass('"course_enrollment_patterns"') IS NOT NULL THEN
-    EXECUTE 'CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollment_patterns" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()';
-  END IF;
-END
-$$
 ;

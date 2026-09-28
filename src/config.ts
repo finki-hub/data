@@ -55,7 +55,7 @@ export const loadConfig = (
 
 // The workbook import's configuration. `--dry-run` only reads the workbook
 // and never needs credentials; a real import names its target explicitly,
-// like setup and the migration, with no default URL.
+// like setup, with no default URL.
 export const loadImportConfig = (
   arguments_: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,

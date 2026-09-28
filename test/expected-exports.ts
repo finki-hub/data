@@ -139,7 +139,7 @@ export const expectedRows = async (
 ): Promise<ReadonlyArray<Readonly<Record<string, string>>>> =>
   rowsSchema.parse(JSON.parse(await committed(`${name}/${file}.json`)));
 
-// The keys of each public file, in output order (the fifteen checkpoint
+// The keys of each public file, in output order (the fifteen synthetic
 // years and both published curriculum generations for courses).
 export const expectedKeys = async (
   file: PublicFileName,

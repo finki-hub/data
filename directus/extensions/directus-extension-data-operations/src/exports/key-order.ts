@@ -68,7 +68,6 @@ const unsortedView = (name: KeySourceName, filter: Filter): ReviewView => {
       optInField,
     ],
     filter,
-    lists: 'counted',
     sort: [...placed, key],
   };
 };

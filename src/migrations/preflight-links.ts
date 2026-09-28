@@ -1,15 +1,9 @@
-import type { CheckpointRows } from './inventory.js';
+import type { Candidates } from './candidates.js';
 import type { Indexes } from './preflight-indexes.js';
-import type { Candidates, Finding } from './report.js';
+import type { WorkbookRows } from './workbook-rows.js';
 
-import {
-  finding,
-  type LinkCandidate,
-  listIds,
-  nonEmpty,
-  quote,
-  resolveLabel,
-} from './labels.js';
+import { type Finding, finding, type FindingCode } from './findings.js';
+import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
 import { assignmentStaff, staffFindings } from './preflight-staff.js';
 
 type Linked = {
@@ -17,117 +11,69 @@ type Linked = {
   readonly link: LinkCandidate;
 };
 
-type OrphanCode = 'orphan_assignment' | 'orphan_equivalency' | 'orphan_pattern';
-
-const orphanCodes: Readonly<Record<string, OrphanCode>> = {
-  course_enrollment_patterns: 'orphan_pattern',
-  course_equivalencies: 'orphan_equivalency',
-  teaching_assignments: 'orphan_assignment',
-};
-
 // A label-based link to a course: more than one course of that name is an
-// ambiguity the row actively depends on; none is an orphan row to review.
-type LabelLink = {
-  readonly collection: string;
-  readonly id: number;
-  readonly label: null | string;
-};
-
-const course = (
-  { collection, id, label }: LabelLink,
-  indexes: Indexes,
+// ambiguity the row depends on; none is an orphan, whose code the caller
+// names (a skipped row, or a row imported without its course).
+export const courseLink = (
+  {
+    collection,
+    id,
+    label,
+  }: Pick<Finding, 'collection'> & {
+    readonly id: number;
+    readonly label: null | string;
+  },
+  {
+    indexes,
+    orphan,
+  }: { readonly indexes: Indexes; readonly orphan: FindingCode },
 ): Linked => {
   const link = resolveLabel(label, indexes.courses);
   if (link.resolution === 'unique') {
     return { findings: [], link };
   }
-  if (link.resolution === 'ambiguous') {
-    return {
-      findings: [
-        finding('ambiguous_course_name', {
-          collection,
-          ids: [id],
-          label,
-          message: `${quote(label)} names courses ${listIds(link.matches)}; the current derivation only ever matched by name, so the row cannot be linked until the courses are told apart.`,
-        }),
-      ],
-      link,
-    };
-  }
-  const named = label === null ? '' : ` (${quote(label)})`;
-  return {
-    findings: [
-      finding(orphanCodes[collection] ?? 'orphan_equivalency', {
-        collection,
-        ids: [id],
-        label,
-        message: `${collection} row ${String(id)} names no existing course${named}; it is retained with its labels for review.`,
-      }),
-    ],
-    link,
-  };
+  const code =
+    link.resolution === 'ambiguous' ? 'ambiguous_course_name' : orphan;
+  return { findings: [finding(code, collection, [id])], link };
 };
 
 const entry = (
-  { id, label }: Omit<LabelLink, 'collection'>,
-  indexes: Indexes,
-  generation: '2018' | '2023',
+  { id, label }: { readonly id: number; readonly label: null | string },
+  index: Indexes['current'],
 ): Linked => {
-  const link = resolveLabel(
-    label,
-    generation === '2023' ? indexes.current : indexes.legacy,
-  );
-  const base = { collection: 'course_equivalencies', ids: [id], label };
+  const link = resolveLabel(label, index);
+  const findings: Finding[] = [];
   if (link.resolution === 'ambiguous') {
-    return {
-      findings: [
-        finding('ambiguous_equivalency_entry', {
-          ...base,
-          message: `${quote(label)} matches curriculum_${generation} rows ${listIds(link.matches)}; the ${generation} entry link stays empty until resolved.`,
-        }),
-      ],
-      link,
-    };
+    findings.push(
+      finding('ambiguous_equivalency_entry', 'course_equivalencies', [id]),
+    );
+  } else if (link.resolution === 'missing') {
+    findings.push(
+      finding('unmatched_equivalency_entry', 'course_equivalencies', [id]),
+    );
   }
-  if (link.resolution === 'missing') {
-    return {
-      findings: [
-        finding('unmatched_equivalency_entry', {
-          ...base,
-          message: `${quote(label)} matches no curriculum_${generation} row; the label is retained without a ${generation} entry link.`,
-        }),
-      ],
-      link,
-    };
-  }
-  return { findings: [], link };
+  return { findings, link };
 };
 
+// Every equivalency row: its course by its 2023 label, and the entry each
+// of its 2023 and 2018 labels names.
 const equivalencies = (
-  checkpoint: CheckpointRows,
+  rows: WorkbookRows,
   indexes: Indexes,
 ): {
   readonly candidates: Candidates['equivalencies'];
   readonly findings: readonly Finding[];
 } => {
-  const results = checkpoint.course_equivalencies.map((row) => {
-    const linked = course(
-      {
-        collection: 'course_equivalencies',
-        id: row.id,
-        label: nonEmpty(row.course_2023),
-      },
-      indexes,
+  const results = rows.course_equivalencies.map((row) => {
+    const label = nonEmpty(row.course_2023);
+    const linked = courseLink(
+      { collection: 'course_equivalencies', id: row.id, label },
+      { indexes, orphan: 'orphan_equivalency' },
     );
-    const entry2023 = entry(
-      { id: row.id, label: nonEmpty(row.course_2023) },
-      indexes,
-      '2023',
-    );
+    const entry2023 = entry({ id: row.id, label }, indexes.current);
     const entry2018 = entry(
       { id: row.id, label: nonEmpty(row.course_2018) },
-      indexes,
-      '2018',
+      indexes.legacy,
     );
     return {
       candidate: {
@@ -149,31 +95,34 @@ const equivalencies = (
   };
 };
 
-// Every assignment row becomes (course, staff, role, display text) in the
-// relational model, so each row's professor and assistant text is resolved
-// here, duplicates and orphans included, and reported when it cannot be
-// linked; the course-level candidate only records which row the derivation
-// displayed.
+// Every teaching row becomes role rows (course, staff, role, display
+// text): its course by label, and each staff text resolved. A row naming
+// no course is skipped, so its texts are not reported.
 const assignments = (
-  checkpoint: CheckpointRows,
+  rows: WorkbookRows,
   indexes: Indexes,
 ): {
   readonly candidates: Candidates['assignments'];
   readonly findings: readonly Finding[];
 } => {
-  const results = checkpoint.teaching_assignments.map((row) => {
-    const linked = course(
+  const results = rows.teaching_assignments.map((row) => {
+    const linked = courseLink(
       {
         collection: 'teaching_assignments',
         id: row.id,
         label: nonEmpty(row.course_name),
       },
-      indexes,
+      { indexes, orphan: 'orphan_assignment' },
     );
     const staff = assignmentStaff(row, indexes.staff);
     return {
       candidate: { course: linked.link, id: row.id, staff },
-      findings: [...linked.findings, ...staffFindings(row, staff)],
+      findings: [
+        ...linked.findings,
+        ...(linked.link.resolution === 'unique'
+          ? staffFindings(row, staff)
+          : []),
+      ],
     };
   });
   return {
@@ -182,4 +131,4 @@ const assignments = (
   };
 };
 
-export const linkedRows = { assignments, course, equivalencies };
+export const linkedRows = { assignments, equivalencies };

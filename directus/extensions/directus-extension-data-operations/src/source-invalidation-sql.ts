@@ -2,7 +2,6 @@ import {
   type CollectionDeclaration,
   collectionDeclarations,
   isSource,
-  type SourceDeclaration,
 } from './coordination/collection-roles.js';
 import {
   sourceTriggers,
@@ -30,9 +29,7 @@ const closing = `--
 -- relationship are both covered. The history index and the enrollment
 -- counts also keep the revision of the last statement that touched their
 -- inputs (history_index_input_revision, enrollments_input_revision): a
--- running calculation is overtaken only by such a statement. Checkpoint overrides
--- (course_enrollment_patterns) mark publication only: the relational
--- counts read the enrollment rules the migration converted them into.
+-- running calculation is overtaken only by such a statement.
 --
 -- Applied by the bundled migration runner of the data-operations extension
 -- (POST /finki-hub-data-operations/migrations/source-invalidation) after the
@@ -56,11 +53,10 @@ $$`;
 const singletonIndex =
   'CREATE UNIQUE INDEX IF NOT EXISTS "data_operations_singleton_unique" ON "data_operations" ((true))';
 
-// The derived, candidate, staging and status tables the header names; the
-// migration ledger is CLI bookkeeping and carries no trigger either.
+// The derived, candidate, staging and status tables the header names.
 const header = (declarations: readonly CollectionDeclaration[]): string => {
   const unmarked = declarations
-    .filter(({ role }) => role !== 'source' && role !== 'migration')
+    .filter(({ role }) => role !== 'source')
     .map(({ collection }) => collection);
   return [
     opening,
@@ -72,23 +68,9 @@ const header = (declarations: readonly CollectionDeclaration[]): string => {
   ].join('\n');
 };
 
-// An optional table gets its triggers only while it exists.
-const guardedTriggers = (source: SourceDeclaration): string =>
-  [
-    'DO $$',
-    'BEGIN',
-    `  IF to_regclass('"${source.collection}"') IS NOT NULL THEN`,
-    ...sourceTriggers(source).map(
-      (statement) => `    EXECUTE '${statement.replaceAll("'", "''")}';`,
-    ),
-    '  END IF;',
-    'END',
-    '$$',
-  ].join('\n');
-
 // The migration text for a registry: the header, the singleton row and
-// index, the trigger function and the triggers of every source, required
-// sources first, each statement followed by a line holding a semicolon.
+// index, the trigger function and the triggers of every source, each
+// statement followed by a line holding a semicolon.
 export const invalidationSql = (
   declarations: readonly CollectionDeclaration[],
 ): string => {
@@ -97,10 +79,7 @@ export const invalidationSql = (
     singletonRow,
     singletonIndex,
     triggerFunction(sources),
-    ...sources
-      .filter(({ optional }) => optional !== true)
-      .flatMap((source) => sourceTriggers(source)),
-    ...sources.filter(({ optional }) => optional === true).map(guardedTriggers),
+    ...sources.flatMap((source) => sourceTriggers(source)),
   ];
   const body = statements.map((statement) => `${statement}\n;\n`).join('');
   return `${header(declarations)}\n${body}`;

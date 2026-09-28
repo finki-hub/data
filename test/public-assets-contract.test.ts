@@ -3,16 +3,13 @@ import { describe, expect, test } from 'vitest';
 import { courses as coursesDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import {
-  specProgramHeaders,
-  workbookPrograms,
-} from '../src/migrations/generations.js';
-import { academicYears } from '../src/specs/public.js';
 import { expectedFiles, expectedKeys } from './expected-exports.js';
 import {
+  academicYears,
   forbiddenPrivateFields,
   makeSyntheticDataset,
 } from './fixtures/synthetic-data.js';
+import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
 import { storeFromDataset } from './migration-test-helpers.js';
 import {
   injecting,
@@ -20,7 +17,7 @@ import {
   storeReader,
 } from './relational-export-helpers.js';
 
-// The public contract of the files beside the committed checkpoint files
+// The public contract of the files beside the committed expected files
 // (test/fixtures/expected-exports): the directories the export engine
 // publishes from the synthetic rows, and the keys and their order the
 // courses definition resolves from published years, generations and
@@ -28,7 +25,7 @@ import {
 
 // The files read from their own collection alone: rooms, staff and
 // students. The synthetic course rows carry the curriculum ambiguities the
-// conversion refuses, so courses.json is proven over the parity dataset
+// import refuses, so courses.json is proven over the parity dataset
 // (relational-export.test.ts).
 const directoryDefinitions = exportDefinitions.filter(
   ({ filename }) => filename !== 'courses.json',
@@ -50,17 +47,17 @@ describe('the synthetic directories through the export engine', () => {
 // The keys of the committed courses.json, in output order.
 const referenceKeys = await expectedKeys('courses');
 
-// The academic_years rows of the fifteen checkpoint years as the published
+// The academic_years rows of the fifteen synthetic years as the published
 // key source reads them (published, oldest sorting 1), in reverse order to
 // show the engine orders them itself.
-const checkpointYears: readonly string[] = academicYears;
+const syntheticYears: readonly string[] = academicYears;
 
-const publishedYearRows = (labels: readonly string[] = checkpointYears) =>
+const publishedYearRows = (labels: readonly string[] = syntheticYears) =>
   labels
     .map((label) => ({
-      id: 100 + checkpointYears.indexOf(label),
+      id: 100 + syntheticYears.indexOf(label),
       label,
-      sort: checkpointYears.length - checkpointYears.indexOf(label),
+      sort: syntheticYears.length - syntheticYears.indexOf(label),
     }))
     .toReversed();
 
@@ -74,7 +71,7 @@ const generationRows = [
   { code: '2023', id: 3, sort: 3 },
 ];
 
-const programRows = workbookPrograms(specProgramHeaders)
+const programRows = syntheticPrograms
   .map(({ code, generation, sort }, index) => ({
     code,
     generation: generation === '2023' ? 3 : 2,

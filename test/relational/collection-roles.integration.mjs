@@ -156,8 +156,8 @@ const appliesTwice = async (directus, state, log) => {
 };
 
 // The live triggers are the generated ones: one invalidation trigger per
-// registered source (the optional checkpoint tables exist here), the entry
-// label trigger, and one write guard per guarded table.
+// registered source, the entry label trigger, and one write guard per
+// guarded table.
 const installsTheRegistry = (state, log) => {
   const expected = sorted([
     ...sourceDeclarations.map(

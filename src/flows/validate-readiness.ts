@@ -71,7 +71,7 @@ export const adminOnly = (
 export const validateReadinessFlow: FlowTemplate = {
   accountability: 'activity',
   description:
-    'Checks whether the public files can be prepared now (administrators only): the history index and enrollment counts current, no Moodle snapshot import running or failed, the one-time conversion complete, and every readiness check the export definitions of the data-operations extension declare for their files. Answers ready, the source revision, the blocker and warning codes with their counts and the Studio page of each; never a record. Changes nothing.',
+    'Checks whether the public files can be prepared now (administrators only): the history index and enrollment counts current, no Moodle snapshot import running or failed, and every readiness check the export definitions of the data-operations extension declare for their files. Answers ready, the source revision, the blocker and warning codes with their counts and the Studio page of each; never a record. Changes nothing.',
   entry: publicationId('41'),
   icon: 'fact_check',
   id: validateReadinessFlowId,

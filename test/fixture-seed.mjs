@@ -5,8 +5,8 @@ import { ruleMode } from '../directus/extensions/directus-extension-data-operati
 import {
   curriculumPlan,
   generationSeeds,
+  modelRows,
   referenceCollections,
-  specRows,
   yearRows,
 } from './fixtures/stress-fixture.js';
 import {
@@ -109,7 +109,7 @@ const seedReferenceRows = async (target, declarations, count) => {
     created[collection] = await createRows(
       target,
       collection,
-      specRows(collection, count),
+      modelRows(collection, count),
     );
   }
   return created;
@@ -127,7 +127,6 @@ const seedAssignments = (target, courses, staff) => {
       : [
           {
             course: course.id,
-            course_name: course.name,
             display_override:
               index % 10 === 0 ? 'Synthetic Guest Lecturer' : null,
             role: professor,
@@ -139,7 +138,6 @@ const seedAssignments = (target, courses, staff) => {
       ? [
           {
             course: course.id,
-            course_name: course.name,
             role: assistant,
             sort: 2,
             staff: staff[(index + 1) % staff.length],

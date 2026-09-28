@@ -18,8 +18,8 @@ import publishOperation from '../directus/extensions/directus-extension-publish-
 import { publishFileFlow } from '../src/flows/publish-one-file.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
 import {
-  convertedStore,
   edit,
+  importedStore,
   roomCapacity,
   storeReader,
 } from './relational-export-helpers.js';
@@ -34,7 +34,7 @@ const current: CoordinationFacts = {
 
 const depsOf = async (
   coordination: readonly CoordinationFacts[] = [current],
-  store?: Awaited<ReturnType<typeof convertedStore>>,
+  store?: Awaited<ReturnType<typeof importedStore>>,
 ): Promise<ExportDeps> => {
   const answers = [...coordination];
   let clock = 0;
@@ -47,7 +47,7 @@ const depsOf = async (
       clock += 5;
       return clock;
     },
-    reader: storeReader(store ?? (await convertedStore()), []),
+    reader: storeReader(store ?? (await importedStore()), []),
     snapshot: () =>
       Promise.resolve({
         activeMatchesPromotion: true,
@@ -192,7 +192,7 @@ describe('the stage action', () => {
 
   test('refuses while readiness has a blocker, with its codes', async () => {
     const store = edit(
-      await convertedStore(),
+      await importedStore(),
       'course_enrollments',
       withoutCourse(2),
     );

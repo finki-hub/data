@@ -2,10 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import type { FakeItem } from './migration-test-helpers.js';
 
-import {
-  namingMembers,
-  unlinkedMember,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-checks.js';
+import { unlinkedMember } from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-checks.js';
 import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { keyOrderEntries } from '../directus/extensions/directus-extension-data-operations/src/exports/key-order.js';
@@ -31,8 +28,8 @@ import {
   snapshotImportFailed,
 } from '../src/snapshot-readiness.js';
 import {
-  convertedStore,
   edit,
+  importedStore,
   storeReader,
 } from './relational-export-helpers.js';
 
@@ -51,7 +48,7 @@ const registryFilters = [
   ),
 ];
 
-const deps = (store: Awaited<ReturnType<typeof convertedStore>>) => ({
+const deps = (store: Awaited<ReturnType<typeof importedStore>>) => ({
   coordination: () =>
     Promise.resolve({
       calculation: 'graph-a',
@@ -175,7 +172,6 @@ describe('the readiness-check registry', () => {
 
     expect(scoped.map(({ code }) => code)).toEqual([
       'study_program_unsorted',
-      'curriculum_link_unresolved',
       'equivalency_entry_unresolved',
     ]);
 
@@ -188,19 +184,7 @@ describe('the readiness-check registry', () => {
     expect(views.get('study_program_unsorted')).toMatchObject({
       bookmark: 'Published study programs without a sort',
       fields: ['generation', 'code', 'name', 'sort', 'published'],
-      lists: 'counted',
     });
-    expect(views.get('curriculum_link_unresolved')).toMatchObject({
-      filter: namingMembers,
-      lists: 'candidates',
-    });
-    expect(views.get('curriculum_link_unresolved')?.fields).toEqual(
-      expect.arrayContaining([
-        'generation',
-        'equivalency.course',
-        'equivalency.course.curricula.generation',
-      ]),
-    );
     expect(views.get('equivalency_entry_unresolved')?.filter).toEqual(
       unlinkedMember,
     );
@@ -220,7 +204,6 @@ describe('the readiness-check registry', () => {
       active_snapshot_edited: 'warning/snapshot',
       assignment_unresolved: 'blocker/check',
       council_member_unresolved: 'warning/count',
-      curriculum_link_unresolved: 'blocker/check',
       enrollment_count_missing: 'blocker/check',
       enrollments_failed: 'blocker/status',
       enrollments_pending: 'blocker/status',
@@ -303,8 +286,8 @@ describe('the registry rules', () => {
     ],
     [
       'a blocker gating no file',
-      changed('conversion_incomplete', { gates: [] }),
-      'blocker conversion_incomplete gates no file',
+      changed('enrollment_rule_missing', { gates: [] }),
+      'blocker enrollment_rule_missing gates no file',
     ],
     [
       'a warning gating a file',
@@ -313,8 +296,8 @@ describe('the registry rules', () => {
     ],
     [
       'a gate no definition publishes',
-      changed('conversion_incomplete', { gates: ['programs.json'] }),
-      'readiness code conversion_incomplete gates programs.json, which no definition publishes',
+      changed('enrollment_rule_missing', { gates: ['programs.json'] }),
+      'readiness code enrollment_rule_missing gates programs.json, which no definition publishes',
     ],
     [
       'a code not in snake case',
@@ -333,7 +316,6 @@ describe('the registry rules', () => {
           bookmark: 'Needs mapping',
           fields: ['label'],
           filter: {},
-          lists: 'counted',
           sort: ['label'],
         },
       }),
@@ -350,7 +332,6 @@ describe('the registry rules', () => {
               _some: { course: { _null: true }, entry: { _null: true } },
             },
           },
-          lists: 'counted',
           sort: ['label'],
         },
       }),
@@ -358,27 +339,25 @@ describe('the registry rules', () => {
     ],
     [
       'a generation-scoped review that hides the generation',
-      changed('curriculum_link_unresolved', {
+      changed('equivalency_entry_unresolved', {
         generationScoped: true,
         review: {
-          bookmark: 'Unresolved curriculum links',
-          fields: ['course', 'course_2018'],
-          filter: { course: { _nnull: true } },
-          lists: 'candidates',
-          sort: ['course'],
+          bookmark: 'Equivalency labels without an entry',
+          fields: ['label', 'equivalency'],
+          filter: unlinkedMember,
+          sort: ['equivalency'],
         },
       }),
-      'generation-scoped review of curriculum_link_unresolved does not show the generation',
+      'generation-scoped review of equivalency_entry_unresolved does not show the generation',
     ],
     [
-      'a counted view filtering otherwise than its count',
+      'a view filtering otherwise than its count',
       changed('council_member_unresolved', {
         review: {
           bookmark: 'Council members without a student',
-          fields: ['name'],
+          fields: ['index_number'],
           filter: { student: { _nnull: true } },
-          lists: 'counted',
-          sort: ['name'],
+          sort: ['index_number'],
         },
       }),
       'review of council_member_unresolved filters otherwise than its count',
@@ -392,11 +371,11 @@ describe('readiness derived from the registry', () => {
   test('answers a count for exactly the registered codes', async () => {
     const answer = await readinessAction(
       exportDefinitions,
-      deps(await convertedStore()),
+      deps(await importedStore()),
     );
     const empty = await readinessAction(
       exportDefinitions,
-      deps({ flows: [], items: new Map(), limitMax: null, operations: [] }),
+      deps({ items: new Map() }),
     );
 
     expect(Object.keys(answer.issueCounts)).toEqual(codes);
@@ -430,7 +409,7 @@ describe('readiness derived from the registry', () => {
   });
 
   test('warns about a mapping without a rule, with its page and review, and still prepares every file', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     edit(
       store,
       'moodle_course_entries',
@@ -465,7 +444,7 @@ describe('readiness derived from the registry', () => {
 
   test('names the Needs review bookmark of a positive code that declares one', async () => {
     const store = edit(
-      await convertedStore(),
+      await importedStore(),
       'moodle_course_entries',
       append([{ id: 1, review_state: 'needs_mapping' }]),
     );

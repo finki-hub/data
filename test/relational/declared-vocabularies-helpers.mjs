@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 
 import { findModelCollection } from '../../src/data-model/collections.js';
 import { enumChoiceMeta } from '../../src/data-model/field-payloads.js';
-import { chunk } from '../../src/migrations/batches.js';
-import { collectionSpecs } from '../../src/model.js';
 import { errorCode, json, read, request } from './data-model-helpers.mjs';
 import { get, patch } from './history-index-helpers.mjs';
 
@@ -65,26 +63,6 @@ export const refusedCreate = async (target, collection, item) =>
       400,
     ),
   );
-
-// The workbook rows written the way the one-time import writes them:
-// every checkpoint collection in model order, in batches of 250, each row
-// confirmed with its id.
-export const writeWorkbookRows = async (target, data) => {
-  for (const spec of collectionSpecs) {
-    const batches = chunk(data[spec.key], 250);
-    for (const batch of batches) {
-      const created = await read(
-        await request(
-          target,
-          `/items/${spec.key}?fields=id`,
-          json('POST', batch, target.token),
-        ),
-        200,
-      );
-      assert.equal(created.data.length, batch.length);
-    }
-  }
-};
 
 // A course row of a prepared courses.json without the key.
 export const withoutKey = (rows, key) =>

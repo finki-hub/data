@@ -21,6 +21,22 @@ export class WorkbookDataError extends Error {
   }
 }
 
+// Rich text: runs of formatted text, read as their joined text.
+const richTextSchema = z
+  .object({ richText: z.array(z.object({ text: z.string() })) })
+  .transform(({ richText }) => richText.map(({ text }) => text).join(''));
+
+// A hyperlink cell: its text, plain or rich (a linked header of a
+// curriculum sheet is rich text).
+const hyperlinkSchema = z
+  .object({
+    hyperlink: z.string(),
+    text: z.union([z.string(), richTextSchema]),
+  })
+  .transform(({ text }) => text);
+
+const linkedTextSchema = z.union([richTextSchema, hyperlinkSchema]);
+
 export const readCellText = (cell: ExcelJS.Cell): string => {
   if (cell.type === ExcelJS.ValueType.Merge) {
     return '';
@@ -39,9 +55,21 @@ export const readCellText = (cell: ExcelJS.Cell): string => {
     return formulaResult;
   }
 
+  const linked = linkedTextSchema.safeParse(cell.value);
+  if (linked.success) {
+    return linked.data;
+  }
+
   const cellText: unknown = cell.text;
   return typeof cellText === 'string' ? cellText : '';
 };
+
+const lineBreak = /\r?\n/u;
+
+// The first line of a cell's text: a curriculum sheet heads a program
+// column with its code on the first line and its duration below.
+export const readFirstLine = (cell: ExcelJS.Cell): string =>
+  readCellText(cell).split(lineBreak, 1)[0] ?? '';
 
 export const isFormulaCell = (cell: ExcelJS.Cell): boolean =>
   cell.type === ExcelJS.ValueType.Formula;

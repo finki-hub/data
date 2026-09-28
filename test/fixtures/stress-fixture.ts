@@ -3,23 +3,25 @@ import type {
   KeySourceName,
   Row,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/types.js';
-import type { CollectionKey, FieldSpec, Scalar } from '../../src/schema.js';
+import type {
+  ModelCollectionKey,
+  ModelField,
+  Scalar,
+} from '../../src/schema.js';
 
 import { fileKeys } from '../../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { exportDefinitions } from '../../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { findModelCollection } from '../../src/data-model/collections.js';
 import {
-  type GenerationRecord,
   type ProgramSeed,
-  specProgramHeaders,
   workbookGenerations,
-  workbookPrograms,
 } from '../../src/migrations/generations.js';
-import { collectionSpecs } from '../../src/model.js';
-import { academicYears } from '../../src/specs/public.js';
 import {
   declaredSnapshot,
   type SnapshotDeclaration,
 } from './stress-snapshot.js';
+import { academicYears } from './synthetic-data.js';
+import { syntheticPrograms } from './synthetic-workbook.js';
 
 // The reference side of the generated stress fixture, built from the
 // declarations rather than from copied lists: the academic years of the
@@ -32,9 +34,17 @@ import {
 // edit here; test/stress-fixture.test.ts proves it with test-only
 // declarations.
 
+export type GenerationSeed = {
+  readonly code: string;
+  readonly has_curriculum: boolean;
+  readonly label: string;
+  readonly published: boolean;
+  readonly sort: number;
+};
+
 export type Declarations = {
   readonly definitions: readonly ExportDefinition[];
-  readonly generations: readonly GenerationRecord[];
+  readonly generations: readonly GenerationSeed[];
   readonly programs: readonly ProgramSeed[];
   readonly snapshot: SnapshotDeclaration;
   readonly years: readonly string[];
@@ -51,7 +61,7 @@ export const declarations: Declarations = {
       sort,
     }),
   ),
-  programs: workbookPrograms(specProgramHeaders),
+  programs: syntheticPrograms,
   snapshot: declaredSnapshot,
   years: academicYears,
 };
@@ -179,38 +189,37 @@ export const curriculumPlan = (
       }),
     );
 
-const specOf = (collection: string) =>
-  collectionSpecs.find(({ key }) => key === collection);
-
-const specValue = (
-  { kind, required, target }: FieldSpec,
+const fieldValue = (
+  { field, kind, nullable }: ModelField,
   index: number,
 ): Scalar => {
-  if (required !== true && index % 6 === 5) return null;
+  if (nullable && index % 6 === 5) return null;
   if (kind === 'boolean') return index % 3 !== 0;
   if (kind === 'integer') return index % 40;
   if (kind === 'text')
-    return `Synthetic ${target} ${index}, Дизајн\nsecond line`;
+    return `Synthetic ${field} ${index}, Дизајн\nsecond line`;
   // A string field is a varchar(255) column; these stay far shorter.
-  return target === 'email'
+  return field === 'email'
     ? `stress-${index}@staff.example`
-    : `Синтетички ${target} ${index} "🏫"`;
+    : `Синтетички ${field} ${index} "🏫"`;
 };
 
-// Rows of a model collection from its declared fields (derived fields are
-// computed, never written), `count` of them.
-export const specRows = (
-  collection: CollectionKey,
+// Rows of a model collection from its declared scalar fields, `count` of
+// them.
+export const modelRows = (
+  collection: ModelCollectionKey,
   count: number,
 ): ReadonlyArray<Readonly<Record<string, Scalar>>> => {
-  const spec = specOf(collection);
-  if (spec === undefined) {
+  const model = findModelCollection(collection);
+  if (model === undefined) {
     throw new Error(`The model declares no collection ${collection}`);
   }
-  const fields = spec.fields.filter(({ derived }) => derived !== true);
+  const fields = model.fields.filter(
+    ({ kind }) => kind !== 'm2o' && kind !== 'enum',
+  );
   return Array.from({ length: count }, (_, index) =>
     Object.fromEntries(
-      fields.map((field) => [field.target, specValue(field, index)]),
+      fields.map((field) => [field.field, fieldValue(field, index)]),
     ),
   );
 };
@@ -220,11 +229,13 @@ export const specRows = (
 // use): every definition's main collection the model declares.
 export const referenceCollections = (
   definitions: readonly ExportDefinition[],
-): readonly CollectionKey[] => [
+): readonly ModelCollectionKey[] => [
   ...new Set(
     definitions.flatMap(({ rows }) => {
-      const spec = specOf(rows.collection);
-      return spec === undefined || spec.key === 'courses' ? [] : [spec.key];
+      const model = findModelCollection(rows.collection);
+      return model === undefined || model.collection === 'courses'
+        ? []
+        : [model.collection];
     }),
   ),
 ];

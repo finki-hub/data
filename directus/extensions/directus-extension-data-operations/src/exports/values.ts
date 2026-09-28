@@ -1,11 +1,11 @@
 import type { Row, SourceRows, ValueRule } from './types.js';
 
 // The value rules of the public files, one per public key instead of one
-// per runtime type: what the checkpoint did by type (booleans, numbers,
-// strings; its files are committed under test/fixtures/expected-exports)
-// each rule does for its own type, and a value of any other type is
-// refused. Absent means null, undefined or the empty string, which the
-// files omit.
+// per runtime type: what the public files carry by type (booleans,
+// numbers, strings; they are committed under
+// test/fixtures/expected-exports) each rule does for its own type, and a
+// value of any other type is refused. Absent means null, undefined or the
+// empty string, which the files omit.
 
 const absent: ReadonlySet<unknown> = new Set(['', null, undefined]);
 

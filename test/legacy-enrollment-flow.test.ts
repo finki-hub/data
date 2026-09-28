@@ -63,7 +63,7 @@ const coordinationFailure = z.object({
 const nothingCounted = /; nothing was counted\.$/u;
 const nothingStaged = /; nothing was staged\.$/u;
 const compileRefusal =
-  /^Rule \d+ \(course 99 \/ academic year \d+\) has a pattern that does not compile as a unicode regular expression \(Nothing to repeat\); nothing was counted\.$/u;
+  /^Rule \d+ \(course 9 \/ academic year \d+\) has a pattern that does not compile as a unicode regular expression \(Nothing to repeat\); nothing was counted\.$/u;
 const escapeRefusal =
   /^Rule 1 \(course 1 \/ academic year 1\) has a pattern that does not compile as a unicode regular expression \(Invalid escape\); nothing was counted\.$/u;
 const budgetRefusal =
@@ -116,7 +116,7 @@ const countsOf = (
   return counts;
 };
 
-// The committed checkpoint counts of the synthetic dataset, by course id
+// The committed counts of the synthetic dataset, by course id
 // and year id.
 const committedCounts = async (): Promise<Map<string, number>> => {
   const counts = new Map<string, number>();
@@ -351,7 +351,7 @@ describe('enrollments plan order', () => {
 });
 
 describe('legacy page count script', () => {
-  test('agrees with the committed checkpoint counts for every course and academic year', async () => {
+  test('agrees with the committed counts for every course and academic year', async () => {
     const dataset = makeSyntheticDataset();
     const rules = await seededRules(dataset);
     const users = usersOf(dataset);
@@ -372,7 +372,7 @@ describe('legacy page count script', () => {
     ).toEqual(Object.fromEntries(oracle));
   });
 
-  test('sums to the checkpoint counts across history and rule pages', async () => {
+  test('sums to the committed counts across history and rule pages', async () => {
     const dataset = makeSyntheticDataset();
     const rules = await seededRules(dataset);
     const users = usersOf(dataset);
@@ -403,7 +403,7 @@ describe('legacy page count script', () => {
     expect(counted.get(countKey(8, yearId('2022/2023')))).toBe(1);
   });
 
-  test('ignores null and non-string histories and tests an empty one like the checkpoint', async () => {
+  test('ignores null and non-string histories and tests an empty one like the committed counts', async () => {
     const users = [
       { Courses: null, id: 1 },
       { Courses: 42, id: 2 },
@@ -418,7 +418,7 @@ describe('legacy page count script', () => {
       { academic_year: 1, count: 1, course: 2 },
     ]);
 
-    // The checkpoint counted ^$ for Alpha 2025/2026 over Moodle users 7
+    // The committed counts hold ^$ for Alpha 2025/2026 over Moodle users 7
     // to 9: the empty history of user 9 only.
     const committed = await expectedEnrollments('empty-history-pattern');
     const later = usersOf(makeSyntheticDataset()).filter(({ id }) => id >= 7);
@@ -494,7 +494,7 @@ describe('legacy page count refusals', () => {
   test('holds a rule page to the pattern budget and to its planned pattern bytes, with no length cap', () => {
     const users = [{ Courses: `${'x'.repeat(2_049)} Rule 1`, id: 1 }];
 
-    // A pattern of any length within the budget counts like the checkpoint.
+    // A pattern of any length within the budget counts as committed.
     expect(count(users, [rule(1, 'x'.repeat(2_049))]).rows).toEqual([
       { academic_year: 1, count: 1, course: 1 },
     ]);

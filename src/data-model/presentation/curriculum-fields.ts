@@ -1,8 +1,7 @@
 import type { FieldCondition, FieldPresentation } from './types.js';
 
-import { curriculumEntryTemplate } from '../checkpoint-collections.js';
+import { curriculumEntryTemplate } from '../content-collections.js';
 import { baselineOptions } from './baseline.js';
-import { legacyImportColumns } from './groups.js';
 
 // Rendered by Studio with the form's own live `generation` value (the
 // generation id) before the picker queries, so only entries or programs of
@@ -53,8 +52,7 @@ const generationPicker = (
 
 // The curriculum forms: pickers filtered by the row's generation and
 // locked without one, generation pickers limited to generations with a
-// curriculum, the program states of an entry and the read-only import
-// columns of a course.
+// curriculum, and the program states of an entry.
 export const curriculumFieldPresentations: readonly FieldPresentation[] = [
   generationPicker('course_curricula', 'entry'),
   { collection: 'course_curricula', field: 'entry', meta: { sort: 3 } },
@@ -90,9 +88,4 @@ export const curriculumFieldPresentations: readonly FieldPresentation[] = [
     field: 'program',
     meta: { hidden: true },
   },
-  ...legacyImportColumns.map((field): FieldPresentation => ({
-    collection: 'courses',
-    field,
-    meta: { readonly: true },
-  })),
 ];

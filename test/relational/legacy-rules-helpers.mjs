@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 
 import { dispatcherFlowId } from '../../src/flows/count-enrollments.js';
 import { insertionOrder } from '../../src/flows/flow-template.js';
-import { academicYears } from '../../src/specs/public.js';
-import { makeSyntheticDataset } from '../fixtures/synthetic-data.js';
+import {
+  academicYears,
+  makeSyntheticDataset,
+} from '../fixtures/synthetic-data.js';
 import { get, patch, post, trigger } from './history-index-helpers.mjs';
 
 // Synthetic Flows and seeds of the legacy rule fixture suite
@@ -19,10 +21,11 @@ export const legacyRunPath = `/flows/trigger/${legacyRunFlowId}`;
 export const resultsPath = '/items/data_operation_results';
 export const enrollmentsPath = '/items/course_enrollments';
 export const rulesPath = '/items/course_enrollment_rules';
-// The workbook-era academic years (src/specs/public.ts). The imported
-// rules name them by position and the committed checkpoint counts key
-// them, so the suite uses the list only where it tests the imported
-// rules; everything else names the year rows it created.
+// The academic years of the synthetic workbook
+// (test/fixtures/synthetic-data.ts). The imported rules name them by
+// position and the committed counts key them, so the suite uses the list
+// only where it tests the imported rules; everything else names the year
+// rows it created.
 export const workbookYears = [...academicYears];
 
 // Filler lines of synthetic histories: 100 distinct short lines that match
@@ -171,7 +174,7 @@ export const runEnrollments = (target, body = {}) =>
   });
 
 // The seed: the Task 2 courses, pattern rows and histories plus the long
-// synthetic history. The committed checkpoint counts of the suite
+// synthetic history. The committed counts of the suite
 // (test/fixtures/expected-exports/legacy-rules*/enrollments.json) key its
 // pairs "<course key>/<year>".
 export const baseSeed = () => {

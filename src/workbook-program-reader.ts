@@ -10,19 +10,19 @@ import {
   stateColumns,
   workbookPrograms,
 } from './migrations/generations.js';
-import { collectionSpecs } from './model.js';
+import { workbookSpecs } from './specs/workbook.js';
 import {
   getWorksheet,
-  readCellText,
+  readFirstLine,
   WorkbookDataError,
 } from './workbook-values.js';
 
-// The sheet and header row of a curriculum collection, as its checkpoint
-// spec reads it.
+// The sheet and header row of a curriculum sheet, as its workbook spec
+// reads it.
 const sourceOf = (
   sheet: EntrySource,
 ): Extract<CollectionSource, { readonly kind: 'rows' }> => {
-  const source: CollectionSource | undefined = collectionSpecs.find(
+  const source: CollectionSource | undefined = workbookSpecs.find(
     ({ key }) => key === sheet,
   )?.source;
   if (source?.kind !== 'rows') {
@@ -40,12 +40,13 @@ const headersOf = (
     source.headerRow ?? 1,
   );
   return stateColumns(sheet).map(({ column }) =>
-    readCellText(row.getCell(column)).trim(),
+    readFirstLine(row.getCell(column)).trim(),
   );
 };
 
-// The study-program headers of both curriculum sheets: the text heading
-// each program column, in column order.
+// The study-program headers of both curriculum sheets: the first line of
+// the text heading each program column (plain, rich or linked text), in
+// column order.
 export const readProgramHeaders = (
   workbook: ExcelJS.Workbook,
 ): ProgramHeaders => ({

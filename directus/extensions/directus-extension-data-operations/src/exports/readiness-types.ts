@@ -10,13 +10,6 @@ import type { Aggregate, ReadinessCheck } from './types.js';
 
 export const severities = ['blocker', 'warning'] as const;
 
-// What a Needs review view lists: `counted`, exactly the records the
-// entry counts (for a countDistinct, the rows whose distinct values it
-// counts); `candidates`, the records its check examines, because no plain
-// filter tells the counted ones apart (the related row that is missing),
-// with the columns that show which of them count.
-export const reviewScopes = ['counted', 'candidates'] as const;
-
 // The column that ties a record to its curriculum generation: a
 // generation-scoped view shows it and filters through its relation.
 export const generationField = 'generation';
@@ -57,8 +50,6 @@ export type ReadinessSource =
   | { readonly kind: 'snapshot' }
   | { readonly kind: 'status' };
 
-export type ReviewScope = (typeof reviewScopes)[number];
-
 // The Studio view that lists the records behind an issue: a shared
 // bookmark on the entry's page collection, created by setup when missing
 // (one per entry, never one per generation row). Its filter uses plain
@@ -70,7 +61,6 @@ export type ReviewView = {
   readonly filter: Filter;
   // The bookmark icon; the collection's icon when absent.
   readonly icon?: string;
-  readonly lists: ReviewScope;
   readonly sort: readonly string[];
 };
 

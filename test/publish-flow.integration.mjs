@@ -40,10 +40,7 @@ import {
   userCollections,
   withDataModel,
 } from './relational/data-model-helpers.mjs';
-import {
-  convert,
-  seedCheckpoint,
-} from './relational/export-projection-helpers.mjs';
+import { seedDataset } from './relational/export-projection-helpers.mjs';
 import {
   collator,
   get,
@@ -211,8 +208,7 @@ const installsTemplates = async ({ directus, target }) => {
 };
 
 const seeds = async ({ directus, t, target }) => {
-  await seedCheckpoint(target, parityDataset());
-  await convert(directus);
+  await seedDataset(directus, parityDataset());
   const settled = await settle(target, { limitMs: 180_000 });
   t.diagnostic(`parity dataset settled after ${settled.elapsedMs} ms`);
 };

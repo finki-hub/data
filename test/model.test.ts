@@ -1,63 +1,12 @@
-import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { CollectionSpec } from '../src/schema.js';
-
 import { dataModelCollections } from '../src/data-model/collections.js';
-import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
-import { presentationFieldPatches } from '../src/data-model/presentation/fields.js';
-import { legacyImportColumns } from '../src/data-model/presentation/groups.js';
 import { aliasesFor } from '../src/data-model/relations.js';
-import { toApiField } from '../src/directus.js';
-import { collectionSpecs } from '../src/model.js';
-import { metaDefaults } from './data-model-test-helpers.js';
 import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
-const checkpointSpecs: readonly CollectionSpec[] = collectionSpecs;
-
 const collectionIcon = (key: string): string | undefined =>
-  checkpointSpecs.find((spec) => spec.key === key)?.icon;
-
-// The meta a checkpoint column carries on a populated deployment: written by
-// the legacy importer, every other column at its Directus default.
-const importerFieldMeta = (
-  collection: string,
-  field: string,
-): Readonly<Record<string, unknown>> | undefined => {
-  const spec = checkpointSpecs.find(
-    (candidate) => candidate.key === collection,
-  );
-  const column = spec?.fields.find(({ target }) => target === field);
-  if (spec === undefined || column === undefined) {
-    return undefined;
-  }
-  return {
-    ...metaDefaults,
-    ...toApiField(column, spec.fields.indexOf(column)).meta,
-  };
-};
-
-// Every presentation patch that targets a column the legacy importer created.
-const checkpointPatches = presentationFieldPatches.flatMap((patch) => {
-  const importer = importerFieldMeta(patch.collection, patch.field);
-  return importer === undefined ? [] : [{ ...patch, importer }];
-});
-
-// Keys a patch writes on which the importer meta and the installer baseline
-// disagree. An entry here would make the once-only rule skip that field on a
-// populated deployment.
-const importerDisagreements = checkpointPatches.flatMap(
-  ({ collection, field, importer, meta }) => {
-    const baseline = baselineFieldMeta(collection, field);
-    return Object.keys(meta)
-      .filter(
-        (key) =>
-          !isDeepStrictEqual(importer[key] ?? null, baseline[key] ?? null),
-      )
-      .map((key) => `${collection}.${field}.${key}`);
-  },
-);
+  dataModelCollections.find(({ collection }) => collection === key)?.icon;
 
 const relational = z.looseObject({
   display: z.literal('related-values'),
@@ -104,8 +53,8 @@ const aliasMetas = dataModelCollections.flatMap((collection) =>
 );
 
 describe('collection icons', () => {
-  test('uses the current curriculum icon for the 2018 curriculum', () => {
-    expect(collectionIcon('curriculum_2018')).toBe('menu_book');
+  test('uses the curriculum icon for the curriculum entries', () => {
+    expect(collectionIcon('curriculum_entries')).toBe('menu_book');
   });
 
   test('uses a single-person icon for Moodle users', () => {
@@ -117,15 +66,12 @@ describe('studio metadata', () => {
   test('gives every editable source field an interface and every relation a readable template', () => {
     expect(modelFields.length).toBeGreaterThan(0);
 
-    // Read-only in Studio: the derived columns, and the imported
-    // per-generation course columns that only the one-time import writes.
-    const importInput = new Set<string>(legacyImportColumns);
-
+    // Read-only in Studio: exactly the columns the model declares so.
     expect(
       modelFields.filter(
         ({ collection, field, readOnly }) =>
           plain.parse(effectiveFieldMeta(collection, field)).readonly !==
-          (readOnly || (collection === 'courses' && importInput.has(field))),
+          readOnly,
       ),
     ).toEqual([]);
 
@@ -146,14 +92,6 @@ describe('studio metadata', () => {
     ).toEqual([]);
   });
 
-  test('keeps the once-only baseline equal to the legacy importer meta on every patched checkpoint column', () => {
-    expect(checkpointPatches.length).toBeGreaterThan(0);
-    expect(checkpointPatches.map(({ collection }) => collection)).toContain(
-      'courses',
-    );
-    expect(importerDisagreements).toEqual([]);
-  });
-
   test('shows derived collections as read-only rows that Studio cannot add to', () => {
     expect(
       dataModelCollections
@@ -163,7 +101,6 @@ describe('studio metadata', () => {
       'moodle_history_memberships',
       'course_enrollments',
       'data_operation_results',
-      'migration_ledger',
     ]);
     // A many-to-many list picks existing rows (study programs) and never
     // creates one from the other side.

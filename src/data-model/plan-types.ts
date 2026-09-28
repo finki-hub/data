@@ -15,7 +15,7 @@ export type Refusal = {
 
 export type CollectionAction = {
   readonly collection: ModelCollection;
-  readonly kind: 'adopt-collection' | 'create-collection';
+  readonly kind: 'create-collection';
 };
 
 export type FieldAction =
@@ -25,6 +25,9 @@ export type FieldAction =
       readonly kind: 'create-alias';
       readonly sort: number;
     }
+  // An installed enum field whose choices or rule differ from the
+  // declaration: the merged meta setup writes, once no live value falls
+  // outside the declared choices.
   | {
       readonly collection: string;
       readonly field: ModelEnumField;
@@ -35,18 +38,11 @@ export type FieldAction =
   | {
       readonly collection: string;
       readonly field: ModelField;
-      readonly kind: 'adopt-meta';
-      readonly sort: number;
-    }
-  | {
-      readonly collection: string;
-      readonly field: ModelField;
       readonly kind: 'create-field';
       readonly sort: number;
     }
-  // An installed enum field whose choices or rule differ from the
-  // declaration: the merged meta setup writes, once no live value falls
-  // outside the declared choices.
+  // An installed column that lost the unique or index flag the model
+  // declares (a Studio edit): the full alter payload that restores it.
   | {
       readonly collection: string;
       readonly field: string;
@@ -59,19 +55,25 @@ export type RelationAction = {
   readonly relation: ModelRelation;
 };
 
-export type Counts = {
-  readonly adopted: number;
+// A collection is created, refused or skipped: setup takes over no
+// existing one.
+export type CollectionCounts = {
   readonly created: number;
   readonly refused: number;
   readonly skipped: number;
 };
+
+// A field or relation can also be adopted: an installed one setup repairs
+// in place (a field that lost its unique or index flag, a relation whose
+// metadata diverges from the declaration).
+export type Counts = CollectionCounts & { readonly adopted: number };
 
 // Fields also count the enum fields whose code-owned choices and rule were
 // realigned.
 export type FieldCounts = Counts & { readonly aligned: number };
 
 export type InstallSummary = {
-  readonly collections: Counts;
+  readonly collections: CollectionCounts;
   readonly fields: FieldCounts;
   readonly relations: Counts;
 };
@@ -95,14 +97,22 @@ const zero = (): Record<Outcome, number> => ({
 
 export class Tally {
   #aligned = 0;
-  readonly #counts: Record<keyof InstallSummary, Record<Outcome, number>> = {
-    collections: zero(),
+  readonly #collections: Record<keyof CollectionCounts, number> = {
+    created: 0,
+    refused: 0,
+    skipped: 0,
+  };
+  readonly #counts: Record<'fields' | 'relations', Record<Outcome, number>> = {
     fields: zero(),
     relations: zero(),
   };
 
-  public add(kind: keyof InstallSummary, outcome: Outcome, amount = 1): void {
+  public add(kind: 'fields' | 'relations', outcome: Outcome, amount = 1): void {
     this.#counts[kind][outcome] += amount;
+  }
+
+  public addCollection(outcome: keyof CollectionCounts): void {
+    this.#collections[outcome] += 1;
   }
 
   public align(): void {
@@ -111,6 +121,10 @@ export class Tally {
 
   public summary(): InstallSummary {
     const counts = structuredClone(this.#counts);
-    return { ...counts, fields: { ...counts.fields, aligned: this.#aligned } };
+    return {
+      collections: { ...this.#collections },
+      fields: { ...counts.fields, aligned: this.#aligned },
+      relations: counts.relations,
+    };
   }
 }

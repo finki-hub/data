@@ -7,16 +7,14 @@ import { test } from 'node:test';
 import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { courses as coursesDefinition } from '../../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { readQuery } from '../../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
-import { legacyImportColumns } from '../../src/data-model/presentation/groups.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { runImportCli } from '../../src/import-run.js';
 import { exitCodes } from '../../src/lifecycle.js';
-import {
-  specProgramHeaders,
-  workbookPrograms,
-} from '../../src/migrations/generations.js';
 import { expectedFiles } from '../expected-exports.js';
-import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
+import {
+  syntheticPrograms,
+  syntheticWorkbook,
+} from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
 import { settle } from './automatic-processing-helpers.mjs';
@@ -44,10 +42,9 @@ import { get, patch } from './history-index-helpers.mjs';
 // committed parity files until an administrator publishes a new generation
 // and its programs, whose sorts readiness keeps unique; the database
 // guards refuse every row that names the wrong generation and a new code
-// of a published row; the six imported course columns publish nothing.
+// of a published row.
 
 const nothingToResume = () => Promise.resolve();
-const clockValue = '2026-09-24T12:00:00.000Z';
 const coursesFile = 'courses.json';
 const invalidKey = 'INVALID_FOREIGN_KEY';
 const stillReferenced =
@@ -67,8 +64,6 @@ const importsWorkbook = async ({ context, t, target }) => {
     },
     {
       createRequest: (config) => createDirectusRequest(config),
-      now: () => clockValue,
-      runToken: () => 'generations-programs',
       stderr: (line) => {
         stderr.push(line);
       },
@@ -78,7 +73,7 @@ const importsWorkbook = async ({ context, t, target }) => {
     },
   );
   assert.equal(exitCode, exitCodes.ok, stderr.join('\n'));
-  assert.equal(JSON.parse(stdout[0] ?? '{}').conversion?.status, 'converted');
+  assert.deepEqual(JSON.parse(stdout[0] ?? '{}').blockers, {});
   assert.deepEqual(
     await get(
       target,
@@ -120,15 +115,13 @@ const importsWorkbook = async ({ context, t, target }) => {
       row.name,
       row.published,
     ]),
-    workbookPrograms(specProgramHeaders).map(
-      ({ code, generation, name, sort }) => [
-        generation,
-        sort,
-        code,
-        name,
-        true,
-      ],
-    ),
+    syntheticPrograms.map(({ code, generation, name, sort }) => [
+      generation,
+      sort,
+      code,
+      name,
+      true,
+    ]),
   );
   const { dataset } = context;
   const cells = [
@@ -441,35 +434,6 @@ const refusesWrongRows = async ({ context, target }) => {
   await unchanged(target, context.baseline);
 };
 
-// An edit of each read-only import column changes no prepared JSON.
-const ignoresImportColumns = async ({ context, target }) => {
-  const [course] = await get(
-    target,
-    `/items/courses?fields=id,${legacyImportColumns.join(',')}&sort=id&limit=1`,
-  );
-  const edits = {
-    available_2018: !course.available_2018,
-    available_2023: !course.available_2023,
-    credits_2018: 99,
-    credits_2023: 98,
-    name_2018_override: 'Synthetic Edited Override',
-    name_2023: 'Synthetic Edited Import Name',
-  };
-  for (const column of legacyImportColumns) {
-    await patch(target, `/items/courses/${course.id}`, {
-      [column]: edits[column],
-    });
-    await unchanged(target, context.baseline);
-  }
-  await patch(
-    target,
-    `/items/courses/${course.id}`,
-    Object.fromEntries(
-      legacyImportColumns.map((column) => [column, course[column]]),
-    ),
-  );
-};
-
 test('manages curriculum generations and study programs as rows on the fixture', async (t) => {
   const target = targetFrom(process.env);
   const directory = await mkdtemp(
@@ -505,10 +469,6 @@ test('manages curriculum generations and study programs as rows on the fixture',
           await t.test(
             'wrong generations, duplicates and new key texts of published rows are refused over REST',
             () => refusesWrongRows(scenario),
-          );
-          await t.test(
-            'edits of the six read-only import columns change no prepared JSON',
-            () => ignoresImportColumns(scenario),
           );
         } finally {
           resume = await pauseAutomaticProcessing(target);

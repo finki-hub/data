@@ -10,8 +10,6 @@ import {
 import { resolveFields } from '../directus/extensions/directus-extension-data-operations/src/exports/field-map.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
-import { legacyImportColumns } from '../src/data-model/presentation/groups.js';
-import { academicYears } from '../src/specs/public.js';
 import {
   assignmentTexts,
   expectedFiles,
@@ -20,29 +18,31 @@ import {
   type ExportCase,
 } from './expected-exports.js';
 import {
+  academicYears,
   courseNames,
   forbiddenPrivateFields,
   makeSyntheticDataset,
   privateSentinels,
 } from './fixtures/synthetic-data.js';
 import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
+import { planOf } from './import-plan-helpers.js';
 import {
-  convertedStore,
   edit,
   engineAssets,
   generationIdOf,
+  importedStore,
   injecting,
   parityDataset,
   publishedFiles,
   refusalOf,
   renamedCurrent,
   reversed,
+  rowsOf,
   storeReader,
   unmatchedLabel,
   unmatchedLegacy,
   withLinkedLabel,
 } from './relational-export-helpers.js';
-import { prepare, rowsOf } from './relational-migration-helpers.js';
 
 const assetsSchema = z.strictObject({
   courses: z.array(z.record(z.string(), z.string())),
@@ -100,25 +100,6 @@ const renamed =
   (rows: FakeItem[]): FakeItem[] =>
     rows.map((row) => (row[field] === from ? { ...row, [field]: to } : row));
 
-const setOnCourse =
-  (name: string, field: string, value: null | string) =>
-  (rows: FakeItem[]): FakeItem[] =>
-    rows.map((row) =>
-      row['name'] === name ? { ...row, [field]: value } : row,
-    );
-
-// The column set to the value on every course.
-const setEverywhere =
-  (column: string, value: unknown) =>
-  (rows: FakeItem[]): FakeItem[] =>
-    rows.map((row) => ({ ...row, [column]: value }));
-
-// An edited value of each kind of import column; names take a label.
-const importEdits: Readonly<Record<string, unknown>> = {
-  available: false,
-  credits: 99,
-};
-
 const coursesFile = 'courses.json';
 
 const definitionOf = (filename: string) => {
@@ -139,7 +120,7 @@ const keysOf = async (filename: string, store?: FakeStore) => {
     definition,
     await readFileSources(
       definition,
-      storeReader(store ?? (await convertedStore())),
+      storeReader(store ?? (await importedStore())),
     ),
   );
 };
@@ -148,7 +129,7 @@ const keysOf = async (filename: string, store?: FakeStore) => {
 const numericKeys = async (definition: (typeof exportDefinitions)[number]) => {
   const { keyRows } = await readFileSources(
     definition,
-    storeReader(await convertedStore()),
+    storeReader(await importedStore()),
   );
   return resolveFields(definition, keyRows)
     .filter(({ rule }) => rule === 'numeric_boolean')
@@ -166,12 +147,6 @@ const countsOf = (courses: readonly FakeItem[], year: number): FakeItem[] =>
 
 const isLink = (row: FakeItem, course: number, generation: number) =>
   row['course'] === course && row['generation'] === generation;
-
-// Every role row but those converted from the assignment row.
-const withoutSource =
-  (source: number) =>
-  (rows: FakeItem[]): FakeItem[] =>
-    rows.filter((row) => row['source_id'] !== source);
 
 // Every count row but the one of the course and academic year.
 const withoutCount =
@@ -205,7 +180,7 @@ const crossedLink =
 
 describe('parity with the committed public files', () => {
   test('projects the converted fixture into exactly the committed parity files, byte for byte', async () => {
-    const store = await convertedStore(parityDataset());
+    const store = await importedStore(parityDataset());
     const assets = await projected(store);
 
     await expect(publishedOf(store)).resolves.toEqual(
@@ -262,10 +237,10 @@ describe('parity with the committed public files', () => {
     expect(numeric.flat()).toEqual(['2023-channel', '2018-channel', 'active']);
   });
 
-  test('keeps the ambiguous checkpoint fixture out of the conversion instead of guessing', async () => {
-    const { report } = await prepare(makeSyntheticDataset());
-
-    expect(report.blockers.map(({ code }) => code)).toEqual(
+  test('refuses to import the ambiguous synthetic dataset instead of guessing', () => {
+    expect(
+      planOf(makeSyntheticDataset()).blockers.map(({ code }) => code),
+    ).toEqual(
       expect.arrayContaining([
         'ambiguous_curriculum_2018',
         'ambiguous_curriculum_2023',
@@ -274,7 +249,7 @@ describe('parity with the committed public files', () => {
   });
 
   test('orders every file by canonical id whatever order the reads answer', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
 
     expect(
       sameJson(
@@ -285,76 +260,55 @@ describe('parity with the committed public files', () => {
   });
 
   test('exports an empty project as four empty files', async () => {
-    const empty = await projected({
-      flows: [],
-      items: new Map(),
-      limitMax: null,
-      operations: [],
-    });
+    const empty = await projected({ items: new Map() });
 
     expect(empty).toEqual({ courses: [], rooms: [], staff: [], students: [] });
   });
 });
 
-describe('every difference from the committed files blocks readiness', () => {
-  test('the unresolved lifecycle fixture differs only at its two review items, each a blocker until resolved', async () => {
-    const store = await convertedStore(lifecycleDataset());
-    const assets = await projected(store);
+describe('every case that would change the committed files refuses the import', () => {
+  test('refuses the lifecycle dataset at its two review items, exactly where its committed files differ from the parity ones', async () => {
+    const blocked = planOf(lifecycleDataset()).blockers;
+    const lifecycle = await expectedFiles('lifecycle');
+    const parity = await expectedFiles('parity');
 
-    // The duplicate assignment row publishes its labels too, and a 2018
-    // availability without a 2018 curriculum has no link to live on.
-    expect(courseNamed(assets, courseNames.alpha)?.['professors']).toBe(
-      'Prof. Zed Alpha, Prof. Later Alpha, Prof. Abe Alpha',
-    );
-
-    const expectedAlpha = await expectedCourse('lifecycle', courseNames.alpha);
-
-    expect(expectedAlpha?.['professors']).toBe(
-      'Prof. Zed Alpha, Prof. Abe Alpha',
-    );
-    expect(courseNamed(assets, courseNames.gamma)).not.toHaveProperty(
-      '2018-available',
-    );
+    expect(blocked.map(({ code }) => code)).toEqual([
+      'duplicate_assignment',
+      'unlinked_generation_values',
+    ]);
+    // The files as the workbook states them: Alpha's first teaching row
+    // only, and Gamma's 2018 availability without a 2018 curriculum.
+    await expect(
+      expectedCourse('lifecycle', courseNames.alpha),
+    ).resolves.toHaveProperty('professors', 'Prof. Zed Alpha, Prof. Abe Alpha');
     await expect(
       expectedCourse('lifecycle', courseNames.gamma),
     ).resolves.toHaveProperty('2018-available', 'FALSE');
-
-    // Both review items live in courses.json: the other three files are
-    // already exactly the committed lifecycle ones.
-    const { rooms, staff, students } = await expectedFiles('lifecycle');
-
-    await expect(publishedOf(store)).resolves.toMatchObject({
-      rooms,
-      staff,
-      students,
-    });
-    await expect(readinessOf(store)).resolves.toMatchObject({
-      blockers: ['curriculum_value_unlinked', 'assignment_source_duplicate'],
-      issueCounts: {
-        assignment_source_duplicate: 1,
-        curriculum_value_unlinked: 1,
-      },
-      ready: false,
+    await expect(
+      expectedCourse('parity', courseNames.gamma),
+    ).resolves.not.toHaveProperty('2018-available');
+    expect({
+      rooms: lifecycle.rooms,
+      staff: lifecycle.staff,
+      students: lifecycle.students,
+    }).toEqual({
+      rooms: parity.rooms,
+      staff: parity.staff,
+      students: parity.students,
     });
 
-    // The editor's resolutions: the later row's role rows removed, Gamma's
-    // imported 2018 availability cleared.
-    edit(store, 'teaching_assignments', withoutSource(2));
-    edit(
-      store,
-      'courses',
-      setOnCourse(courseNames.gamma, 'available_2018', null),
-    );
+    // The operator's resolutions in the workbook: the later row removed,
+    // Gamma's 2018 availability cleared.
+    const store = await importedStore(parityDataset());
 
     await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
-    await expect(publishedOf(store)).resolves.toEqual(
-      await expectedFiles('parity'),
-    );
+    await expect(publishedOf(store)).resolves.toEqual(parity);
   });
 
   test.each([
     {
       change: renamedCurrent,
+      code: 'unmatched_curriculum_2023_label',
       expected: 'renamed-current',
       generation: '2023',
       label: 'a 2023 name',
@@ -362,15 +316,20 @@ describe('every difference from the committed files blocks readiness', () => {
     },
     {
       change: unmatchedLegacy,
+      code: 'unmatched_curriculum_2018_label',
       expected: 'unmatched-legacy',
       generation: '2018',
-      label: 'an equivalency 2018 label',
+      label: 'an equivalency 2018 name',
       name: courseNames.zeta,
     },
   ] as const)(
-    '$label that matched no entry blocks until an editor links the label, then publishes exactly the committed file',
-    async ({ change, expected, generation, name }) => {
-      const store = await convertedStore(change(parityDataset()));
+    '$label that matches no entry refuses the import; an entry carrying it, linked in Studio, publishes exactly the committed file',
+    async ({ change, code, expected, generation, name }) => {
+      expect(
+        planOf(change(parityDataset())).blockers.map((blocker) => blocker.code),
+      ).toEqual([code]);
+
+      const store = await importedStore(parityDataset());
       const course = rowsOf(store, 'courses').find(
         (row) => row['name'] === name,
       );
@@ -379,13 +338,6 @@ describe('every difference from the committed files blocks readiness', () => {
         `${generation}-name`,
         unmatchedLabel,
       );
-      expect(courseNamed(await projected(store), name)).not.toHaveProperty(
-        `${generation}-name`,
-      );
-      await expect(readinessOf(store)).resolves.toMatchObject({
-        issueCounts: { curriculum_value_unlinked: 1 },
-        ready: false,
-      });
 
       withLinkedLabel(store, Number(course?.id), generation);
 
@@ -405,7 +357,7 @@ describe('every difference from the committed files blocks readiness', () => {
     'republishes the assignment text $text exactly although every part names a staff row',
     async ({ expected, text }) => {
       const base = parityDataset();
-      const store = await convertedStore({
+      const store = await importedStore({
         ...base,
         teaching_assignments: base.teaching_assignments.map((row) =>
           row.id === 1 ? { ...row, professors: text } : row,
@@ -444,18 +396,18 @@ const withoutKey = (assets: Assets, key: string) =>
 
 describe('year configuration', () => {
   test('publishes the fifteen converted years, newest first, where the reference lists them', async () => {
-    const assets = await projected(await convertedStore());
+    const assets = await projected(await importedStore());
 
     expect(yearKeys(assets.courses[0])).toEqual([...academicYears]);
     expect(
-      rowsOf(await convertedStore(), 'academic_years').every(
+      rowsOf(await importedStore(), 'academic_years').every(
         (year) => year['published'] === true,
       ),
     ).toBeTruthy();
   });
 
   test('leaves an unpublished year out of every course and changes nothing else', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     const before = await projected(store);
     edit(store, 'academic_years', unpublished('2014/2015'));
     const after = await projected(store);
@@ -472,7 +424,7 @@ describe('year configuration', () => {
   });
 
   test('opting a new year in adds exactly one key per course, at the newest position, and nothing else', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     const before = await projected(store);
     edit(store, 'academic_years', (rows) => [
       ...rows,
@@ -495,7 +447,7 @@ describe('year configuration', () => {
   });
 
   test('a new academic year with counts for every course adds no public key', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     const before = await projected(store);
     edit(store, 'academic_years', (rows) => [
       ...rows,
@@ -512,7 +464,7 @@ describe('year configuration', () => {
   });
 
   test('refuses a published year whose label is another key of the file', async () => {
-    const store = edit(await convertedStore(), 'academic_years', (rows) => [
+    const store = edit(await importedStore(), 'academic_years', (rows) => [
       ...rows,
       { id: 98, label: 'tags', published: true, sort: 20 },
     ]);
@@ -525,7 +477,7 @@ describe('year configuration', () => {
   });
 
   test('refuses a published year labelled __proto__, a key a row object would drop', async () => {
-    const store = edit(await convertedStore(), 'academic_years', (rows) => [
+    const store = edit(await importedStore(), 'academic_years', (rows) => [
       ...rows,
       { id: 98, label: '__proto__', published: true, sort: 20 },
     ]);
@@ -539,7 +491,7 @@ describe('year configuration', () => {
 
   test('refuses a course without a count row for an exported year instead of writing zero', async () => {
     const store = edit(
-      await convertedStore(),
+      await importedStore(),
       'course_enrollments',
       withoutCount(2, 3),
     );
@@ -554,7 +506,7 @@ describe('year configuration', () => {
 
 describe('relation values resolved on read', () => {
   test('publishes a renamed staff member and a renamed entry without any rebuild', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     edit(store, 'staff', renamed('name', 'Prof. Theta', 'Prof. Theta Renamed'));
     edit(
       store,
@@ -571,7 +523,7 @@ describe('relation values resolved on read', () => {
 
   test('orders labels by sort then id, prefers a display label and yields to the professors override', async () => {
     const store = edit(
-      await convertedStore(),
+      await importedStore(),
       'teaching_assignments',
       (rows) => [
         ...rows,
@@ -612,19 +564,6 @@ describe('relation values resolved on read', () => {
     );
   });
 
-  test.each(legacyImportColumns)(
-    'publishes nothing from the read-only import column %s',
-    async (column) => {
-      const store = await convertedStore();
-      const before = await projected(store);
-      const [kind = ''] = column.split('_');
-      const value = importEdits[kind] ?? 'Edited Import Label';
-      edit(store, 'courses', setEverywhere(column, value));
-
-      expect(sameJson(await projected(store), before)).toBeTruthy();
-    },
-  );
-
   test.each([
     [
       { display_override: null, staff: null },
@@ -636,7 +575,7 @@ describe('relation values resolved on read', () => {
     ],
   ])('refuses the assignment %j', async (change, message) => {
     const store = edit(
-      await convertedStore(),
+      await importedStore(),
       'teaching_assignments',
       (rows) => [
         ...rows,
@@ -658,13 +597,13 @@ describe('relation values resolved on read', () => {
   });
 
   test('refuses two links of one generation and a link to an entry of the other generation', async () => {
-    const twice = await convertedStore();
+    const twice = await importedStore();
     edit(
       twice,
       'course_curricula',
       duplicateLink(1, generationIdOf(twice, '2023')),
     );
-    const crossed = await convertedStore();
+    const crossed = await importedStore();
     edit(
       crossed,
       'course_curricula',
@@ -798,8 +737,8 @@ describe('curriculum generations and study programs as rows', () => {
   ] as const)(
     'adds nothing while the generation is unpublished, programs published: %j',
     async (...programs) => {
-      const before = await projected(await convertedStore());
-      const store = withGeneration(await convertedStore(), {
+      const before = await projected(await importedStore());
+      const store = withGeneration(await importedStore(), {
         generation: false,
         programs,
       });
@@ -809,8 +748,8 @@ describe('curriculum generations and study programs as rows', () => {
   );
 
   test('a published generation without published programs adds its keys but no state key', async () => {
-    const before = await projected(await convertedStore());
-    const store = withGeneration(await convertedStore(), {
+    const before = await projected(await importedStore());
+    const store = withGeneration(await importedStore(), {
       generation: true,
       programs: [false, false],
     });
@@ -826,7 +765,7 @@ describe('curriculum generations and study programs as rows', () => {
 
   test('publishing the generation and both programs adds its availability key and block, states in program sort order, with no code change', async () => {
     const baseline = await keysOf(coursesFile);
-    const store = withGeneration(await convertedStore(), {
+    const store = withGeneration(await importedStore(), {
       generation: true,
       programs: [true, true],
     });
@@ -860,13 +799,13 @@ describe('curriculum generations and study programs as rows', () => {
 
   test('unpublishing one program removes exactly its state key', async () => {
     const both = await projected(
-      withGeneration(await convertedStore(), {
+      withGeneration(await importedStore(), {
         generation: true,
         programs: [true, true],
       }),
     );
     const one = await projected(
-      withGeneration(await convertedStore(), {
+      withGeneration(await importedStore(), {
         generation: true,
         programs: [false, true],
       }),
@@ -884,7 +823,7 @@ describe('curriculum generations and study programs as rows', () => {
 
 describe('the private data boundary', () => {
   test('never emits a private sentinel, even when every read row carries one', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     const assets = await projected(
       store,
       injecting(storeReader(store), forbiddenPrivateFields),
@@ -898,7 +837,7 @@ describe('the private data boundary', () => {
   });
 
   test('exports students as index and name only', async () => {
-    const store = edit(await convertedStore(), 'students', () => [
+    const store = edit(await importedStore(), 'students', () => [
       {
         id: 9,
         index_number: 'SYN-0003',

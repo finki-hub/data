@@ -29,7 +29,6 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import {
   excludedTables,
-  optionalSourceTables,
   sourceColumnDomains,
   sourceTableDeletionDomains,
   sourceTableDomains,
@@ -63,34 +62,34 @@ const triggerPattern =
   /CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "(?<table>[a-z0-9_]+)" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"\(\)/gu;
 const statementStartPattern = /^(?:CREATE|DO)\b/u;
 const dropPattern = /\bDROP\b/u;
-const doBlockPattern = /^DO \$\$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 const armPattern = /^ {4}WHEN '/gmu;
 const sha256 = (text: string): string =>
   createHash('sha256').update(text).digest('hex');
 
-// The declarations the generator was first proven on: from them it
-// reproduced, byte for byte, the hand-written migration Task 23 left
+// The declarations the generator was last proven on: the generator first
+// reproduced, byte for byte, the hand-written migration Task 23 left; the
+// cleanup that removed the checkpoint sources and the migration ledger
+// froze these collections again with the migration they generate then
 // (src/migrations/source-invalidation.sql at that commit, sha256 below).
 // Frozen on purpose: a later collection only adds to the registry, so these
 // declarations keep generating that file, and a change to one of them or
 // to the generator shows here as a changed migration.
-const task23Collections: ReadonlySet<string> = new Set([
+const provenCollections: ReadonlySet<string> = new Set([
   'academic_years',
   'course_curricula',
-  'course_enrollment_patterns',
   'course_enrollment_rules',
   'course_enrollments',
   'course_equivalencies',
+  'course_equivalency_members',
   'courses',
-  'curriculum_2018',
-  'curriculum_2023',
   'curriculum_entries',
+  'curriculum_entry_program_states',
+  'curriculum_generations',
   'data_operation_results',
   'data_operations',
   'deans_office',
   'discord_channels',
-  'migration_ledger',
   'moodle_course_entries',
   'moodle_course_mappings',
   'moodle_history_memberships',
@@ -100,19 +99,18 @@ const task23Collections: ReadonlySet<string> = new Set([
   'staff',
   'student_council',
   'students',
+  'study_programs',
   'teaching_assignments',
 ]);
-const task23Sha256 =
-  '806e0ba67170f73d52ab3ff95532ef3fc7ceabe57ecbde1ad8fd4a207011ae32';
+const provenSha256 =
+  '3e4a956aa89fe3db38148d8e60d91b266494b2dab6064eca68b3bcfa8d621584';
 
 // The statements the migration of a registry holds: the singleton row, its
-// index and the trigger function, the triggers of every required source
-// (its own and one per refined column), then one to_regclass-guarded block
-// per optional source.
+// index and the trigger function, then the triggers of every source (its
+// own and one per refined column).
 const statementCount = (sources: readonly SourceDeclaration[]): number =>
   sources.reduce(
-    (total, { columns = {}, optional }) =>
-      total + (optional === true ? 1 : 1 + Object.keys(columns).length),
+    (total, { columns = {} }) => total + 1 + Object.keys(columns).length,
     3,
   );
 
@@ -391,16 +389,16 @@ describe('option contract', () => {
 });
 
 describe('source-invalidation migration', () => {
-  test('generates the pre-change migration byte for byte from the declarations it was proven on', () => {
+  test('generates the proven migration byte for byte from the declarations it was proven on', () => {
     const proven = collectionDeclarations.filter(({ collection }) =>
-      task23Collections.has(collection),
+      provenCollections.has(collection),
     );
     const golden = invalidationSql(proven);
     const goldenStatements = splitSqlStatements(golden);
 
-    expect(proven).toHaveLength(task23Collections.size);
-    expect(sha256(golden)).toBe(task23Sha256);
-    expect(goldenStatements).toHaveLength(23);
+    expect(proven).toHaveLength(provenCollections.size);
+    expect(sha256(golden)).toBe(provenSha256);
+    expect(goldenStatements).toHaveLength(24);
 
     for (const statement of goldenStatements) {
       expect(statement).not.toMatch(dropPattern);
@@ -439,15 +437,12 @@ describe('source-invalidation migration', () => {
       expect(sourceInvalidationSql).not.toContain(`TRUNCATE ON "${table}"`);
       expect(sourceInvalidationSql).not.toContain(`WHEN '${table}'`);
     }
-    for (const table of optionalSourceTables) {
-      const guarded = statements.filter((statement) =>
-        statement.includes(`ON "${table}"`),
-      );
 
-      expect(guarded).toHaveLength(1);
-      expect(guarded[0]).toMatch(doBlockPattern);
-      expect(guarded[0]).toContain(`to_regclass('"${table}"') IS NOT NULL`);
-    }
+    // Every source trigger is a plain statement: the one DO block creates
+    // the singleton row.
+    expect(
+      statements.filter((statement) => statement.startsWith('DO $$')),
+    ).toHaveLength(1);
   });
 
   test('marks the history index when a history entry is deleted or its label edited, never when it is reviewed', () => {
@@ -574,9 +569,8 @@ describe('a registry that declares one more collection', () => {
 
     expect(plain).toHaveLength(statements.length + 1);
     expect(triggerTablesOf(plain)).toEqual([
-      ...triggerTables.slice(0, -optionalSourceTables.length),
+      ...triggerTables,
       'synthetic_extra_source',
-      ...triggerTables.slice(-optionalSourceTables.length),
     ]);
     expect(functionOf(plain)).toBe(functionOf(statements));
     expect(
@@ -585,12 +579,10 @@ describe('a registry that declares one more collection', () => {
       'CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "synthetic_extra_source" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()',
     ]);
 
-    // A source that feeds a calculation gets its arm in the function too,
-    // and an optional one a to_regclass-guarded block.
+    // A source that feeds a calculation gets its arm in the function too.
     const counted = withExtra({
       collection: 'synthetic_extra_input',
       invalidates: ['enrollments', 'publication'],
-      optional: true,
       role: 'source',
     });
 
@@ -598,10 +590,7 @@ describe('a registry that declares one more collection', () => {
     expect(functionOf(counted)).toContain(
       "WHEN 'synthetic_extra_input' THEN ARRAY['enrollments', 'publication']",
     );
-    expect(counted.at(-1)).toMatch(doBlockPattern);
-    expect(counted.at(-1)).toContain(
-      `to_regclass('"synthetic_extra_input"') IS NOT NULL`,
-    );
+    expect(triggerTablesOf(counted).at(-1)).toBe('synthetic_extra_input');
 
     // A collection of any other role adds no trigger.
     expect(

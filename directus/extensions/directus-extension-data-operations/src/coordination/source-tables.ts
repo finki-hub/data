@@ -49,12 +49,6 @@ export const sourceColumnDomains: Readonly<
   ),
 );
 
-// Checkpoint tables a later cleanup may remove; their triggers are
-// installed only while the table exists.
-export const optionalSourceTables: readonly string[] = sourceDeclarations
-  .filter(({ optional }) => optional === true)
-  .map(({ collection }) => collection);
-
 // Every model collection that is no source and so carries no trigger.
 export const excludedTables: readonly string[] = collectionDeclarations
   .filter(({ role }) => role !== 'source')

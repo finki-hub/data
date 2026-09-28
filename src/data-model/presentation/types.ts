@@ -57,11 +57,7 @@ export type Folder = {
 
 export type CollectionPlacement = {
   readonly collection: string;
-  readonly meta: {
-    readonly display_template?: string;
-    readonly group: string;
-    readonly sort: number;
-  };
+  readonly meta: { readonly group: string; readonly sort: number };
 };
 
 export type PresentationCounts = {

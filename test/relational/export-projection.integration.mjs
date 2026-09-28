@@ -26,14 +26,13 @@ import {
 } from './data-model-helpers.mjs';
 import { measureEngine, seedRealistic } from './export-measure.mjs';
 import {
-  convert,
   engineFiles,
   errorOf,
   prepare,
   readiness,
   restReader,
   runManual,
-  seedCheckpoint,
+  seedDataset,
   sha256,
   snapshotRowsOf,
 } from './export-projection-helpers.mjs';
@@ -48,7 +47,6 @@ import {
 
 const nothingToResume = () => Promise.resolve();
 const collator = new Intl.Collator('en');
-const alpha = 'Alpha Course';
 const theta = 'Theta Course';
 const recordText = /Synthetic|Prof\.|Asst\.|Course|@/u;
 const pendingCounts = /history_index_pending 1, enrollments_pending 1/u;
@@ -135,11 +133,10 @@ const preparesEmptyFiles = async ({ target }) => {
   );
 };
 
-// The importable synthetic fixture written like the one-time workbook
-// import, converted, then counted by the schedule on its own.
+// The importable synthetic fixture written as the one-time workbook
+// import writes it, then counted by the schedule on its own.
 const seedsAndCounts = async ({ directus, t, target }) => {
-  await seedCheckpoint(target, parityDataset());
-  await convert(directus);
+  await seedDataset(directus, parityDataset());
   const settled = await settle(target, { limitMs: 180_000 });
   t.diagnostic(`seeded fixture settled after ${settled.elapsedMs} ms`);
 };
@@ -210,69 +207,6 @@ const blocksPendingCounts = async ({ target }) => {
   assert.equal(await isReady(target), true);
 };
 
-const blocksUnresolvedCurriculum = async ({ state, target }) => {
-  const [course] = await get(
-    target,
-    `/items/courses?fields=id&filter[name][_eq]=${encodeURIComponent(theta)}`,
-  );
-  const [link] = await get(
-    target,
-    `/items/course_curricula?fields=id,course,entry,generation,credits,available,sort&filter[course][_eq]=${course.id}&filter[generation][code][_eq]=2018`,
-  );
-  await remove(target, `/items/course_curricula/${link.id}`);
-  const answer = await readiness(target);
-  // The equivalency's 2018 member and Theta's imported 2018 credits and
-  // availability both lost the link they are published through.
-  assert.deepEqual(answer.blockers, [
-    'curriculum_link_unresolved',
-    'curriculum_value_unlinked',
-  ]);
-  assert.equal(answer.issueCounts.curriculum_link_unresolved, 1);
-  assert.equal(answer.issueCounts.curriculum_value_unlinked, 1);
-  await refused(target, 'EXPORT_NOT_READY');
-  await post(
-    target,
-    '/items/course_curricula',
-    Object.fromEntries(Object.entries(link).filter(([key]) => key !== 'id')),
-  );
-  assert.equal(await isReady(target), true);
-  state.theta = course.id;
-};
-
-// A second imported assignment row's role row joins Alpha's professors,
-// as the conversion leaves a course whose checkpoint had two assignment
-// rows: readiness blocks until one of them is removed.
-const blocksMergedAssignments = async ({ target }) => {
-  const [course] = await get(
-    target,
-    `/items/courses?fields=id&filter[name][_eq]=${encodeURIComponent(alpha)}`,
-  );
-  const [first] = await get(
-    target,
-    `/items/teaching_assignments?fields=source_id&filter[course][_eq]=${course.id}&filter[role][_eq]=professor&limit=1`,
-  );
-  const merged = await post(target, '/items/teaching_assignments', {
-    course: course.id,
-    course_name: alpha,
-    display_override: 'Synthetic Second Row Professor',
-    role: 'professor',
-    sort: 1,
-    source_collection: 'teaching_assignments',
-    source_id: first.source_id + 1_000,
-  });
-  const answer = await readiness(target);
-  assert.deepEqual(answer.blockers, ['assignment_source_duplicate']);
-  assert.equal(answer.issueCounts.assignment_source_duplicate, 1);
-  assert.equal(
-    answer.links.assignment_source_duplicate,
-    '/admin/content/teaching_assignments',
-  );
-  assertBounded(answer);
-  await refused(target, 'EXPORT_NOT_READY');
-  await remove(target, `/items/teaching_assignments/${merged.data.id}`);
-  assert.equal(await isReady(target), true);
-};
-
 const blocksFailedImport = async ({ state, target }) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'export-projection-'));
   state.directories.push(directory);
@@ -337,13 +271,6 @@ const followsRenames = async ({ state, target }) => {
   const renamed = rows.find((row) => row.name === theta);
   assert.equal(renamed.professors, 'Prof. Theta Renamed');
   assert.equal(renamed['2023-code'], 'SYN23-007-R');
-  // Nothing fills the checkpoint copies of these values: they stay empty,
-  // so the renamed values came from the relations.
-  const copied = await get(
-    target,
-    `/items/courses/${state.theta}?fields=professors,code_2023`,
-  );
-  assert.deepEqual(copied, { code_2023: null, professors: null });
   assert.deepEqual(
     rows.filter((row) => row.name !== theta),
     before.filter((row) => row.name !== theta),
@@ -447,7 +374,6 @@ test('projects relational data into the existing public assets', async (t) => {
     files: [],
     local: null,
     measurement: null,
-    theta: null,
   };
   const context = { directus, state, t, target };
   let resume = nothingToResume;
@@ -462,7 +388,7 @@ test('projects relational data into the existing public assets', async (t) => {
           'prepares every declared file empty for an empty project',
           () => preparesEmptyFiles(context),
         );
-        await t.test('seeds, converts and counts the synthetic fixture', () =>
+        await t.test('seeds and counts the synthetic fixture', () =>
           seedsAndCounts(context),
         );
         await t.test(
@@ -474,13 +400,6 @@ test('projects relational data into the existing public assets', async (t) => {
         );
         await t.test('refuses before any file while counts are pending', () =>
           blocksPendingCounts(context),
-        );
-        await t.test('refuses an unresolved active curriculum link', () =>
-          blocksUnresolvedCurriculum(context),
-        );
-        await t.test(
-          'refuses a course that merges two imported assignment rows',
-          () => blocksMergedAssignments(context),
         );
         await t.test('refuses after a failed snapshot import', () =>
           blocksFailedImport(context),

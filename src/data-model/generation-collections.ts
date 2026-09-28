@@ -1,6 +1,9 @@
 import type { ModelCollection } from '../schema.js';
 
-import { curriculumEntryTemplate } from './checkpoint-collections.js';
+import {
+  curriculumEntryTemplate,
+  equivalencyTemplate,
+} from './content-collections.js';
 import { m2o, scalar } from './fields.js';
 
 // Curriculum generations and their study programs are rows administrators
@@ -55,7 +58,6 @@ export const generationCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'timeline',
     note: 'Curriculum generations. A new generation is a new row; it reaches courses.json only once published.',
-    origin: 'relational',
     singleton: false,
     sort: 26,
   },
@@ -90,7 +92,6 @@ export const generationCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'workspaces',
     note: 'Study programs, one row per program and generation.',
-    origin: 'relational',
     singleton: false,
     sort: 27,
   },
@@ -121,7 +122,6 @@ export const generationCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'fact_check',
     note: 'The state of a curriculum entry in each study program of its generation, edited from the entry form.',
-    origin: 'relational',
     singleton: false,
     sort: 28,
   },
@@ -140,7 +140,7 @@ export const generationCollections: readonly ModelCollection[] = [
         },
         nullable: false,
         sortField: 'sort',
-        template: '{{course_2023}}',
+        template: equivalencyTemplate,
       }),
       generationReference(
         'One member per generation of an equivalency; a linked entry must be of this generation.',
@@ -163,7 +163,6 @@ export const generationCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'join_inner',
     note: 'The members of a course equivalency: one literal label per generation, linked to its curriculum entry when unambiguous. A new generation adds members, not columns.',
-    origin: 'relational',
     singleton: false,
     sort: 29,
   },

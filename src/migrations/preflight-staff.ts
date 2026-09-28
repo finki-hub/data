@@ -1,13 +1,8 @@
-import type { AssignmentRow } from './inventory-schemas.js';
-import type { Finding, StaffCandidate } from './report.js';
+import type { StaffCandidate } from './candidates.js';
+import type { AssignmentRow } from './workbook-rows.js';
 
-import {
-  finding,
-  type LabelIndex,
-  listIds,
-  nonEmpty,
-  quote,
-} from './labels.js';
+import { type Finding, finding } from './findings.js';
+import { type LabelIndex, nonEmpty } from './labels.js';
 
 const delimiters = [',', ';', '\n'] as const;
 
@@ -31,9 +26,10 @@ const unresolved = (base: Text, parts: readonly string[]): StaffCandidate =>
   candidate(base, 'unresolved', { parts, staff: [] });
 
 // Complete labels only: `unique` when every label names exactly one staff
-// row, `ambiguous` when every label names a staff row but at least one
-// names several (the ids in contention are carried, none is linked), and
-// `unresolved` when a label names no staff row at all.
+// row (the rows in the order the text names them), `ambiguous` when every
+// label names a staff row but at least one names several (the ids in
+// contention are carried, none is linked), and `unresolved` when a label
+// names no staff row at all.
 const fromMatches = (
   base: Text,
   parts: readonly string[],
@@ -42,14 +38,13 @@ const fromMatches = (
   if (matches.some((ids) => ids.length === 0)) {
     return unresolved(base, parts);
   }
+  if (matches.every((ids) => ids.length === 1)) {
+    return candidate(base, 'unique', { parts, staff: matches.flat() });
+  }
   const staff = [...new Set(matches.flat())].toSorted(
     (left, right) => left - right,
   );
-  return candidate(
-    base,
-    matches.every((ids) => ids.length === 1) ? 'unique' : 'ambiguous',
-    { parts, staff },
-  );
+  return candidate(base, 'ambiguous', { parts, staff });
 };
 
 // The one form in which a list of staff labels is published: the export
@@ -66,7 +61,7 @@ export const staffListSeparator = ', ';
 // export republishes the text unchanged: the whole text without padding,
 // or a list whose parts joined by `staffListSeparator` give the text back.
 // A list separated by ';', a line break, a bare ',' or padded parts stays
-// literal review text, so conversion never changes the published text.
+// literal review text, so the import never changes the published text.
 export const resolveStaff = (
   role: StaffCandidate['role'],
   raw: null | string,
@@ -107,8 +102,7 @@ export const resolveStaff = (
   );
 };
 
-// Both texts of one assignment row: every row is converted into staff
-// links, not only the first row of a course name.
+// Both texts of one assignment row.
 export const assignmentStaff = (
   row: AssignmentRow,
   staffByName: LabelIndex,
@@ -117,31 +111,19 @@ export const assignmentStaff = (
   resolveStaff('assistant', row.assistants, staffByName),
 ];
 
-// One finding per text that cannot be linked: retained as display text when
-// unresolved, or naming the staff rows in contention when ambiguous.
+// One finding per text that links no staff row: kept as display text when
+// unresolved, or naming several staff rows when ambiguous.
 export const staffFindings = (
   row: AssignmentRow,
   staff: readonly StaffCandidate[],
 ): readonly Finding[] =>
   staff.flatMap((item) => {
-    const label = nonEmpty(row.course_name);
-    const base = { collection: 'teaching_assignments', ids: [row.id], label };
-    const where = `${item.role} text of assignment ${String(row.id)} for ${quote(label)}`;
     if (item.resolution === 'ambiguous') {
       return [
-        finding('ambiguous_staff_label', {
-          ...base,
-          message: `${where} names staff rows ${listIds(item.staff)} through a label several of them carry; no staff link is set and the text is retained until the rows are told apart.`,
-        }),
+        finding('ambiguous_staff_label', 'teaching_assignments', [row.id]),
       ];
     }
-    if (item.resolution === 'unresolved') {
-      return [
-        finding('unresolved_staff_text', {
-          ...base,
-          message: `${where} is not a complete staff label or an unambiguous list of them joined exactly by "${staffListSeparator}"; it is retained as display text for review.`,
-        }),
-      ];
-    }
-    return [];
+    return item.resolution === 'unresolved'
+      ? [finding('unresolved_staff_text', 'teaching_assignments', [row.id])]
+      : [];
   });

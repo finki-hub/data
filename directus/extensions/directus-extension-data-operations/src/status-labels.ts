@@ -88,10 +88,6 @@ export const orderedChecks = (checks: readonly CheckView[]): CheckView[] =>
 export const checkLinkText = (check: CheckView): string =>
   check.review ?? humanize(check.page);
 
-// Beside the link of a view that lists candidates, not the counted records.
-export const candidatesCue =
-  'Lists every candidate, not only the counted records; its columns show which count.';
-
 // Bytes as "5.3 kB".
 export const bytesText = (bytes: null | number): string => {
   if (bytes === null) {

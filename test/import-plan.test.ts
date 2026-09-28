@@ -1,0 +1,491 @@
+import { describe, expect, test } from 'vitest';
+
+import type { ImportPlan } from '../src/migrations/plan.js';
+
+import { entryKey } from '../src/migrations/curricula.js';
+import {
+  ProgramHeaderError,
+  programKey,
+  workbookPrograms,
+} from '../src/migrations/generations.js';
+import {
+  compositeKey,
+  isRef,
+  type Ref,
+  ref,
+} from '../src/migrations/planned.js';
+import { expectedEnrollments } from './expected-exports.js';
+import {
+  academicYears,
+  courseNames,
+  makeSyntheticDataset,
+  thetaCrossNewlinePattern,
+} from './fixtures/synthetic-data.js';
+import {
+  syntheticProgramHeaders,
+  syntheticPrograms,
+} from './fixtures/synthetic-workbook.js';
+import {
+  planOf,
+  recordsIn,
+  rowsIn,
+  uniqueDataset,
+} from './import-plan-helpers.js';
+import { matchingHistories } from './relational-export-helpers.js';
+
+const orphanLegacy = 'Orphan Legacy Course';
+
+const generation = (code: string) => ref('curriculum_generations', code);
+const course = (id: number) => ref('courses', id);
+const entry2023 = (id: number) =>
+  ref('curriculum_entries', entryKey('curriculum_2023', id));
+const entry2018 = (id: number) =>
+  ref('curriculum_entries', entryKey('curriculum_2018', id));
+
+// The references of the plan to a collection it writes later, or not at
+// all.
+const lateReferences = (plan: ImportPlan): readonly Ref[] => {
+  const written = new Set<string>();
+  const late: Ref[] = [];
+  for (const { collection, rows } of plan.collections) {
+    for (const { record } of rows) {
+      late.push(
+        ...Object.values(record).filter(
+          (value): value is Ref =>
+            isRef(value) && !written.has(value.collection),
+        ),
+      );
+    }
+    written.add(collection);
+  }
+  return late;
+};
+
+// Whether a record still carries a flat state column.
+const hasStateColumn = (record: object): boolean =>
+  Object.keys(record).some((key) => key.startsWith('state_'));
+
+describe('the order the import writes in', () => {
+  test('writes every collection after the rows its references name', () => {
+    const plan = planOf(uniqueDataset());
+    const order = plan.collections.map(({ collection }) => collection);
+
+    expect(order).toEqual([
+      'academic_years',
+      'curriculum_generations',
+      'study_programs',
+      'staff',
+      'rooms',
+      'students',
+      'discord_channels',
+      'deans_office',
+      'moodle_users',
+      'courses',
+      'curriculum_entries',
+      'curriculum_entry_program_states',
+      'course_curricula',
+      'course_enrollment_rules',
+      'teaching_assignments',
+      'course_equivalencies',
+      'course_equivalency_members',
+      'student_council',
+    ]);
+
+    expect(lateReferences(plan)).toEqual([]);
+  });
+});
+
+describe('seeds', () => {
+  test('seeds the three workbook generations, the programs its headers name and its academic years', () => {
+    const plan = planOf(uniqueDataset());
+
+    expect(recordsIn(plan, 'curriculum_generations')).toEqual([
+      {
+        code: '2013',
+        has_curriculum: false,
+        label: 'Curriculum 2013',
+        published: false,
+        sort: 1,
+      },
+      {
+        code: '2018',
+        has_curriculum: true,
+        label: 'Curriculum 2018',
+        published: true,
+        sort: 2,
+      },
+      {
+        code: '2023',
+        has_curriculum: true,
+        label: 'Curriculum 2023',
+        published: true,
+        sort: 3,
+      },
+    ]);
+    expect(recordsIn(plan, 'study_programs')).toHaveLength(15);
+    expect(recordsIn(plan, 'study_programs')[8]).toEqual({
+      code: 'kn',
+      generation: generation('2018'),
+      name: 'КН',
+      published: true,
+      sort: 1,
+    });
+    expect(recordsIn(plan, 'academic_years').map(({ label }) => label)).toEqual(
+      [...academicYears],
+    );
+    expect(recordsIn(plan, 'academic_years')[0]).toEqual({
+      label: '2025/2026',
+      published: true,
+      sort: 15,
+    });
+  });
+
+  test('maps each program header to its code, in column order, and refuses an unknown or misplaced header', () => {
+    expect(
+      syntheticPrograms.map(({ code, generation: of, name, sort }) =>
+        [of, sort, code, name].join(' '),
+      ),
+    ).toEqual([
+      '2023 1 kn КН',
+      '2023 2 siis СИИС',
+      '2023 3 pit ПИТ',
+      '2023 4 imb ИМБ',
+      '2023 5 ki КИ',
+      '2023 6 ie ИЕ',
+      '2023 7 ssp ССП',
+      '2023 8 seis SEIS',
+      '2018 1 kn КН',
+      '2018 2 siis СИИС',
+      '2018 3 pit ПИТ',
+      '2018 4 imb ИМБ',
+      '2018 5 ki КИ',
+      '2018 6 ke КЕ',
+      '2018 7 seis SEIS',
+    ]);
+    expect(() =>
+      workbookPrograms({
+        ...syntheticProgramHeaders,
+        curriculum_2018: ['КН', 'СИИС', 'ПИТ', 'ИМБ', 'КИ', 'XYZ', 'SEIS'],
+      }),
+    ).toThrow(ProgramHeaderError);
+    expect(() =>
+      workbookPrograms({
+        ...syntheticProgramHeaders,
+        curriculum_2023: [
+          'СИИС',
+          'КН',
+          'ПИТ',
+          'ИМБ',
+          'КИ',
+          'ИЕ',
+          'ССП',
+          'SEIS',
+        ],
+      }),
+    ).toThrow('headed "СИИС"');
+  });
+});
+
+describe('content rows', () => {
+  test('copies every workbook column the model declares and nothing else', () => {
+    const dataset = makeSyntheticDataset();
+    const plan = planOf(dataset);
+
+    expect(recordsIn(plan, 'courses')[1]).toEqual({
+      name: courseNames.beta,
+      professors_override: 'Prof. Beta Override',
+      tags: '',
+    });
+    expect(recordsIn(plan, 'staff')).toHaveLength(dataset.staff.length);
+    expect(recordsIn(plan, 'moodle_users')[0]).not.toHaveProperty('ID_old');
+    expect(recordsIn(plan, 'moodle_users')[0]).toHaveProperty('ID_new', 2_001);
+    expect(recordsIn(plan, 'student_council')[2]).toMatchObject({
+      index_number: 'SYN-0002',
+      student: ref('students', 3),
+    });
+    expect(Object.keys(recordsIn(plan, 'student_council')[2] ?? {})).toEqual([
+      'year',
+      'index_number',
+      'position',
+      'student',
+    ]);
+    expect(recordsIn(plan, 'student_council')[0]).toMatchObject({
+      student: null,
+    });
+    expect(rowsIn(plan, 'courses')[0]?.origin).toEqual({
+      id: 1,
+      source: 'courses',
+    });
+  });
+
+  test('imports every student row, two that share an index included', () => {
+    const students = rowsIn(planOf(makeSyntheticDataset()), 'students');
+
+    expect(
+      students.map(({ origin, record }) => [
+        origin?.id,
+        record['index_number'],
+      ]),
+    ).toEqual([
+      [1, 'SYN-0001'],
+      [2, 'SYN-0001'],
+      [3, 'SYN-0002'],
+      [4, 'SYN-0003'],
+    ]);
+  });
+});
+
+describe('curriculum entries and program states', () => {
+  test('writes every 2023 and 2018 row as an entry of its generation, orphans and duplicates included, literally', () => {
+    const dataset = makeSyntheticDataset();
+    const entries = rowsIn(planOf(dataset), 'curriculum_entries');
+    const records = entries.map(({ record }) => record);
+
+    expect(entries.map(({ key }) => key)).toEqual([
+      ...dataset.curriculum_2023.map((_, index) =>
+        entryKey('curriculum_2023', index + 1),
+      ),
+      ...dataset.curriculum_2018.map((_, index) =>
+        entryKey('curriculum_2018', index + 1),
+      ),
+    ]);
+    expect(records.find(({ name }) => name === orphanLegacy)).toMatchObject({
+      channel: true,
+      code: 'SYN18-ORPHAN',
+      generation: generation('2018'),
+    });
+    expect(
+      records.find(
+        (record) =>
+          record['name'] === courseNames.zeta &&
+          JSON.stringify(record['generation']) ===
+            JSON.stringify(generation('2023')),
+      ),
+    ).toMatchObject({
+      channel: null,
+      code: '',
+      prerequisites: '',
+      semester: 6,
+      url: 'https://curriculum.example/2023/7',
+    });
+    expect(records.filter(hasStateColumn)).toEqual([]);
+  });
+
+  test('writes one state row per nonempty program cell, for the program of the entry’s generation', () => {
+    const plan = planOf(uniqueDataset());
+    const states = recordsIn(plan, 'curriculum_entry_program_states');
+    const epsilon = entry2023(5);
+
+    expect(
+      states
+        .filter(
+          (state) => JSON.stringify(state['entry']) === JSON.stringify(epsilon),
+        )
+        .map(({ program, state }) => [program, state]),
+    ).toEqual(
+      ['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'seis'].map((code) => [
+        ref('study_programs', programKey('2023', code)),
+        `${code}-state`,
+      ]),
+    );
+    // Zeta's empty cells write no row.
+    expect(
+      states.some(
+        (state) =>
+          JSON.stringify(state['entry']) === JSON.stringify(entry2023(6)),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('course links', () => {
+  test('links each course to its unique 2023 and 2018 entries with the credits and availability of that generation', () => {
+    const plan = planOf(uniqueDataset());
+    const links = rowsIn(plan, 'course_curricula');
+    const linkOf = (id: number, code: string) =>
+      links.find(({ key }) => key === compositeKey(id, code))?.record;
+
+    expect(links).toHaveLength(12);
+    expect(linkOf(1, '2023')).toEqual({
+      available: true,
+      course: course(1),
+      credits: 6,
+      entry: entry2023(1),
+      generation: generation('2023'),
+      sort: 1,
+    });
+    expect(linkOf(1, '2018')).toEqual({
+      available: false,
+      course: course(1),
+      credits: 6,
+      entry: entry2018(1),
+      generation: generation('2018'),
+      sort: 2,
+    });
+    expect(linkOf(2, '2018')).toMatchObject({
+      available: true,
+      credits: 0,
+      entry: entry2018(3),
+    });
+    expect(linkOf(4, '2023')).toBeUndefined();
+    expect(linkOf(3, '2018')).toBeUndefined();
+    expect(linkOf(8, '2018')).toBeUndefined();
+  });
+
+  test('links no label that names several entries or none', () => {
+    const plan = planOf(makeSyntheticDataset());
+
+    expect(
+      rowsIn(plan, 'course_curricula').some(({ key }) =>
+        key.startsWith(compositeKey(1, '')),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('enrollment rules', () => {
+  test('seeds one legacy_regex rule per course and year, the last pattern of the workbook or the default recorded literally', () => {
+    const plan = planOf(makeSyntheticDataset());
+    const rules = rowsIn(plan, 'course_enrollment_rules');
+    const ruleOf = (id: number, year: string) =>
+      rules.find(({ key }) => key === compositeKey(id, year))?.record;
+
+    expect(rules).toHaveLength(8 * academicYears.length);
+    expect(ruleOf(1, '2025/2026')).toMatchObject({
+      academic_year: ref('academic_years', '2025/2026'),
+      course: course(1),
+      mode: 'legacy_regex',
+      pattern: 'Alpha Honors-2025/2026',
+    });
+    expect(ruleOf(1, '2025/2026')?.['review_note']).toContain('last of the 2');
+    expect(ruleOf(7, '2021/2022')?.['pattern']).toBe(thetaCrossNewlinePattern);
+    expect(ruleOf(1, '2024/2025')).toMatchObject({
+      pattern: 'Alpha Course-2024/2025',
+    });
+    expect(ruleOf(1, '2024/2025')?.['review_note']).toContain('fallback');
+    expect(ruleOf(8, '2025/2026')?.['pattern']).toBe(
+      'Iota 2.0 Course-2025/2026',
+    );
+  });
+
+  test('the seeded rules count exactly the committed enrollments', async () => {
+    const dataset = makeSyntheticDataset();
+    const histories = dataset.moodle_users.map((user) => user['Courses']);
+    const rules = rowsIn(planOf(dataset), 'course_enrollment_rules');
+
+    expect(
+      Object.fromEntries(
+        rules.map(({ key, record }) => [
+          key.replace('\u{0}', '/'),
+          matchingHistories(
+            typeof record['pattern'] === 'string' ? record['pattern'] : '',
+            histories,
+          ),
+        ]),
+      ),
+    ).toEqual(await expectedEnrollments('synthetic'));
+  });
+});
+
+describe('equivalencies and their members', () => {
+  test('links the course when its 2023 label names one and plans one member per filled label with the entry decisions of the check', () => {
+    const dataset = uniqueDataset();
+    const plan = planOf(dataset);
+    const members = rowsIn(plan, 'course_equivalency_members');
+    const memberOf = (id: number, code: string) =>
+      members.find(({ key }) => key === compositeKey(id, code))?.record;
+
+    expect(recordsIn(plan, 'course_equivalencies')).toEqual([
+      { course: course(1) },
+      { course: null },
+      { course: course(2) },
+      { course: course(3) },
+      { course: course(5) },
+      { course: course(6) },
+      { course: course(7) },
+      { course: null },
+      { course: null },
+    ]);
+    expect(memberOf(1, '2023')).toEqual({
+      entry: entry2023(2),
+      equivalency: ref('course_equivalencies', 1),
+      generation: generation('2023'),
+      label: courseNames.alpha,
+      sort: 1,
+    });
+    expect(memberOf(1, '2018')).toMatchObject({
+      entry: entry2018(1),
+      label: 'Alpha Legacy',
+      sort: 2,
+    });
+    expect(memberOf(1, '2013')).toMatchObject({
+      entry: null,
+      label: 'Alpha Ancient',
+      sort: 3,
+    });
+    expect(memberOf(9, '2023')).toBeUndefined();
+    expect(memberOf(9, '2013')).toMatchObject({ entry: null, sort: 3 });
+  });
+
+  test('keeps a label that names several entries or none as a member without an entry, its label literal', () => {
+    const members = rowsIn(
+      planOf(makeSyntheticDataset()),
+      'course_equivalency_members',
+    );
+    const memberOf = (id: number, code: string) =>
+      members.find(({ key }) => key === compositeKey(id, code))?.record;
+
+    // Two 2018 rows carry "Alpha Legacy" and two 2023 rows "Alpha Course
+    // (2023)"; no 2018 row carries "Alpha Legacy Decoy".
+    expect(memberOf(1, '2018')).toEqual({
+      entry: null,
+      equivalency: ref('course_equivalencies', 1),
+      generation: generation('2018'),
+      label: 'Alpha Legacy',
+      sort: 2,
+    });
+    expect(memberOf(3, '2023')).toMatchObject({
+      entry: null,
+      label: 'Alpha Course (2023)',
+      sort: 1,
+    });
+    expect(memberOf(3, '2018')).toMatchObject({
+      entry: null,
+      label: 'Alpha Legacy Decoy',
+      sort: 2,
+    });
+    expect(memberOf(1, '2023')?.['entry']).toEqual(entry2023(3));
+  });
+});
+
+describe('teaching role rows', () => {
+  test('plans an unresolved text as one review row per role, never splitting on spaces, and skips an orphan row', () => {
+    const dataset = uniqueDataset();
+    const rows = rowsIn(planOf(dataset), 'teaching_assignments');
+    const ofRow = (id: number) =>
+      rows
+        .filter(({ origin }) => origin?.id === id)
+        .map(({ record }) => record);
+
+    expect(rows).toHaveLength(10);
+    expect(ofRow(1)).toEqual([
+      {
+        course: course(1),
+        display_override: 'Prof. Zed Alpha, Prof. Abe Alpha',
+        role: 'professor',
+        sort: 1,
+        staff: null,
+      },
+      {
+        course: course(1),
+        display_override: 'Asst. Alpha One; Asst. Alpha Two',
+        role: 'assistant',
+        sort: 1,
+        staff: null,
+      },
+    ]);
+    expect(ofRow(3).map(({ role }) => role)).toEqual(['professor']);
+    expect(ofRow(4).map(({ role }) => role)).toEqual(['assistant']);
+    expect(ofRow(5)).toEqual([]);
+  });
+});

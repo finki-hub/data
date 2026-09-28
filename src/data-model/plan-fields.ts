@@ -136,7 +136,10 @@ const planColumn = (
     context.tally.add('fields', 'created');
     return;
   }
-  const refusal = columnRefusal(field, existing);
+  const refusal =
+    existing.meta === null
+      ? 'is a column Directus does not manage'
+      : columnRefusal(field, existing);
   if (refusal !== null) {
     context.actions.refusals.push({
       collection,
@@ -147,14 +150,6 @@ const planColumn = (
     return;
   }
   const flags = missingFlags(field, existing);
-  if (existing.meta === null) {
-    context.actions.fields.push({
-      collection,
-      field,
-      kind: 'adopt-meta',
-      sort,
-    });
-  }
   if (flags !== null) {
     context.actions.fields.push({
       collection,
@@ -164,7 +159,7 @@ const planColumn = (
     });
   }
   const realigned = planChoices(collection, target, context);
-  if (existing.meta === null || flags !== null) {
+  if (flags !== null) {
     context.tally.add('fields', 'adopted');
   } else if (realigned) {
     context.tally.align();

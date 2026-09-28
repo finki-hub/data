@@ -18,8 +18,8 @@ Contents:
 
 - [Supported paths](#supported-paths): requirements, fresh setup, the
   one-time workbook import, replacing the Moodle snapshot, exit codes
-- [Data model and ownership](#data-model-and-ownership): what is edited,
-  what is derived, what is retired
+- [Data model and ownership](#data-model-and-ownership): what the workbook
+  fills, what is edited and what is derived
 - [Day-to-day operation](#day-to-day-operation): automatic processing,
   enrollment rules, readiness, the dashboard, publishing, Flow edits
 - [Access](#access)
@@ -40,9 +40,8 @@ Three supported paths set a project up and bring data into it:
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
-`npm run migrate`, the in-place upgrade of a project that already holds
-data, is not a supported path: it is slated for removal (see
-[Upgrading a populated project](#upgrading-a-populated-project-slated-for-removal)).
+A project that already holds data is never converted in place: the import
+fills only an empty project.
 
 None of them runs by itself: a `docker compose up`, container restart or
 recreation installs and changes nothing, because the schema, presets and
@@ -85,6 +84,11 @@ A few things are code-owned and kept in step on every rerun:
 - A Needs review bookmark, default view, dashboard panel or Flow template
   that the code declares and the project lacks is created, so a check or
   panel declared later appears on the next setup.
+- A unique or index flag that a Studio edit removed from a declared column
+  is restored, and a relation whose alias, sort, deselect action or delete
+  rule drifted is realigned. A table or column the model declares that
+  Directus does not manage (no Directus meta, as another tool would leave
+  it) is refused (exit code 2), never taken over.
 
 ### Requirements
 
@@ -177,7 +181,7 @@ run the one-time import (below) in place of step 4.
 
 ### One-time workbook import
 
-1. Inspect the workbook without writing anything (no credentials needed).
+1. Check the workbook without writing anything (no credentials needed).
    Like the import, the dry run does not read `.env`: it reads the workbook
    named by `WORKBOOK_PATH` on the invocation, else `finki-hub.xlsx`, so both
    commands read the same file:
@@ -186,13 +190,14 @@ run the one-time import (below) in place of step 4.
    WORKBOOK_PATH=finki-hub.xlsx npm run import:dry-run
    ```
 
-   The command prints the row count for each source collection. It also
-   rejects a value its column cannot hold (a string over 255 characters, an
-   integer out of range) before anything is written. If the relational
-   conversion would be blocked by an ambiguous relationship (see below), it
-   also prints the finding counts and exits with code 3. Correct those rows
-   in the workbook before importing, or plan to resolve them in Studio
-   afterwards.
+   The command runs the import's own check (below) and prints, as JSON,
+   the rows the import would write per collection, the count per code of
+   the cases that would refuse it (`blockers`), of the rows it would skip
+   (`skipped`) and of the warnings (`warnings`), and the count per column
+   of the values no column can hold (`unstorable`). It exits with code 3
+   and lists every refusing case and value by sheet and row on stderr when
+   the import would refuse the workbook, and with code 1 when the workbook
+   cannot be read.
 
 2. Run the one-time import against the empty project (steps 1 to 3 of
    [Fresh setup](#fresh-setup) first; the import runs setup itself):
@@ -204,64 +209,82 @@ run the one-time import (below) in place of step 4.
 
 3. Continue with steps 5 and 6 of [Fresh setup](#fresh-setup).
 
-The import reads and checks the whole workbook before it contacts Directus,
-so a malformed or missing workbook stops with nothing written and nothing
-published. It then refuses, before its first write, a project in which any
-application collection (the checkpoint collections the workbook fills, the
-relational collections, the Moodle staging and index collections, the
-migration ledger) holds a record, and prints the record count of each; the
-empty schema `npm run setup` creates, including its coordination status row,
-is accepted. On an accepted project it:
+The import reads the whole workbook and checks it before it contacts
+Directus, exactly as the dry run does, so a workbook it refuses leaves
+Directus untouched:
+
+- A missing or unreadable workbook, or a cell that is not of its
+  column's kind (a boolean column holding other text), stops with exit
+  code 1, naming the file or the column and row.
+- Everything the import could not write as the workbook states it stops
+  with exit code 3, all of it reported in one run and never by a value:
+  each value the column it is written to cannot hold (a string over 255
+  characters, an integer out of range, an empty required value), named by
+  its sheet, row and column, and each case below, named by its code, sheet
+  and rows. The cases are a relationship with more than one candidate (a
+  course name two courses carry, a curriculum name matching several
+  curriculum rows, a council index two students share, two different 2018
+  labels for one course), a row the model cannot hold (a course without a
+  name, a pattern that is no Unicode regular expression, a repeated
+  council or dean's office row), and every value the published files
+  carry that no relational row could hold: credits or availability of a
+  generation without its name (`unlinked_generation_values`), two
+  `Наставен Кадар` rows for one course (`duplicate_assignment`), a
+  curriculum name, 2018 override or 2018 equivalency label that matches no
+  curriculum row (`unmatched_curriculum_2023_label`,
+  `missing_override_target`, `unmatched_curriculum_2018_label`). Correct
+  the workbook and run the import again; the project is still empty.
+- Rows no published file ever used are skipped, and the summary counts
+  them per kind: a `Наставен Кадар` or `Слушатели` row naming no course
+  (`orphan_assignment`, `orphan_pattern`), a pattern of a year the sheet
+  does not head (`unknown_academic_year`), and the earlier patterns of a
+  course and year, of which the last one applies (`duplicate_pattern`).
+- Everything else is imported as the workbook holds it, and what deserves
+  a look in Studio is counted under `warnings`. Readiness counts some of
+  these again afterwards (a teaching text that names no single staff
+  member, an equivalency label that matches no entry, a council index no
+  student carries); others only the import counts (curriculum rows no
+  course names, `unreferenced_rows`).
+
+It then refuses, before its first write, a project in which any application
+collection (every collection the import fills, the relational collections,
+the Moodle staging and index collections) holds a record, and prints the
+record count of each; the empty schema `npm run setup` creates, including
+its coordination status row, is accepted. On an accepted project it:
 
 1. runs exactly what `npm run setup` runs, so importing into an empty project
    equals setup followed by the import;
-2. writes the workbook's source rows into the checkpoint collections in
-   batches of 250 (see [What the workbook fills](#what-the-workbook-fills));
-3. converts those rows into the relational collections through the
-   migration ledger. The academic years it seeds are the ones the
-   **Слушатели** sheet heads, in its order (published, the oldest sorting
-   first), with one fallback `legacy_regex` rule per course and year. The
-   sheet must keep every year the checkpoint counts (one per `enrollment_*`
-   column of the checkpoint `courses`) and head its column groups with
-   labels such as `2025/2026`, newest first, or the import stops before
-   contacting Directus; a later year is one more column group, placed
-   first. The years are written before anything else is converted. The
-   curriculum generations and study programs it seeds come from the
-   curriculum sheets (their program columns); the generations with a
-   curriculum sheet and their programs are published, the label-only 2013
-   generation is not.
+2. writes the relational rows in dependency order, in batches of 250, each
+   reference set to the id Directus answered for the row it names (see
+   [What the workbook fills](#what-the-workbook-fills)): the academic years,
+   curriculum generations and study programs; the staff, rooms, students,
+   Discord channels, dean's office and Moodle users; the courses; the
+   curriculum entries with their program states; the course links; the
+   enrollment rules; the teaching role rows; the equivalencies with their
+   members; the council.
+
+The academic years it writes are the ones the **Слушатели** sheet heads, in
+its order (published, the oldest sorting first), with one `legacy_regex`
+rule per course and year. The sheet must head its column groups with labels
+such as `2025/2026`, newest first, or the import stops before contacting
+Directus; a later year is one more column group, placed first. The
+curriculum generations and study programs come from the curriculum sheets:
+each program column is headed by its program code on the first line (a
+second line, such as the duration, and a link are ignored); the generations
+with a curriculum sheet and their programs are published, the label-only
+2013 generation is not.
 
 It runs no Flow and never publishes.
 
 The import is not one transaction, and its check for an empty project and
 its first write are not atomic against another writer: let nobody write to
-the project while it runs.
-
-If the preflight finds an ambiguous relationship that blocks the relational
-conversion (for example a council index shared by two students), the rows
-and the workbook's academic years stay imported, but the rest of the
-relational conversion is skipped and the command exits with code 3.
-Resolve the listed findings in Studio, then finish with `npm run migrate`
-(see
-[Upgrading a populated project](#upgrading-a-populated-project-slated-for-removal)),
-which converts the academic years the project holds (so every year the
-workbook named).
-
-If the import stops after it started writing rows, it exits with code 4
-and the message names the phase and the one way to finish:
-
-- **While writing rows, none confirmed:** fix the cause and run the import
-  again. If the failed request stored rows after all, the import refuses and
-  lists them.
-- **While writing rows, some confirmed:** the project holds a partial import,
-  which the import now refuses. Restore the pre-import backup, or remove
-  every application record (the empty schema may stay), then import again.
-  Do not upgrade the partial rows with `npm run migrate`.
-- **While converting:** every row was written. Finish with `npm run migrate`
-  (dry-run, then apply), whose ledger resumes the conversion. If the
-  academic years themselves were not all written (the message says so),
-  the upgrade would miss the ones not written: restore the pre-import
-  backup or remove every application record, then import again.
+the project while it runs. If it stops after it started writing rows, it
+exits with code 4, and the message says how many planned rows Directus had
+confirmed. There is no resume: set up a fresh project (new Compose volumes,
+or the backup taken before the import) and import again. When Directus
+confirmed no row, the project may still be empty, and the import simply
+runs again (it refuses, listing them, if the failed request stored rows
+after all).
 
 Publish through **Publish / Public assets (relational)** once readiness
 passes (see [Publishing](#publishing)).
@@ -347,70 +370,19 @@ Directus log.
 | Code | `npm run setup` / `npm run import` |
 | --- | --- |
 | 0 | Done. |
-| 1 | Failed before any row was written: a workbook that cannot be read (a missing file names its path) or stored (nothing sent to Directus), a target that answers an error (a wrong token answers `401` with `INVALID_CREDENTIALS`; name a static administrator token of that project), or an unexpected error. After an unexpected error the schema or Flows may be partly installed, and rerunning is safe. |
-| 2 | Refused: no explicit target, an unknown argument, a populated project offered to the import (with its record counts), existing definitions the model cannot adopt, a licence that caps the collections, a half-installed Flow, or a Directus without the data-operations bundle. No record was written. |
-| 3 | Import only: the relational conversion is blocked until the reported findings are resolved. After a real import the workbook rows are stored; after `--dry-run` nothing was written. |
-| 4 | Import only: the import stopped after it began writing rows. The message says how many rows Directus confirmed and how to finish (see above). |
+| 1 | Failed before any row was written: a workbook that cannot be read (a missing file names its path; nothing sent to Directus), a target that answers an error (a wrong token answers `401` with `INVALID_CREDENTIALS`; name a static administrator token of that project), or an unexpected error. After an unexpected error the schema or Flows may be partly installed, and rerunning is safe. |
+| 2 | Refused: no explicit target, an unknown argument, a populated project offered to the import (with its record counts), existing definitions the model cannot carry (including a table or column Directus does not manage), a licence that caps the collections, a half-installed Flow, or a Directus without the data-operations bundle. No record was written. |
+| 3 | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them, listed by column or code, sheet and row. Nothing was sent to Directus (the dry run answers the same); correct the workbook and run again. |
+| 4 | Import only: the import stopped after it began writing rows. The message says how many planned rows Directus had confirmed; set up a fresh project and import again (see above). |
 
-The refusal of a populated project still ends with a hint to upgrade it
-with `npm run migrate`. That is not a supported path (see
-[Upgrading a populated project](#upgrading-a-populated-project-slated-for-removal)).
-Import into a new, empty project instead (fresh Compose volumes and
-`npm run setup`, or the import alone), or restore the backup taken before
-the first import and import again.
+A populated project is never imported into: import into a new, empty
+project instead (fresh Compose volumes and `npm run setup`, or the import
+alone), or restore the backup taken before the first import and import
+again.
 
 Messages name counts, codes, ids, paths, sheets, rows, columns and
 collections. A refused boolean, integer or year-header cell is quoted so it
 can be found; no other workbook or snapshot value is printed.
-
-### Upgrading a populated project (slated for removal)
-
-No deployment of an earlier version of this project exists, so the upgrade
-path that converts a project already holding data in place is not
-supported and will be removed in a later cleanup, together with the
-`migration_ledger` collection. Until then it is also how a blocked or
-interrupted import finishes (above), and `npm run migrate` exits 0 on
-success and 1 otherwise; its message starts with `Migration refused` for an
-incompatible state and `Migration failed` for an error.
-
-1. `npm run migrate -- --dry-run --report <private path>` (with the same
-   `DIRECTUS_URL` and token as setup) reads only the project, writes the
-   detailed report to the path you name and prints a summary with the
-   `sourceFingerprint`. The report also proposes, for every legacy rule
-   whose course and year has explicit entry mappings, whether the pattern
-   and the mappings match the same Moodle users (`mappingProposal`, counts
-   and at most five sample ids per difference, each expression bounded to
-   10 seconds). It reads the patterns the conversion seeded, not rules
-   edited in Studio since, and never changes a rule.
-2. Take a backup (see [Backup and restore](#backup-and-restore)) and write a
-   private receipt next to it that names the `sourceFingerprint` and every
-   backup file with its size in bytes and SHA-256 (paths resolve relative
-   to the receipt, and each file must exist with exactly that size):
-
-   ```json
-   {
-     "version": "backup-receipt-1",
-     "createdAt": "2026-09-22T12:00:00Z",
-     "sourceFingerprint": "<sourceFingerprint from the dry-run output>",
-     "artifacts": [
-       {
-         "path": "directus.dump",
-         "kind": "database",
-         "bytes": 123456,
-         "sha256": "<64 hex digits from sha256sum>"
-       }
-     ]
-   }
-   ```
-
-3. `npm run migrate -- --apply --report <the dry run's report>
-   --backup-receipt <private path>`. Make no change between the dry run and
-   the apply: a changed project no longer matches the fingerprint, and
-   `--apply` refuses until you run a new dry run and take a new backup. A
-   step an interrupted apply left `running` is taken over only with
-   `--resume`, on your word (the ledger has no heartbeat); a step that failed
-   on a write the database refuses fails the same way until the source row
-   is fixed.
 
 ### Compose, image and ports
 
@@ -443,29 +415,28 @@ readable display templates, keyed by generated ids, never by course names.
 ### What the workbook fills
 
 Every independent dataset in the workbook is imported. Cached spreadsheet
-formula results are not treated as source data. Each sheet first fills its
-checkpoint collection: a tabular sheet one row per non-empty row below its
-header; the two index sheets one row per student of each index and name
-column pair, headed by its source group; `Дискорд` one row per channel
-pair of each semester's column pair; and `Слушатели` only its explicit
-pattern overrides, one row per course and year whose pattern cell holds a
-value rather than a formula. The conversion then builds the relational
-rows from them:
+formula results are not treated as source data. A tabular sheet is read one
+row per non-empty row below its header; the two index sheets one row per
+student of each index and name column pair, headed by its source group;
+`Дискорд` one row per channel pair of each semester's column pair; and
+`Слушатели` only its explicit patterns, one per course and year whose
+pattern cell holds a value rather than a formula. The import writes the
+relational rows straight from them:
 
-| Sheet | Checkpoint collection | Relational rows |
-| --- | --- | --- |
-| `Предмети (Export)` | `courses` | the courses themselves |
-| `Кадар (Export)` | `staff` | the staff themselves |
-| `Простории (Export)` | `rooms` | the rooms themselves |
-| `Индекси - Година`, `Индекси - Други` | `students` | the students themselves |
-| `Предмети - 2023`, `Предмети - 2018` | `curriculum_2023`, `curriculum_2018` | `curriculum_generations`, `study_programs`, `curriculum_entries` with their `curriculum_entry_program_states`, and `course_curricula` links |
-| `Еквиваленции` | `course_equivalencies` | the same rows as groups, each label a `course_equivalency_members` row |
-| `Наставен Кадар` | `teaching_assignments` | role-bearing rows (course, staff or label, role, order) beside the original text rows |
-| `Слушатели` | `course_enrollment_patterns` (the explicit overrides only) | `academic_years` from its year column groups, and one `course_enrollment_rules` row per course of `courses` and year, whose pattern is the override where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
-| `Дискорд` | `discord_channels` (one row per channel pair) | kept as is |
-| `ФСС` | `student_council` | the same rows, linked to `students` |
-| `Деканат` | `deans_office` | kept as is |
-| `Courses` | `moodle_users` | the active Moodle snapshot; the schedule builds its history index |
+| Sheet | Relational rows |
+| --- | --- |
+| `Предмети (Export)` | `courses` (name, tags, `professors_override`); the 2023 and 2018 name, credits and availability of each course become its `course_curricula` links |
+| `Кадар (Export)` | `staff` |
+| `Простории (Export)` | `rooms` |
+| `Индекси - Година`, `Индекси - Други` | `students` |
+| `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans and duplicates included |
+| `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row |
+| `Наставен Кадар` | `teaching_assignments` role rows (course, staff or label, role, order) |
+| `Слушатели` | `academic_years` from its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
+| `Дискорд` | `discord_channels`, one row per channel pair |
+| `ФСС` | `student_council`, linked to the student of its index |
+| `Деканат` | `deans_office` |
+| `Courses` | `moodle_users`, the active Moodle snapshot; the schedule builds its history index |
 
 Spreadsheet booleans and numbers become native Directus/PostgreSQL booleans
 and integers. Long text and URLs use PostgreSQL text fields. Student rows are
@@ -476,17 +447,19 @@ student indices are retained, and no person is merged by name.
 `moodle_users` contains names, email addresses, profile details, and course
 histories. Its field keys match the current `courses-scraper` `profiles.csv`
 headers, so every later snapshot is imported without changing the scraper
-output. The workbook's older `ID`, `Profile`, and `#` columns are migrated to
+output. The workbook's older `ID`, `Profile`, and `#` columns are imported as
 `ID_new`, `Profile_new`, and `Courses Count`; the next scraper snapshot also
 populates the old-instance and timezone fields that the workbook does not
 contain.
 
-Values the conversion cannot relate unambiguously (a curriculum label that
-matches no entry, a teaching assignment whose text names no single staff
-member, a council index that matches no student) are kept as literal labels
-and counted by readiness; an ambiguity that would need a guess (a council
-index shared by two students) blocks the conversion instead (exit code 3).
-Nothing is guessed or discarded.
+Values the import cannot relate unambiguously but can keep (a teaching text
+that names no single staff member, an equivalency label that matches no
+entry, a council index that matches no student) are kept as literal labels
+and counted by readiness. Nothing is guessed: an ambiguity, and every value
+the published files carry that no relational row could hold, refuses the
+import instead (exit code 3). Only rows no published file ever used are
+left out, and the import counts them (see
+[One-time workbook import](#one-time-workbook-import)).
 
 ### Editable, derived and bookkeeping collections
 
@@ -526,34 +499,11 @@ database guards the table and what the **Data editor** policy grants:
   operations, never edited by hand. The **Data Operations** singleton keeps
   its bookkeeping (source revision, last error) across everything, and
   setup never resets it.
-- **Migration** (`migration_ledger`): the conversion ledger, removed with
-  `npm run migrate`.
-- **Checkpoint sources** (`curriculum_2023`, `curriculum_2018`,
-  `course_enrollment_patterns`): the imported sheets. Kept as read input
-  until the cleanup; editors get no rights on them.
 
-Retired fields are hidden pending cleanup approval, never silently deleted:
-
-- The course form ends with two collapsed, read-only groups: the columns the
-  checkpoint derivation computed (**Legacy Calculated**), which nothing
-  fills or publishes any more, and the six per-generation columns of the
-  workbook (`name_2023`, `credits_2023`, `available_2023`,
-  `name_2018_override`, `credits_2018`, `available_2018`, **Legacy
-  Import**), which the import copied once into the curriculum links. The
-  default Courses view shows the relational fields instead. An
-  administrator can still clear an imported value through the API when
-  dropping it from the public file is intended (see
-  `curriculum_value_unlinked` under
-  [Readiness](#readiness-and-needs-review-views)).
-- `teaching_assignments` keeps each original text row with its imported
-  labels in a collapsed group, beside the role-bearing rows the conversion
-  adds; `student_council` keeps its copied `name` hidden, since nothing
-  fills it any more (the linked student names a member, the index labels an
-  unlinked one);
-  `course_equivalencies` keeps its per-generation label columns beside its
-  members.
-- The checkpoint collections and columns stay in the database until a
-  separately approved cleanup drops them.
+A course holds only what `courses.json` publishes from it directly (name,
+tags, `professors_override`); its curriculum lives in its links, its staff
+in its role rows, and a council member is named by the linked student (its
+index labels an unlinked one).
 
 ### Academic years, curriculum generations and study programs
 
@@ -598,9 +548,6 @@ mappings, and the users carrying it (the derived index, read-only).
   refuse a link, state or member whose generation differs.
 - Rows added in a related list are shown as placeholders until the parent
   is saved (Directus behaviour).
-- `teaching_assignments.course_name` is still a required checkpoint column,
-  so a new assignment created from the course form needs the course label
-  typed in until the cleanup relaxes it.
 - **Professors** of `courses.json` are `professors_override` when set, else
   the course's professor assignments in order; see [Publishing](#publishing).
 
@@ -643,8 +590,7 @@ rolled-back edit marks nothing and a committed one is never missed, whether
 it came from Studio, the REST API, a native CSV import or SQL. A Moodle user
 marks the history index, the counts and publication; entries, mappings,
 rules and academic years mark the counts and publication; every other
-source collection, including the checkpoint enrollment overrides, marks
-publication. The mark covers the whole domain, so a mapping or rule moved to
+source collection marks publication. The mark covers the whole domain, so a mapping or rule moved to
 another course or year, or deleted, changes both the old and the new pair; a
 deleted mapping leaves its rule, whose pair is then counted as 0. Deleting an
 entry or editing its label by hand (the label belongs to the index) marks
@@ -807,13 +753,14 @@ creates the missing rules (see [Extending](#an-academic-year-and-its-rules)).
 
 ### Enrollment counts from legacy rules
 
-The conversion seeds every existing course/year as a `legacy_regex`
-rule with the pattern text the checkpoint compiled (a last-id override of
-`course_enrollment_patterns`, else the literal `<course name>-<year>`). The
+The one-time import seeds every course and year of the workbook as a
+`legacy_regex` rule whose pattern is recorded literally: the last pattern
+the `Слушатели` sheet names for that course and year, else
+`<course name>-<year>`. Renaming a course later changes no rule. The
 pattern stays editable in **Course Enrollment Rules**; no Flow and no
 extension interprets it except the count script below, which applies it
-exactly like the checkpoint did: `new RegExp(pattern, 'u')` over the whole
-raw `Courses` history, tested once per user. Names are not escaped, so a
+as `new RegExp(pattern, 'u')` over the whole raw `Courses` history, tested
+once per user. Names are not escaped, so a
 pattern may cross line boundaries, and a pattern that does not compile
 (for example the default of a course named `C++ Course`) fails the run.
 Switch a rule to `mapped_entries` in Studio once its entries are mapped and
@@ -915,8 +862,7 @@ answers counts, codes and links, never a record.
 Today's blockers: `history_index_*` and `enrollments_*` (`pending`,
 `running`, `failed`, from the coordinator status),
 `snapshot_import_running`, `snapshot_import_failed`,
-`conversion_incomplete` (a step of the one-time conversion still running or
-failed in `migration_ledger`), `academic_year_unsorted` (a published year
+`academic_year_unsorted` (a published year
 without a sort, which has no place among the year keys),
 `academic_year_sort_shared` (two published years with one sort, whose keys
 have no newest-first order), `curriculum_generation_unsorted` and
@@ -925,15 +871,9 @@ with a curriculum and their blocks), `study_program_unsorted` and
 `study_program_sort_shared` (the same for the published programs of one
 generation and their state keys), `enrollment_count_missing` (a course and
 published year without a count row), `enrollment_rule_missing` (without a
-rule, so it is never counted), `curriculum_link_unresolved` (a 2018 member of
-an equivalency of the course names an entry, or a label that matched none,
-while the course has no 2018 link), `curriculum_value_unlinked` (a course
-carries an imported `name_2023` or `name_2018_override`, or credits or
-availability of a generation, without a curriculum link of that generation),
-`assignment_role_missing`, `assignment_unresolved` (a published assignment
-with neither a staff member nor a display label),
-`assignment_source_duplicate` (the published professors or assistants of a
-course come from two imported assignment rows). Today's warnings:
+rule, so it is never counted), `assignment_role_missing`,
+`assignment_unresolved` (a published assignment with neither a staff member
+nor a display label). Today's warnings:
 `assignment_review_label` (an unresolved imported label published as text),
 `assignment_order_ambiguous` (two rows of one course and role at one
 position; the id decides their order), `mapping_without_rule` (mappings
@@ -945,20 +885,12 @@ to no entry of that generation), `council_member_unresolved` (a council
 membership linked to no student), `snapshot_staged`,
 `active_snapshot_edited` and `snapshot_never_promoted`.
 
-Every value the checkpoint files published and the relational rows cannot
-publish blocks, so a first publication never loses or changes text
-silently:
-
-- a curriculum label that matched no entry, and a generation's credits or
-  availability without any label, block as `curriculum_value_unlinked` or
-  `curriculum_link_unresolved`: create the entry and link it to the course
-  (the imported course columns are read-only import input; an administrator
-  can clear one through the API when dropping the value from the public
-  file is intended);
-- a course with two checkpoint assignment rows gets role rows for both,
-  while the checkpoint derivation published only the first:
-  `assignment_source_duplicate` blocks until the role rows of the row that
-  is not wanted are deleted.
+A value of the workbook that the relational rows could not publish as it
+stands (a curriculum name that matches no entry, credits or availability
+without a name, two teaching rows of one course) never reaches readiness:
+the import refuses the workbook until it is corrected (see
+[One-time workbook import](#one-time-workbook-import)), so the first
+publication never loses or changes text silently.
 
 Unmapped Moodle lines only warn: map an entry, mark it `ignored` with a
 reason, or leave it counted by a reviewed legacy rule; administrative lines
@@ -976,7 +908,6 @@ is kept. The views are generated from `exports/review-views.ts` and
 | --- | --- | --- | --- |
 | **Needs mapping** | `moodle_course_entries` | `entry_needs_mapping` | entries still `needs_mapping` without a mapping |
 | **Mapped entries awaiting review** | `moodle_course_entries` | `mapped_entry_awaiting_review` | entries still `needs_mapping` with a mapping, and its course and year |
-| **Curriculum links to check** | `course_equivalency_members` | `curriculum_link_unresolved` | the 2018 members that name a course, beside the generations of that course's links (a missing link cannot be a filter, so the view lists the candidates) |
 | **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
 | **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
 | **Assignments without staff or label**, **Assignments shown by their label only**, **Assignments without a known role** | `teaching_assignments` | `assignment_unresolved`, `assignment_review_label`, `assignment_role_missing` | the published rows each check counts (a professor row that `professors_override` replaces counts nowhere) |
@@ -984,22 +915,17 @@ is kept. The views are generated from `exports/review-views.ts` and
 | **Published academic years / curriculum generations / study programs without a sort** | the key source's collection | `academic_year_unsorted` and the like | published rows without a position; a program shows its generation and name |
 
 The checks no plain filter can list (a missing row, a duplicate) link
-their collection page instead: today `curriculum_value_unlinked`,
-`enrollment_count_missing`, `enrollment_rule_missing`,
-`mapping_without_rule`, the three `*_sort_shared` blockers,
-`assignment_order_ambiguous`, `assignment_source_duplicate` and
-`conversion_incomplete`.
+their collection page instead: today `enrollment_count_missing`,
+`enrollment_rule_missing`, `mapping_without_rule`, the three
+`*_sort_shared` blockers and `assignment_order_ambiguous`.
 
 Curriculum views show the generation and filter through the
 `curriculum_generations` relation, so a new generation's rows appear in
 the existing views. A view filters with plain field and relational paths
 (never `_some`/`_none`) and with `_empty`/`_nempty` for text (the REST API
 refuses an empty string as a filter value); Studio runs it as the viewer,
-so the viewer's permissions apply. Except **Curriculum links to check**,
-each view lists exactly the records its check counts; the Readiness panel
-says under that link that it lists every candidate and that its columns
-show which count (that view shows two columns both headed Generation: the
-member's and the course link's).
+so the viewer's permissions apply. Each view lists exactly the records its
+check counts.
 
 Keep a view's bookmark name when editing it. Setup recognises a view by
 its collection and name: after a rename, the next `npm run setup` creates
@@ -1165,7 +1091,7 @@ How `courses.json` projects the relational rows into its existing keys:
 - `professors` is `professors_override` when set, else the course's
   professor assignments in `sort` (then id) order, each its
   `display_override` or its staff member's name, joined with `, ` (so the
-  conversion links a checkpoint text to staff rows only when that join gives
+  import links a workbook text to staff rows only when that join gives
   the text back: a list separated by `;`, a line break or a bare `,`, or
   with padding, stays one literal review row); `assistants` likewise.
 - The curriculum keys come from rows an administrator publishes: every
@@ -1264,13 +1190,13 @@ the collection roles (`src/editor-policy.ts`) and kept equal to that
 derivation: full rights on every editable source; read and update of the
 key-source collections except the fields that decide public keys
 (`published`, the key text, the position, the parent and whatever the key
-source filters on); read only on `moodle_users`, the derived counts and
-index and the migration ledger; nothing on staging, candidate and status
-rows or on the checkpoint sources; plus read of dashboards, panels and
-manual Flows. It never holds what `src/editor-policy.ts` forbids: create,
-update or delete on `moodle_users` (the native CSV import needs them;
-snapshots go through **Data / Import Moodle snapshot**), any write to the
-staging, index, count, coordination and migration ledger collections, and
+source filters on); read only on `moodle_users` and the derived counts and
+index; nothing on staging, candidate and status rows; plus read of
+dashboards, panels and manual Flows. It never holds what
+`src/editor-policy.ts` forbids: create, update or delete on `moodle_users`
+(the native CSV import needs them; snapshots go through **Data / Import
+Moodle snapshot**), any write to the staging, index, count and coordination
+collections, and
 any write to Flows, operations, permissions, policies or their assignments
 (the managed Flows read and write with `$full`, the schedule without
 accountability, so editing one would lift every other rule). Setup attaches
@@ -1608,7 +1534,7 @@ publication order, and a definition module (today `courses.ts`, `rooms.ts`,
   `enrollmentCount`) and its value rule: `text` (as is), `number` (its
   decimal text), `numeric_boolean` (`"1"`/`"0"`) or `boolean`
   (`"TRUE"`/`"FALSE"`); every rule omits null, undefined and `''` and keeps
-  `false` and `0`, as the checkpoint's files committed under
+  `false` and `0`, as the public files committed under
   `test/fixtures/expected-exports` do. The map is the file's whole
   allowlist: no other key can be published;
 - `maxBytes`, the size bound of the compact JSON.
@@ -1639,8 +1565,8 @@ To change a file or add one:
    key with its rule. When the file needs data that must be complete
    first, add a readiness check that gates it (below).
 2. Update the expected output in the tests: `test/relational-export.test.ts`
-   pins today's declared files byte for byte to the checkpoint's files
-   committed under `test/fixtures/expected-exports` (with their
+   pins today's declared files byte for byte to the files committed under
+   `test/fixtures/expected-exports` (with their
    `SHA256SUMS`; `test/expected-exports.ts` reads them), and
    `test/export-definitions.test.ts` shows a new definition end to end.
 3. `npm run build:operations`, then restart Directus.

@@ -89,25 +89,19 @@ describe('the derived editor policy', () => {
           'moodle_users',
           'course_enrollments',
           'moodle_history_memberships',
-          'migration_ledger',
           'data_operations',
           'data_operation_results',
           'moodle_import_rows',
-          'curriculum_2023',
-          'course_enrollment_patterns',
         ].map((collection) => [collection, classOf(collection)]),
       ),
     ).toEqual({
       academic_years: 'keyed',
-      course_enrollment_patterns: 'none',
       course_enrollment_rules: 'edit',
       course_enrollments: 'read',
       courses: 'edit',
-      curriculum_2023: 'none',
       curriculum_generations: 'keyed',
       data_operation_results: 'none',
       data_operations: 'none',
-      migration_ledger: 'read',
       moodle_course_mappings: 'edit',
       moodle_history_memberships: 'read',
       moodle_import_rows: 'none',
@@ -257,7 +251,7 @@ describe('the fields that decide public keys', () => {
     expect(grantClassOf(courses, keyed)).toBe('keyed');
     expect(actionsOn(grants, 'courses')).toEqual(['read', 'update']);
     expect(courseUpdate?.fields).not.toContain('name');
-    expect(courseUpdate?.fields).toContain('channel');
+    expect(courseUpdate?.fields).toContain('tags');
     expect(forbiddenGrantsIn(grants)).toEqual([]);
   });
 

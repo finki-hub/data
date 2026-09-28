@@ -1,15 +1,13 @@
-import type { ModelCollection } from '../schema.js';
+import type {
+  FieldSpec,
+  ModelCollection,
+  ModelScalarField,
+} from '../schema.js';
 
-import { privateCollectionSpecs } from '../specs/private.js';
-import { courseTemplate } from './checkpoint-collections.js';
+import { privateWorkbookSpecs } from '../specs/private.js';
+import { courseTemplate } from './content-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
-import {
-  enumField,
-  fromCheckpointField,
-  labelledChoices,
-  m2o,
-  scalar,
-} from './fields.js';
+import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
 export const reviewStates = ['needs_mapping', 'mapped', 'ignored'] as const;
 
@@ -22,17 +20,35 @@ const reviewChoices = labelledChoices(reviewStates, {
 export const moodleUserTemplate = '{{Name}}';
 export const historyEntryTemplate = '{{label}}';
 
-const [moodleUsersSpec] = privateCollectionSpecs;
+const [moodleUsersSpec] = privateWorkbookSpecs;
+
+// The Moodle user columns, one per column of the workbook's Courses sheet
+// and the scraper CSV, with the same names in the snapshot staging rows.
+const moodleUserFields: readonly ModelScalarField[] =
+  moodleUsersSpec.fields.map((spec: FieldSpec) => ({
+    field: spec.target,
+    kind: spec.kind,
+    nullable: spec.required !== true,
+  }));
 
 export const moodleCollections: readonly ModelCollection[] = [
   {
+    collection: 'moodle_users',
+    displayTemplate: moodleUserTemplate,
+    fields: moodleUserFields,
+    hidden: false,
+    icon: 'person',
+    note: 'Private Moodle profile snapshot. Use Studio search and filters instead of the Пребарување sheet.',
+    singleton: false,
+    sort: 13,
+  },
+  {
     collection: 'moodle_import_rows',
     displayTemplate: moodleUserTemplate,
-    fields: moodleUsersSpec.fields.map(fromCheckpointField),
+    fields: moodleUserFields,
     hidden: true,
     icon: 'upload_file',
     note: 'Replaceable staging rows written only by the controlled Moodle snapshot import. Never read by Search, derivation or publication.',
-    origin: 'relational',
     singleton: false,
     sort: 17,
   },
@@ -57,7 +73,6 @@ export const moodleCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'history_edu',
     note: 'Distinct Moodle course history entries with their mapping review state.',
-    origin: 'relational',
     singleton: false,
     sort: 18,
   },
@@ -106,7 +121,6 @@ export const moodleCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'account_tree',
     note: 'Replaceable derived index of which history entries each Moodle user carries.',
-    origin: 'relational',
     singleton: false,
     sort: 19,
   },
@@ -146,7 +160,6 @@ export const moodleCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'alt_route',
     note: 'Explicit mapping of a history entry to a course and academic year; edited from either side.',
-    origin: 'relational',
     singleton: false,
     sort: 20,
   },

@@ -30,17 +30,17 @@ import { rooms } from '../directus/extensions/directus-extension-data-operations
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
-import { privateCollectionSpecs } from '../src/specs/private.js';
+import { privateWorkbookSpecs } from '../src/specs/private.js';
 import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
 import {
-  convertedStore,
   edit,
+  importedStore,
   injecting,
   refusalOf,
   roomCapacity,
+  rowsOf,
   storeReader,
 } from './relational-export-helpers.js';
-import { rowsOf } from './relational-migration-helpers.js';
 
 const publicRows = (body: string) =>
   z.array(z.record(z.string(), z.string())).parse(JSON.parse(body));
@@ -117,7 +117,6 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   curriculum_entries: null,
   curriculum_entry_program_states: ['entry', 'program', 'state'],
   curriculum_generations: ['code', 'has_curriculum', 'id', 'published', 'sort'],
-  migration_ledger: ['id', 'status'],
   moodle_course_entries: ['id', 'review_state'],
   moodle_course_mappings: ['academic_year', 'course', 'entry'],
   rooms: null,
@@ -148,7 +147,7 @@ const outsideAllowlist = ([collection, field]: readonly [string, string]) => {
 };
 
 const moodleUserFields = new Set(
-  privateCollectionSpecs[0].fields.map(({ target }) => target),
+  privateWorkbookSpecs[0].fields.map(({ target }) => target),
 );
 
 const wildcardOrSome = /"_(?:none|some)"|"\*"/u;
@@ -236,7 +235,10 @@ describe('the shipped export definitions', () => {
     ]);
     expect(
       [
-        { collection: 'migration_ledger', fields: ['id', 'error', 'id_map'] },
+        {
+          collection: 'course_enrollments',
+          fields: ['id', 'computed_revision', 'computed_at'],
+        },
         { collection: 'data_operations', fields: ['id'] },
         { collection: 'students', fields: ['id', 'source_group'] },
         { collection: 'moodle_course_mappings', fields: ['entry.label'] },
@@ -244,8 +246,8 @@ describe('the shipped export definitions', () => {
         privateReadsOf([`probe ${index}`, { ...read, sort: [] }]),
       ),
     ).toEqual([
-      'probe 0: migration_ledger.error',
-      'probe 0: migration_ledger.id_map',
+      'probe 0: course_enrollments.computed_revision',
+      'probe 0: course_enrollments.computed_at',
       'probe 1: data_operations',
       'probe 1: data_operations.id',
       'probe 2: students.source_group',
@@ -294,7 +296,7 @@ const fileOf = async (definition: ExportDefinition, reader: SourceReader) => {
 
 describe('a new file is one definition', () => {
   test('is read, serialized and validated by the same engine', async () => {
-    const store = await convertedStore();
+    const store = await importedStore();
     const file = await fileOf(roomCapacity, storeReader(store));
 
     expect(definitionProblems([...exportDefinitions, roomCapacity])).toEqual(
@@ -312,7 +314,7 @@ describe('a new file is one definition', () => {
   });
 
   test('never publishes a key its definition does not declare', async () => {
-    const reader = injecting(storeReader(await convertedStore()), {
+    const reader = injecting(storeReader(await importedStore()), {
       ...forbiddenPrivateFields,
       type: 'lab',
     });
@@ -331,12 +333,12 @@ describe('a new file is one definition', () => {
     };
 
     await expect(
-      fileOf(leaky, storeReader(await convertedStore())),
+      fileOf(leaky, storeReader(await importedStore())),
     ).rejects.toMatchObject({ code: 'EXPORT_INVALID_PAYLOAD', status: 500 });
   });
 
   test('is bounded by its own size limit', async () => {
-    const store = edit(await convertedStore(), 'rooms', extraRooms);
+    const store = edit(await importedStore(), 'rooms', extraRooms);
 
     const refusal = await refusalOf(() =>
       fileOf(roomCapacity, storeReader(store)),
@@ -480,19 +482,19 @@ describe('the definition rules', () => {
     expect(broken(change).join('; ')).toContain(problem);
   });
 
-  // The conversion entry with its count read changed.
-  const conversion = readinessEntry('conversion_incomplete');
+  // The council entry with its count read changed.
+  const council = readinessEntry('council_member_unresolved');
   const withRead = (change: Partial<SourceRead>): ReadinessEntry[] =>
     readinessRegistry.map((entry) =>
-      entry === conversion
+      entry === council
         ? {
             ...entry,
             source: {
               check: {
                 evaluate: () => ({}),
                 reads: {
-                  steps: {
-                    collection: 'migration_ledger',
+                  members: {
+                    collection: 'student_council',
                     fields: change.fields ?? ['id'],
                     sort: ['id'],
                     ...(change.filter !== undefined && {
@@ -510,20 +512,20 @@ describe('the definition rules', () => {
   test.each<readonly [Partial<SourceRead>, string]>([
     [
       { fields: ['*'] },
-      'readiness check of conversion_incomplete read steps selects a wildcard',
+      'readiness check of council_member_unresolved read members selects a wildcard',
     ],
     [
-      { filter: { steps: { _some: { status: { _eq: 'failed' } } } } },
-      'readiness check of conversion_incomplete read steps filters with _some or _none',
+      { filter: { student: { _some: { id: { _null: true } } } } },
+      'readiness check of council_member_unresolved read members filters with _some or _none',
     ],
     [
       { fields: [] },
-      'readiness check of conversion_incomplete read steps selects no field',
+      'readiness check of council_member_unresolved read members selects no field',
     ],
   ])(
     'applies the read rules to the readiness registry too: %j',
     (change, problem) => {
-      expect(conversion).toBeDefined();
+      expect(council).toBeDefined();
       expect(definitionProblems(exportDefinitions, withRead(change))).toContain(
         problem,
       );

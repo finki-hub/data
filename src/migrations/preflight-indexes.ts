@@ -1,14 +1,12 @@
 import type {
-  AssignmentRow,
   EquivalencyRow,
   PatternRow,
-} from './inventory-schemas.js';
-import type { CheckpointRows } from './inventory.js';
+  WorkbookRows,
+} from './workbook-rows.js';
 
 import { indexLabels, type LabelIndex, nonEmpty } from './labels.js';
 
 export type Indexes = {
-  readonly assignmentRows: ReadonlyMap<number, AssignmentRow>;
   readonly assignments: LabelIndex;
   readonly courses: LabelIndex;
   readonly current: LabelIndex;
@@ -23,14 +21,10 @@ export type Indexes = {
 export const patternKey = (course: string, year: string): string =>
   `${course}\u{0}${year}`;
 
-const byId = <T extends { readonly id: number }>(
-  rows: readonly T[],
-): ReadonlyMap<number, T> => new Map(rows.map((row) => [row.id, row]));
-
-// Every label lookup of the checkpoint derivation, keyed exactly as it was.
-export const buildIndexes = (checkpoint: CheckpointRows): Indexes => {
+// Every label lookup of the check, keyed by the exact label.
+export const buildIndexes = (rows: WorkbookRows): Indexes => {
   const patterns = new Map<string, PatternRow[]>();
-  for (const row of checkpoint.course_enrollment_patterns) {
+  for (const row of rows.course_enrollment_patterns) {
     const course = nonEmpty(row.course_name);
     const year = nonEmpty(row.academic_year);
     if (course === null || year === null) {
@@ -40,25 +34,20 @@ export const buildIndexes = (checkpoint: CheckpointRows): Indexes => {
     patterns.set(key, [...(patterns.get(key) ?? []), row]);
   }
   return {
-    assignmentRows: byId(checkpoint.teaching_assignments),
-    assignments: indexLabels(checkpoint.teaching_assignments, (row) =>
+    assignments: indexLabels(rows.teaching_assignments, (row) =>
       nonEmpty(row.course_name),
     ),
-    courses: indexLabels(checkpoint.courses, (row) => nonEmpty(row.name)),
-    current: indexLabels(checkpoint.curriculum_2023, (row) =>
-      nonEmpty(row.name),
-    ),
-    equivalencies: indexLabels(checkpoint.course_equivalencies, (row) =>
+    courses: indexLabels(rows.courses, (row) => nonEmpty(row.name)),
+    current: indexLabels(rows.curriculum_2023, (row) => nonEmpty(row.name)),
+    equivalencies: indexLabels(rows.course_equivalencies, (row) =>
       nonEmpty(row.course_2023),
     ),
-    equivalencyRows: byId(checkpoint.course_equivalencies),
-    legacy: indexLabels(checkpoint.curriculum_2018, (row) =>
-      nonEmpty(row.name),
+    equivalencyRows: new Map(
+      rows.course_equivalencies.map((row) => [row.id, row]),
     ),
+    legacy: indexLabels(rows.curriculum_2018, (row) => nonEmpty(row.name)),
     patterns,
-    staff: indexLabels(checkpoint.staff, (row) => nonEmpty(row.name)),
-    students: indexLabels(checkpoint.students, (row) =>
-      nonEmpty(row.index_number),
-    ),
+    staff: indexLabels(rows.staff, (row) => nonEmpty(row.name)),
+    students: indexLabels(rows.students, (row) => nonEmpty(row.index_number)),
   };
 };

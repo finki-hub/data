@@ -1,13 +1,16 @@
 import {
-  type CollectionSpec,
   field,
   requiredField,
   schemaField,
+  type WorkbookSpec,
 } from '../schema.js';
 
-export const privateCollectionSpecs = [
+// The workbook's Courses sheet, the first Moodle users snapshot. Its
+// fields are the columns of the Moodle users model as well
+// (src/data-model/moodle-collections.ts); the scraper-only columns have no
+// header here.
+export const privateWorkbookSpecs = [
   {
-    displayTemplate: '{{Name}}',
     fields: [
       schemaField('ID_old', 'integer'),
       field('ID', 'ID_new', 'integer'),
@@ -48,10 +51,7 @@ export const privateCollectionSpecs = [
       field('Yahoo_new', 'Yahoo_new'),
       field('Yahoo_old', 'Yahoo_old'),
     ],
-    icon: 'person',
     key: 'moodle_users',
-    note: 'Private Moodle profile snapshot. Use Studio search and filters instead of the Пребарување sheet.',
-    sort: 13,
     source: { kind: 'rows', sheet: 'Courses' },
   },
-] as const satisfies readonly CollectionSpec[];
+] as const satisfies readonly WorkbookSpec[];

@@ -64,7 +64,6 @@ const config = [
   {
     files: [
       'directus/flows/count-history-page.cjs',
-      'src/migrations/enrollment-rules.ts',
       'src/migrations/labels.ts',
       'src/workbook-enrollment-reader.ts',
       'test/fixtures/stress-oracle.ts',
@@ -92,21 +91,16 @@ const config = [
     },
   },
   {
-    // The migration report and backup receipt live at operator-named private
-    // paths; the CLI tests write and read them in a temporary directory.
+    // The suites write and read workbooks, snapshots and screenshots at
+    // temporary or operator-named paths.
     files: [
-      'src/migrations/private-files.ts',
-      'test/enrollment-proposal.test.ts',
       'test/fixtures/stress-snapshot.ts',
       'test/import-cli.test.ts',
-      'test/migration-cli.test.ts',
       'test/operations-browser-helpers.mjs',
       'test/operations-browser-steps.mjs',
       'test/operations.browser.mjs',
       'test/relational/export-projection.integration.mjs',
       'test/relational/lifecycle.integration.mjs',
-      'test/relational/migration-preflight.integration.mjs',
-      'test/relational/relational-migration.integration.mjs',
       'test/relational/run-scenarios.mjs',
       'test/relational/snapshot-import-helpers.mjs',
       'test/relational/snapshot-import.integration.mjs',
@@ -165,12 +159,10 @@ const config = [
     },
   },
   {
-    // Node 24 ships no Temporal; the CLI entry points stamp the ledger, and
-    // the automatic processing and stress suites read the coordinator's
-    // timestamps to measure how long the schedule took.
+    // Node 24 ships no Temporal; the automatic processing and stress suites
+    // read the coordinator's timestamps to measure how long the schedule
+    // took.
     files: [
-      'src/cli.ts',
-      'src/migrations/cli.ts',
       'test/relational/automatic-processing-helpers.mjs',
       'test/relational/stress-helpers.mjs',
     ],

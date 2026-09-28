@@ -1,6 +1,6 @@
 import type ExcelJS from 'exceljs';
 
-import type { CollectionSource, MigrationItem } from './schema.js';
+import type { CollectionSource, PlacedItem } from './schema.js';
 
 import {
   getWorksheet,
@@ -28,10 +28,11 @@ type PatternCellContext = {
   readonly academicYear: string;
   readonly patternColumn: number;
   readonly rowNumber: number;
+  readonly sheet: string;
   readonly worksheet: ExcelJS.Worksheet;
 };
 
-const readPatternCell = (context: PatternCellContext): MigrationItem | null => {
+const readPatternCell = (context: PatternCellContext): null | PlacedItem => {
   const row = context.worksheet.getRow(context.rowNumber);
   const patternCell = row.getCell(context.patternColumn);
   if (isFormulaCell(patternCell)) {
@@ -52,9 +53,12 @@ const readPatternCell = (context: PatternCellContext): MigrationItem | null => {
 
   assertPattern(pattern, context.rowNumber);
   return {
-    academic_year: context.academicYear,
-    course_name: courseName,
-    pattern,
+    item: {
+      academic_year: context.academicYear,
+      course_name: courseName,
+      pattern,
+    },
+    place: { row: context.rowNumber, sheet: context.sheet },
   };
 };
 
@@ -114,9 +118,9 @@ export const readEnrollmentYears = (
 export const readCourseEnrollmentPatterns = (
   workbook: ExcelJS.Workbook,
   source: PatternSource,
-): readonly MigrationItem[] => {
+): readonly PlacedItem[] => {
   const worksheet = getWorksheet(workbook, source.sheet);
-  const items: MigrationItem[] = [];
+  const items: PlacedItem[] = [];
 
   for (const { academicYear, patternColumn } of yearColumns(
     worksheet,
@@ -131,6 +135,7 @@ export const readCourseEnrollmentPatterns = (
         academicYear,
         patternColumn,
         rowNumber,
+        sheet: source.sheet,
         worksheet,
       });
       if (item !== null) {

@@ -32,7 +32,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/rows.js';
 import { clearStagingSql } from '../directus/extensions/directus-extension-data-operations/src/snapshot/sql.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
-import { privateCollectionSpecs } from '../src/specs/private.js';
+import { privateWorkbookSpecs } from '../src/specs/private.js';
 import {
   csvFileId,
   FakeSnapshot,
@@ -130,7 +130,7 @@ const prepared = async () => {
 
 describe('snapshot contract', () => {
   test('names exactly the 38 columns of moodle_users and its staging twin', () => {
-    const [users] = privateCollectionSpecs;
+    const [users] = privateWorkbookSpecs;
     const fields = staging?.fields ?? [];
 
     expect(snapshotFields).toHaveLength(38);

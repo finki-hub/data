@@ -22,8 +22,8 @@ import { registryReads } from '../directus/extensions/directus-extension-data-op
 import { exportsOperation } from '../src/flows/flow-template.js';
 import { expectedFiles, publicFileNames } from './expected-exports.js';
 import {
-  convertedStore,
   edit,
+  importedStore,
   refusalOf,
   roomCapacity,
   storeReader,
@@ -57,7 +57,7 @@ const depsOf = async (setup: Setup = {}): Promise<ExportDeps> => {
       return clock;
     },
     reader: storeReader(
-      setup.store ?? (await convertedStore()),
+      setup.store ?? (await importedStore()),
       setup.log ?? [],
     ),
     snapshot: () =>
@@ -191,7 +191,7 @@ describe('the preparation', () => {
   test('refuses before any file is read while not ready', async () => {
     const log: SourceRead[] = [];
     const store = edit(
-      await convertedStore(),
+      await importedStore(),
       'course_enrollments',
       withoutCourse(2),
     );

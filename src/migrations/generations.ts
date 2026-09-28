@@ -1,36 +1,26 @@
 import type { FieldSpec } from '../schema.js';
 
-import { referenceCollectionSpecs } from '../specs/reference.js';
-import {
-  Collector,
-  compositeKey,
-  type Conversion,
-  ConverterError,
-  existing,
-  pending,
-} from './converter-types.js';
+import { referenceWorkbookSpecs } from '../specs/reference.js';
+import { compositeKey, planned, type PlannedRow, ref } from './planned.js';
 
 // What the historical workbook knows about curriculum generations and
-// study programs, closed and in this adapter only: its three generations
+// study programs, closed and in the import only: its three generations
 // and the Cyrillic headers of its curriculum sheets' program columns. The
-// one-time conversion seeds rows from it; afterwards the rows are
+// one-time import seeds rows from it; afterwards the rows are
 // administrator data and nothing here grows with them.
 
 export type EntrySource = 'curriculum_2018' | 'curriculum_2023';
 
-export type GenerationRecord = {
-  readonly code: string;
+type WorkbookGeneration = {
+  readonly code: '2013' | '2018' | '2023';
+  // The equivalency sheet column of its label.
+  readonly equivalencyColumn: 'course_2013' | 'course_2018' | 'course_2023';
   readonly has_curriculum: boolean;
   readonly label: string;
   readonly published: boolean;
-  readonly sort: number;
-};
-
-type WorkbookGeneration = GenerationRecord & {
-  // The checkpoint column of its equivalency label.
-  readonly equivalencyColumn: 'course_2013' | 'course_2018' | 'course_2023';
   // Its curriculum sheet, or null for a label-only generation.
   readonly sheet: EntrySource | null;
+  readonly sort: number;
 };
 
 // The generations of the workbook, oldest first: 2018 and 2023 carry a
@@ -66,10 +56,11 @@ export const workbookGenerations: readonly WorkbookGeneration[] = [
   },
 ];
 
+// The generation code of a curriculum sheet.
 export const generationOfSheet = (sheet: EntrySource): string => {
   const generation = workbookGenerations.find((row) => row.sheet === sheet);
   if (generation === undefined) {
-    throw new ConverterError(`No generation reads the sheet ${sheet}.`);
+    throw new TypeError(`No workbook generation reads the sheet ${sheet}.`);
   }
   return generation.code;
 };
@@ -98,12 +89,12 @@ export const programCodes: Readonly<Record<string, string>> = {
 
 const statePrefix = 'state_';
 
-// The program columns of a curriculum sheet as the checkpoint spec reads
+// The program columns of a curriculum sheet as its workbook spec reads
 // them: its state fields in sheet column order.
 export const stateColumns = (
   sheet: EntrySource,
 ): ReadonlyArray<{ readonly column: number; readonly target: string }> => {
-  const spec = referenceCollectionSpecs.find(({ key }) => key === sheet);
+  const spec = referenceWorkbookSpecs.find(({ key }) => key === sheet);
   const fields: readonly FieldSpec[] = spec?.fields ?? [];
   return fields
     .flatMap(({ sourceColumn, target }) =>
@@ -113,6 +104,10 @@ export const stateColumns = (
     )
     .toSorted((left, right) => left.column - right.column);
 };
+
+// The program code a state column holds the states of.
+export const programOfColumn = (target: string): string =>
+  target.slice(statePrefix.length);
 
 // The program headers of each curriculum sheet, in column order.
 export type ProgramHeaders = Readonly<Record<EntrySource, readonly string[]>>;
@@ -137,9 +132,9 @@ export const workbookPrograms = (
     stateColumns(sheet).map(({ target }, index) => {
       const header = headers[sheet][index] ?? '';
       const code = programCodes[header];
-      if (code === undefined || `${statePrefix}${code}` !== target) {
+      if (code === undefined || code !== programOfColumn(target)) {
         throw new ProgramHeaderError(
-          `The program column ${String(index + 1)} of the ${sheet} sheet is headed ${JSON.stringify(header.slice(0, 40))}, but the import reads it as ${target.slice(statePrefix.length).toUpperCase()}; only the headers ${Object.keys(programCodes).join(', ')} are known, in the checkpoint column order.`,
+          `The program column ${String(index + 1)} of the ${sheet} sheet is headed ${JSON.stringify(header.slice(0, 40))}, but the import reads it as ${programOfColumn(target).toUpperCase()}; only the headers ${Object.keys(programCodes).join(', ')} are known, in the column order of the workbook.`,
         );
       }
       return {
@@ -151,98 +146,25 @@ export const workbookPrograms = (
     }),
   );
 
-const specHeaders = (sheet: EntrySource): readonly string[] => {
-  const spec = referenceCollectionSpecs.find(({ key }) => key === sheet);
-  const fields: readonly FieldSpec[] = spec?.fields ?? [];
-  return stateColumns(sheet).map(
-    ({ target }) =>
-      fields.find((field) => field.target === target)?.source ?? '',
-  );
-};
-
-// The headers the checkpoint spec describes, for a project converted
-// without its workbook (the populated upgrade path).
-export const specProgramHeaders: ProgramHeaders = {
-  curriculum_2018: specHeaders('curriculum_2018'),
-  curriculum_2023: specHeaders('curriculum_2023'),
-};
-
-const generationCollection = 'curriculum_generations';
-const programCollection = 'study_programs';
-
-// The three workbook generations the project lacks; a code already present
-// is reused as it is.
-export const convertGenerations = (
-  present: ReadonlyMap<string, number>,
-): Conversion<GenerationRecord> => {
-  const out = new Collector<GenerationRecord>();
-  for (const generation of workbookGenerations) {
-    const { code, has_curriculum, label, published, sort } = generation;
-    const source = {
-      collection: generationCollection,
-      id: code,
-      relation: 'code',
-    };
-    const id = present.get(code);
-    if (id === undefined) {
-      out.write({ code, has_curriculum, label, published, sort }, [
-        pending(source, generationCollection),
-      ]);
-    } else {
-      out.settle(existing(source, generationCollection, id));
-    }
-  }
-  return out.result();
-};
-
-export type ProgramRecord = {
-  readonly code: string;
-  readonly generation: number;
-  readonly name: string;
-  readonly published: boolean;
-  readonly sort: number;
-};
-
-export const programKey = (generation: number | string, code: string) =>
+export const programKey = (generation: string, code: string): string =>
   compositeKey(generation, code);
 
-// The workbook's programs, published, one per generation and code; a
-// program already present is reused as it is.
-export const convertPrograms = (
+// The three workbook generations.
+export const planGenerations = (): readonly PlannedRow[] =>
+  workbookGenerations.map(({ code, has_curriculum, label, published, sort }) =>
+    planned(code, { code, has_curriculum, label, published, sort }),
+  );
+
+// The workbook's programs, published, one per generation and code.
+export const planPrograms = (
   seeds: readonly ProgramSeed[],
-  ids: {
-    readonly generations: ReadonlyMap<string, number>;
-    readonly programs: ReadonlyMap<string, number>;
-  },
-): Conversion<ProgramRecord> => {
-  const out = new Collector<ProgramRecord>();
-  for (const seed of seeds) {
-    const generation = ids.generations.get(seed.generation);
-    if (generation === undefined) {
-      throw new ConverterError(
-        `The generation ${seed.generation} of program ${seed.code} was not created before its programs.`,
-      );
-    }
-    const source = {
-      collection: programCollection,
-      id: `${seed.generation}/${seed.code}`,
-      relation: 'code',
-    };
-    const id = ids.programs.get(programKey(generation, seed.code));
-    if (id === undefined) {
-      out.write(
-        {
-          code: seed.code,
-          generation,
-          name: seed.name,
-          published: true,
-          sort: seed.sort,
-        },
-        [pending(source, programCollection)],
-      );
-    } else {
-      out.settle(existing(source, programCollection, id));
-    }
-  }
-  return out.result();
-};
+): readonly PlannedRow[] =>
+  seeds.map((seed) =>
+    planned(programKey(seed.generation, seed.code), {
+      code: seed.code,
+      generation: ref('curriculum_generations', seed.generation),
+      name: seed.name,
+      published: true,
+      sort: seed.sort,
+    }),
+  );

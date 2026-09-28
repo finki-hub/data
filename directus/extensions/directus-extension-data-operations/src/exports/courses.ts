@@ -16,7 +16,7 @@ import {
 } from './types.js';
 
 // courses.json: one row per course in id order, with the keys, order and
-// value forms of the checkpoint's file (committed under
+// value forms of the committed file (under
 // test/fixtures/expected-exports), projected from the relational rows on
 // read. Its curriculum keys come from rows an administrator publishes:
 // every published generation with a curriculum adds its availability key
@@ -59,7 +59,7 @@ const credits: BlockField = {
 };
 
 // The 2018 block lists its credits before its states, as the committed
-// checkpoint file does; every other generation (2023 today, and any new
+// file does; every other generation (2023 today, and any new
 // one) lists its states first.
 const creditsFirst = '2018';
 

@@ -9,9 +9,9 @@ import { dataModelCollectionKeys } from './data-model/collections.js';
 // setup-created project still counts as empty with it present.
 const bookkeeping: ReadonlySet<string> = new Set(['data_operations']);
 
-// Every collection whose records make a project populated: the thirteen
-// checkpoint collections, the relational ones, the Moodle staging and
-// index collections, the candidate results and the migration ledger.
+// Every collection whose records make a project populated: the content
+// collections, the relational ones, the Moodle staging and index
+// collections and the candidate results.
 export const applicationCollections: readonly string[] =
   dataModelCollectionKeys.filter((collection) => !bookkeeping.has(collection));
 
@@ -71,7 +71,7 @@ export class ExistingDataError extends Error {
       .join(', ');
     const total = entries.reduce((sum, [, count]) => sum + count, 0);
     super(
-      `The project already holds ${String(total)} record(s) in ${String(entries.length)} application collection(s): ${listed}. The one-time workbook import only fills a project whose application collections are empty (the empty schema npm run setup creates is fine); nothing was written. Upgrade a populated project with npm run migrate -- --dry-run --report <private path> instead.`,
+      `The project already holds ${String(total)} record(s) in ${String(entries.length)} application collection(s): ${listed}. The one-time workbook import only fills a project whose application collections are empty (the empty schema npm run setup creates is fine); nothing was written.`,
     );
   }
 }

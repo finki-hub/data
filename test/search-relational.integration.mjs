@@ -84,7 +84,6 @@ const extraCheck = {
     bookmark: 'Synthetic extra review',
     fields: ['label'],
     filter: { label: { _starts_with: 'Synthetic' } },
-    lists: 'counted',
     sort: ['label'],
   },
   severity: 'warning',
@@ -139,15 +138,12 @@ const installsReviewViews = async ({ directus, t, target }) => {
     const check = checks.find((candidate) => candidate.code === code);
     if (review === undefined) {
       assert.equal(check?.link, `/content/${page}`, code);
-      assert.equal(check?.lists, null, code);
       continue;
     }
     const { groups } = bookmarkLink.exec(check?.link ?? '') ?? {};
     const preset = installed.find(({ id }) => String(id) === groups?.id);
     assert.equal(groups?.page, page, code);
     assert.equal(preset?.bookmark, review.bookmark, code);
-    // The dashboard says when the view lists candidates, not the count.
-    assert.equal(check?.lists, review.lists, code);
   }
   const extra = await installPresentation(directus, [
     ...readinessRegistry,
@@ -227,30 +223,28 @@ const importsAndMaps = async ({ state, target }) => {
     name: 'Synthetic Overridden Course',
     professors_override: 'Synthetic Override',
   });
-  const assignment = (values) => ({
-    course_name: courseName,
-    staff: null,
-    ...values,
-  });
   for (const row of [
-    assignment({
+    {
       course: course.data.id,
       display_override: 'Synthetic Label',
       role: 'assistant',
       sort: 1,
-    }),
-    assignment({
+      staff: null,
+    },
+    {
       course: course.data.id,
       display_override: '',
       role: 'professor',
       sort: 2,
-    }),
-    assignment({
+      staff: null,
+    },
+    {
       course: overridden.data.id,
       display_override: null,
       role: 'professor',
       sort: 1,
-    }),
+      staff: null,
+    },
   ]) {
     await createItem(target, 'teaching_assignments', row);
   }
@@ -269,8 +263,8 @@ const viewPath = (page, review) =>
 // administrator and for a holder of the Data editor policy (Studio sends
 // its filter, columns and order through the item API as the viewer,
 // whose query validation refuses what the services accept, such as an
-// empty string), and a view that lists the counted records counts,
-// through the same API, exactly what readiness counts.
+// empty string), and each view counts, through the same API, exactly
+// what readiness counts.
 const listsWhatReadinessCounts = async ({ t, target }) => {
   const { checks } = await get(target, '/finki-hub-data-status/readiness');
   const counts = new Map(checks.map(({ code, count }) => [code, count]));
@@ -293,7 +287,6 @@ const listsWhatReadinessCounts = async ({ t, target }) => {
     const filter = encodeURIComponent(JSON.stringify(review.filter));
     const rows = await get(target, viewPath(page, review));
     assert.ok(Array.isArray(rows), code);
-    if (review.lists !== 'counted') continue;
     const [aggregate, field] =
       source.kind === 'count' && source.aggregate === 'countDistinct'
         ? ['countDistinct', source.field]

@@ -127,7 +127,7 @@ const defaultViews: readonly TabularPreset[] = [
     ['year', 'student.name', 'index_number', 'position'],
     ['-year'],
   ),
-  defaultView('course_equivalencies', ['course', 'members'], ['course_2023']),
+  defaultView('course_equivalencies', ['course', 'members'], ['id']),
   defaultView(
     'course_equivalency_members',
     ['equivalency', 'generation', 'label', 'entry'],

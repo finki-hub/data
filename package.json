@@ -35,7 +35,6 @@
     "import": "node --import tsx src/cli.ts",
     "import:dry-run": "node --import tsx src/cli.ts --dry-run",
     "lint": "eslint . --cache",
-    "migrate": "node --import tsx src/migrations/cli.ts",
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
     "test:csv": "node --import tsx --test test/directus-csv-import.integration.mjs",

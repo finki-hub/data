@@ -3,8 +3,7 @@ import type { ModelCollection } from '../schema.js';
 import {
   courseTemplate,
   curriculumEntryTemplate,
-  provenanceFields,
-} from './checkpoint-collections.js';
+} from './content-collections.js';
 import { m2o, scalar } from './fields.js';
 import { generationReference } from './generation-collections.js';
 
@@ -32,7 +31,6 @@ export const curriculumCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'calendar_month',
     note: 'Academic years referenced by enrollment rules, counts and Moodle mappings. A new year is a new row; it reaches courses.json only once published.',
-    origin: 'relational',
     singleton: false,
     sort: 14,
   },
@@ -51,12 +49,10 @@ export const curriculumCollections: readonly ModelCollection[] = [
       scalar('semester', 'integer'),
       scalar('prerequisites', 'text'),
       scalar('channel', 'boolean'),
-      ...provenanceFields(),
     ],
     hidden: false,
     icon: 'menu_book',
-    note: 'One row per curriculum source row of a generation, including orphans and duplicates; its study-program states are rows of its own.',
-    origin: 'relational',
+    note: 'One row per row of a generation’s curriculum sheet, including orphans and duplicates; its study-program states are rows of its own.',
     singleton: false,
     sort: 15,
   },
@@ -93,7 +89,6 @@ export const curriculumCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'link',
     note: 'Links a course to at most one curriculum entry per generation; credits and availability live on the link.',
-    origin: 'relational',
     singleton: false,
     sort: 16,
   },

@@ -6,17 +6,12 @@ import type { FakeCoordination } from './data-coordination-helpers.js';
 
 import { runAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/actions.js';
 import { claimStaleAfterMs } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
-import { readInventory } from '../src/migrations/inventory.js';
-import { preflight } from '../src/migrations/preflight.js';
-import { academicYears } from '../src/specs/public.js';
 import {
+  academicYears,
   makeSyntheticDataset,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
-import {
-  fakeItemsDirectus,
-  storeFromDataset,
-} from './migration-test-helpers.js';
+import { checkOf } from './import-plan-helpers.js';
 
 export const claim = '8c0f1a52-3b4d-4e6f-9a7b-1c2d3e4f5a6b';
 
@@ -96,18 +91,15 @@ const yearLabels: readonly string[] = academicYears;
 
 export const yearId = (label: string): number => yearLabels.indexOf(label) + 1;
 
-// The legacy_regex rules the Task 8 converter seeds from a dataset: the
-// preflight's candidate rule of every course and academic year (the last
-// ascending-id override, else the literal `<name>-<year>` default), one
+// The legacy_regex rules the workbook import seeds from a dataset: the
+// check's candidate rule of every course and academic year (the last
+// pattern of the workbook, else the literal `<name>-<year>` default), one
 // id each in course, year order.
 export const seededRules = async (
   dataset: SyntheticDataset = makeSyntheticDataset(),
-): Promise<LegacyRule[]> => {
-  const store = storeFromDataset(dataset, { installed: true });
-  const inventory = await readInventory(fakeItemsDirectus(store).request, {});
-  const report = preflight(inventory, null);
-  return report.candidates.courses
-    .flatMap((course) =>
+): Promise<LegacyRule[]> =>
+  checkOf(dataset)
+    .candidates.courses.flatMap((course) =>
       course.rules.map((rule) => ({
         academic_year: yearId(rule.academicYear),
         course: course.id,
@@ -115,7 +107,6 @@ export const seededRules = async (
       })),
     )
     .map((rule, index) => ({ ...rule, id: index + 1 }));
-};
 
 export const context = (fake: FakeCoordination): ActionContext => ({
   owner: 'process-a',

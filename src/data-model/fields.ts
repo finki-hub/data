@@ -1,6 +1,5 @@
 import type {
   EnumChoice,
-  FieldSpec,
   ModelCollectionKey,
   ModelEnumField,
   ModelField,
@@ -58,13 +57,6 @@ export const m2o = (
   related,
   template: '{{id}}',
   ...options,
-});
-
-export const fromCheckpointField = (spec: FieldSpec): ModelScalarField => ({
-  field: spec.target,
-  kind: spec.kind,
-  nullable: spec.required !== true,
-  ...(spec.derived === true && { readOnly: true }),
 });
 
 // The Directus column type an existing column must report to be compatible.

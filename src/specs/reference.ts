@@ -1,9 +1,4 @@
-import {
-  type CollectionSpec,
-  derivedField,
-  field,
-  requiredField,
-} from '../schema.js';
+import { field, requiredField, type WorkbookSpec } from '../schema.js';
 
 const curriculumBaseFields = [
   { ...field('Семестар', 'catalog_order', 'integer'), sourceColumn: 1 },
@@ -15,9 +10,11 @@ const curriculumBaseFields = [
   field('Предуслови', 'prerequisites', 'text'),
 ] as const;
 
-export const referenceCollectionSpecs = [
+// The two curriculum sheets name their study-program columns by position:
+// the header of each program column is read for its program code
+// (src/workbook-program-reader.ts), and each cell becomes a program state.
+export const referenceWorkbookSpecs = [
   {
-    displayTemplate: '{{code}} - {{name}}',
     fields: [
       ...curriculumBaseFields,
       { ...field('КН', 'state_kn'), sourceColumn: 8 },
@@ -30,14 +27,10 @@ export const referenceCollectionSpecs = [
       { ...field('SEIS', 'state_seis'), sourceColumn: 15 },
       { ...field('Канал', 'channel', 'boolean'), sourceColumn: 16 },
     ],
-    icon: 'menu_book',
     key: 'curriculum_2023',
-    note: 'Editable source rows from the 2023 curriculum sheet.',
-    sort: 5,
     source: { kind: 'rows', sheet: 'Предмети - 2023' },
   },
   {
-    displayTemplate: '{{code}} - {{name}}',
     fields: [
       ...curriculumBaseFields,
       { ...field('КН', 'state_kn'), sourceColumn: 8 },
@@ -49,92 +42,64 @@ export const referenceCollectionSpecs = [
       { ...field('SEIS', 'state_seis'), sourceColumn: 14 },
       { ...field('Канал', 'channel', 'boolean'), sourceColumn: 15 },
     ],
-    icon: 'menu_book',
     key: 'curriculum_2018',
-    note: 'Editable source rows from the 2018 curriculum sheet.',
-    sort: 6,
     source: { kind: 'rows', sheet: 'Предмети - 2018' },
   },
   {
-    displayTemplate: '{{course_2023}}',
     fields: [
       field('Предмет (2023)', 'course_2023'),
       field('Предмет (2018)', 'course_2018'),
       field('Предмет (2013)', 'course_2013'),
     ],
-    icon: 'compare_arrows',
     key: 'course_equivalencies',
-    note: 'Course-name equivalencies across curriculum generations.',
-    sort: 7,
     source: { kind: 'rows', sheet: 'Еквиваленции' },
   },
   {
-    displayTemplate: '{{course_name}}',
     fields: [
       requiredField('Предмет', 'course_name'),
       field('Професори', 'professors', 'text'),
       field('Асистенти', 'assistants', 'text'),
     ],
-    icon: 'co_present',
     key: 'teaching_assignments',
-    note: 'Professor and assistant assignments by course.',
-    sort: 8,
     source: { kind: 'rows', sheet: 'Наставен Кадар' },
   },
   {
-    displayTemplate: '{{course_name}} - {{academic_year}}',
     fields: [
       requiredField('course_name', 'course_name'),
       requiredField('academic_year', 'academic_year'),
       requiredField('pattern', 'pattern', 'text'),
     ],
-    icon: 'rule',
     key: 'course_enrollment_patterns',
-    note: 'Editable regex overrides for course enrollment matching.',
-    sort: 9,
     source: {
       kind: 'course-enrollment-patterns',
       sheet: 'Слушатели',
     },
   },
   {
-    displayTemplate: '{{semester}} - {{channel}}',
     fields: [
       requiredField('semester', 'semester', 'integer'),
       requiredField('channel', 'channel'),
       requiredField('course_names', 'course_names', 'text'),
     ],
-    icon: 'forum',
     key: 'discord_channels',
-    note: 'Discord channel aliases grouped by semester.',
-    sort: 10,
     source: { endRow: 29, kind: 'discord-pairs', sheet: 'Дискорд' },
   },
   {
-    displayTemplate: '{{year}} - {{name}}',
     fields: [
       { ...requiredField('Година', 'year', 'integer'), fillDown: true },
       requiredField('Индекс', 'index_number'),
-      derivedField('name'),
       requiredField('Смер', 'position'),
     ],
-    icon: 'groups_3',
     key: 'student_council',
-    note: 'Student council membership history.',
-    sort: 11,
     source: { kind: 'rows', sheet: 'ФСС' },
   },
   {
-    displayTemplate: '{{year}} - {{name}}',
     fields: [
       { ...requiredField('Година', 'year', 'integer'), fillDown: true },
       requiredField('Име', 'name'),
       requiredField('Функција', 'position'),
     ],
-    icon: 'account_balance',
     key: 'deans_office',
-    note: "Dean's office membership history.",
-    sort: 12,
     source: { kind: 'rows', sheet: 'Деканат' },
   },
-] as const satisfies readonly CollectionSpec[];
+] as const satisfies readonly WorkbookSpec[];

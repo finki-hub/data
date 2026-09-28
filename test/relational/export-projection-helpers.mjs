@@ -11,27 +11,15 @@ import {
 import { snapshotFields } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { validateReadinessFlowId } from '../../src/flows/validate-readiness.js';
-import { runConversion } from '../../src/migrations/conversion.js';
-import { readInventory } from '../../src/migrations/inventory.js';
-import { preflight } from '../../src/migrations/preflight.js';
-import { collectionKeys } from '../../src/schema.js';
+import { writePlan } from '../../src/migrations/write.js';
+import { planOf } from '../import-plan-helpers.js';
 import { json, request } from './data-model-helpers.mjs';
-import { get, post } from './history-index-helpers.mjs';
+import { get } from './history-index-helpers.mjs';
 
 // Seeding, the manual Flow calls and the test-side engine of the export
-// projection fixture suite (export-projection.integration.mjs). Every row
-// is invented.
-
-const clockValue = '2026-09-23T12:00:00.000Z';
-
-export const conversionSteps = [
-  'preflight',
-  'curricula',
-  'rules',
-  'assignments',
-  'council',
-  'equivalencies',
-];
+// projection fixture suite (export-projection.integration.mjs), shared by
+// the publication suite (test/publish-flow.integration.mjs). Every row is
+// invented.
 
 // POSTs a manual Flow on Data Operations like Studio's button and answers
 // the status, the body and how long the call took.
@@ -66,38 +54,22 @@ export const readiness = async (target, options) => {
 export const prepare = (target, options) =>
   runManual(target, prepareAssetsFlowId, options);
 
-const withoutId = (row) =>
-  Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'id'));
-
-// The checkpoint rows of a dataset, as the one-time workbook import writes
-// them: every collection with the dataset ids except the assignment rows,
-// whose sequence must stay ahead of the role rows the conversion appends.
-export const seedCheckpoint = async (target, dataset) => {
-  for (const collection of collectionKeys) {
-    const rows =
-      collection === 'teaching_assignments'
-        ? dataset[collection].map((row) => withoutId(row))
-        : dataset[collection];
-    if (rows.length > 0) await post(target, `/items/${collection}`, rows);
-  }
-};
-
-// The relational conversion the import runs, over the live rows.
-export const convert = async (directus) => {
-  const inventory = await readInventory(directus, {});
-  const live = preflight(inventory, null);
-  assert.deepEqual(live.blockers, [], 'the importable fixture converts');
-  const { outcome } = await runConversion(
-    directus,
-    { inventory, live },
-    {
-      batchSize: 250,
-      now: () => clockValue,
-      resume: false,
-      runToken: 'export-projection',
+// The relational rows of a dataset, written as the one-time workbook
+// import writes them: the plan of its workbook rows in dependency order,
+// every reference resolved through the ids Directus answered. Answers the
+// rows Directus confirmed.
+export const seedDataset = async (directus, dataset) => {
+  const plan = planOf(dataset);
+  assert.deepEqual(plan.blockers, [], 'the import accepts the dataset');
+  assert.deepEqual(plan.unstorable, [], 'every value fits its column');
+  let confirmed = 0;
+  await writePlan(directus, plan.collections, {
+    batchSize: 250,
+    confirmed: (rows) => {
+      confirmed += rows;
     },
-  );
-  assert.deepEqual(outcome.completed, conversionSteps);
+  });
+  return confirmed;
 };
 
 export const sha256 = (text) => createHash('sha256').update(text).digest('hex');

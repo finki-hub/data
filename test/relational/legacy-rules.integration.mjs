@@ -101,7 +101,7 @@ const mappedPairs = (state, [ma, mb]) => ({
   [`mb/${state.mappedYear}`]: mb,
 });
 
-// The installed counts must equal the committed checkpoint counts of the
+// The installed counts must equal the committed counts of the
 // seed (test/fixtures/expected-exports/<case>/enrollments.json) for every
 // legacy pair, plus the two mapped pairs.
 const expectParity = async (target, state, name = 'legacy-rules') => {
@@ -328,7 +328,7 @@ const seeds = async (target, state) => {
 // One claim, one plan of both families, the mapped page through the Task
 // 11 page Flow, the legacy family through the installed parent, one
 // completion: every pair is installed, zeros included, and equals the
-// committed checkpoint counts of the same seed.
+// committed counts of the same seed.
 const countsBothFamilies = async (target, state, context) => {
   const started = performance.now();
   const run = await runEnrollments(target);
@@ -686,7 +686,7 @@ const refusesOverBudget = async (target, state) => {
 
 // Three histories of 300,000 bytes push the users past the byte budget:
 // the plan splits them into two history pages, each counted in its own
-// Run Script; the counts still equal the committed checkpoint counts
+// Run Script; the counts still equal the committed counts
 // (legacy-rules-split: the seed plus the three histories). Each large
 // history ends in a run of "a", so a pathological rule would time out on
 // both pages (see stopsAtFirstFailedPage).
@@ -891,7 +891,7 @@ test('counts legacy regex enrollment rules in bounded native Flows', async (t) =
         () => seeds(target, state),
       );
       await t.test(
-        'installs every pair of both families from one claim, equal to the committed checkpoint counts',
+        'installs every pair of both families from one claim, equal to the committed counts',
         (context) => countsBothFamilies(target, state, context),
       );
       await t.test(

@@ -2,10 +2,11 @@ import type ExcelJS from 'exceljs';
 
 import type {
   CollectionSource,
-  CollectionSpec,
   FieldSpec,
   MigrationItem,
+  PlacedItem,
   Scalar,
+  WorkbookSpec,
 } from './schema.js';
 
 import {
@@ -94,15 +95,15 @@ const readRow = (
 
 export const readRows = (
   workbook: ExcelJS.Workbook,
-  spec: CollectionSpec,
+  spec: WorkbookSpec,
   source: Extract<CollectionSource, { readonly kind: 'rows' }>,
-): readonly MigrationItem[] => {
+): readonly PlacedItem[] => {
   const worksheet = getWorksheet(workbook, source.sheet);
   const headerRowNumber = source.headerRow ?? 1;
   const headerPositions = readHeaders(worksheet.getRow(headerRowNumber));
   validateHeaders(source.sheet, spec.fields, headerPositions);
 
-  const items: MigrationItem[] = [];
+  const items: PlacedItem[] = [];
   const context: RowContext = {
     fields: spec.fields,
     filledValues: new Map(),
@@ -115,7 +116,7 @@ export const readRows = (
   ) {
     const item = readRow(worksheet.getRow(rowNumber), rowNumber, context);
     if (item !== null) {
-      items.push(item);
+      items.push({ item, place: { row: rowNumber, sheet: source.sheet } });
     }
   }
 

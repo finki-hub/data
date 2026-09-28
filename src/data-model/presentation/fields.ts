@@ -19,23 +19,6 @@ export const fieldPresentations: readonly FieldPresentation[] = [
   },
   { collection: 'course_curricula', field: 'sort', meta: { hidden: true } },
   { collection: 'teaching_assignments', field: 'sort', meta: { hidden: true } },
-  {
-    collection: 'teaching_assignments',
-    field: 'course_name',
-    meta: {
-      note: 'Course label of the imported assignment row. The column is still required: type the course name until the cleanup relaxes it.',
-      sort: 12,
-      width: 'full',
-    },
-  },
-  // The copied council name: nothing fills it any more (the checkpoint
-  // rebuild is gone), so it stays hidden and read-only; the linked student
-  // names the member and the index labels an unlinked one.
-  {
-    collection: 'student_council',
-    field: 'name',
-    meta: { hidden: true, readonly: true },
-  },
   ...moodleFieldPresentations,
 ];
 

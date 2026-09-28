@@ -1,4 +1,8 @@
-export const collectionKeys = [
+// The parts of the workbook the one-time import reads, one per sheet (or
+// pair of sheets). They name workbook content only: the import plans the
+// relational rows from them (src/migrations/plan.ts), and none of them is
+// a collection of its own except where the model declares one.
+export const workbookKeys = [
   'courses',
   'staff',
   'rooms',
@@ -14,7 +18,26 @@ export const collectionKeys = [
   'moodle_users',
 ] as const;
 
-export type CollectionKey = (typeof collectionKeys)[number];
+export type WorkbookKey = (typeof workbookKeys)[number];
+
+// A value per part of the workbook.
+export const perWorkbookKey = <T>(
+  value: (key: WorkbookKey) => T,
+): Readonly<Record<WorkbookKey, T>> => ({
+  course_enrollment_patterns: value('course_enrollment_patterns'),
+  course_equivalencies: value('course_equivalencies'),
+  courses: value('courses'),
+  curriculum_2018: value('curriculum_2018'),
+  curriculum_2023: value('curriculum_2023'),
+  deans_office: value('deans_office'),
+  discord_channels: value('discord_channels'),
+  moodle_users: value('moodle_users'),
+  rooms: value('rooms'),
+  staff: value('staff'),
+  student_council: value('student_council'),
+  students: value('students'),
+  teaching_assignments: value('teaching_assignments'),
+});
 
 export type CollectionSource =
   | {
@@ -37,20 +60,20 @@ export type CollectionSource =
       readonly sheets: readonly string[];
     };
 
-export type CollectionSpec = {
-  readonly displayTemplate: string;
+// How the import reads one part of the workbook: its sheet, and for every
+// field its header (or fixed column), whether a formula cell reads as
+// empty (`literal`), whether an empty cell repeats the value above it
+// (`fillDown`), whether it must hold a value, and the kind its text is
+// converted to.
+export type WorkbookSpec = {
   readonly fields: readonly FieldSpec[];
-  readonly icon: string;
-  readonly key: CollectionKey;
-  readonly note: string;
-  readonly sort: number;
+  readonly key: WorkbookKey;
   readonly source: CollectionSource;
 };
 
 export type FieldKind = 'boolean' | 'integer' | 'string' | 'text';
 
 export type FieldSpec = {
-  readonly derived?: true;
   readonly fillDown?: true;
   readonly kind: FieldKind;
   readonly required?: true;
@@ -61,10 +84,19 @@ export type FieldSpec = {
 };
 
 export type MigrationData = Readonly<
-  Record<CollectionKey, readonly MigrationItem[]>
+  Record<WorkbookKey, readonly MigrationItem[]>
 >;
 
 export type MigrationItem = Readonly<Record<string, Scalar>>;
+
+// Where the import read a row: its sheet and row number, which name it in
+// every message.
+export type SheetRow = { readonly row: number; readonly sheet: string };
+
+export type PlacedItem = {
+  readonly item: MigrationItem;
+  readonly place: SheetRow;
+};
 
 export type Scalar = boolean | null | number | string;
 
@@ -86,11 +118,8 @@ export const literalField = (
   kind: FieldKind = 'string',
 ): FieldSpec => ({ kind, source, sourceMode: 'literal', target });
 
-export const derivedField = (
-  target: string,
-  kind: FieldKind = 'string',
-): FieldSpec => ({ derived: true, kind, target });
-
+// A Moodle users column the workbook lacks: the import reads nothing for
+// it, the scraper snapshot fills it.
 export const schemaField = (
   target: string,
   kind: FieldKind = 'string',
@@ -100,28 +129,35 @@ export const assertNever = (value: never): never => {
   throw new TypeError(`Unexpected collection source: ${String(value)}`);
 };
 
-export const relationalCollectionKeys = [
-  'academic_years',
-  'curriculum_entries',
-  'course_curricula',
-  'curriculum_generations',
-  'study_programs',
-  'curriculum_entry_program_states',
-  'course_equivalency_members',
-  'moodle_import_rows',
-  'moodle_course_entries',
-  'moodle_history_memberships',
-  'moodle_course_mappings',
-  'course_enrollment_rules',
-  'course_enrollments',
-  'data_operations',
-  'data_operation_results',
-  'migration_ledger',
-] as const;
-
-export type RelationalCollectionKey = (typeof relationalCollectionKeys)[number];
-
-export type ModelCollectionKey = CollectionKey | RelationalCollectionKey;
+// Every collection of the Directus model: the content the workbook import
+// fills and editors maintain, then the relational, Moodle, operations and
+// coordination collections.
+export type ModelCollectionKey =
+  | 'academic_years'
+  | 'course_curricula'
+  | 'course_enrollment_rules'
+  | 'course_enrollments'
+  | 'course_equivalencies'
+  | 'course_equivalency_members'
+  | 'courses'
+  | 'curriculum_entries'
+  | 'curriculum_entry_program_states'
+  | 'curriculum_generations'
+  | 'data_operation_results'
+  | 'data_operations'
+  | 'deans_office'
+  | 'discord_channels'
+  | 'moodle_course_entries'
+  | 'moodle_course_mappings'
+  | 'moodle_history_memberships'
+  | 'moodle_import_rows'
+  | 'moodle_users'
+  | 'rooms'
+  | 'staff'
+  | 'student_council'
+  | 'students'
+  | 'study_programs'
+  | 'teaching_assignments';
 
 export type ModelScalarKind = 'json' | 'timestamp' | FieldKind;
 
@@ -186,7 +222,6 @@ export type ModelCollection = {
   readonly hidden: boolean;
   readonly icon: string;
   readonly note: string;
-  readonly origin: 'checkpoint' | 'relational';
   readonly singleton: boolean;
   readonly sort: number;
 };

@@ -8,11 +8,7 @@ import type {
 import type { ReadinessCheck } from './types.js';
 
 import { assignmentCheck } from './assignment-checks.js';
-import {
-  curriculumCheck,
-  importedValuesCheck,
-  unlinkedMember,
-} from './curriculum-checks.js';
+import { unlinkedMember } from './curriculum-checks.js';
 import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
 import { keyOrderEntries } from './key-order.js';
 import { notCurrentCalculations } from './readiness-facts.js';
@@ -108,13 +104,6 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     page: 'data_operations',
     source: snapshot,
   }),
-  blocker({
-    code: 'conversion_incomplete',
-    description:
-      'A step of the one-time relational conversion is still running or failed; the relational rows are partial.',
-    page: 'migration_ledger',
-    source: counted({ status: { _neq: 'completed' } }),
-  }),
   // A published year, generation or program without its position, or
   // sharing one with a sibling (academic_year_unsorted,
   // academic_year_sort_shared and the like), from the key sources.
@@ -133,15 +122,6 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     page: 'course_enrollment_rules',
     source: enrollments,
   }),
-  blocker({
-    code: 'curriculum_link_unresolved',
-    description:
-      'An equivalency member of the 2018 generation names a curriculum value of a course that has no 2018 link; its view lists the members that name a course, beside the curriculum links of that course.',
-    generationScoped: true,
-    page: 'course_equivalency_members',
-    review: reviewViews.curriculumLinksToCheck,
-    source: checkedBy(curriculumCheck),
-  }),
   warning({
     code: 'equivalency_without_course',
     description: 'An equivalency names no course: unused historical metadata.',
@@ -157,13 +137,6 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     page: 'course_equivalency_members',
     review: reviewViews.unlinkedMembers,
     source: counted(unlinkedMember, 'equivalency'),
-  }),
-  blocker({
-    code: 'curriculum_value_unlinked',
-    description:
-      'A course carries an imported curriculum name, name override, credits or availability of a generation it has no course_curricula link of; link the entry (the imported columns are read-only).',
-    page: 'courses',
-    source: checkedBy(importedValuesCheck),
   }),
   warning({
     code: 'assignment_order_ambiguous',
@@ -185,13 +158,6 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     description: 'An assignment row of a course has no known role.',
     page: 'teaching_assignments',
     review: reviewViews.assignmentRoleMissing,
-    source: assignments,
-  }),
-  blocker({
-    code: 'assignment_source_duplicate',
-    description:
-      'A course publishes staff from two imported assignment rows; keep one.',
-    page: 'teaching_assignments',
     source: assignments,
   }),
   blocker({

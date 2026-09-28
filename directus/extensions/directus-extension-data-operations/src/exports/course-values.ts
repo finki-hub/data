@@ -5,15 +5,16 @@ import { idOf, pathValue, textOf } from './values.js';
 
 // The resolvers of courses.json. Each one reads the course row and its
 // related rows (read keys `curricula`, `assignments`, `enrollments` of
-// courses.ts) and answers the value the committed checkpoint file holds
-// (test/fixtures/expected-exports), resolving relation values on read, so a renamed staff member or
-// curriculum entry is published without any rebuild. A generation or a
+// courses.ts) and answers the value the committed public file holds
+// (test/fixtures/expected-exports), resolving relation values on read, so
+// a renamed staff member or curriculum entry is published without any
+// rebuild. A generation or a
 // program is a key row of a published source, never a code constant.
 // Anything they cannot resolve unambiguously is refused with ids only;
 // nothing is guessed.
 
 // Joins the labels of one course's professors or assistants. The
-// conversion links an imported assignment text to staff rows only when
+// workbook import links an assignment text to staff rows only when
 // this join gives the text back (`staffListSeparator` of src/migrations/
 // preflight-staff.ts, pinned equal by a test).
 export const labelSeparator = ', ';

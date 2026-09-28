@@ -17,7 +17,6 @@ import {
 import {
   fieldGroups,
   findFieldGroup,
-  legacyImportColumns,
 } from '../src/data-model/presentation/groups.js';
 import {
   collectionPlacements,
@@ -158,17 +157,12 @@ const helperCollections = [
   'curriculum_entry_program_states',
   'data_operation_results',
   'data_operations',
-  'migration_ledger',
   'moodle_history_memberships',
   'moodle_import_rows',
 ];
 
 const courseGroups = fieldGroups.filter(
   ({ collection }) => collection === 'courses',
-);
-
-const derivedCourseFields = findCollection('courses').fields.flatMap(
-  ({ field, readOnly }) => (readOnly === true ? [field] : []),
 );
 
 const groupClashes = fieldGroups.filter((group) =>
@@ -260,44 +254,20 @@ const installedReviews = (writes: readonly RecordedRequest[]) =>
     }));
 
 describe('field groups', () => {
-  test('groups every course field once, with the derived columns collapsed and read-only', () => {
+  test('groups every course field once, every section open', () => {
     expect(courseGroups.map(({ field }) => field)).toEqual([
       'overview',
       'curriculum',
       'staff',
       'moodle',
       'enrollment',
-      'legacy_calculated',
-      'legacy_import',
     ]);
     expect(sorted(courseGroups.flatMap(({ members }) => members))).toEqual(
       sorted(fieldNames('courses')),
     );
-
-    const legacy = courseGroups.find(
-      ({ field }) => field === 'legacy_calculated',
-    );
-
-    expect(legacy?.start).toBe('closed');
-    expect(legacy?.readOnly).toBeTruthy();
-    expect(sorted(legacy?.members ?? [])).toEqual(sorted(derivedCourseFields));
-  });
-
-  test('collapses the imported labels and provenance of an assignment together', () => {
-    const legacy = findFieldGroup('teaching_assignments', 'legacy_imported');
-
-    expect(legacy?.start).toBe('closed');
-    expect(legacy?.members).toEqual([
-      'professors',
-      'assistants',
-      'source_collection',
-      'source_id',
-    ]);
+    expect(courseGroups.every(({ start }) => start === 'open')).toBeTruthy();
     expect(
-      findFieldPatch('teaching_assignments', 'source_id')?.meta.group,
-    ).toBe('legacy_imported');
-    expect(
-      findFieldPatch('teaching_assignments', 'course_name')?.meta.group,
+      findFieldGroup('teaching_assignments', 'legacy_imported'),
     ).toBeUndefined();
   });
 
@@ -312,27 +282,10 @@ describe('field groups', () => {
 });
 
 describe('curriculum generations in the forms', () => {
-  test('keeps the six imported per-generation course columns read-only in a closed legacy group', () => {
-    const group = findFieldGroup('courses', 'legacy_import');
-
-    expect(group).toMatchObject({ readOnly: true, start: 'closed' });
-    expect(group?.members).toEqual([...legacyImportColumns]);
-    expect(legacyImportColumns).toEqual([
-      'name_2023',
-      'credits_2023',
-      'available_2023',
-      'name_2018_override',
-      'credits_2018',
-      'available_2018',
-    ]);
-
-    for (const column of legacyImportColumns) {
-      expect(effectiveFieldMeta('courses', column)).toMatchObject({
-        group: 'legacy_import',
-        readonly: true,
-      });
-    }
-
+  test('keeps the curriculum of a course in its links only, the override editable', () => {
+    expect(fieldNames('courses')).toEqual(
+      expect.not.arrayContaining(['name_2023', 'credits_2018']),
+    );
     expect(effectiveFieldMeta('courses', 'professors_override')).toMatchObject({
       readonly: false,
     });
@@ -441,20 +394,15 @@ describe('field presentation', () => {
     ).toEqual([]);
   });
 
-  test('hides the copied council name nothing fills any more, beside the linked student', () => {
-    expect(effectiveFieldMeta('student_council', 'name')).toMatchObject({
-      hidden: true,
-      readonly: true,
-    });
+  test('names a council member by the linked student, beside the index', () => {
+    expect(fieldNames('student_council')).not.toContain('name');
     expect(effectiveFieldMeta('student_council', 'student')).toMatchObject({
       display: 'related-values',
       interface: 'select-dropdown-m2o',
     });
-    expect(
-      collectionPlacements.find(
-        ({ collection }) => collection === 'student_council',
-      )?.meta.display_template,
-    ).toBe('{{year}} - {{student.name}}');
+    expect(findCollection('student_council').displayTemplate).toBe(
+      '{{year}} - {{student.name}}',
+    );
   });
 
   test('leaves the choices and rule of every enum to its declaration', () => {
@@ -464,7 +412,7 @@ describe('field presentation', () => {
         enums.has(`${collection}.${field}`) && ownsChoices(meta),
     );
 
-    expect(enums.size).toBeGreaterThanOrEqual(8);
+    expect(enums.size).toBeGreaterThanOrEqual(7);
     expect(owned).toEqual([]);
   });
 
@@ -719,12 +667,12 @@ describe('installPresentation on a fresh schema', () => {
     expect(overview.meta.interface).toBe('group-detail');
     expect(overview.meta.readonly).toBe(false);
 
-    const legacy = groupBody.parse(
-      writes.find((call) => isGroupPost(call, 'legacy_calculated'))?.body,
+    const usage = groupBody.parse(
+      writes.find((call) => isGroupPost(call, 'usage'))?.body,
     );
 
-    expect(legacy.meta.readonly).toBeTruthy();
-    expect(legacy.meta.options.start).toBe('closed');
+    expect(usage.meta.readonly).toBeTruthy();
+    expect(usage.meta.options.start).toBe('closed');
 
     const entry = writes.find(
       ({ pathname }) => pathname === '/fields/course_curricula/entry',

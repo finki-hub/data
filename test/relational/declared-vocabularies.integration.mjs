@@ -11,15 +11,12 @@ import {
   SchemaRefusalError,
 } from '../../src/data-model/install.js';
 import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
-import { readInventory } from '../../src/migrations/inventory.js';
-import { preflight } from '../../src/migrations/preflight.js';
-import {
-  convertWorkbook,
-  previewBlockers,
-} from '../../src/migrations/workbook-adapter.js';
+import { countByCode } from '../../src/migrations/findings.js';
+import { planImport } from '../../src/migrations/plan.js';
+import { writePlan } from '../../src/migrations/write.js';
 import { runSetup } from '../../src/setup.js';
-import { academicYears } from '../../src/specs/public.js';
 import { loadWorkbook } from '../../src/workbook.js';
+import { academicYears } from '../fixtures/synthetic-data.js';
 import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
@@ -38,7 +35,6 @@ import {
   liveMeta,
   refusedCreate,
   withoutKey,
-  writeWorkbookRows,
 } from './declared-vocabularies-helpers.mjs';
 import {
   engineFiles,
@@ -60,7 +56,6 @@ const laterYear = '2026/2027';
 const sixteenYears = [laterYear, ...academicYears];
 const entries = 'moodle_course_entries';
 const reviewState = 'review_state';
-const clock = () => '2026-09-23T12:00:00.000Z';
 const oneValuePattern = /review_state holds 1 value\(s\)/u;
 const deferredPattern = /"deferred"/u;
 const yearLabelPattern = /^\d{4}\/\d{4}$/u;
@@ -220,19 +215,19 @@ const importsSixteenYears = async ({ directus, state, t, target }) => {
   await syntheticWorkbook(withLater, sixteenYears).xlsx.writeFile(file);
   const content = await loadWorkbook(file);
   assert.deepEqual(content.academicYears, sixteenYears);
-  assert.deepEqual(previewBlockers(content), {});
-  await writeWorkbookRows(target, content.data);
-  const conversion = await convertWorkbook(directus, content, {
+  const plan = planImport(content);
+  assert.deepEqual(plan.blockers, []);
+  assert.deepEqual(plan.unstorable, []);
+  assert.equal(countByCode(plan.skipped).unknown_academic_year, undefined);
+  const written = await writePlan(directus, plan.collections, {
     batchSize: 250,
-    now: clock,
-    resume: false,
-    runToken: 'declared-vocabularies',
+    confirmed: (rows) => {
+      assert.ok(rows > 0);
+    },
   });
-  assert.equal(conversion.status, 'converted');
-  assert.equal(conversion.unresolved.unknown_academic_year, undefined);
   const courses = await count(target, 'courses');
-  assert.equal(conversion.written.academic_years, 16);
-  assert.equal(conversion.written.course_enrollment_rules, courses * 16);
+  assert.equal(written.academic_years, 16);
+  assert.equal(written.course_enrollment_rules, courses * 16);
   assert.deepEqual(
     await get(
       target,
@@ -250,17 +245,9 @@ const importsSixteenYears = async ({ directus, state, t, target }) => {
   );
   assert.equal(later.length, courses);
   assert.ok(later.some(({ pattern }) => pattern === 'Synthetic Later Line'));
-  // The upgrade path (npm run migrate) now converts the same sixteen years,
-  // with no unknown-year finding.
-  const upgrade = preflight(await readInventory(directus, {}), null);
-  assert.deepEqual(upgrade.academicYears, sixteenYears);
-  assert.deepEqual(
-    upgrade.warnings.filter(({ code }) => code === 'unknown_academic_year'),
-    [],
-  );
   const settled = await settle(target, { limitMs: 180_000 });
   t.diagnostic(
-    `converted ${JSON.stringify(conversion.written)}; settled after ${settled.elapsedMs} ms`,
+    `imported ${JSON.stringify(written)}; settled after ${settled.elapsedMs} ms`,
   );
 };
 

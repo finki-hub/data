@@ -1,27 +1,7 @@
 import type { FieldGroup } from './types.js';
 
-import { findModelCollection } from '../collections.js';
-
-const derivedFields = (collection: string): readonly string[] =>
-  (findModelCollection(collection)?.fields ?? []).flatMap(
-    ({ field, readOnly }) => (readOnly === true ? [field] : []),
-  );
-
-// The six per-generation course columns the one-time import copies into
-// course_curricula once: read-only import input that no export reads,
-// dropped in the deferred cleanup.
-export const legacyImportColumns = [
-  'name_2023',
-  'credits_2023',
-  'available_2023',
-  'name_2018_override',
-  'credits_2018',
-  'available_2018',
-] as const;
-
-// The course form: relational sections first, the checkpoint's derived
-// columns and the import input last, collapsed and read-only, never
-// deleted.
+// The course form: its overview, curriculum, staff, Moodle and enrollment
+// sections.
 export const fieldGroups: readonly FieldGroup[] = [
   {
     collection: 'courses',
@@ -65,26 +45,6 @@ export const fieldGroups: readonly FieldGroup[] = [
     sort: 5,
     start: 'open',
   },
-  {
-    collection: 'courses',
-    field: 'legacy_calculated',
-    headerIcon: 'history',
-    members: derivedFields('courses'),
-    note: 'Columns the removed checkpoint derivation computed. Nothing fills or publishes them any more; kept until the cleanup drops them, not edited by hand.',
-    readOnly: true,
-    sort: 6,
-    start: 'closed',
-  },
-  {
-    collection: 'courses',
-    field: 'legacy_import',
-    headerIcon: 'input',
-    members: legacyImportColumns,
-    note: 'The 2023 and 2018 columns of the workbook, copied once into the curriculum links by the import. Read-only import input: edit the curriculum links instead; no public file reads these.',
-    readOnly: true,
-    sort: 7,
-    start: 'closed',
-  },
   // The history entry form: the exact label with its review state first,
   // the mappings that make it count, then the derived users read-only.
   {
@@ -113,15 +73,6 @@ export const fieldGroups: readonly FieldGroup[] = [
     note: 'Moodle users carrying this entry: the derived index, replaced by every index run and never edited.',
     readOnly: true,
     sort: 3,
-    start: 'closed',
-  },
-  {
-    collection: 'teaching_assignments',
-    field: 'legacy_imported',
-    headerIcon: 'history',
-    members: ['professors', 'assistants', 'source_collection', 'source_id'],
-    note: 'Imported checkpoint labels and migration provenance, kept until every row is converted into course, staff and role links.',
-    sort: 20,
     start: 'closed',
   },
   // The coordination singleton: status the operation and the trigger own

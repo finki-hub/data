@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -8,22 +8,20 @@ import { isDeepStrictEqual } from 'node:util';
 import { findModelCollection } from '../../src/data-model/collections.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
-import { toApiField } from '../../src/directus.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
 import { exitCodes } from '../../src/lifecycle.js';
-import { ledgerCollection } from '../../src/migrations/ledger-claim.js';
-import { runMigrationCli } from '../../src/migrations/run.js';
-import { collectionSpecs } from '../../src/model.js';
+import { planImport } from '../../src/migrations/plan.js';
 import { runSetup } from '../../src/setup.js';
-import { countMigrationData, loadWorkbook } from '../../src/workbook.js';
+import { loadWorkbook } from '../../src/workbook.js';
 import {
   lifecycleDataset,
   syntheticWorkbook,
 } from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
+import { parityDataset } from '../relational-export-helpers.js';
 import {
   adminRequest,
   destroyDataModel,
@@ -36,34 +34,12 @@ import {
   withDataModel,
 } from './data-model-helpers.mjs';
 
-const clockValue = '2026-09-22T12:00:00.000Z';
-const artifactName = 'synthetic-backup.sql';
-const artifactContent = 'synthetic backup';
-const stepNames = [
-  'preflight',
-  'curricula',
-  'rules',
-  'assignments',
-  'council',
-  'equivalencies',
-];
 // Every Flow setup installs: the registered families, in install order.
 const setupFlows = flowTemplates();
 const templateFlowIds = new Set(setupFlows.map(({ id }) => id));
 const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
 const nothingSentPattern = /Nothing was sent to Directus\.$/u;
 const migrationEndpointPattern = /^\/finki-hub-data-operations\/migrations\//u;
-// Relation-free checkpoint collections whose ids the target rows reference.
-const referenced = [
-  'courses',
-  'staff',
-  'students',
-  'course_enrollment_patterns',
-  'curriculum_2023',
-  'curriculum_2018',
-  'student_council',
-  'course_equivalencies',
-];
 
 const get = async (target, pathname) => {
   const body = await read(
@@ -79,24 +55,10 @@ const list = (target, collection, fields) =>
     `/items/${collection}?fields=${encodeURIComponent(fields.join(','))}&sort=id&limit=-1`,
   );
 
-// The records of a collection; for teaching_assignments only the original
-// text rows, beside which the conversion appends its role-bearing rows.
 const count = async (target, collection) => {
-  const originals =
-    collection === 'teaching_assignments'
-      ? '&filter[source_collection][_null]=true'
-      : '';
-  const rows = await get(
-    target,
-    `/items/${collection}?aggregate[count]=*${originals}`,
-  );
+  const rows = await get(target, `/items/${collection}?aggregate[count]=*`);
   return Number(rows[0].count);
 };
-
-const modelFields = (collection) => [
-  'id',
-  ...findModelCollection(collection).fields.map(({ field }) => field),
-];
 
 const environment = (target, workbookPath) => ({
   DIRECTUS_TOKEN: target.token,
@@ -104,8 +66,8 @@ const environment = (target, workbookPath) => ({
   WORKBOOK_PATH: workbookPath,
 });
 
-// A CLI io over the real request that records every request it issues.
-const cliIo = (runToken) => {
+// The import CLI over the real request, recording every request it issues.
+const importCli = (target, workbookPath) => {
   const calls = [];
   const stdout = [];
   const stderr = [];
@@ -117,8 +79,6 @@ const cliIo = (runToken) => {
         return real(pathname, init);
       };
     },
-    now: () => clockValue,
-    runToken: () => runToken,
     stderr: (line) => {
       stderr.push(line);
     },
@@ -128,27 +88,10 @@ const cliIo = (runToken) => {
   };
   return {
     calls,
-    io,
     mutations: () => calls.filter(({ method }) => method !== 'GET'),
+    run: () => runImportCli([], environment(target, workbookPath), io),
     stderr,
     stdout,
-  };
-};
-
-const importCli = (target, workbookPath) => {
-  const cli = cliIo('lifecycle-import');
-  return {
-    ...cli,
-    run: () => runImportCli([], environment(target, workbookPath), cli.io),
-  };
-};
-
-const migrateCli = (target, workbookPath) => {
-  const cli = cliIo('lifecycle-upgrade');
-  return {
-    ...cli,
-    run: (arguments_) =>
-      runMigrationCli(arguments_, environment(target, workbookPath), cli.io),
   };
 };
 
@@ -159,140 +102,40 @@ const aggregateOnly = (line) => {
   return JSON.parse(line);
 };
 
-const ordinals = (rows) =>
-  new Map(rows.map(({ id }, index) => [id, index + 1]));
-
-const withoutId = (row) =>
-  Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'id'));
-
-// The relational rows of the project with every id replaced by the position
-// of the row it names (a checkpoint row's rank by id, an entry's source, a
-// year's label): the two lifecycle paths hand out different ids, so only
-// this normalised form can be compared.
-const normalizedTargets = async (target) => {
-  const ids = {};
-  for (const collection of referenced) {
-    ids[collection] = ordinals(await list(target, collection, ['id']));
+// The rows of every collection the import writes, each reference replaced
+// by the position of the row it names in its collection: two imports hand
+// out different ids, so only this normalised form can be compared.
+const normalizedTargets = async (target, collections) => {
+  const rows = {};
+  const positions = {};
+  for (const collection of collections) {
+    const { fields } = findModelCollection(collection);
+    rows[collection] = await list(target, collection, [
+      'id',
+      ...fields.map(({ field }) => field),
+    ]);
+    positions[collection] = new Map(
+      rows[collection].map(({ id }, index) => [id, index + 1]),
+    );
   }
-  const assignments = await list(
-    target,
-    'teaching_assignments',
-    modelFields('teaching_assignments'),
+  const position = (related, id) =>
+    id === null ? null : (positions[related]?.get(id) ?? `missing ${id}`);
+  return Object.fromEntries(
+    collections.map((collection) => {
+      const { fields } = findModelCollection(collection);
+      return [
+        collection,
+        rows[collection].map((row) =>
+          Object.fromEntries(
+            fields.map(({ field, kind, related }) => [
+              field,
+              kind === 'm2o' ? position(related, row[field]) : row[field],
+            ]),
+          ),
+        ),
+      ];
+    }),
   );
-  ids.teaching_assignments = ordinals(
-    assignments.filter((row) => row.source_collection === null),
-  );
-  const ref = (collection, id) =>
-    id === null ? null : (ids[collection].get(id) ?? `missing ${id}`);
-  const years = await list(target, 'academic_years', ['id', 'label', 'sort']);
-  const yearLabel = new Map(years.map((row) => [row.id, row.label]));
-  // Generation rows by code, programs by generation code and code.
-  const generations = await list(
-    target,
-    'curriculum_generations',
-    modelFields('curriculum_generations'),
-  );
-  const generationCode = new Map(generations.map((row) => [row.id, row.code]));
-  const programs = await list(
-    target,
-    'study_programs',
-    modelFields('study_programs'),
-  );
-  const programKey = new Map(
-    programs.map((row) => [
-      row.id,
-      `${generationCode.get(row.generation)}/${row.code}`,
-    ]),
-  );
-  const entries = await list(
-    target,
-    'curriculum_entries',
-    modelFields('curriculum_entries'),
-  );
-  const entryKeys = new Map(
-    entries.map((row) => [
-      row.id,
-      `${row.source_collection}#${ref(row.source_collection, row.source_id)}`,
-    ]),
-  );
-  const entryRef = (id) => (id === null ? null : entryKeys.get(id));
-  const links = await list(
-    target,
-    'course_curricula',
-    modelFields('course_curricula'),
-  );
-  const rules = await list(
-    target,
-    'course_enrollment_rules',
-    modelFields('course_enrollment_rules'),
-  );
-  const council = await list(target, 'student_council', ['id', 'student']);
-  const equivalencies = await list(target, 'course_equivalencies', [
-    'id',
-    'course',
-  ]);
-  const members = await list(
-    target,
-    'course_equivalency_members',
-    modelFields('course_equivalency_members'),
-  );
-  const states = await list(
-    target,
-    'curriculum_entry_program_states',
-    modelFields('curriculum_entry_program_states'),
-  );
-  return {
-    academic_years: years.map((row) => withoutId(row)),
-    course_curricula: links.map((row) => ({
-      ...withoutId(row),
-      course: ref('courses', row.course),
-      entry: entryRef(row.entry),
-      generation: generationCode.get(row.generation),
-    })),
-    course_enrollment_rules: rules.map((row) => ({
-      ...withoutId(row),
-      academic_year: yearLabel.get(row.academic_year),
-      course: ref('courses', row.course),
-      source_id: ref(row.source_collection, row.source_id),
-    })),
-    course_equivalencies: equivalencies.map((row) => ({
-      course: ref('courses', row.course),
-      row: ref('course_equivalencies', row.id),
-    })),
-    course_equivalency_members: members.map((row) => ({
-      ...withoutId(row),
-      entry: entryRef(row.entry),
-      equivalency: ref('course_equivalencies', row.equivalency),
-      generation: generationCode.get(row.generation),
-    })),
-    curriculum_entries: entries.map((row) => ({
-      ...withoutId(row),
-      generation: generationCode.get(row.generation),
-      source_id: ref(row.source_collection, row.source_id),
-    })),
-    curriculum_entry_program_states: states.map((row) => ({
-      ...withoutId(row),
-      entry: entryRef(row.entry),
-      program: programKey.get(row.program),
-    })),
-    curriculum_generations: generations.map((row) => withoutId(row)),
-    student_council: council.map((row) => ({
-      member: ref('student_council', row.id),
-      student: ref('students', row.student),
-    })),
-    study_programs: programs.map((row) => ({
-      ...withoutId(row),
-      generation: generationCode.get(row.generation),
-    })),
-    teaching_assignments: assignments
-      .filter((row) => row.source_collection !== null)
-      .map((row) => ({
-        ...withoutId(row),
-        course: ref('courses', row.course),
-        source_id: ref('teaching_assignments', row.source_id),
-        staff: ref('staff', row.staff),
-      })),
-  };
 };
 
 const flowIds = async (target) => {
@@ -317,59 +160,6 @@ const studioSnapshot = async (target) => ({
   ),
 });
 
-const writeReceipt = async (directory, name, sourceFingerprint) => {
-  const receiptPath = path.join(directory, name);
-  await writeFile(
-    receiptPath,
-    JSON.stringify({
-      artifacts: [
-        {
-          bytes: artifactContent.length,
-          kind: 'database',
-          path: artifactName,
-          sha256: 'c'.repeat(64),
-        },
-      ],
-      createdAt: clockValue,
-      sourceFingerprint,
-      version: 'backup-receipt-1',
-    }),
-  );
-  return receiptPath;
-};
-
-// A dry-run into a private report, then an apply with a receipt taken
-// against its fingerprint, as the upgrade runbook prescribes.
-const upgrade = async (target, context, name) => {
-  const { absent, directory } = context;
-  const reportPath = path.join(directory, `${name}-report.json`);
-  const dryRun = migrateCli(target, absent);
-  assert.equal(
-    await dryRun.run(['--dry-run', '--report', reportPath]),
-    exitCodes.ok,
-    dryRun.stderr.join('\n'),
-  );
-  const report = aggregateOnly(dryRun.stdout[0]);
-  const receipt = await writeReceipt(
-    directory,
-    `${name}-receipt.json`,
-    report.sourceFingerprint,
-  );
-  const apply = migrateCli(target, absent);
-  assert.equal(
-    await apply.run([
-      '--apply',
-      '--report',
-      reportPath,
-      '--backup-receipt',
-      receipt,
-    ]),
-    exitCodes.ok,
-    apply.stderr.join('\n'),
-  );
-  return { applied: aggregateOnly(apply.stdout[0]), report };
-};
-
 const badWorkbookAborts = async (target, context) => {
   const flowsBefore = await flowIds(target);
   const run = importCli(target, context.malformed);
@@ -380,29 +170,36 @@ const badWorkbookAborts = async (target, context) => {
   assert.deepEqual(await flowIds(target), flowsBefore, 'no Flow was created');
 };
 
-const assertImported = async (target, context, summary) => {
-  const { data } = context;
-  assert.deepEqual(summary.rows, countMigrationData(data));
-  assert.equal(summary.conversion.status, 'converted');
-  assert.deepEqual(summary.conversion.steps, {
-    completed: stepNames,
-    skipped: [],
+// A workbook with cases the import cannot write as it states them: the
+// import refuses it before Directus is contacted, naming sheet and row.
+const blockedWorkbookRefused = async (target, context) => {
+  const run = importCli(target, context.blocked);
+  assert.equal(await run.run(), exitCodes.blocked);
+  assert.deepEqual(run.calls, [], 'Directus was never contacted');
+  assert.deepEqual(aggregateOnly(run.stdout[0]).blockers, {
+    duplicate_assignment: 1,
+    unlinked_generation_values: 1,
   });
+  assert.deepEqual(run.stderr.slice(1), [
+    '- duplicate_assignment: Наставен Кадар rows 2, 3',
+    '- unlinked_generation_values: Предмети (Export) row 4',
+  ]);
+  assert.deepEqual(await userCollections(target), [target.markerCollection]);
+};
+
+const assertImported = async (target, context, summary) => {
+  assert.deepEqual(summary.rows, context.planned);
+  assert.deepEqual(summary.blockers, {});
   for (const [collection, rows] of Object.entries(summary.rows)) {
-    assert.equal(await count(target, collection), rows);
+    assert.equal(await count(target, collection), rows, collection);
   }
   assert.equal(await count(target, 'academic_years'), 15);
   assert.equal(await count(target, 'course_enrollment_rules'), 8 * 15);
   assert.equal(
     await count(target, 'curriculum_entries'),
-    data.curriculum_2023.length + data.curriculum_2018.length,
+    context.data.curriculum_2023.length + context.data.curriculum_2018.length,
   );
   assert.ok((await count(target, 'course_curricula')) > 0);
-  const ledger = await list(target, ledgerCollection, ['step', 'status']);
-  assert.deepEqual(
-    ledger.map(({ status, step }) => [step, status]),
-    stepNames.map((step) => [step, 'completed']),
-  );
 };
 
 // Every shared preset the presentation declares exists once: the default
@@ -427,7 +224,7 @@ const assertPresets = async (target) => {
   }
 };
 
-const importConverts = async (target, context) => {
+const importWrites = async (target, context) => {
   const run = importCli(target, context.workbook);
   assert.equal(await run.run(), exitCodes.ok, run.stderr.join('\n'));
   // On a fixture without the templates the import's setup has just
@@ -441,31 +238,18 @@ const importConverts = async (target, context) => {
     [],
     'the import runs no Flow and never publishes',
   );
-  const normalized = await normalizedTargets(target);
+  const normalized = await normalizedTargets(
+    target,
+    Object.keys(context.planned),
+  );
   for (const [collection, rows] of Object.entries(normalized)) {
-    assert.ok(rows.length > 0, `${collection} holds converted rows`);
+    assert.equal(rows.length, context.planned[collection], collection);
   }
   assert.ok(
     !JSON.stringify(normalized).includes('missing '),
     'every reference resolves to an imported row',
   );
   return normalized;
-};
-
-const upgradeSeesConversionDone = async (target, context) => {
-  const { applied, report } = await upgrade(target, context, 'after-import');
-  assert.equal(report.migratable, true);
-  assert.deepEqual(report.ledger.completed, stepNames);
-  const ledger = await list(target, ledgerCollection, ['source_fingerprint']);
-  assert.ok(
-    ledger.every(
-      ({ source_fingerprint }) =>
-        source_fingerprint === report.sourceFingerprint,
-    ),
-    'the import recorded the fingerprint the upgrade reads',
-  );
-  assert.deepEqual(applied.steps, { completed: [], skipped: stepNames });
-  assert.deepEqual(applied.written, {});
 };
 
 // Studio-style edits: a Flow option of the Mark pending template and the
@@ -537,7 +321,7 @@ const setupPreservesStudioEdits = async (target, directus) => {
 
 const secondImportRefused = async (target, context) => {
   const counts = {};
-  for (const collection of Object.keys(context.data)) {
+  for (const collection of Object.keys(context.planned)) {
     counts[collection] = await count(target, collection);
   }
   const run = importCli(target, context.workbook);
@@ -545,72 +329,11 @@ const secondImportRefused = async (target, context) => {
   const message = run.stderr.join('\n');
   assert.ok(message.startsWith('Import refused: The project already holds'));
   assert.ok(message.includes(`courses ${String(counts.courses)}`));
-  assert.ok(message.includes('npm run migrate'));
+  assert.ok(!message.includes('migrate'));
   assert.deepEqual(run.mutations(), [], 'no write reached Directus');
   for (const [collection, rows] of Object.entries(counts)) {
     assert.equal(await count(target, collection), rows);
   }
-};
-
-// The project the checkpoint importer left behind: its thirteen
-// collections holding the same workbook rows, with no relational
-// collection.
-const createCheckpointProject = async (target, data) => {
-  for (const spec of collectionSpecs) {
-    await read(
-      await request(
-        target,
-        '/collections',
-        json(
-          'POST',
-          {
-            collection: spec.key,
-            fields: spec.fields.map((field, index) => toApiField(field, index)),
-            meta: {
-              display_template: spec.displayTemplate,
-              icon: spec.icon,
-              note: spec.note,
-              sort: spec.sort,
-            },
-            schema: {},
-          },
-          target.token,
-        ),
-      ),
-      200,
-    );
-  }
-  for (const spec of collectionSpecs) {
-    const rows = data[spec.key];
-    for (let start = 0; start < rows.length; start += 250) {
-      await read(
-        await request(
-          target,
-          `/items/${spec.key}`,
-          json('POST', rows.slice(start, start + 250), target.token),
-        ),
-        200,
-      );
-    }
-  }
-};
-
-const upgradeMatchesImport = async (target, directus, context) => {
-  await destroyDataModel(target);
-  assert.deepEqual(await userCollections(target), [target.markerCollection]);
-  await createCheckpointProject(target, context.data);
-  await runSetup(directus);
-  await pauseAutomaticProcessing(target);
-  await assert.rejects(access(context.absent), 'the workbook is absent');
-  const { applied, report } = await upgrade(target, context, 'old-schema');
-  assert.equal(report.migratable, true);
-  assert.deepEqual(report.ledger, { completed: [], failed: [], running: [] });
-  assert.deepEqual(applied.steps, { completed: stepNames, skipped: [] });
-  assert.deepEqual(
-    await normalizedTargets(target),
-    context.runs.get('imported'),
-    'the upgrade reaches the relational rows the import reached',
-  );
 };
 
 // `npm run setup` first, then the import: the empty schema setup creates
@@ -637,7 +360,7 @@ const setupThenImport = async (target, directus, context) => {
   });
   await assertImported(target, context, summary);
   assert.deepEqual(
-    await normalizedTargets(target),
+    await normalizedTargets(target, Object.keys(context.planned)),
     context.runs.get('imported'),
     'setup then import reaches the relational rows of the import alone',
   );
@@ -690,14 +413,14 @@ const scenarios = async (t, { context, directus, target }) => {
     badWorkbookAborts(target, context),
   );
   await t.test(
-    'an import into the marker-only project installs the model and converts through the ledger',
-    async () => {
-      context.runs.set('imported', await importConverts(target, context));
-    },
+    'a workbook with cases the import cannot write is refused before Directus is contacted',
+    () => blockedWorkbookRefused(target, context),
   );
   await t.test(
-    'the upgrade path finds the imported conversion complete and writes nothing',
-    () => upgradeSeesConversionDone(target, context),
+    'an import into the marker-only project installs the model and writes the relational rows',
+    async () => {
+      context.runs.set('imported', await importWrites(target, context));
+    },
   );
   await t.test(
     'a repeated setup keeps Studio-edited Flows and presets untouched',
@@ -707,16 +430,12 @@ const scenarios = async (t, { context, directus, target }) => {
     secondImportRefused(target, context),
   );
   await t.test(
-    'an equivalent checkpoint project upgrades to the same relational rows without the workbook',
-    () => upgradeMatchesImport(target, directus, context),
-  );
-  await t.test(
     'an import into the empty schema npm run setup created is accepted and reaches the same relational rows',
     () => setupThenImport(target, directus, context),
   );
 };
 
-test('separates fresh setup, the one-time workbook import and populated upgrades on the fixture', async (t) => {
+test('separates fresh setup and the one-time workbook import on the fixture', async (t) => {
   const target = targetFrom(process.env);
   await assertMarkerPresent(target);
   const directus = adminRequest(target);
@@ -724,27 +443,32 @@ test('separates fresh setup, the one-time workbook import and populated upgrades
     path.join(os.tmpdir(), 'relational-lifecycle-'),
   );
   const files = {
-    absent: path.join(directory, 'absent.xlsx'),
+    blocked: path.join(directory, 'blocked.xlsx'),
     malformed: path.join(directory, 'malformed.xlsx'),
     workbook: path.join(directory, 'synthetic.xlsx'),
   };
   const runs = new Map();
   const flowsBefore = await templateFlows(target);
   try {
-    await writeFile(path.join(directory, artifactName), artifactContent);
-    const dataset = lifecycleDataset();
+    const dataset = parityDataset();
     await syntheticWorkbook(dataset).xlsx.writeFile(files.workbook);
+    await syntheticWorkbook(lifecycleDataset()).xlsx.writeFile(files.blocked);
     await syntheticWorkbook({
       ...dataset,
       staff: dataset.staff.map((row, index) =>
         index === 1 ? { ...row, active: 'maybe' } : row,
       ),
     }).xlsx.writeFile(files.malformed);
-    const { data } = await loadWorkbook(files.workbook);
+    const content = await loadWorkbook(files.workbook);
     const context = {
       ...files,
-      data,
-      directory,
+      data: content.data,
+      planned: Object.fromEntries(
+        planImport(content).collections.map(({ collection, rows }) => [
+          collection,
+          rows.length,
+        ]),
+      ),
       runs,
     };
     await withDataModel(target, async () => {

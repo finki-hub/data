@@ -65,7 +65,7 @@ export type KeySource = SourceRead & {
   readonly title?: string;
 };
 
-// The closed vocabulary of public value forms, as the checkpoint's files
+// The closed vocabulary of public value forms, as the public files
 // (committed under test/fixtures/expected-exports) carry them: text as
 // is, a number as its decimal text, a numeric boolean as "1"/"0", any
 // other boolean as "TRUE"/"FALSE". Every rule omits null, undefined and

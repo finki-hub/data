@@ -16,8 +16,6 @@ type Tally = {
   readonly counts: Record<string, number>;
   // Rows per (course, role, sort) position.
   readonly positions: Map<string, number>;
-  // The imported assignment rows (source_id) per (course, role) list.
-  readonly sources: Map<string, Set<unknown>>;
 };
 
 const count = (tally: Tally, code: string): void => {
@@ -41,28 +39,12 @@ const tallyRow = (tally: Tally, row: Row): void => {
         : 'assignment_review_label',
     );
   }
-  const list = `${String(row['course'])}/${String(row['role'])}`;
   add(
     tally.positions,
-    `${list}/${String(idOf(row['sort']))}`,
+    `${String(row['course'])}/${String(row['role'])}/${String(idOf(row['sort']))}`,
     (known = 0) => known + 1,
   );
-  const source = row['source_id'];
-  if (source !== null && source !== undefined) {
-    add(tally.sources, list, (known = new Set()) => known.add(source));
-  }
 };
-
-// The courses whose published list of one role merges two imported
-// assignment rows: the checkpoint derivation published the first
-// ascending row of a course only, the conversion kept every row, and which
-// one holds the real relationship is for an editor to decide.
-const mergedCourses = (tally: Tally): number =>
-  new Set(
-    [...tally.sources]
-      .filter(([, sources]) => sources.size > 1)
-      .map(([list]) => list.split('/', 1)[0]),
-  ).size;
 
 // The role whose rows a course's professors_override replaces; the rows
 // of every other role are always published.
@@ -114,7 +96,6 @@ export const assignmentCheck: ReadinessCheck = {
     const tally: Tally = {
       counts: { assignment_role_missing: 0 },
       positions: new Map(),
-      sources: new Map(),
     };
     for (const row of sourceRows(sources, 'assignments')) {
       const role = row['role'];
@@ -130,21 +111,12 @@ export const assignmentCheck: ReadinessCheck = {
         .values()
         .filter((rows) => rows > 1)
         .toArray().length,
-      assignment_source_duplicate: mergedCourses(tally),
     };
   },
   reads: {
     assignments: {
       collection: 'teaching_assignments',
-      fields: [
-        'id',
-        'course',
-        'role',
-        'sort',
-        'staff',
-        'display_override',
-        'source_id',
-      ],
+      fields: ['id', 'course', 'role', 'sort', 'staff', 'display_override'],
       filter: { course: { _nnull: true } },
       sort: ['id'],
     },

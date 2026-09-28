@@ -12,13 +12,12 @@ export const collectionRoleNames = [
   'candidate',
   'staging',
   'status',
-  'migration',
 ] as const;
 
 export type BookkeepingDeclaration = {
   readonly collection: string;
   readonly description: string;
-  readonly role: 'migration' | 'status';
+  readonly role: 'status';
 };
 
 export type CollectionDeclaration =
@@ -49,12 +48,10 @@ export type GuardedDeclaration = {
 // An editable source table: every statement on it marks `invalidates`
 // inside its own transaction. `onDelete` adds domains for a DELETE or
 // TRUNCATE, `columns` for an UPDATE naming a column, and `why` explains
-// those refinements in the generated SQL. An `optional` table (a
-// checkpoint table a later cleanup may drop) gets its triggers only while
-// it exists. `editorWrites: false` marks a source an editor must never
-// write: Task 16 derives the editor grants from it, and the literal
-// deny-list of src/editor-policy.ts names the source independently, as the
-// check of those grants.
+// those refinements in the generated SQL. `editorWrites: false` marks a
+// source an editor must never write: Task 16 derives the editor grants
+// from it, and the literal deny-list of src/editor-policy.ts names the
+// source independently, as the check of those grants.
 // The trigger function lists a table whose domains differ from the
 // default in registry order; `caseLast` lists it after the others. The
 // arms name one table each, so their order changes nothing but the text.
@@ -65,7 +62,6 @@ export type SourceDeclaration = {
   readonly editorWrites?: false;
   readonly invalidates: DomainList;
   readonly onDelete?: DomainList;
-  readonly optional?: true;
   readonly role: 'source';
   readonly why?: string;
 };
@@ -137,9 +133,6 @@ export const collectionRoles = [
     invalidates: ['enrollments', 'publication'],
     role: 'source',
   },
-  { ...publishes('curriculum_2023'), optional: true },
-  { ...publishes('curriculum_2018'), optional: true },
-  { ...publishes('course_enrollment_patterns'), optional: true },
   {
     collection: 'moodle_history_memberships',
     description: 'the derived Moodle history index',
@@ -188,11 +181,6 @@ export const collectionRoles = [
       writtenBy: 'the coordinator under that claim',
     },
     role: 'candidate',
-  },
-  {
-    collection: 'migration_ledger',
-    description: 'the migration ledger',
-    role: 'migration',
   },
 ] as const satisfies readonly CollectionDeclaration[];
 

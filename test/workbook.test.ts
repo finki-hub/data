@@ -3,88 +3,52 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-import { countByCode } from '../src/migrations/conversion.js';
-import { readInventory } from '../src/migrations/inventory.js';
-import { preflight } from '../src/migrations/preflight.js';
+import { refusalLines } from '../src/import-report.js';
+import { countByCode } from '../src/migrations/findings.js';
+import { planImport } from '../src/migrations/plan.js';
 import {
-  assertImportedRows,
-  checkpointIds,
-  type IdsOf,
-  previewBlockers,
-  WorkbookAdapterError,
-  workbookCheckpoint,
-} from '../src/migrations/workbook-adapter.js';
-import { collectionSpecs } from '../src/model.js';
-import {
-  type CollectionSpec,
-  derivedField,
   literalField,
-  type MigrationData,
   requiredField,
+  workbookKeys,
+  type WorkbookSpec,
 } from '../src/schema.js';
-import { academicYears } from '../src/specs/public.js';
+import { workbookSpecs } from '../src/specs/workbook.js';
 import { readCourseEnrollmentPatterns } from '../src/workbook-enrollment-reader.js';
 import { readRows } from '../src/workbook-row-reader.js';
-import { WorkbookDataError } from '../src/workbook-values.js';
 import {
-  assertStorable,
-  loadWorkbook,
-  readMigrationData,
-  readWorkbookContent,
-} from '../src/workbook.js';
-import { emptyData } from './directus-test-helpers.js';
-import { withMetacharacterCourse } from './fixtures/synthetic-data.js';
+  readCellText,
+  readFirstLine,
+  WorkbookDataError,
+} from '../src/workbook-values.js';
+import { loadWorkbook, readWorkbookContent } from '../src/workbook.js';
+import {
+  academicYears,
+  courseNames,
+  type SyntheticDataset,
+} from './fixtures/synthetic-data.js';
 import {
   lifecycleDataset,
   reloaded,
   syntheticWorkbook,
-  withSequentialIds,
-  workbookContent,
   workbookData,
 } from './fixtures/synthetic-workbook.js';
-import {
-  fakeItemsDirectus,
-  storeFromDataset,
-} from './migration-test-helpers.js';
+import { contentOf, planOf, withCourse } from './import-plan-helpers.js';
+import { parityDataset } from './relational-export-helpers.js';
 
-const unreadablePattern = /could not be read as an \.xlsx file/u;
+const unreadablePattern = /could not be read as an .xlsx file/u;
 
-// The generated synthetic workbook, saved and reloaded, as the readers see it.
-const parsedWorkbook = async (): Promise<MigrationData> =>
-  readMigrationData(await reloaded(syntheticWorkbook(lifecycleDataset())));
+// The workbook written from the dataset, saved and reloaded, as the import
+// reads it from a file.
+const readBack = async (
+  dataset: SyntheticDataset,
+  years: readonly string[] = academicYears,
+) => readWorkbookContent(await reloaded(syntheticWorkbook(dataset, years)));
 
-// The checkpoint rows an upgrade reads back from a deployment holding the
-// same rows under the ids a fresh table hands out.
-const upgradeCheckpoint = async (data: MigrationData) => {
-  const store = storeFromDataset(withSequentialIds(data), { installed: true });
-  return readInventory(fakeItemsDirectus(store).request, {});
-};
-
-// The ids a fresh table hands the workbook rows: 1, 2, ...
-const sequentialIds =
-  (data: MigrationData): IdsOf =>
-  (collection) =>
-    data[collection].map((_, index) => index + 1);
-
-const staffWith = (values: Record<string, string>): MigrationData => ({
-  ...emptyData,
-  staff: [
-    { active: true, name: 'Synthetic Staff' },
-    { active: true, name: 'Synthetic Staff Two', ...values },
-  ],
-});
-
-const failureOf = (work: () => void): unknown => {
-  try {
-    work();
-    return null;
-  } catch (error) {
-    return error;
-  }
-};
+const specOf = (key: WorkbookSpec['key']) =>
+  workbookSpecs.find((spec) => spec.key === key);
 
 describe('workbook readers', () => {
-  test('imports literal source cells without copying cached formula results', () => {
+  test('imports literal source cells without copying cached formula results, with the row of each', () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Synthetic courses');
     sheet.addRow(['name', 'professors']);
@@ -94,22 +58,23 @@ describe('workbook readers', () => {
     ]);
     sheet.addRow(['Course Two', 'Manual Professor']);
     const spec = {
-      displayTemplate: '{{name}}',
       fields: [
         requiredField('name', 'name'),
         literalField('professors', 'professors_override', 'text'),
-        derivedField('professors', 'text'),
       ],
-      icon: 'school',
       key: 'courses',
-      note: 'Synthetic test collection.',
-      sort: 1,
       source: { kind: 'rows', sheet: 'Synthetic courses' },
-    } as const satisfies CollectionSpec;
+    } as const satisfies WorkbookSpec;
 
     expect(readRows(workbook, spec, spec.source)).toEqual([
-      { name: 'Course One', professors_override: null },
-      { name: 'Course Two', professors_override: 'Manual Professor' },
+      {
+        item: { name: 'Course One', professors_override: null },
+        place: { row: 2, sheet: 'Synthetic courses' },
+      },
+      {
+        item: { name: 'Course Two', professors_override: 'Manual Professor' },
+        place: { row: 3, sheet: 'Synthetic courses' },
+      },
     ]);
   });
 
@@ -131,22 +96,55 @@ describe('workbook readers', () => {
       }),
     ).toEqual([
       {
-        academic_year: '2025/2026',
-        course_name: 'Course One',
-        pattern: 'Course One-2025/2026|Legacy',
+        item: {
+          academic_year: '2025/2026',
+          course_name: 'Course One',
+          pattern: 'Course One-2025/2026|Legacy',
+        },
+        place: { row: 2, sheet: 'Synthetic listeners' },
       },
     ]);
   });
 
+  test('reads plain, rich and linked rich text, and the first line of a program header', () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Synthetic headers');
+    const plain = sheet.getRow(1).getCell(1);
+    const rich = sheet.getRow(1).getCell(2);
+    const linked = sheet.getRow(1).getCell(3);
+    plain.value = 'КН\nтраење: 4 год.';
+    rich.value = { richText: [{ text: 'ПИТ' }, { text: '\nтраење: 3 год.' }] };
+    // ExcelJS types a hyperlink's text as a string; the curriculum sheets
+    // hold rich text there.
+    Reflect.set(linked, 'value', {
+      hyperlink: 'https://curriculum.example/programs/ki',
+      text: { richText: [{ text: 'КИ' }, { text: '\nтраење: 4 год.' }] },
+    });
+
+    // ExcelJS answers the rich text object as the text of such a cell.
+    expect(linked.text).not.toBeTypeOf('string');
+    expect([plain, rich, linked].map(readCellText)).toEqual([
+      'КН\nтраење: 4 год.',
+      'ПИТ\nтраење: 3 год.',
+      'КИ\nтраење: 4 год.',
+    ]);
+    expect([plain, rich, linked].map(readFirstLine)).toEqual([
+      'КН',
+      'ПИТ',
+      'КИ',
+    ]);
+  });
+
   test('models the longest staff profile URL without truncation', () => {
-    const staff = collectionSpecs.find(({ key }) => key === 'staff');
-    const profile = staff?.fields.find(({ target }) => target === 'profile');
+    const profile = specOf('staff')?.fields.find(
+      ({ target }) => target === 'profile',
+    );
 
     expect(profile?.kind).toBe('text');
   });
 
-  test('does not store formula-only preview sheets as duplicate collections', () => {
-    const sourceSheets = collectionSpecs.flatMap(({ source }) =>
+  test('does not read formula-only preview sheets', () => {
+    const sourceSheets = workbookSpecs.flatMap(({ source }) =>
       source.kind === 'rows' ? [source.sheet] : [],
     );
 
@@ -154,29 +152,22 @@ describe('workbook readers', () => {
     expect(sourceSheets).not.toContain('Индекси');
   });
 
-  test('marks spreadsheet outputs as derived Directus fields', () => {
-    const courses = collectionSpecs.find(({ key }) => key === 'courses');
-    const council = collectionSpecs.find(
-      ({ key }) => key === 'student_council',
-    );
+  test('reads the professors override literally, and no calculated column', () => {
+    const courses = specOf('courses');
 
-    expect(
-      courses?.fields.find(({ target }) => target === 'enrollment_2025_2026'),
-    ).toMatchObject({ derived: true });
     expect(
       courses?.fields.find(({ target }) => target === 'professors_override'),
     ).toMatchObject({ sourceMode: 'literal' });
+    expect(courses?.fields.map(({ target }) => target)).not.toContain(
+      'professors',
+    );
     expect(
-      council?.fields.find(({ target }) => target === 'name'),
-    ).toMatchObject({ derived: true });
+      specOf('student_council')?.fields.map(({ target }) => target),
+    ).toEqual(['year', 'index_number', 'position']);
   });
 
   test('uses the current courses-scraper CSV headers as Moodle field keys', () => {
-    const moodleUsers = collectionSpecs.find(
-      ({ key }) => key === 'moodle_users',
-    );
-
-    expect(moodleUsers?.fields.map(({ target }) => target)).toEqual([
+    expect(specOf('moodle_users')?.fields.map(({ target }) => target)).toEqual([
       'ID_old',
       'ID_new',
       'Name',
@@ -220,8 +211,10 @@ describe('workbook readers', () => {
 });
 
 describe('generated synthetic workbook', () => {
-  test('reads back through the unchanged checkpoint readers as the source rows it was written from', async () => {
-    const data = await parsedWorkbook();
+  test('reads back as the source rows it was written from, each with its sheet and row', async () => {
+    const workbook = await reloaded(syntheticWorkbook(lifecycleDataset()));
+    const content = readWorkbookContent(workbook);
+    const { data } = content;
 
     expect(data).toEqual(workbookData(lifecycleDataset()));
     expect(data.students.map(({ source_group }) => source_group)).toEqual([
@@ -229,13 +222,35 @@ describe('generated synthetic workbook', () => {
       'SENTINEL_PRIVATE_SOURCE_GROUP:year-list',
       'SENTINEL_PRIVATE_SOURCE_GROUP:other-list',
     ]);
-    expect(
-      data.courses.every((course) => !Object.hasOwn(course, 'professors')),
-    ).toBeTruthy();
     expect(data.course_enrollment_patterns).toHaveLength(4);
     expect(data.discord_channels.map(({ semester }) => semester)).toEqual([
       1, 6,
     ]);
+    expect(content.places.courses[0]).toEqual({
+      row: 2,
+      sheet: 'Предмети (Export)',
+    });
+    expect(content.places.students.map(({ sheet }) => sheet)).toEqual([
+      'Индекси - Година',
+      'Индекси - Година',
+      'Индекси - Други',
+    ]);
+
+    for (const key of workbookKeys) {
+      expect(content.places[key]).toHaveLength(data[key].length);
+    }
+  });
+
+  test('heads its program columns as the real workbook does: two lines, linked rich text in the 2018 sheet', async () => {
+    const workbook = await reloaded(syntheticWorkbook(lifecycleDataset()));
+    const current = workbook.getWorksheet('Предмети - 2023')?.getRow(1);
+    const legacy = workbook.getWorksheet('Предмети - 2018')?.getRow(1);
+
+    expect(current?.getCell(8).value).toBe('КН\nтраење: 4 год.');
+    expect(legacy?.getCell(8).value).toMatchObject({
+      hyperlink: 'https://curriculum.example/2018/programs/state_kn',
+      text: { richText: [{ text: 'КН' }, { text: '\nтраење: 4 год.' }] },
+    });
   });
 
   test('names an unreadable workbook file instead of failing inside the parser', async () => {
@@ -247,162 +262,146 @@ describe('generated synthetic workbook', () => {
   });
 });
 
-describe('workbook adapter', () => {
-  test('hands the converters exactly the rows an upgrade of the same checkpoint rows reads back', async () => {
-    const data = await parsedWorkbook();
-    const inventory = await upgradeCheckpoint(data);
+describe('the up-front check of a workbook file', () => {
+  test('plans the parity workbook without a blocking case, as it plans the dataset', async () => {
+    const read = planImport(await readBack(parityDataset()));
+    const planned = planOf(parityDataset());
 
-    expect(workbookCheckpoint(data, sequentialIds(data))).toEqual(
-      inventory.checkpoint,
+    expect(read.blockers).toEqual([]);
+    expect(countByCode(read.skipped)).toEqual(countByCode(planned.skipped));
+    expect(countByCode(read.warnings)).toEqual(countByCode(planned.warnings));
+    expect(
+      read.collections.map(({ collection, rows }) => [collection, rows.length]),
+    ).toEqual(
+      planned.collections.map(({ collection, rows }) => [
+        collection,
+        rows.length,
+      ]),
     );
-    expect(checkpointIds(inventory.checkpoint)('staff')).toEqual([
-      1, 2, 3, 4, 5, 6, 7,
+  });
+
+  test('refuses the lifecycle workbook at its two review items and skips what nothing published', async () => {
+    const plan = planImport(await readBack(lifecycleDataset()));
+
+    expect(countByCode(plan.blockers)).toEqual({
+      duplicate_assignment: 1,
+      unlinked_generation_values: 1,
+    });
+    expect(countByCode(plan.skipped)).toEqual({
+      duplicate_pattern: 1,
+      orphan_assignment: 1,
+      orphan_pattern: 1,
+    });
+  });
+});
+
+// The values of a dataset no column can hold, as the import records them
+// and as it lists them on stderr before the lines of the blocking cases.
+const unstorableOf = (dataset: SyntheticDataset) => {
+  const content = contentOf(dataset);
+  const plan = planImport(content);
+  return {
+    lines: refusalLines(plan, content.places),
+    values: plan.unstorable,
+  };
+};
+
+// The parity dataset with the second staff row's values replaced.
+const withStaffValues = (values: Readonly<Record<string, string>>) => {
+  const base = parityDataset();
+  return {
+    ...base,
+    staff: base.staff.map((row, index) =>
+      index === 1 ? { ...row, ...values } : row,
+    ),
+  };
+};
+
+describe('values the relational columns cannot hold', () => {
+  const base = parityDataset();
+
+  test('refuses a string longer than its column before anything is written, by sheet, row and column, never echoing it', () => {
+    const long = 'Course label; '.repeat(20);
+    const { lines, values } = unstorableOf(withStaffValues({ courses: long }));
+
+    expect(lines).toEqual([
+      '- Кадар (Export) row 3: staff.courses holds 280 characters, but the column stores at most 255',
+    ]);
+    expect(JSON.stringify(values)).not.toContain('Course label');
+  });
+
+  test('reports every value no column can hold in one check, several of one row included', () => {
+    const long = 'Course label; '.repeat(20);
+    const { lines } = unstorableOf({
+      ...withStaffValues({ cabinet: long, courses: long }),
+      rooms: base.rooms.map((row, index) =>
+        index === 0 ? { ...row, capacity: 2 ** 31 } : row,
+      ),
+    });
+
+    expect(lines).toEqual([
+      '- Кадар (Export) row 3: staff.cabinet holds 280 characters, but the column stores at most 255',
+      '- Кадар (Export) row 3: staff.courses holds 280 characters, but the column stores at most 255',
+      '- Простории (Export) row 2: rooms.capacity holds an integer outside the range of the column',
     ]);
   });
 
-  test('the synthetic workbook converts without blockers and keeps its peculiarities under review', async () => {
-    const report = preflight(
-      await upgradeCheckpoint(await parsedWorkbook()),
-      null,
-    );
-    const warnings = new Set(report.warnings.map(({ code }) => code));
-
-    expect(report.blockers).toEqual([]);
-
-    for (const code of [
-      'duplicate_assignment',
-      'duplicate_pattern',
-      'orphan_assignment',
-      'orphan_equivalency',
-      'orphan_pattern',
-      'unmatched_council_index',
-      'unreferenced_rows',
-    ]) {
-      expect(warnings).toContain(code);
-    }
-  });
-
-  test('previews offline exactly the blockers the preflight of the written rows finds', async () => {
-    const base = lifecycleDataset();
-    const ambiguous = workbookContent(
-      withMetacharacterCourse({
-        ...base,
-        students: [
-          ...base.students,
-          {
-            id: 99,
-            index_number: 'SYN-0001',
-            name: 'Synthetic Student One (Other List)',
-            source_group: 'synthetic:other-list',
-          },
-        ],
-      }),
-    );
-    const live = preflight(await upgradeCheckpoint(ambiguous.data), null);
-
-    expect(previewBlockers(workbookContent(lifecycleDataset()))).toEqual({});
-    expect(previewBlockers(ambiguous)).toEqual({
-      ambiguous_student_index: 1,
-      invalid_regex: 1,
-    });
-    expect(previewBlockers(ambiguous)).toEqual(countByCode(live.blockers));
-  });
-
-  test('refuses rows read back that are not the workbook rows', async () => {
-    const data = await parsedWorkbook();
-    const { checkpoint } = await upgradeCheckpoint(data);
-
-    expect(() => {
-      assertImportedRows(data, checkpoint);
-    }).not.toThrow();
-
-    const courses = checkpoint.courses.map((row) =>
-      row.id === 2 ? { ...row, name_2023: 'Edited meanwhile' } : row,
-    );
-    const edited = failureOf(() => {
-      assertImportedRows(data, { ...checkpoint, courses });
+  test('checks the relational column a value is written to, not the workbook part it came from', () => {
+    const long = `${courseNames.alpha} `.repeat(30);
+    const { lines, values } = unstorableOf({
+      ...base,
+      curriculum_2018: base.curriculum_2018.map((row, index) =>
+        index === 6 ? { ...row, name: long } : row,
+      ),
     });
 
-    expect(edited).toBeInstanceOf(WorkbookAdapterError);
-    expect(String(edited)).toContain('read back from courses differ');
-    expect(String(edited)).not.toContain('Edited meanwhile');
-
-    const extra = failureOf(() => {
-      assertImportedRows(data, {
-        ...checkpoint,
-        rooms: [...checkpoint.rooms, { id: 99 }],
-      });
-    });
-
-    expect(String(extra)).toContain(
-      'rooms holds 4 row(s), but the workbook supplied 3.',
+    expect(values).toHaveLength(1);
+    expect(lines[0]).toBe(
+      '- Предмети - 2018 row 8: curriculum_entries.name holds 390 characters, but the column stores at most 255',
     );
-  });
-});
 
-describe('storable workbook values', () => {
-  test('refuse a string longer than its column before anything is written, without echoing it', () => {
-    const long = 'Course label; '.repeat(20);
-    const error = failureOf(() => {
-      assertStorable(staffWith({ courses: long }));
-    });
-
-    expect(error).toBeInstanceOf(WorkbookDataError);
-    expect(String(error)).toContain(
-      'staff row 2 of the workbook: courses holds 280 characters, but the column stores at most 255.',
-    );
-    expect(String(error)).not.toContain('Course label');
-  });
-
-  test('count characters, not UTF-16 units, and leave text columns unbounded', () => {
-    expect(() => {
-      assertStorable(staffWith({ courses: '🎓'.repeat(255) }));
-    }).not.toThrow();
-    expect(() => {
-      assertStorable(staffWith({ profile: 'x'.repeat(10_000) }));
-    }).not.toThrow();
-  });
-
-  test('refuse an integer outside the column range', () => {
-    const data: MigrationData = {
-      ...emptyData,
-      rooms: [
-        { capacity: 2 ** 31, location: 'Synthetic Building', name: 'Room' },
-      ],
+    const labelled = {
+      ...base,
+      teaching_assignments: base.teaching_assignments.map((row) =>
+        row.id === 3 ? { ...row, professors: long } : row,
+      ),
     };
 
-    expect(() => {
-      assertStorable(data);
-    }).toThrow(
-      'rooms row 1 of the workbook: capacity holds an integer outside the range',
-    );
+    expect(unstorableOf(labelled).values).toEqual([]);
   });
 
-  test('accept the synthetic workbook', async () => {
-    const data = await parsedWorkbook();
+  test('counts characters, not UTF-16 units, and leaves text columns unbounded', () => {
+    expect(
+      unstorableOf(withStaffValues({ courses: '🎓'.repeat(255) })).values,
+    ).toEqual([]);
+    expect(
+      unstorableOf(withStaffValues({ profile: 'x'.repeat(10_000) })).values,
+    ).toEqual([]);
+  });
 
-    expect(() => {
-      assertStorable(data);
-    }).not.toThrow();
+  test('refuses an integer outside the column range', () => {
+    expect(
+      unstorableOf({
+        ...base,
+        rooms: base.rooms.map((row, index) =>
+          index === 0 ? { ...row, capacity: 2 ** 31 } : row,
+        ),
+      }).lines,
+    ).toEqual([
+      '- Простории (Export) row 2: rooms.capacity holds an integer outside the range of the column',
+    ]);
+  });
+
+  test('accepts the parity workbook', async () => {
+    const content = await readBack(parityDataset());
+
+    expect(planImport(content).unstorable).toEqual([]);
   });
 });
 
-// The lifecycle workbook with a 16th academic year, newer than the rest.
-const laterYear = '2026/2027';
-
-// The academic years a course candidate seeds a rule for, in order.
-const ruleYears = ({
-  rules,
-}: {
-  readonly rules: ReadonlyArray<{ readonly academicYear: string }>;
-}): string[] => rules.map(({ academicYear }) => academicYear);
-const sixteenYears = [laterYear, ...academicYears];
-
 describe('study programs of the curriculum sheets', () => {
-  test('are read from the program headers, named by them and sorted in column order', async () => {
-    const content = readWorkbookContent(
-      await reloaded(syntheticWorkbook(lifecycleDataset())),
-    );
+  test('are read from the first line of the program headers, named by it and sorted in column order', async () => {
+    const content = await readBack(lifecycleDataset());
 
     expect(
       content.studyPrograms
@@ -426,7 +425,7 @@ describe('study programs of the curriculum sheets', () => {
     if (sheet === undefined) {
       throw new Error('The 2023 curriculum sheet is missing');
     }
-    sheet.getRow(1).getCell(13).value = 'Нов смер';
+    sheet.getRow(1).getCell(13).value = 'Нов смер\nтраење: 4 год.';
 
     expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
     expect(() => readWorkbookContent(workbook)).toThrow(
@@ -435,37 +434,30 @@ describe('study programs of the curriculum sheets', () => {
   });
 });
 
+// The lifecycle workbook with a 16th academic year, newer than the rest.
+const laterYear = '2026/2027';
+const sixteenYears = [laterYear, ...academicYears];
+
 describe('academic years of the enrollment sheet', () => {
-  test('are read in sheet order, newest first, and include the fifteen checkpoint years', async () => {
-    const content = readWorkbookContent(
-      await reloaded(syntheticWorkbook(lifecycleDataset())),
-    );
+  test('are read in sheet order, newest first', async () => {
+    const content = await readBack(lifecycleDataset());
 
     expect(content.academicYears).toEqual([...academicYears]);
     expect(content.data).toEqual(workbookData(lifecycleDataset()));
   });
 
-  test('carry a 16th year header into the content', async () => {
-    const content = readWorkbookContent(
-      await reloaded(syntheticWorkbook(lifecycleDataset(), sixteenYears)),
-    );
+  test('are the years of the workbook only: fewer years import fewer, a 16th imports one more', async () => {
+    const fewer = academicYears.filter((year) => year !== '2014/2015');
+    const withoutPatterns = {
+      ...parityDataset(),
+      course_enrollment_patterns: [],
+    };
 
-    expect(content.academicYears).toEqual(sixteenYears);
-    expect(content).toEqual(workbookContent(lifecycleDataset(), sixteenYears));
-  });
+    const shorter = await readBack(withoutPatterns, fewer);
+    const longer = await readBack(lifecycleDataset(), sixteenYears);
 
-  test('refuse a workbook that drops a year the checkpoint counts', async () => {
-    const workbook = await reloaded(
-      syntheticWorkbook(
-        { ...lifecycleDataset(), course_enrollment_patterns: [] },
-        academicYears.filter((year) => year !== '2014/2015'),
-      ),
-    );
-
-    expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
-    expect(() => readWorkbookContent(workbook)).toThrow(
-      'The enrollment sheet names no column group for the academic year(s) 2014/2015; every year the checkpoint counts must stay.',
-    );
+    expect(shorter.academicYears).toEqual(fewer);
+    expect(longer.academicYears).toEqual(sixteenYears);
   });
 
   test('refuse a later year appended after the oldest one instead of placed first', async () => {
@@ -479,7 +471,7 @@ describe('academic years of the enrollment sheet', () => {
     );
   });
 
-  test('refuse two checkpoint years out of their order', async () => {
+  test('refuse two years out of their order', async () => {
     const swapped = academicYears.map((year) => {
       if (year === '2020/2021') {
         return '2019/2020';
@@ -521,34 +513,34 @@ describe('academic years of the enrollment sheet', () => {
     );
   });
 
-  test('preview a workbook with a 16th year without an unknown-year finding', async () => {
-    const dataset = lifecycleDataset();
+  test('plans a workbook with a 16th year with a rule for every year and no unknown-year finding', async () => {
+    const dataset = withCourse(parityDataset(), courseNames.alpha, {});
     const withLater = {
       ...dataset,
       course_enrollment_patterns: [
         ...dataset.course_enrollment_patterns,
         {
           academic_year: laterYear,
-          course_name: dataset.courses[0]?.['name'] ?? null,
+          course_name: courseNames.alpha,
           id: 90,
           pattern: 'Synthetic later pattern',
         },
       ],
     };
-    const content = workbookContent(withLater, sixteenYears);
-    const report = preflight(
-      await upgradeCheckpoint(content.data),
-      null,
-      content.academicYears,
-    );
+    const plan = planImport(await readBack(withLater, sixteenYears));
+    const years = plan.collections.find(
+      ({ collection }) => collection === 'academic_years',
+    )?.rows;
 
-    expect(previewBlockers(content)).toEqual({});
-    expect(report.academicYears).toEqual(sixteenYears);
-    expect(
-      report.warnings.filter(({ code }) => code === 'unknown_academic_year'),
-    ).toEqual([]);
-    expect(report.candidates.courses.map(ruleYears)).toEqual(
-      report.candidates.courses.map(() => sixteenYears),
+    expect(plan.blockers).toEqual([]);
+    expect(years?.map(({ key }) => key)).toEqual(sixteenYears);
+    expect(countByCode(plan.skipped)).not.toHaveProperty(
+      'unknown_academic_year',
     );
+    expect(
+      plan.collections.find(
+        ({ collection }) => collection === 'course_enrollment_rules',
+      )?.rows,
+    ).toHaveLength(withLater.courses.length * sixteenYears.length);
   });
 });

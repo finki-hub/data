@@ -1,89 +1,32 @@
 import {
-  type CollectionSpec,
-  derivedField,
   field,
   literalField,
   requiredField,
+  type WorkbookSpec,
 } from '../schema.js';
 
-// The academic years the checkpoint courses carry an enrollment_* column
-// for, newest first. They shape those columns only: the one-time import
-// seeds the years the workbook's enrollment sheet names (which must include
-// these), and a populated project converts these and the years it holds.
-export const academicYears = [
-  '2025/2026',
-  '2024/2025',
-  '2023/2024',
-  '2022/2023',
-  '2021/2022',
-  '2020/2021',
-  '2019/2020',
-  '2018/2019',
-  '2017/2018',
-  '2016/2017',
-  '2015/2016',
-  '2014/2015',
-  '2013/2014',
-  '2012/2013',
-  '2011/2012',
-] as const;
-
+// The course sheet also carries each course's 2023 and 2018 name, credits
+// and availability: the import resolves them into curriculum links
+// (src/migrations/course-links.ts), never into columns of the course.
 const courseFields = [
   requiredField('name', 'name'),
   literalField('professors', 'professors_override', 'text'),
-  derivedField('professors', 'text'),
-  ...academicYears.map((year) =>
-    derivedField(`enrollment_${year.replace('/', '_')}`, 'integer'),
-  ),
   field('2023-available', 'available_2023', 'boolean'),
   field('2018-available', 'available_2018', 'boolean'),
-  derivedField('channel', 'boolean'),
   field('tags', 'tags'),
-  derivedField('assistants', 'text'),
   field('2023-name', 'name_2023'),
-  derivedField('code_2023'),
-  derivedField('level_2023', 'integer'),
-  derivedField('semester_2023', 'integer'),
-  derivedField('channel_2023', 'boolean'),
-  derivedField('prerequisite_2023', 'text'),
-  derivedField('state_kn_2023'),
-  derivedField('state_siis_2023'),
-  derivedField('state_pit_2023'),
-  derivedField('state_imb_2023'),
-  derivedField('state_ki_2023'),
-  derivedField('state_ie_2023'),
-  derivedField('state_ssp_2023'),
-  derivedField('state_seis_2023'),
   field('2023-credits', 'credits_2023', 'integer'),
   literalField('2018-name', 'name_2018_override'),
-  derivedField('name_2018'),
-  derivedField('code_2018'),
-  derivedField('level_2018', 'integer'),
-  derivedField('semester_2018', 'integer'),
-  derivedField('channel_2018', 'boolean'),
-  derivedField('prerequisite_2018', 'text'),
   field('2018-credits', 'credits_2018', 'integer'),
-  derivedField('state_kn_2018'),
-  derivedField('state_siis_2018'),
-  derivedField('state_pit_2018'),
-  derivedField('state_imb_2018'),
-  derivedField('state_ki_2018'),
-  derivedField('state_ke_2018'),
-  derivedField('state_seis_2018'),
 ] as const;
 
-export const publicCollectionSpecs = [
+export const publicWorkbookSpecs = [
   {
-    displayTemplate: '{{name}}',
     fields: courseFields,
-    icon: 'school',
     key: 'courses',
-    note: 'Canonical course data published to courses.json in R2.',
-    sort: 1,
     source: { kind: 'rows', sheet: 'Предмети (Export)' },
   },
   {
-    displayTemplate: '{{name}}',
     fields: [
       requiredField('name', 'name'),
       requiredField('active', 'active', 'boolean'),
@@ -95,14 +38,10 @@ export const publicCollectionSpecs = [
       field('courses', 'courses'),
       field('consultations', 'consultations', 'text'),
     ],
-    icon: 'group',
     key: 'staff',
-    note: 'Canonical staff data published to staff.json in R2.',
-    sort: 2,
     source: { kind: 'rows', sheet: 'Кадар (Export)' },
   },
   {
-    displayTemplate: '{{location}} / {{name}}',
     fields: [
       requiredField('name', 'name'),
       field('type', 'type'),
@@ -112,26 +51,19 @@ export const publicCollectionSpecs = [
       field('capacity', 'capacity', 'integer'),
       field('mrbs', 'mrbs'),
     ],
-    icon: 'meeting_room',
     key: 'rooms',
-    note: 'Canonical room data published to rooms.json in R2.',
-    sort: 3,
     source: { kind: 'rows', sheet: 'Простории (Export)' },
   },
   {
-    displayTemplate: '{{index_number}} - {{name}}',
     fields: [
       requiredField('index', 'index_number'),
       requiredField('name', 'name'),
       requiredField('source_group', 'source_group'),
     ],
-    icon: 'badge',
     key: 'students',
-    note: 'Private student directory; only its R2 export is published.',
-    sort: 4,
     source: {
       kind: 'student-pairs',
       sheets: ['Индекси - Година', 'Индекси - Други'],
     },
   },
-] as const satisfies readonly CollectionSpec[];
+] as const satisfies readonly WorkbookSpec[];

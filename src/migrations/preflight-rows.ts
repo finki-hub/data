@@ -1,204 +1,112 @@
-import type { CheckpointRows } from './inventory.js';
+import type { Candidates } from './candidates.js';
 import type { Indexes } from './preflight-indexes.js';
-import type { Candidates, Finding } from './report.js';
+import type { WorkbookRows } from './workbook-rows.js';
 
-import {
-  finding,
-  type LinkCandidate,
-  listIds,
-  nonEmpty,
-  quote,
-  resolveLabel,
-} from './labels.js';
+import { type Finding, finding } from './findings.js';
+import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
 import { duplicateRows } from './preflight-duplicates.js';
-import { linkedRows } from './preflight-links.js';
+import { courseLink, linkedRows } from './preflight-links.js';
 
 export type RowCandidates = Omit<Candidates, 'courses'>;
 
-type Collected<T> = {
-  readonly candidates: readonly T[];
-  readonly findings: readonly Finding[];
-};
-
-const linePattern = /\r?\n/u;
-
-const collect = <T>(
-  results: ReadonlyArray<{
-    readonly candidate: T;
-    readonly findings: readonly Finding[];
-  }>,
-): Collected<T> => ({
-  candidates: results.map(({ candidate }) => candidate),
-  findings: results.flatMap(({ findings }) => findings),
-});
-
-const patterns = (
-  checkpoint: CheckpointRows,
+// A pattern row without a course, year or pattern cannot become a rule; a
+// row naming no course, or else a year the workbook does not list, is
+// skipped (a row of a known course and year is decided with its course,
+// preflight-course-values.ts).
+const patternFindings = (
+  rows: WorkbookRows,
   indexes: Indexes,
   knownYears: ReadonlySet<string>,
-): Collected<Candidates['patterns'][number]> =>
-  collect(
-    checkpoint.course_enrollment_patterns.map((row) => {
-      const year = nonEmpty(row.academic_year);
-      const findings: Finding[] = [];
-      if (
-        nonEmpty(row.course_name) === null ||
-        year === null ||
-        nonEmpty(row.pattern) === null
-      ) {
-        findings.push(
-          finding('invalid_source_row', {
-            collection: 'course_enrollment_patterns',
-            ids: [row.id],
-            label: year,
-            message: `pattern row ${String(row.id)} lacks a course name, an academic year or a pattern; the current derivation refuses such a row.`,
-          }),
-        );
-      }
-      const knownYear = year !== null && knownYears.has(year);
-      if (year !== null && !knownYear) {
-        findings.push(
-          finding('unknown_academic_year', {
-            collection: 'course_enrollment_patterns',
-            ids: [row.id],
-            label: year,
-            message: `pattern row ${String(row.id)} names academic year ${quote(year)}, which the conversion does not seed; it is retained but seeds no rule.`,
-          }),
-        );
-      }
-      const course = linkedRows.course(
-        {
-          collection: 'course_enrollment_patterns',
-          id: row.id,
-          label: nonEmpty(row.course_name),
-        },
-        indexes,
-      );
-      return {
-        candidate: {
-          academicYear: year,
-          course: course.link,
-          id: row.id,
-          knownYear,
-        },
-        findings: [...findings, ...course.findings],
-      };
-    }),
-  );
+): readonly Finding[] =>
+  rows.course_enrollment_patterns.flatMap((row) => {
+    const collection = 'course_enrollment_patterns';
+    const year = nonEmpty(row.academic_year);
+    const invalid =
+      nonEmpty(row.course_name) === null ||
+      year === null ||
+      nonEmpty(row.pattern) === null
+        ? [finding('invalid_source_row', collection, [row.id])]
+        : [];
+    const course = courseLink(
+      { collection, id: row.id, label: nonEmpty(row.course_name) },
+      { indexes, orphan: 'orphan_pattern' },
+    );
+    const unknownYear =
+      course.link.resolution === 'unique' &&
+      year !== null &&
+      !knownYears.has(year)
+        ? [finding('unknown_academic_year', collection, [row.id])]
+        : [];
+    return [...invalid, ...course.findings, ...unknownYear];
+  });
 
+// A council row without an index has no label; an index several students
+// carry names none of them; an index no student carries leaves the member
+// unlinked, labelled by the index.
 const councilFinding = (
   id: number,
   indexNumber: null | string,
   student: LinkCandidate,
 ): Finding | null => {
-  const base = { collection: 'student_council', ids: [id], label: indexNumber };
   if (indexNumber === null) {
-    return finding('invalid_source_row', {
-      ...base,
-      message: `council row ${String(id)} has no index number; the current derivation refuses such a row.`,
-    });
+    return finding('invalid_source_row', 'student_council', [id]);
   }
   if (student.resolution === 'ambiguous') {
-    return finding('ambiguous_student_index', {
-      ...base,
-      message: `index ${quote(indexNumber)} matches student rows ${listIds(student.matches)}; the current derivation copies the name of the first ascending id ${String(student.precedent)}. The student link stays empty and every student row is retained until the identity is resolved explicitly.`,
-    });
+    return finding('ambiguous_student_index', 'student_council', [id]);
   }
-  if (student.resolution === 'missing') {
-    return finding('unmatched_council_index', {
-      ...base,
-      message: `index ${quote(indexNumber)} matches no student row; the council row keeps its copied name and index for review.`,
-    });
-  }
-  return null;
+  return student.resolution === 'missing'
+    ? finding('unmatched_council_index', 'student_council', [id])
+    : null;
 };
 
 const council = (
-  checkpoint: CheckpointRows,
+  rows: WorkbookRows,
   indexes: Indexes,
-): Collected<Candidates['council'][number]> =>
-  collect(
-    checkpoint.student_council.map((row) => {
-      const indexNumber = nonEmpty(row.index_number);
-      const student = resolveLabel(indexNumber, indexes.students);
-      const item = councilFinding(row.id, indexNumber, student);
-      return {
-        candidate: { id: row.id, indexNumber, student },
-        findings: item === null ? [] : [item],
-      };
-    }),
-  );
-
-const discordFinding = (
-  id: number,
-  channel: null | string,
-  link: LinkCandidate,
-): Finding | null => {
-  const base = { collection: 'discord_channels', ids: [id], label: link.label };
-  if (link.resolution === 'ambiguous') {
-    return finding('ambiguous_discord_course', {
-      ...base,
-      message: `channel ${quote(channel)} lists ${quote(link.label)}, which names courses ${listIds(link.matches)}.`,
-    });
-  }
-  if (link.resolution === 'missing') {
-    return finding('orphan_discord_course', {
-      ...base,
-      message: `channel ${quote(channel)} lists ${quote(link.label)}, which names no course; the text is retained.`,
-    });
-  }
-  return null;
+): {
+  readonly candidates: Candidates['council'];
+  readonly findings: readonly Finding[];
+} => {
+  const results = rows.student_council.map((row) => {
+    const indexNumber = nonEmpty(row.index_number);
+    const student = resolveLabel(indexNumber, indexes.students);
+    const item = councilFinding(row.id, indexNumber, student);
+    return {
+      candidate: { id: row.id, student },
+      findings: item === null ? [] : [item],
+    };
+  });
+  return {
+    candidates: results.map(({ candidate }) => candidate),
+    findings: results.flatMap(({ findings }) => findings),
+  };
 };
 
-const discord = (
-  checkpoint: CheckpointRows,
-  indexes: Indexes,
-): Collected<Candidates['discord'][number]> =>
-  collect(
-    checkpoint.discord_channels.map((row) => {
-      const courses = (row.course_names ?? '')
-        .split(linePattern)
-        .map((label) => label.trim())
-        .filter((label) => label !== '')
-        .map((label) => resolveLabel(label, indexes.courses));
-      return {
-        candidate: { channel: row.channel, courses, id: row.id },
-        findings: courses.flatMap((link) => {
-          const item = discordFinding(row.id, row.channel, link);
-          return item === null ? [] : [item];
-        }),
-      };
-    }),
-  );
-
-// Row-level candidates and findings for every checkpoint row that links to
-// another by label, plus the duplicate rows the model must not guess about.
+// Row-level candidates and findings for every workbook row that links to
+// another by label, plus the duplicate rows the model must not guess
+// about.
 export const rowCandidates = (
-  checkpoint: CheckpointRows,
+  rows: WorkbookRows,
   indexes: Indexes,
   academicYears: readonly string[],
 ): {
   readonly candidates: RowCandidates;
   readonly findings: readonly Finding[];
 } => {
-  const parts = {
-    assignments: linkedRows.assignments(checkpoint, indexes),
-    council: council(checkpoint, indexes),
-    discord: discord(checkpoint, indexes),
-    equivalencies: linkedRows.equivalencies(checkpoint, indexes),
-    patterns: patterns(checkpoint, indexes, new Set(academicYears)),
-  };
+  const assignments = linkedRows.assignments(rows, indexes);
+  const members = council(rows, indexes);
+  const equivalencies = linkedRows.equivalencies(rows, indexes);
   return {
     candidates: {
-      assignments: parts.assignments.candidates,
-      council: parts.council.candidates,
-      discord: parts.discord.candidates,
-      equivalencies: parts.equivalencies.candidates,
-      patterns: parts.patterns.candidates,
+      assignments: assignments.candidates,
+      council: members.candidates,
+      equivalencies: equivalencies.candidates,
     },
     findings: [
-      ...Object.values(parts).flatMap(({ findings }) => findings),
-      ...duplicateRows(checkpoint),
+      ...assignments.findings,
+      ...members.findings,
+      ...equivalencies.findings,
+      ...patternFindings(rows, indexes, new Set(academicYears)),
+      ...duplicateRows(rows),
     ],
   };
 };

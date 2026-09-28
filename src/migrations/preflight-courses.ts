@@ -1,34 +1,21 @@
-import type { CourseRow } from './inventory-schemas.js';
-import type { CheckpointRows } from './inventory.js';
+import type { CourseCandidate } from './candidates.js';
 import type { Indexes } from './preflight-indexes.js';
-import type { CourseCandidate, Finding } from './report.js';
+import type { CourseRow, WorkbookRows } from './workbook-rows.js';
 
-import { finding, metacharacterPattern, nonEmpty, quote } from './labels.js';
+import { type Finding, finding } from './findings.js';
+import { metacharacterPattern, nonEmpty } from './labels.js';
 import { currentOf, legacyOf } from './preflight-course-links.js';
-import { assignmentOf, rulesOf } from './preflight-course-values.js';
+import { duplicateAssignment, rulesOf } from './preflight-course-values.js';
 
+// A course without a name violates the required courses.name; a name with
+// metacharacters matches its default pattern differently than it reads.
 const nameFindings = (course: CourseRow, name: string): readonly Finding[] => {
   if (name === '') {
-    return [
-      finding('invalid_source_row', {
-        collection: 'courses',
-        ids: [course.id],
-        label: null,
-        message: `course ${String(course.id)} has no name; the current derivation refuses such a row.`,
-      }),
-    ];
+    return [finding('invalid_source_row', 'courses', [course.id])];
   }
-  if (metacharacterPattern.test(name)) {
-    return [
-      finding('label_metacharacters', {
-        collection: 'courses',
-        ids: [course.id],
-        label: name,
-        message: `${quote(name)} contains regular-expression or LIKE metacharacters; its default enrollment pattern and any LIKE lookup read differently than the label. Review before cutover.`,
-      }),
-    ];
-  }
-  return [];
+  return metacharacterPattern.test(name)
+    ? [finding('label_metacharacters', 'courses', [course.id])]
+    : [];
 };
 
 type CourseContext = {
@@ -46,42 +33,35 @@ const candidateOf = (
   const name = nonEmpty(course.name) ?? '';
   const current = currentOf(course, indexes);
   const legacy = legacyOf(course, name, indexes);
-  const assignment = assignmentOf(name, indexes);
   const rules = rulesOf(course, { academicYears, indexes, name });
   return {
     candidate: {
-      assignment: assignment.value,
       current: current.value,
       id: course.id,
       legacy: legacy.value,
       name,
-      professorsOverride: nonEmpty(course.professors_override),
       rules: rules.value,
-      staff: assignment.staff,
     },
     findings: [
       ...nameFindings(course, name),
       ...current.findings,
       ...legacy.findings,
-      ...assignment.findings,
+      ...duplicateAssignment(name, indexes),
       ...rules.findings,
     ],
   };
 };
 
-// One candidate decision set per course: the current and legacy entry the
-// checkpoint derivation would pick, the assignment and staff text, and the
+// One candidate decision set per course: its 2023 and 2018 entry and its
 // enrollment rule per academic year, each with its precedence recorded.
 export const courseCandidates = (
-  checkpoint: CheckpointRows,
+  rows: WorkbookRows,
   context: CourseContext,
 ): {
   readonly candidates: readonly CourseCandidate[];
   readonly findings: readonly Finding[];
 } => {
-  const results = checkpoint.courses.map((course) =>
-    candidateOf(course, context),
-  );
+  const results = rows.courses.map((course) => candidateOf(course, context));
   return {
     candidates: results.map(({ candidate }) => candidate),
     findings: results.flatMap(({ findings }) => findings),

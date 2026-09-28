@@ -1,6 +1,6 @@
 import type ExcelJS from 'exceljs';
 
-import type { CollectionSource, MigrationItem } from './schema.js';
+import type { CollectionSource, PlacedItem } from './schema.js';
 
 import {
   getWorksheet,
@@ -17,8 +17,8 @@ type StudentColumnContext = {
 const readStudentColumn = (
   context: StudentColumnContext,
   columnNumber: number,
-): readonly MigrationItem[] => {
-  const items: MigrationItem[] = [];
+): readonly PlacedItem[] => {
+  const items: PlacedItem[] = [];
 
   for (
     let rowNumber = 3;
@@ -39,9 +39,12 @@ const readStudentColumn = (
       }
 
       items.push({
-        index_number: indexNumber,
-        name,
-        source_group: context.sourceGroup,
+        item: {
+          index_number: indexNumber,
+          name,
+          source_group: context.sourceGroup,
+        },
+        place: { row: rowNumber, sheet: context.sheet },
       });
     }
   }
@@ -52,9 +55,9 @@ const readStudentColumn = (
 const readStudentSheet = (
   workbook: ExcelJS.Workbook,
   sheet: string,
-): readonly MigrationItem[] => {
+): readonly PlacedItem[] => {
   const worksheet = getWorksheet(workbook, sheet);
-  const items: MigrationItem[] = [];
+  const items: PlacedItem[] = [];
 
   for (
     let columnNumber = 1;
@@ -81,7 +84,7 @@ const readStudentSheet = (
 export const readStudentPairs = (
   workbook: ExcelJS.Workbook,
   source: Extract<CollectionSource, { readonly kind: 'student-pairs' }>,
-): readonly MigrationItem[] =>
+): readonly PlacedItem[] =>
   source.sheets.flatMap((sheet) => readStudentSheet(workbook, sheet));
 
 type DiscordColumnContext = {
@@ -93,8 +96,8 @@ type DiscordColumnContext = {
 const readDiscordColumn = (
   context: DiscordColumnContext,
   channelColumn: number,
-): readonly MigrationItem[] => {
-  const items: MigrationItem[] = [];
+): readonly PlacedItem[] => {
+  const items: PlacedItem[] = [];
   const semester = (channelColumn + 1) / 2;
 
   for (let rowNumber = 2; rowNumber <= context.endRow; rowNumber += 1) {
@@ -111,7 +114,10 @@ const readDiscordColumn = (
         );
       }
 
-      items.push({ channel, course_names: courseNames, semester });
+      items.push({
+        item: { channel, course_names: courseNames, semester },
+        place: { row: rowNumber, sheet: context.sheet },
+      });
     }
   }
 
@@ -121,14 +127,14 @@ const readDiscordColumn = (
 export const readDiscordPairs = (
   workbook: ExcelJS.Workbook,
   source: Extract<CollectionSource, { readonly kind: 'discord-pairs' }>,
-): readonly MigrationItem[] => {
+): readonly PlacedItem[] => {
   const worksheet = getWorksheet(workbook, source.sheet);
   const context: DiscordColumnContext = {
     endRow: source.endRow,
     sheet: source.sheet,
     worksheet,
   };
-  const items: MigrationItem[] = [];
+  const items: PlacedItem[] = [];
 
   for (
     let channelColumn = 1;

@@ -118,7 +118,6 @@ const extraCheck: ReadinessEntry = {
     bookmark: 'Synthetic entries without a code',
     fields: ['generation', 'name', 'code'],
     filter: { code: { _null: true } },
-    lists: 'counted',
     sort: ['generation', 'name'],
   },
   severity: 'warning',
@@ -191,9 +190,13 @@ const relatedCollection = (
       relation.collection === collection && relation.field === field,
   )?.related ?? aliasTarget(collection, field);
 
-// Whether a tabular preset path such as `student.name` resolves in the model.
+// Whether a tabular preset path such as `student.name` resolves in the
+// model; `id`, the primary key of every collection, always does.
 export const resolves = (collection: string, path: string): boolean => {
   const [head, ...rest] = path.replace(descendingPrefix, '').split('.');
+  if (head === 'id' && rest.length === 0) {
+    return true;
+  }
   if (head === undefined || !modelFieldNames(collection).includes(head)) {
     return false;
   }

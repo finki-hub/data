@@ -7,7 +7,7 @@ import {
   roleMissing,
   unresolvedRow,
 } from './assignment-checks.js';
-import { namingMembers, unlinkedMember } from './curriculum-checks.js';
+import { unlinkedMember } from './curriculum-checks.js';
 import { awaitingMapping } from './enrollment-checks.js';
 
 // The Needs review views of the readiness-check registry: one shared
@@ -37,26 +37,23 @@ export const equivalencyWithoutCourse: Filter = { course: { _null: true } };
 export const reviewViews = {
   assignmentLabelOnly: {
     bookmark: 'Assignments shown by their label only',
-    fields: ['course', 'role', 'display_override', 'source_id'],
+    fields: ['course', 'role', 'display_override'],
     filter: labelOnlyRow,
     icon: 'badge',
-    lists: 'counted',
     sort: ['course', 'role', 'sort'],
   },
   assignmentRoleMissing: {
     bookmark: 'Assignments without a known role',
-    fields: ['course', 'role', 'staff', 'display_override', 'source_id'],
+    fields: ['course', 'role', 'staff', 'display_override'],
     filter: roleMissing,
     icon: 'badge',
-    lists: 'counted',
     sort: ['course', 'sort'],
   },
   assignmentUnresolved: {
     bookmark: 'Assignments without staff or label',
-    fields: ['course', 'role', 'source_id'],
+    fields: ['course', 'role'],
     filter: unresolvedRow,
     icon: 'badge',
-    lists: 'counted',
     sort: ['course', 'role', 'sort'],
   },
   councilWithoutStudent: {
@@ -64,25 +61,7 @@ export const reviewViews = {
     fields: ['year', 'index_number', 'position', 'student'],
     filter: councilWithoutStudent,
     icon: 'how_to_reg',
-    lists: 'counted',
     sort: ['-year', 'index_number'],
-  },
-  // The equivalency members the link check reads: beside each, the
-  // generations of the curriculum links of the course it names, so a
-  // missing link of the member's generation shows at a glance.
-  curriculumLinksToCheck: {
-    bookmark: 'Curriculum links to check',
-    fields: [
-      'generation',
-      'label',
-      'entry',
-      'equivalency.course',
-      'equivalency.course.curricula.generation',
-    ],
-    filter: namingMembers,
-    icon: 'link',
-    lists: 'candidates',
-    sort: ['equivalency'],
   },
   // The member generations and labels of each equivalency, one list per
   // column (a relational path through the members).
@@ -91,8 +70,7 @@ export const reviewViews = {
     fields: ['members.generation', 'members.label', 'course'],
     filter: equivalencyWithoutCourse,
     icon: 'compare_arrows',
-    lists: 'counted',
-    sort: ['course_2023'],
+    sort: ['id'],
   },
   mappedAwaitingReview: {
     bookmark: 'Mapped entries awaiting review',
@@ -104,7 +82,6 @@ export const reviewViews = {
     ],
     filter: mappedUnreviewed,
     icon: 'alt_route',
-    lists: 'counted',
     sort: ['label'],
   },
   needsMapping: {
@@ -112,7 +89,6 @@ export const reviewViews = {
     fields: ['label', 'review_reason'],
     filter: unmapped,
     icon: 'alt_route',
-    lists: 'counted',
     sort: ['label'],
   },
   unlinkedMembers: {
@@ -120,7 +96,6 @@ export const reviewViews = {
     fields: ['generation', 'label', 'equivalency', 'equivalency.course'],
     filter: unlinkedMember,
     icon: 'join_inner',
-    lists: 'counted',
     sort: ['generation', 'equivalency'],
   },
 } as const satisfies Readonly<Record<string, ReviewView>>;

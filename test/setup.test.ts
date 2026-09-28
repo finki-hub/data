@@ -267,9 +267,10 @@ describe('setup command', () => {
     DIRECTUS_TOKEN: 'synthetic-setup-token',
     DIRECTUS_URL: 'http://127.0.0.1:18055',
   };
-  const counts = { adopted: 0, created: 0, refused: 1, skipped: 0 };
+  const collections = { created: 0, refused: 1, skipped: 0 };
+  const counts = { ...collections, adopted: 0 };
   const refusedSummary = {
-    collections: counts,
+    collections,
     fields: { ...counts, aligned: 0 },
     relations: counts,
   };
