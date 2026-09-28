@@ -12,5 +12,3 @@ export const exportActions = [
   'stage',
   'outcomes',
 ] as const;
-
-export type ExportAction = (typeof exportActions)[number];

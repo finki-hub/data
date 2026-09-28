@@ -18,7 +18,7 @@ import { type SnapshotError, snapshotError } from './errors.js';
 import { SnapshotFingerprint } from './fingerprint.js';
 
 // The private pre-replacement backup: the active Moodle users as a CSV of
-// exactly the 38 snapshot fields in id order, written with the reader's
+// exactly the snapshot fields in id order, written with the reader's
 // lossless convention (NULL as an empty unquoted cell, every text quoted,
 // so an empty text stays empty text). It is therefore a valid snapshot:
 // restoring it is an explicit run of the same import and promotion, and

@@ -45,10 +45,7 @@ export const search = async (target, token, criteria) =>
 export const anonymousSearch = (target, body) =>
   request(target, `${endpoint}/search`, json(body));
 
-export const setupSearchFixture = async (
-  target,
-  withRestrictedAccess = false,
-) => {
+const setupSearchFixture = async (target, withRestrictedAccess = false) => {
   let fixture = {
     access: undefined,
     collection: false,

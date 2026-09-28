@@ -17,8 +17,7 @@ import { get, post } from './history-index-helpers.mjs';
 const batch = 1_000;
 const pad = (value) => String(value).padStart(4, '0');
 
-export const measuredCourse = (index) =>
-  `Synthetic Measured Course ${pad(index)}`;
+const measuredCourse = (index) => `Synthetic Measured Course ${pad(index)}`;
 
 // POSTs rows in batches and answers the created ids in order.
 const createAll = async (target, collection, rows) => {

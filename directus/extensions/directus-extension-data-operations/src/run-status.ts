@@ -21,7 +21,7 @@ import {
 const statusAnswer = envelope(statusViewSchema);
 
 // Why Run waits when the status read failed, or null when it did not.
-export const statusProblemText = (refusal: null | Refusal): null | string => {
+const statusProblemText = (refusal: null | Refusal): null | string => {
   if (refusal === null) {
     return null;
   }

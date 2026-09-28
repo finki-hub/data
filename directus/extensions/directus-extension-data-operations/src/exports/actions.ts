@@ -40,7 +40,7 @@ const adminAccountability = z.object({ admin: z.literal(true) });
 
 // The operation serves administrators only, whatever the Flow around it
 // checks: it reads with system rights.
-export const requireAdmin = (accountability: unknown): void => {
+const requireAdmin = (accountability: unknown): void => {
   if (!adminAccountability.safeParse(accountability).success) {
     throw exportError(
       'FORBIDDEN',
@@ -49,7 +49,7 @@ export const requireAdmin = (accountability: unknown): void => {
   }
 };
 
-export const parseExportOptions = (
+const parseExportOptions = (
   options: unknown,
 ): z.infer<typeof optionsSchema> => {
   const parsed = optionsSchema.safeParse(options);
@@ -62,7 +62,7 @@ export const parseExportOptions = (
   return parsed.data;
 };
 
-export type ExportCaller = {
+type ExportCaller = {
   readonly accountability: unknown;
   readonly definitions?: readonly ExportDefinition[];
   // Builds the reader and the status sources, only once the caller and

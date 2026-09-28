@@ -1,29 +1,26 @@
 import { z } from 'zod';
 
-export const coordinationErrorCodes = [
-  'CLAIM_MISMATCH',
-  'COMPLETION_RACED',
-  'DOMAIN_MISMATCH',
-  'DUPLICATE_ROWS',
-  'FINGERPRINT_CHANGED',
-  'INVALID_OPTIONS',
-  'OUTCOMES_INCOMPLETE',
-  'OWNER_MISMATCH',
-  'PAGE_INCOMPLETE',
-  'PAGE_OVER_BUDGET',
-  'PAGE_UNPLANNED',
-  'PAGES_MISSING',
-  'SOURCE_CHANGED',
-  'UNKNOWN_FILE',
-  'UNKNOWN_RULE_MODE',
-  'WRITE_GUARDED',
-] as const;
-
 export type CoordinationError = DirectusError;
 
-export type CoordinationErrorCode = (typeof coordinationErrorCodes)[number];
+type CoordinationErrorCode =
+  | 'CLAIM_MISMATCH'
+  | 'COMPLETION_RACED'
+  | 'DOMAIN_MISMATCH'
+  | 'DUPLICATE_ROWS'
+  | 'FINGERPRINT_CHANGED'
+  | 'INVALID_OPTIONS'
+  | 'OUTCOMES_INCOMPLETE'
+  | 'OWNER_MISMATCH'
+  | 'PAGE_INCOMPLETE'
+  | 'PAGE_OVER_BUDGET'
+  | 'PAGE_UNPLANNED'
+  | 'PAGES_MISSING'
+  | 'SOURCE_CHANGED'
+  | 'UNKNOWN_FILE'
+  | 'UNKNOWN_RULE_MODE'
+  | 'WRITE_GUARDED';
 
-export type CoordinationErrorOptions = ErrorOptions & {
+type CoordinationErrorOptions = ErrorOptions & {
   readonly details?: Readonly<Record<string, unknown>>;
   readonly reason: CoordinationErrorCode;
   readonly status?: number;

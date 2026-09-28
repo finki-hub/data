@@ -44,7 +44,7 @@ export const mappedEnrollmentFlowIds = {
   pair: enrollmentId('01'),
 } as const;
 
-export const legacyFamily = flowFamilyCodes.legacy;
+const legacyFamily = flowFamilyCodes.legacy;
 
 // A deterministic UUID of the legacy enrollment Flow family.
 export const legacyId = familyIds(legacyFamily);

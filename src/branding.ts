@@ -1,17 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 
-import settings from '../directus/branding/settings.json' with { type: 'json' };
+import type { DirectusRequest } from './directus-request.js';
 
-type Request = (
-  pathname: string,
-  init?: Parameters<typeof fetch>[1],
-) => Promise<unknown>;
+import settings from '../directus/branding/settings.json' with { type: 'json' };
 
 const fileSchema = z.object({ id: z.uuid() });
 
 const uploadAsset = async (
-  request: Request,
+  request: DirectusRequest,
   asset: {
     readonly filename: 'login-background.svg' | 'logo.png';
     readonly type: string;
@@ -21,7 +18,6 @@ const uploadAsset = async (
   const [existing] = z
     .array(fileSchema)
     .parse(await request(`/files?${query}`));
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- Only fixed repository-owned asset filenames are accepted.
   const bytes = await readFile(
     new URL(`../directus/branding/${asset.filename}`, import.meta.url),
   );
@@ -41,7 +37,9 @@ const uploadAsset = async (
   return fileSchema.parse(result).id;
 };
 
-export const applyBranding = async (request: Request): Promise<void> => {
+export const applyBranding = async (
+  request: DirectusRequest,
+): Promise<void> => {
   const logo = await uploadAsset(request, {
     filename: 'logo.png',
     type: 'image/png',

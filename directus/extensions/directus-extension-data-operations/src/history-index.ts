@@ -21,7 +21,7 @@ import {
 } from './history-contract.js';
 
 // Counts only: the writer never returns a label, a user or an entry.
-export type IndexPageResult = {
+type IndexPageResult = {
   readonly entriesCreated: number;
   readonly membershipsRemoved: number;
   readonly membershipsWritten: number;

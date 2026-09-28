@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { dispatcherFlowId } from '../../src/flows/count-enrollments.js';
-import { historyId } from '../../src/flows/flow-template.js';
 import { historyFlowIds } from '../../src/flows/history-page-flows.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
 import {
@@ -49,7 +48,6 @@ import {
 
 const byText = (left, right) => collator.compare(left, right);
 const byKey = (left, right) => collator.compare(left.key, right.key);
-const retiredRunnerId = historyId('03');
 const nothingToResume = () => Promise.resolve();
 
 // Setup installs every template once, the schedule last, each live exactly
@@ -101,11 +99,6 @@ const installsTemplates = async ({ directus, state, t, target }) => {
         .toSorted(byKey),
     );
   }
-  assert.deepEqual(
-    await get(target, `/flows?fields=id&filter[id][_eq]=${retiredRunnerId}`),
-    [],
-    'the retired Task 9 runner is not installed',
-  );
   const settled = await settle(target);
   assert.deepEqual(settled.report.pending, ['publication']);
   state.fingerprint = settled.report.fingerprints.current.calculation;

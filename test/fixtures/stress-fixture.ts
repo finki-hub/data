@@ -15,7 +15,7 @@ import { findModelCollection } from '../../src/data-model/collections.js';
 import {
   type ProgramSeed,
   workbookGenerations,
-} from '../../src/migrations/generations.js';
+} from '../../src/import/generations.js';
 import {
   declaredSnapshot,
   type SnapshotDeclaration,
@@ -34,7 +34,7 @@ import { syntheticPrograms } from './synthetic-workbook.js';
 // edit here; test/stress-fixture.test.ts proves it with test-only
 // declarations.
 
-export type GenerationSeed = {
+type GenerationSeed = {
   readonly code: string;
   readonly has_curriculum: boolean;
   readonly label: string;
@@ -42,7 +42,7 @@ export type GenerationSeed = {
   readonly sort: number;
 };
 
-export type Declarations = {
+type Declarations = {
   readonly definitions: readonly ExportDefinition[];
   readonly generations: readonly GenerationSeed[];
   readonly programs: readonly ProgramSeed[];
@@ -66,7 +66,7 @@ export const declarations: Declarations = {
   years: academicYears,
 };
 
-export type YearRow = {
+type YearRow = {
   readonly label: string;
   readonly published: boolean;
   readonly sort: number;
@@ -117,22 +117,22 @@ export const generationSeeds = (seeds: Declarations) => ({
 });
 
 // The rows the fixture created, as the curriculum plan reads them.
-export type CreatedCourse = {
+type CreatedCourse = {
   readonly id: number;
   readonly name: string;
 };
-export type CreatedGeneration = {
+type CreatedGeneration = {
   readonly code: string;
   readonly has_curriculum: boolean;
   readonly id: number;
 };
-export type CreatedProgram = {
+type CreatedProgram = {
   readonly generation: number;
   readonly id: number;
   readonly sort: number;
 };
 
-export type PlannedEntry = {
+type PlannedEntry = {
   readonly course: number;
   readonly entry: Readonly<Record<string, Scalar>>;
   readonly link: Readonly<Record<string, Scalar>>;

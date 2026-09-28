@@ -40,8 +40,8 @@ Three supported paths set a project up and bring data into it:
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
-A project that already holds data is never converted in place: the import
-fills only an empty project.
+The import writes only into an empty project and refuses one that already
+holds data.
 
 None of them runs by itself: a `docker compose up`, container restart or
 recreation installs and changes nothing, because the schema, presets and
@@ -1469,7 +1469,7 @@ definition.
 | Rule modes | `rule-modes.ts` | `mapped_entries`, `legacy_regex` |
 | Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, Mapped enrollments, Legacy enrollments, Publication, Publish, Enrollment rules, Automatic processing |
 | Choices of an enumerated field | the field, in `src/data-model/*-collections.ts` | the review states of a history entry |
-| Scraper columns | `snapshot/contract.ts` (`snapshotFields`) | the 38 headers of `profiles.csv` |
+| Scraper columns | `snapshot/contract.ts` (`snapshotFieldTable`) | the 38 headers of `profiles.csv` |
 
 Code paths in the table that do not start with `src/` are relative to
 `directus/extensions/directus-extension-data-operations/src/`. A code
@@ -1635,8 +1635,8 @@ editor** policy and, for a derived or candidate collection, its write
 guard. Then:
 
 1. `npm run generate:invalidation` rewrites the reviewed snapshot
-   `src/migrations/source-invalidation.sql` (a golden test fails while it
-   differs from the generated migration).
+   `source-invalidation.sql` beside `source-invalidation-sql.ts` (a golden
+   test fails while it differs from the generated migration).
 2. `npm run build:operations`, restart Directus, `npm run setup`.
 
 A source collection is never public by being added: a published file reads
@@ -1659,9 +1659,9 @@ so nothing seeds or counts an undeclared mode:
 
 - the family's own Flow modules under `src/flows/`, which read their mode
   through `legacyRuleMode` or `mappedRuleMode` in `src/flows/shared.ts`;
-- for `legacy_regex`, the one-time import, which seeds every converted
-  rule with it (`seededMode` in `src/migrations/rules.ts`), so retiring it
-  also decides what the import seeds;
+- for `legacy_regex`, the one-time import, which seeds every rule it
+  reads from the workbook with it (`seededMode` in `src/import/rules.ts`),
+  so retiring it also decides what the import seeds;
 - for `mapped_entries`, **Data / Add enrollment rules**, which creates
   rules of that mode, and the `rules` plan source (`rulesPlanMode` in
   `rule-modes.ts`).
@@ -1695,14 +1695,20 @@ loop, once.
 
 ### Scraper columns
 
-The scraper contract is `snapshotFields` in `snapshot/contract.ts`,
-deliberately exact: the 38 headers of `profiles.csv`, with no internal
-field such as `id`. The staging, the CSV validation, the backup and the
-fingerprint read it. Today the `moodle_users` model fields are still
-declared beside it (`src/specs/private.ts`), and a test fails while the two
-differ; a later cleanup derives them from one table. A new scraper column
-(a change of the scraper's output) is therefore a change of the contract in
-both places, never an import option.
+The scraper contract is `snapshotFieldTable` in `snapshot/contract.ts`,
+deliberately exact: the 38 headers of `profiles.csv`, each with how it is
+stored (`string`, `text` or `integer`), with no internal field such as
+`id`. Everything else derives from that one table: `snapshotFields` and the
+lists the CSV validation checks (integer, required and length-bounded
+fields), the staging, the backup, the fingerprint, and the columns of
+`moodle_users` and its staging twin `moodle_import_rows`. The workbook's
+**Courses** sheet (`src/specs/private.ts`) is a fixed historical export: it
+lists the scraper fields it carries, whose kinds come from the table, and
+the three headers it spells differently. A new scraper column (a change of
+the scraper's output) is a change of that table only, followed by
+`npm run build:operations`, a restart and `npm run setup`, never an import
+option. The workbook has no such column, so the one-time import leaves it
+empty, as it does the four fields only the scraper fills.
 
 ### Closed on purpose
 
@@ -1723,7 +1729,7 @@ Fixture-free checks, which need no Directus:
 | `npm run lint` | ESLint over the repository; `npm run format` applies its fixes and rewrites files. |
 | `npm run build:operations` | Rebuilds the data-operations bundle into its committed `dist/`; restart Directus afterwards. |
 | `npm run build:search` | Rebuilds the course-search bundle into its committed `dist/`; restart Directus afterwards. |
-| `npm run generate:invalidation` | Rewrites `src/migrations/source-invalidation.sql` from the collection roles. |
+| `npm run generate:invalidation` | Rewrites the reviewed snapshot `source-invalidation.sql` of the data-operations extension from the collection roles. |
 
 The fixture suites run against a disposable Directus only, never a project
 holding data. None has a default target or reads `.env`; each validates its

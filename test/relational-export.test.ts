@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { FakeItem, FakeStore } from './migration-test-helpers.js';
+import type { FakeItem, FakeStore } from './store-test-helpers.js';
 
 import {
   fileKeys,
@@ -112,7 +112,7 @@ const definitionOf = (filename: string) => {
   return definition;
 };
 
-// The keys a file resolves to over the converted fixture (the published
+// The keys a file resolves to over the imported fixture (the published
 // years included), in output order.
 const keysOf = async (filename: string, store?: FakeStore) => {
   const definition = definitionOf(filename);
@@ -125,7 +125,7 @@ const keysOf = async (filename: string, store?: FakeStore) => {
   );
 };
 
-// The keys a definition publishes as "1"/"0" over the converted fixture.
+// The keys a definition publishes as "1"/"0" over the imported fixture.
 const numericKeys = async (definition: (typeof exportDefinitions)[number]) => {
   const { keyRows } = await readFileSources(
     definition,
@@ -179,7 +179,7 @@ const crossedLink =
   };
 
 describe('parity with the committed public files', () => {
-  test('projects the converted fixture into exactly the committed parity files, byte for byte', async () => {
+  test('projects the imported fixture into exactly the committed parity files, byte for byte', async () => {
     const store = await importedStore(parityDataset());
     const assets = await projected(store);
 
@@ -395,7 +395,7 @@ const withoutKey = (assets: Assets, key: string) =>
   );
 
 describe('year configuration', () => {
-  test('publishes the fifteen converted years, newest first, where the reference lists them', async () => {
+  test('publishes the fifteen imported years, newest first, where the reference lists them', async () => {
     const assets = await projected(await importedStore());
 
     expect(yearKeys(assets.courses[0])).toEqual([...academicYears]);

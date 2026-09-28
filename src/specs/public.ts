@@ -7,7 +7,7 @@ import {
 
 // The course sheet also carries each course's 2023 and 2018 name, credits
 // and availability: the import resolves them into curriculum links
-// (src/migrations/course-links.ts), never into columns of the course.
+// (src/import/course-links.ts), never into columns of the course.
 const courseFields = [
   requiredField('name', 'name'),
   literalField('professors', 'professors_override', 'text'),

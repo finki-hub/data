@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const snapshotErrorCodes = {
+const snapshotErrorCodes = {
   ACTIVE_CHANGED: 409,
   BACKUP_FAILED: 500,
   CLAIM_BUSY: 409,
@@ -23,9 +23,9 @@ export const snapshotErrorCodes = {
   STAGING_CHANGED: 409,
 } as const;
 
-export type SnapshotErrorCode = keyof typeof snapshotErrorCodes;
+type SnapshotErrorCode = keyof typeof snapshotErrorCodes;
 
-export const maxMessageLength = 900;
+const maxMessageLength = 900;
 
 export type SnapshotError = DirectusError;
 
@@ -35,7 +35,7 @@ export type SnapshotError = DirectusError;
 // manual Flow surfaces it to Studio and REST callers, and a reject branch
 // reads it as `$last`. The message never quotes a cell value, only row
 // numbers, column names and counts.
-export class DirectusError extends Error {
+class DirectusError extends Error {
   public readonly code: string;
   public readonly extensions: Readonly<Record<string, unknown>>;
   public override readonly name = 'DirectusError';
@@ -67,7 +67,7 @@ export const snapshotError = (
     details === undefined ? { reason } : { details, reason },
   );
 
-export const isSnapshotError = (value: unknown): value is SnapshotError =>
+const isSnapshotError = (value: unknown): value is SnapshotError =>
   value instanceof DirectusError;
 
 const fact = z.string().max(200).optional().catch(undefined);
@@ -87,9 +87,9 @@ const factsSchema = z.object({
   table: fact,
 });
 
-export type FailureFacts = z.infer<typeof factsSchema>;
+type FailureFacts = z.infer<typeof factsSchema>;
 
-export const failureFacts = (error: unknown): FailureFacts => {
+const failureFacts = (error: unknown): FailureFacts => {
   const parsed = factsSchema.safeParse(error);
   return parsed.success ? parsed.data : { name: typeof error };
 };

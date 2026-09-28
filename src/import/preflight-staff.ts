@@ -62,7 +62,7 @@ export const staffListSeparator = ', ';
 // or a list whose parts joined by `staffListSeparator` give the text back.
 // A list separated by ';', a line break, a bare ',' or padded parts stays
 // literal review text, so the import never changes the published text.
-export const resolveStaff = (
+const resolveStaff = (
   role: StaffCandidate['role'],
   raw: null | string,
   staffByName: LabelIndex,

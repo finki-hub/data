@@ -64,7 +64,7 @@ const config = [
   {
     files: [
       'directus/flows/count-history-page.cjs',
-      'src/migrations/labels.ts',
+      'src/import/labels.ts',
       'src/workbook-enrollment-reader.ts',
       'test/fixtures/stress-oracle.ts',
       'test/relational-export-helpers.ts',
@@ -75,36 +75,25 @@ const config = [
     },
   },
   {
-    // The restart-recovery scenarios restart the isolated fixture container
-    // and the automatic processing suite reads PostgreSQL statistics with
-    // read-only psql SELECTs, through Docker, when the operator names the
-    // containers in the environment; the scenario runner starts
-    // `node --test` on the selected suites.
-    files: [
-      'test/operations-browser-helpers.mjs',
-      'test/relational/automatic-processing-helpers.mjs',
-      'test/relational/data-coordination.integration.mjs',
-      'test/relational/run-scenarios.mjs',
-    ],
-    rules: {
-      'security/detect-child-process': 'off',
-    },
-  },
-  {
     // The suites write and read workbooks, snapshots and screenshots at
     // temporary or operator-named paths.
     files: [
       'test/fixtures/stress-snapshot.ts',
       'test/import-cli.test.ts',
       'test/operations-browser-helpers.mjs',
-      'test/operations-browser-steps.mjs',
       'test/operations.browser.mjs',
       'test/relational/export-projection.integration.mjs',
-      'test/relational/lifecycle.integration.mjs',
-      'test/relational/run-scenarios.mjs',
       'test/relational/snapshot-import-helpers.mjs',
       'test/relational/snapshot-import.integration.mjs',
     ],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  {
+    // Branding uploads its two repository-owned assets, named by a closed
+    // union of file names.
+    files: ['src/branding.ts'],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',
     },
@@ -128,7 +117,6 @@ const config = [
     // operator-named backup directory lies in a repository.
     files: ['test/restore-docker.mjs', 'test/restore-private-root.ts'],
     rules: {
-      'security/detect-child-process': 'off',
       'security/detect-non-literal-fs-filename': 'off',
       'sonarjs/no-os-command-from-path': 'off',
     },
@@ -179,7 +167,6 @@ const config = [
     files: [
       'test/history-index.test.ts',
       'test/legacy-enrollment-helpers.ts',
-      'test/legacy-enrollment-templates.test.ts',
       'test/mapped-enrollment-flow.test.ts',
     ],
     rules: {

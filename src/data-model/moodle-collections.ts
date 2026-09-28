@@ -1,15 +1,14 @@
-import type {
-  FieldSpec,
-  ModelCollection,
-  ModelScalarField,
-} from '../schema.js';
+import type { ModelCollection, ModelScalarField } from '../schema.js';
 
-import { privateWorkbookSpecs } from '../specs/private.js';
+import {
+  type SnapshotFieldDeclaration,
+  snapshotFieldTable,
+} from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { courseTemplate } from './content-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
 import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
-export const reviewStates = ['needs_mapping', 'mapped', 'ignored'] as const;
+const reviewStates = ['needs_mapping', 'mapped', 'ignored'] as const;
 
 const reviewChoices = labelledChoices(reviewStates, {
   ignored: 'Ignored',
@@ -17,19 +16,18 @@ const reviewChoices = labelledChoices(reviewStates, {
   needs_mapping: 'Needs mapping',
 });
 
-export const moodleUserTemplate = '{{Name}}';
-export const historyEntryTemplate = '{{label}}';
+const moodleUserTemplate = '{{Name}}';
+const historyEntryTemplate = '{{label}}';
 
-const [moodleUsersSpec] = privateWorkbookSpecs;
-
-// The Moodle user columns, one per column of the workbook's Courses sheet
-// and the scraper CSV, with the same names in the snapshot staging rows.
-const moodleUserFields: readonly ModelScalarField[] =
-  moodleUsersSpec.fields.map((spec: FieldSpec) => ({
-    field: spec.target,
-    kind: spec.kind,
-    nullable: spec.required !== true,
-  }));
+// The Moodle user columns: the scraper fields of the snapshot contract,
+// with the same names and kinds in the snapshot staging rows.
+const moodleUserFields: readonly ModelScalarField[] = snapshotFieldTable.map(
+  ({ field, kind, ...declaration }: SnapshotFieldDeclaration) => ({
+    field,
+    kind,
+    nullable: declaration.required !== true,
+  }),
+);
 
 export const moodleCollections: readonly ModelCollection[] = [
   {

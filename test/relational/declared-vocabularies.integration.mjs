@@ -11,9 +11,9 @@ import {
   SchemaRefusalError,
 } from '../../src/data-model/install.js';
 import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
-import { countByCode } from '../../src/migrations/findings.js';
-import { planImport } from '../../src/migrations/plan.js';
-import { writePlan } from '../../src/migrations/write.js';
+import { countByCode } from '../../src/import/findings.js';
+import { planImport } from '../../src/import/plan.js';
+import { writePlan } from '../../src/import/write.js';
 import { runSetup } from '../../src/setup.js';
 import { loadWorkbook } from '../../src/workbook.js';
 import { academicYears } from '../fixtures/synthetic-data.js';

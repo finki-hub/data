@@ -1,19 +1,14 @@
 import { describe, expect, test } from 'vitest';
 
-import type { ImportPlan } from '../src/migrations/plan.js';
+import type { ImportPlan } from '../src/import/plan.js';
 
-import { entryKey } from '../src/migrations/curricula.js';
+import { entryKey } from '../src/import/curricula.js';
 import {
   ProgramHeaderError,
   programKey,
   workbookPrograms,
-} from '../src/migrations/generations.js';
-import {
-  compositeKey,
-  isRef,
-  type Ref,
-  ref,
-} from '../src/migrations/planned.js';
+} from '../src/import/generations.js';
+import { compositeKey, isRef, type Ref, ref } from '../src/import/planned.js';
 import { expectedEnrollments } from './expected-exports.js';
 import {
   academicYears,

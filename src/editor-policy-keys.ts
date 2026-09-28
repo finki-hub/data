@@ -12,7 +12,7 @@ import { findModelRelation } from './data-model/relations.js';
 // A field a key-source filter tests through a relation is withheld in the
 // related collection, which is then keyed as well.
 
-export type KeyedField = {
+type KeyedField = {
   readonly collection: string;
   readonly field: string;
 };

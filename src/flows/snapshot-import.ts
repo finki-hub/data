@@ -9,8 +9,8 @@ import {
 import { snapshotFolder } from './snapshot-folder.js';
 
 const family = flowFamilyCodes.snapshot;
-export const snapshotImportOperation = 'finki-hub-snapshot-import';
-export const snapshotPromoteOperation = 'finki-hub-snapshot-promote';
+const snapshotImportOperation = 'finki-hub-snapshot-import';
+const snapshotPromoteOperation = 'finki-hub-snapshot-promote';
 export const snapshotFlowId = snapshotId('01');
 
 const step = familyStep(family);

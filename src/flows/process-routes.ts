@@ -54,7 +54,7 @@ export const branch = (
 // route, or a claim edited by hand): the scheduler fails it with its own
 // code instead of handing it to a child that would refuse it for another
 // reason.
-export const unknownDomain = branch({
+const unknownDomain = branch({
   code: 'DOMAIN_UNKNOWN',
   message:
     'The claim named the domain {{ claim.domain }}, which no route of "Data / Process pending" runs; the claim was released without a run.',

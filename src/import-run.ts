@@ -1,15 +1,15 @@
 import type { DirectusRequest } from './directus-request.js';
 
 import { type DirectusConfig, loadImportConfig } from './config.js';
-import { type ImportIo, importWorkbook } from './directus.js';
 import { ImportInterruptedError } from './import-interruption.js';
 import { checkSummary, refusalCount, refusalLines } from './import-report.js';
+import { type ImportIo, importWorkbook } from './import-workbook.js';
+import { type ImportPlan, planImport } from './import/plan.js';
 import { exitCodes, isRefusal } from './lifecycle.js';
-import { type ImportPlan, planImport } from './migrations/plan.js';
 import { WorkbookDataError } from './workbook-values.js';
 import { loadWorkbook, type WorkbookPlaces } from './workbook.js';
 
-export type ImportCliIo = ImportIo & {
+type ImportCliIo = ImportIo & {
   readonly createRequest: (config: DirectusConfig) => DirectusRequest;
   readonly stderr: (line: string) => void;
   readonly stdout: (line: string) => void;

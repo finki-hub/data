@@ -14,7 +14,7 @@ import path from 'node:path';
 // licence. A run starts only when the root holds no directory of an
 // earlier run.
 
-export const runPrefix = 'restore-';
+const runPrefix = 'restore-';
 
 const privateMode = 0o700;
 const collator = new Intl.Collator('en');

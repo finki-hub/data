@@ -56,9 +56,9 @@ export const ruleModes = [
   },
 ] as const satisfies readonly RuleModeSpec[];
 
-export type RuleModeName = Declared['mode'];
-
 type Declared = (typeof ruleModes)[number];
+
+type RuleModeName = Declared['mode'];
 
 // The declaration of one mode, for the Flows of its family.
 export const ruleMode = <Name extends RuleModeName>(

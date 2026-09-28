@@ -46,5 +46,3 @@ export const runSetup = async (request: DirectusRequest) => {
     presentation,
   };
 };
-
-export type SetupSummary = Awaited<ReturnType<typeof runSetup>>;

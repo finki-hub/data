@@ -31,7 +31,7 @@ import { statusView } from './status-view.js';
 // declared names and Studio links (status-contract.ts); the reads run as
 // the system only after the caller was accepted.
 
-export type Access =
+type Access =
   | { readonly audience: Audience; readonly ok: true }
   | {
       readonly code: string;
@@ -40,7 +40,7 @@ export type Access =
       readonly status: 401 | 403;
     };
 
-export type Caller = {
+type Caller = {
   readonly roles: readonly string[];
   readonly user: null | string;
 };
@@ -92,7 +92,7 @@ export const decideAccess = async (
     : forbidden;
 };
 
-export const readStatus = async (
+const readStatus = async (
   context: ApiExtensionContext,
   audience: Audience,
 ): Promise<StatusView> => {
@@ -107,7 +107,7 @@ export const readStatus = async (
   });
 };
 
-export const readReadiness = async (
+const readReadiness = async (
   context: ApiExtensionContext,
   audience: Audience,
 ): Promise<ReadinessView> => {

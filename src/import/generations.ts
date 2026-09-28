@@ -75,7 +75,7 @@ export class ProgramHeaderError extends Error {
 
 // The closed mapping of a curriculum sheet's program header to the code of
 // its study program. A header outside it fails the import.
-export const programCodes: Readonly<Record<string, string>> = {
+const programCodes: Readonly<Record<string, string>> = {
   SEIS: 'seis',
   ИЕ: 'ie',
   ИМБ: 'imb',

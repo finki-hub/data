@@ -21,12 +21,12 @@ import {
 } from './snapshot/errors.js';
 import { type SnapshotDeps, stageFile } from './snapshot/stage.js';
 
-export const snapshotImportId = 'finki-hub-snapshot-import';
+const snapshotImportId = 'finki-hub-snapshot-import';
 
 // An import older than its deadline plus this margin is treated as dead.
-export const importGraceMs = 60_000;
+const importGraceMs = 60_000;
 
-export type SnapshotImportResult = {
+type SnapshotImportResult = {
   readonly file: string;
   readonly fingerprint: string;
   readonly rows: number;

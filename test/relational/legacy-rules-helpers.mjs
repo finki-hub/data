@@ -17,9 +17,9 @@ import { get, patch, post, trigger } from './history-index-helpers.mjs';
 const syntheticId = (suffix) => `9e4d826c-5b1a-4c0e-8f2d-0000000012${suffix}`;
 
 export const legacyRunFlowId = syntheticId('10');
-export const legacyRunPath = `/flows/trigger/${legacyRunFlowId}`;
+const legacyRunPath = `/flows/trigger/${legacyRunFlowId}`;
 export const resultsPath = '/items/data_operation_results';
-export const enrollmentsPath = '/items/course_enrollments';
+const enrollmentsPath = '/items/course_enrollments';
 export const rulesPath = '/items/course_enrollment_rules';
 // The academic years of the synthetic workbook
 // (test/fixtures/synthetic-data.ts). The imported rules name them by
@@ -30,7 +30,7 @@ export const workbookYears = [...academicYears];
 
 // Filler lines of synthetic histories: 100 distinct short lines that match
 // no rule, so a long history adds bytes and entries without counts.
-export const filler = (bytes) => {
+const filler = (bytes) => {
   const lines = [];
   let length = 0;
   while (length < bytes) {

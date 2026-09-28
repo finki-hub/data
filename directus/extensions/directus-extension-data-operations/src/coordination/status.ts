@@ -7,8 +7,6 @@ import { coordinationDomains, type Domain, isDomain } from './domains.js';
 import { blockingFailure } from './failures.js';
 import { type OperationsState } from './state.js';
 
-export type DomainState = 'current' | 'failed' | 'pending' | 'running';
-
 export type DomainStatus = {
   readonly current: boolean;
   readonly failed: boolean;
@@ -17,6 +15,8 @@ export type DomainStatus = {
   readonly state: DomainState;
   readonly waitingFor: readonly Domain[];
 };
+
+type DomainState = 'current' | 'failed' | 'pending' | 'running';
 
 // One domain as an operator needs it: `current` is true only while the
 // domain is neither dirty nor behind the managed Flow graph, so its derived

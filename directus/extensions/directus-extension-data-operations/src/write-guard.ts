@@ -10,7 +10,7 @@ import { guardMessage } from './coordination/write-guards.js';
 export const guardedEvents = ['create', 'update', 'delete'] as const;
 
 // The refusal every Directus item write to a guarded table gets.
-export const writeGuardRefusal = (declaration: GuardedDeclaration) =>
+const writeGuardRefusal = (declaration: GuardedDeclaration) =>
   coordinationError(
     'WRITE_GUARDED',
     `${guardMessage(declaration)}. ${declaration.guard.remedy}`,

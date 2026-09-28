@@ -22,19 +22,19 @@ export const declaredFilenames: readonly string[] = exportDefinitions.map(
   ({ filename }) => filename,
 );
 
-export const outcomeCodePattern = /^[A-Z][A-Z0-9_]{0,63}$/u;
+const outcomeCodePattern = /^[A-Z][A-Z0-9_]{0,63}$/u;
 
 // The code a failed or skipped file is recorded with when its step
 // answered none that is bounded (an error without a code, or a template
 // rendered as text).
-export const unboundedCode = 'PUBLISH_FAILED';
+const unboundedCode = 'PUBLISH_FAILED';
 
 export const boundedCode = (code: string | undefined): string =>
   code !== undefined && outcomeCodePattern.test(code) ? code : unboundedCode;
 
 // One file as the publication reports it: an uploaded file carries no
 // code, a failed or skipped one the bounded code of its failure.
-export const fileOutcomeSchema = z
+const fileOutcomeSchema = z
   .strictObject({
     bytes: z.number().int().nonnegative().nullable().optional(),
     code: z.string().regex(outcomeCodePattern).nullable().optional(),
@@ -52,8 +52,6 @@ export const filesSchema = z
     message: `At most ${maxPublishedFiles} files`,
   });
 
-export type ReportedOutcomes = z.infer<typeof filesSchema>;
-
 // One file as the coordinator keeps it: its outcome and code, the bytes
 // written, and the source revision of the claim that attempted it, so an
 // outcome kept across a later failure still says which revision it holds.
@@ -65,6 +63,8 @@ export type StoredOutcome = {
 };
 
 export type StoredOutcomes = Readonly<Record<string, StoredOutcome>>;
+
+type ReportedOutcomes = z.infer<typeof filesSchema>;
 
 export const storedOutcomeSchema = z.strictObject({
   bytes: z.number().int().nonnegative().nullable(),

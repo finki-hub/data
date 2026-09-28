@@ -74,11 +74,7 @@ const addedOperationIds = new Set([
 ]);
 
 // The dispatcher steps Task 26 replaced by its family loop (its other
-// steps keep their ids). Teardown keeps template Flows and setup skips a
-// Flow whose id exists, so a project set up earlier keeps the old
-// dispatcher until "Data / Count enrollments" (and "Data / Count legacy
-// enrollments", whose description changed) is deleted in Studio and setup
-// runs again; no upgrade code does it.
+// steps keep their ids): part of the pinned ids above, never reused.
 const removedOperationIds = [
   '17',
   '18',

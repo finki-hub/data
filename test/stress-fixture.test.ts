@@ -16,7 +16,7 @@ import {
   requiredFields,
   snapshotFields,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
-import { workbookGenerations } from '../src/migrations/generations.js';
+import { workbookGenerations } from '../src/import/generations.js';
 import {
   curriculumPlan,
   declarations,

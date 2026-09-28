@@ -329,8 +329,7 @@ export const closeBrowser = async (cli, sessions, profiles) => {
 };
 
 // A random password for a synthetic user; it lives only in this process.
-export const syntheticPassword = () =>
-  `Syn-${randomUUID().replaceAll('-', '')}-9`;
+const syntheticPassword = () => `Syn-${randomUUID().replaceAll('-', '')}-9`;
 
 // The role that holds the administrator policy.
 const administratorRole = async (target) => {

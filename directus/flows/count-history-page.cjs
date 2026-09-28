@@ -3,9 +3,9 @@
 // planned history page (read_users: id and Courses only, at most 800,000
 // UTF-8 bytes) against at most 500 legacy_regex rules of one planned rule
 // page (read_rules, at most 1,000,000 UTF-8 bytes of pattern). Every rule
-// keeps the checkpoint semantics exactly: new RegExp(pattern, 'u') over
-// the whole raw history, tested once per user, names never escaped, so an
-// expression may cross line boundaries and a repeated entry counts once.
+// runs exactly as written: new RegExp(pattern, 'u') over the whole raw
+// history, tested once per user, names never escaped, so an expression
+// may cross line boundaries and a repeated entry counts once.
 // Everything is validated before a pattern runs; a refusal names ids and
 // sizes only, never a history, a pattern or a name. The answer holds the
 // nonzero partial counts of the page, which stage_page stages; the zero

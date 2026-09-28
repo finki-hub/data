@@ -10,7 +10,7 @@ import { z } from 'zod';
 // (checkPublishLocation): the uploads go wherever that location points,
 // whatever the variables here say.
 
-export type S3Target = {
+type S3Target = {
   readonly bucket: string;
   readonly container: string;
   // The Directus container whose publish location the suite writes to.

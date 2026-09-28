@@ -9,7 +9,7 @@ import { z } from 'zod';
 // truncated or altered dump is refused before anything is created or
 // written. Problems name a file and a rule, never content.
 
-export const artifactKinds = ['database', 'uploads'] as const;
+const artifactKinds = ['database', 'uploads'] as const;
 
 export const backupFiles = {
   checksums: 'SHA256SUMS',
@@ -42,7 +42,7 @@ export const manifestSchema = z.object({
 });
 
 export type BackupManifest = z.infer<typeof manifestSchema>;
-export type Artifact = BackupManifest['artifacts'][number];
+type Artifact = BackupManifest['artifacts'][number];
 
 // A measured artifact, or null when the file is missing.
 export type Measured = null | {

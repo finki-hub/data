@@ -16,11 +16,10 @@ import {
 // (withDataModel). It claims history_index on request and runs the
 // installed "Data / Refresh history index", the same claim-bound Flow the
 // schedule runs, so these suites exercise the production run path; it is
-// no production Flow (Mark pending is the manual path there). Its HTTP
-// contract is the one the retired Task 9 runner had: 200 with the summary
-// or with "nothing pending", 403 for a non-administrator, 409
-// RETRY_REQUIRED or CLAIM_BUSY for a refused claim, 500 with the failure
-// record's code and message otherwise.
+// no production Flow (Mark pending is the manual path there). It answers
+// 200 with the summary or with "nothing pending", 403 for a
+// non-administrator, 409 RETRY_REQUIRED or CLAIM_BUSY for a refused claim,
+// 500 with the failure record's code and message otherwise.
 
 const syntheticId = (suffix) => `9e4d826c-5b1a-4c0e-8f2d-0000000013${suffix}`;
 

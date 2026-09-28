@@ -19,7 +19,7 @@ import { searchResponse } from './search-integration-helpers.mjs';
 // Flow; a restricted searcher; and requests to the Search endpoints as a
 // given caller. Nothing here prints a row, a token or a password.
 
-export const endpoint = '/finki-hub-course-history';
+const endpoint = '/finki-hub-course-history';
 export const tieName = 'Tie Searcher';
 export const tieRows = 52;
 

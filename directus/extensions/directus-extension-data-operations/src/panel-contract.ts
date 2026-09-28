@@ -26,7 +26,7 @@ const dialogField = z.looseObject({
   type: z.string().min(1),
 });
 
-export type DialogField = z.infer<typeof dialogField> & { name: string };
+type DialogField = z.infer<typeof dialogField> & { name: string };
 
 // The options the engine and Studio read (contracts §2.2 Manual).
 const manualOptions = z.looseObject({
@@ -81,7 +81,7 @@ export const flowKeyOf = (option: unknown): null | string => {
   return parsed.success ? parsed.data.key : null;
 };
 
-export type RunPlan =
+type RunPlan =
   | {
       readonly collection: string;
       readonly confirm: boolean;
@@ -181,7 +181,7 @@ export const retryValues = (
     ),
   );
 
-export const triggerBodySchema = z
+const triggerBodySchema = z
   .object({ collection: z.string().min(1) })
   .catchall(z.unknown());
 

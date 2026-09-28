@@ -34,7 +34,7 @@ export type ScheduledRun = {
   readonly name: string;
 };
 
-export type StatusInputs = {
+type StatusInputs = {
   readonly audience: Audience;
   // The published files the export definitions declare, in order.
   readonly declared?: readonly string[];
@@ -72,7 +72,7 @@ const domainsOf = (report: StatusReport): DomainView[] =>
 
 // Every declared file first, in publication order, then any outcome a
 // retired definition left behind.
-export const filesOf = (
+const filesOf = (
   stored: null | StoredOutcomes,
   declared: readonly string[],
 ): FileView[] => {
@@ -96,7 +96,7 @@ export const filesOf = (
 // The revision of the last publication, read from its outcome entries
 // (every entry carries the revision of the claim that attempted it), and
 // whether every declared file was uploaded at it.
-export const lastPublication = (
+const lastPublication = (
   files: readonly FileView[],
   declared: readonly string[],
 ): { readonly complete: boolean; readonly lastRevision: null | number } => {

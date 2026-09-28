@@ -7,7 +7,7 @@ const text = (value: unknown): string =>
 // snapshot-import.ts.
 export default defineOperationApp({
   description:
-    'Stages a private Moodle snapshot CSV (administrators only): exact 38 headers, strict CSV, raw values unchanged, one transaction; answers { state: ready, rows, fingerprint } once committed. Never touches moodle_users.',
+    'Stages a private Moodle snapshot CSV (administrators only): exactly the headers of the snapshot contract, strict CSV, raw values unchanged, one transaction; answers { state: ready, rows, fingerprint } once committed. Never touches moodle_users.',
   icon: 'upload_file',
   id: 'finki-hub-snapshot-import',
   name: 'FINKI Hub snapshot import',

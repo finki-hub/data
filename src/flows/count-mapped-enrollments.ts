@@ -13,7 +13,7 @@ import {
 
 // The Run Script body of the pair Flow, kept as a plain file so it can be
 // read and edited as JavaScript; the template installs its exact text.
-export const countScriptPath = join(
+const countScriptPath = join(
   import.meta.dirname,
   '..',
   '..',

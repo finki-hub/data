@@ -5,7 +5,7 @@ import type {
   RowContext,
   SourceRead,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
-import type { FakeItem, FakeStore } from './migration-test-helpers.js';
+import type { FakeItem, FakeStore } from './store-test-helpers.js';
 
 import {
   fileKeys,
@@ -16,7 +16,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
-import { importWorkbook } from '../src/directus.js';
+import { importWorkbook } from '../src/import-workbook.js';
 import {
   courseNames,
   type SyntheticDataset,

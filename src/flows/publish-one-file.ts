@@ -17,7 +17,7 @@ const claim = '{{ $trigger.claim }}';
 // The storage location every file is written to: Directus's `publish` S3
 // location (STORAGE_LOCATIONS). It is an ordinary option of the upload
 // step, editable in Studio like the rest of the Flow.
-export const publishStorage = 'publish';
+const publishStorage = 'publish';
 
 // One published file, run by the publish loop of "Publish / Public assets
 // (relational)" once per upload the export operation staged, in

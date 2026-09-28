@@ -6,7 +6,7 @@ export class SetupConfigError extends Error {
   public override readonly name = 'SetupConfigError';
 }
 
-export type TargetCommand = {
+type TargetCommand = {
   // The command as the sentence subject, e.g. "Setup".
   readonly name: string;
   // What the command does to the project, e.g. "set up".

@@ -25,7 +25,7 @@ export const otherFileId = '11111111-2222-4333-8444-666666666666';
 
 type Row = { id: number; row: SnapshotRow };
 
-export type FakeSnapshotData = {
+type FakeSnapshotData = {
   active: Row[];
   staging: Row[];
   state: SnapshotState;

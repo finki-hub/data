@@ -14,7 +14,7 @@ import { z } from 'zod';
 // directory lies outside the repository. Nothing defaults: every name is
 // given on the invocation and refused unless it is plainly disposable.
 
-export type RestoreTarget = {
+type RestoreTarget = {
   // The network alias of the restore database.
   readonly alias: string;
   // The private directory the backup sets are written under.
@@ -131,7 +131,7 @@ export const uploadsTarget = '/directus/uploads';
 
 // The settings the restore override sets: the database connection and the
 // publish bucket. Nothing else of the service may change.
-export const restoreSettings: ReadonlySet<string> = new Set([
+const restoreSettings: ReadonlySet<string> = new Set([
   'DB_DATABASE',
   'DB_HOST',
   'DB_PASSWORD',
@@ -140,7 +140,7 @@ export const restoreSettings: ReadonlySet<string> = new Set([
   'STORAGE_PUBLISH_BUCKET',
 ]);
 
-export type RestoreOverride = {
+type RestoreOverride = {
   readonly alias: string;
   readonly bucket: string;
   readonly password: string;
@@ -190,7 +190,7 @@ const serviceSchema = z.looseObject({
     .optional(),
 });
 
-export type ConfigChanges = {
+type ConfigChanges = {
   // Environment names whose value differs (never the values).
   readonly environment: readonly string[];
   // Other service keys that differ.

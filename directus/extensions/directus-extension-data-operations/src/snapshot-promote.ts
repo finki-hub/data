@@ -29,17 +29,7 @@ import {
 } from './snapshot/errors.js';
 import { type SnapshotDeps } from './snapshot/stage.js';
 
-export const snapshotPromoteId = 'finki-hub-snapshot-promote';
-
-export type SnapshotPromotionResult = {
-  readonly backup: BackupRecord;
-  readonly membershipsRemoved: number;
-  readonly pending: readonly string[];
-  readonly previousRows: number;
-  readonly revision: number;
-  readonly rows: number;
-  readonly state: 'completed';
-};
+const snapshotPromoteId = 'finki-hub-snapshot-promote';
 
 type Run = {
   readonly backup: BackupRecord;
@@ -47,6 +37,16 @@ type Run = {
   readonly deps: SnapshotDeps;
   readonly options: PromoteOptions;
   readonly token: string;
+};
+
+type SnapshotPromotionResult = {
+  readonly backup: BackupRecord;
+  readonly membershipsRemoved: number;
+  readonly pending: readonly string[];
+  readonly previousRows: number;
+  readonly revision: number;
+  readonly rows: number;
+  readonly state: 'completed';
 };
 
 // The one replacement transaction. Writers of moodle_users are held off by

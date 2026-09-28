@@ -30,8 +30,7 @@ export type ResolvedField = {
   readonly value: (context: RowContext) => unknown;
 };
 
-export const isKeyed = (entry: FieldEntry): entry is KeyedEntry =>
-  'keys' in entry;
+const isKeyed = (entry: FieldEntry): entry is KeyedEntry => 'keys' in entry;
 
 export const isBlock = (entry: FieldEntry): entry is BlockEntry =>
   'blocks' in entry;

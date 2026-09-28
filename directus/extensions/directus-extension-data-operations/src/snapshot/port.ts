@@ -19,14 +19,6 @@ export type FileFacts = {
   readonly type: null | string;
 };
 
-export type PromotedSnapshot = SnapshotSummary & { readonly at: null | string };
-
-export type Replacement = {
-  readonly inserted: number;
-  readonly memberships: number;
-  readonly removed: number;
-};
-
 export type SnapshotFiles = {
   readonly describe: (id: string) => Promise<FileFacts | null>;
   readonly open: (id: string) => Promise<AsyncIterable<string | Uint8Array>>;
@@ -122,3 +114,11 @@ export type SnapshotSummary = {
 };
 
 export type SnapshotTable = typeof activeTable | typeof stagingTable;
+
+type PromotedSnapshot = SnapshotSummary & { readonly at: null | string };
+
+type Replacement = {
+  readonly inserted: number;
+  readonly memberships: number;
+  readonly removed: number;
+};

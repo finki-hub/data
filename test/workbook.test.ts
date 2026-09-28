@@ -3,9 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
+import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { refusalLines } from '../src/import-report.js';
-import { countByCode } from '../src/migrations/findings.js';
-import { planImport } from '../src/migrations/plan.js';
+import { countByCode } from '../src/import/findings.js';
+import { planImport } from '../src/import/plan.js';
 import {
   literalField,
   requiredField,
@@ -166,16 +167,19 @@ describe('workbook readers', () => {
     ).toEqual(['year', 'index_number', 'position']);
   });
 
-  test('uses the current courses-scraper CSV headers as Moodle field keys', () => {
-    expect(specOf('moodle_users')?.fields.map(({ target }) => target)).toEqual([
-      'ID_old',
-      'ID_new',
+  test('reads the fixed columns of the Courses sheet into the scraper fields, three of them under a header of its own', () => {
+    const fields = specOf('moodle_users')?.fields ?? [];
+    const targets = fields.map(({ target }) => target);
+
+    // The historical sheet's headers, pinned literally: a scraper field
+    // added to the snapshot contract later is no column of this sheet.
+    expect(fields.map(({ source }) => source)).toEqual([
+      'ID',
       'Name',
       'Mail',
       'Courses',
-      'Courses Count',
-      'Profile_old',
-      'Profile_new',
+      '#',
+      'Profile',
       'AIM_new',
       'AIM_old',
       'Avatar_new',
@@ -200,12 +204,22 @@ describe('workbook readers', () => {
       'MoodleNet_old',
       'Skype_new',
       'Skype_old',
-      'Timezone_new',
-      'Timezone_old',
       'Web_new',
       'Web_old',
       'Yahoo_new',
       'Yahoo_old',
+    ]);
+    expect(targets).toEqual(
+      snapshotFields.filter((field) => targets.includes(field)),
+    );
+    expect(
+      fields
+        .filter(({ source, target }) => source !== target)
+        .map(({ source, target }) => [source, target]),
+    ).toEqual([
+      ['ID', 'ID_new'],
+      ['#', 'Courses Count'],
+      ['Profile', 'Profile_new'],
     ]);
   });
 });

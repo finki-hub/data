@@ -6,7 +6,7 @@ import { exitCodes, isRefusal } from './lifecycle.js';
 import { loadSetupConfig } from './setup-config.js';
 import { runSetup } from './setup.js';
 
-export type SetupCliIo = {
+type SetupCliIo = {
   readonly createRequest: (config: DirectusConfig) => DirectusRequest;
   // `npm run setup` itself unless a test substitutes a stand-in.
   readonly setup?: (request: DirectusRequest) => Promise<unknown>;

@@ -163,7 +163,7 @@ describe('flow templates', () => {
     });
   });
 
-  test('declare every history flow as an operation-triggered child; no manual runner remains', () => {
+  test('declare every history flow as an operation-triggered child', () => {
     expect(historyIndexFlows.map(({ id }) => id)).toEqual([
       historyFlowIds.page,
       historyFlowIds.run,

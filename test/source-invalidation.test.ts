@@ -12,6 +12,7 @@ import {
 import {
   coordinationDomains,
   coordinatorActionNames,
+  type Domain,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
   DirectusError,
@@ -27,12 +28,6 @@ import {
   coordinatorActions,
   parseCoordinatorInput,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
-import {
-  excludedTables,
-  sourceColumnDomains,
-  sourceTableDeletionDomains,
-  sourceTableDomains,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/source-tables.js';
 import { pageSize } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
   migrations,
@@ -71,7 +66,7 @@ const sha256 = (text: string): string =>
 // reproduced, byte for byte, the hand-written migration Task 23 left; the
 // cleanup that removed the checkpoint sources and the migration ledger
 // froze these collections again with the migration they generate then
-// (src/migrations/source-invalidation.sql at that commit, sha256 below).
+// (the SQL snapshot at that commit, sha256 below).
 // Frozen on purpose: a later collection only adds to the registry, so these
 // declarations keep generating that file, and a change to one of them or
 // to the generator shows here as a changed migration.
@@ -196,6 +191,49 @@ const graphRow = (options: unknown, key = 'coordinate'): GraphRow => ({
   trigger: 'manual',
   type: 'finki-hub-data-coordinate',
 });
+
+// Views of the collection-role registry the migration is generated from.
+// Which domains a statement on each editable source table marks pending.
+const sourceTableDomains: Readonly<Record<string, readonly Domain[]>> =
+  Object.fromEntries(
+    sourceDeclarations.map(({ collection, invalidates }) => [
+      collection,
+      invalidates,
+    ]),
+  );
+// Domains a DELETE or TRUNCATE on a source table marks on top of its usual
+// ones (deleting a history entry cascades its memberships away).
+const sourceTableDeletionDomains: Readonly<Record<string, readonly Domain[]>> =
+  Object.fromEntries(
+    sourceDeclarations.flatMap(({ collection, onDelete }) =>
+      onDelete === undefined ? [] : [[collection, onDelete]],
+    ),
+  );
+// Domains an UPDATE naming one of these columns marks on top of the
+// table's usual ones (a hand-edited entry label).
+const sourceColumnDomains: Readonly<
+  Record<string, Readonly<Record<string, readonly Domain[]>>>
+> = Object.fromEntries(
+  sourceDeclarations.flatMap(({ collection, columns }) =>
+    columns === undefined
+      ? []
+      : [
+          [
+            collection,
+            Object.fromEntries(
+              Object.entries(columns).map(([column, { domains }]) => [
+                column,
+                domains,
+              ]),
+            ),
+          ],
+        ],
+  ),
+);
+// Every model collection that is no source and so carries no trigger.
+const excludedTables: readonly string[] = collectionDeclarations
+  .filter(({ role }) => role !== 'source')
+  .map(({ collection }) => collection);
 
 const statements = sourceInvalidation.statements;
 const triggerTablesOf = (sql: readonly string[]): string[] =>
@@ -408,7 +446,10 @@ describe('source-invalidation migration', () => {
   test('keeps the SQL snapshot fresh and is the second bundled migration', () => {
     // npm run generate:invalidation rewrites the snapshot.
     expect(sourceInvalidationSql).toBe(
-      readFileSync('src/migrations/source-invalidation.sql', 'utf8'),
+      readFileSync(
+        'directus/extensions/directus-extension-data-operations/src/source-invalidation.sql',
+        'utf8',
+      ),
     );
     expect(migrations.map(({ name }) => name)).toEqual([
       'schema-constraints',

@@ -67,7 +67,7 @@ const failureMessage = z
     value === undefined ? null : value.slice(0, errorMessageLength),
   );
 
-export const countRowSchema = z.object({
+const countRowSchema = z.object({
   academic_year: z.number().int().positive(),
   count: z.number().int().nonnegative(),
   course: z.number().int().positive(),
@@ -77,7 +77,7 @@ export const countRowSchema = z.object({
 // history, each exactly as the splitter emits it. A row that cannot be
 // indexed is refused with its user id, so the operator knows whose raw
 // history to fix; the text never quotes a label.
-export const historyRowSchema = z
+const historyRowSchema = z
   .object({
     entries: z.array(z.string()),
     id: z.number().int().positive(),
@@ -123,7 +123,7 @@ const recordOptions = z
     'an uploaded file carries no code',
   );
 
-export const coordinatorInputSchema = z.discriminatedUnion('action', [
+const coordinatorInputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark'),
     domains: z.preprocess(

@@ -2,7 +2,7 @@ const trailingPeriod = /\.$/u;
 
 // How far the import got: the planned rows Directus had confirmed out of
 // the plan's total.
-export type ImportProgress = {
+type ImportProgress = {
   readonly confirmed: number;
   readonly total: number;
 };

@@ -38,13 +38,13 @@ export const declaredSnapshot: SnapshotDeclaration = {
   required: requiredFields,
 };
 
-export type StressRow = readonly SnapshotValue[];
+type StressRow = readonly SnapshotValue[];
 
 // A course/year pair of a history label, as indexes into the course names
 // and year labels the labels were made from.
-export type LabelPair = { readonly course: number; readonly year: number };
+type LabelPair = { readonly course: number; readonly year: number };
 
-export type StressLabels = {
+type StressLabels = {
   readonly labels: readonly string[];
   // The labels that match no rule, in label order.
   readonly nonmatching: readonly string[];
@@ -60,7 +60,7 @@ const variantOf = (index: number): string =>
 
 // At most this many courses keep distinct four-digit names, so no course
 // name is a prefix of another one's label.
-export const maxCourses = 10_000;
+const maxCourses = 10_000;
 
 export const courseName = (index: number): string =>
   `Synthetic Stress Course ${String(index).padStart(4, '0')} - ${variantOf(index)}`;
@@ -118,7 +118,7 @@ export const longHistoryLines = 300;
 // repeated lines, histories of nonmatching labels only and null histories
 // are spread over the users. The expected index is counted from these
 // lists, never by splitting the raw text again.
-export const historyLinesOf = (
+const historyLinesOf = (
   index: number,
   { labels, nonmatching }: StressLabels,
 ): null | readonly string[] => {
@@ -139,7 +139,7 @@ export const historyLinesOf = (
 };
 
 // One user's raw history: the lines joined by LF, or CRLF every 11th user.
-export const historyOf = (index: number, labels: StressLabels): null | string =>
+const historyOf = (index: number, labels: StressLabels): null | string =>
   historyLinesOf(index, labels)?.join(usesCrLf(index) ? '\r\n' : '\n') ?? null;
 
 // Every user's history lines, in row order.
@@ -215,7 +215,7 @@ const instanceId = (
   return present ? offset + (position + 1) * 100_000 + index : null;
 };
 
-export type RowContext = {
+type RowContext = {
   readonly declaration: SnapshotDeclaration;
   readonly labels: StressLabels;
   readonly offset: number;
@@ -252,7 +252,7 @@ const cellValue = (
 };
 
 // One user, in declaration order.
-export const stressRow = (index: number, context: RowContext): StressRow => {
+const stressRow = (index: number, context: RowContext): StressRow => {
   const history = historyOf(index, context.labels);
   return context.declaration.fields.map((field) =>
     cellValue(field, index, { context, history }),
@@ -282,9 +282,7 @@ const cell = (value: SnapshotValue | undefined): string => {
     : text;
 };
 
-export const csvRecord = (
-  values: ReadonlyArray<SnapshotValue | undefined>,
-): string =>
+const csvRecord = (values: ReadonlyArray<SnapshotValue | undefined>): string =>
   `${csvOrder(values)
     .map((index) => cell(values[index]))
     .join(',')}\n`;

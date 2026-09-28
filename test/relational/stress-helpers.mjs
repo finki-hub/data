@@ -71,7 +71,7 @@ const peakOf = async (directory) =>
 // Starts sampling the cgroups ({ name: directory }); `stop()` ends the
 // loop, waits for it and answers per name the highest sampled usage, the
 // memory.peak before and after, and the number of samples.
-export const startSampler = async (cgroups) => {
+const startSampler = async (cgroups) => {
   const names = Object.keys(cgroups);
   const peaksBefore = Object.fromEntries(
     await Promise.all(

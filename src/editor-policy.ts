@@ -11,7 +11,7 @@ import { findModelCollection } from './data-model/collections.js';
 import { aliasesFor } from './data-model/relations.js';
 import { keyedFields } from './editor-policy-keys.js';
 
-export type PermissionAction = 'create' | 'delete' | 'read' | 'update';
+type PermissionAction = 'create' | 'delete' | 'read' | 'update';
 
 const allActions: readonly PermissionAction[] = [
   'create',
@@ -21,7 +21,7 @@ const allActions: readonly PermissionAction[] = [
 ];
 const writes: readonly PermissionAction[] = ['create', 'update', 'delete'];
 
-export type ForbiddenGrant = {
+type ForbiddenGrant = {
   readonly actions: readonly PermissionAction[];
   readonly collection: string;
   readonly reason: string;
@@ -94,7 +94,7 @@ export const editorForbiddenGrants: readonly ForbiddenGrant[] = [
   { actions: writes, collection: 'directus_access', reason: accessReason },
 ];
 
-export type PermissionGrant = {
+type PermissionGrant = {
   readonly action: string;
   readonly collection: string;
 };
@@ -129,7 +129,7 @@ export const forbiddenGrantsIn = (
 // `keyed` defaults to the fields the declared key sources withhold.
 export const grantClasses = ['edit', 'keyed', 'read', 'none'] as const;
 
-export type GrantClass = (typeof grantClasses)[number];
+type GrantClass = (typeof grantClasses)[number];
 
 type Keyed = ReadonlyMap<string, readonly string[]>;
 

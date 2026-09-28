@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ImportIo, SetupReport } from '../src/directus.js';
+import type { ImportIo, SetupReport } from '../src/import-workbook.js';
 
 import {
   dataModelCollectionKeys,
@@ -14,9 +14,9 @@ import {
   fakeItemsDirectus,
   type FakeStore,
   type RecordedCall,
-} from './migration-test-helpers.js';
+} from './store-test-helpers.js';
 
-export const setupReport: SetupReport = { setup: 'stand-in' };
+const setupReport: SetupReport = { setup: 'stand-in' };
 
 export const emptyStore = (): FakeStore => ({ items: new Map() });
 

@@ -3,9 +3,9 @@ import type ExcelJS from 'exceljs';
 import type {
   CollectionSource,
   FieldSpec,
-  MigrationItem,
   PlacedItem,
   Scalar,
+  WorkbookItem,
   WorkbookSpec,
 } from './schema.js';
 
@@ -41,7 +41,6 @@ const validateHeaders = (
 ): void => {
   for (const fieldSpec of fields) {
     if (
-      fieldSpec.source !== undefined &&
       fieldSpec.sourceColumn === undefined &&
       !headerPositions.has(fieldSpec.source)
     ) {
@@ -56,15 +55,11 @@ const readRow = (
   row: ExcelJS.Row,
   rowNumber: number,
   context: RowContext,
-): MigrationItem | null => {
+): null | WorkbookItem => {
   const item: Record<string, Scalar> = {};
   let hasContent = false;
 
   for (const fieldSpec of context.fields) {
-    if (fieldSpec.source === undefined) {
-      continue;
-    }
-
     const columnNumber =
       fieldSpec.sourceColumn ?? context.headerPositions.get(fieldSpec.source);
     if (columnNumber === undefined) {
@@ -93,14 +88,14 @@ const readRow = (
   return hasContent ? item : null;
 };
 
+// A sheet of rows: its headers in the first row, its data below.
 export const readRows = (
   workbook: ExcelJS.Workbook,
   spec: WorkbookSpec,
   source: Extract<CollectionSource, { readonly kind: 'rows' }>,
 ): readonly PlacedItem[] => {
   const worksheet = getWorksheet(workbook, source.sheet);
-  const headerRowNumber = source.headerRow ?? 1;
-  const headerPositions = readHeaders(worksheet.getRow(headerRowNumber));
+  const headerPositions = readHeaders(worksheet.getRow(1));
   validateHeaders(source.sheet, spec.fields, headerPositions);
 
   const items: PlacedItem[] = [];
@@ -110,7 +105,7 @@ export const readRows = (
     headerPositions,
   };
   for (
-    let rowNumber = source.startRow ?? headerRowNumber + 1;
+    let rowNumber = 2;
     rowNumber <= worksheet.actualRowCount;
     rowNumber += 1
   ) {

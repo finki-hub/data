@@ -3,7 +3,15 @@
 
 export type CsvCell = null | string;
 
-export type CsvProblem =
+export type CsvRecord = {
+  readonly cells: readonly CsvCell[];
+  // The physical line the record starts on (1-based) and its record index
+  // (0 for the header).
+  readonly line: number;
+  readonly record: number;
+};
+
+type CsvProblem =
   | 'bare_carriage_return'
   | 'cell_too_long'
   | 'empty_line'
@@ -13,14 +21,6 @@ export type CsvProblem =
   | 'text_after_quote'
   | 'too_many_cells'
   | 'unterminated_quote';
-
-export type CsvRecord = {
-  readonly cells: readonly CsvCell[];
-  // The physical line the record starts on (1-based) and its record index
-  // (0 for the header).
-  readonly line: number;
-  readonly record: number;
-};
 
 export class CsvFormatError extends Error {
   public readonly line: number;

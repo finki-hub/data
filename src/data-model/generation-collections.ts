@@ -12,8 +12,8 @@ import { m2o, scalar } from './fields.js';
 // Program states and equivalency members are rows too, so a new program or
 // generation adds rows, not columns.
 
-export const generationTemplate = '{{code}}';
-export const programTemplate = '{{name}} ({{generation.code}})';
+const generationTemplate = '{{code}}';
+const programTemplate = '{{name}} ({{generation.code}})';
 
 // A generation reference: required, and a generation that still has
 // entries, links, programs or members cannot be deleted.

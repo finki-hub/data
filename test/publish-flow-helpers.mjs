@@ -33,7 +33,7 @@ const runCommand = promisify(execFile);
 const keyPattern = /<Key>(?<key>[^<]+)<\/Key>/gu;
 const folderPattern = /^\/tmp\/s3mockFileStore\d+\/synthetic-[a-z0-9-]+$/u;
 
-export const sha256 = (text) => createHash('sha256').update(text).digest('hex');
+const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
 const s3Request = (s3, path, init = {}) =>
   fetch(`${s3.endpoint}/${s3.bucket}${path}`, {
@@ -89,7 +89,7 @@ const publishedPort = async (container, host, port) =>
 
 // The container must publish exactly the endpoint's loopback port before
 // anything is run inside it; answers the port it serves inside Docker.
-export const verifyContainer = async (s3) => {
+const verifyContainer = async (s3) => {
   const port = await publishedPort(
     s3.container,
     new URL(s3.endpoint).hostname,

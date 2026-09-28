@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { MigrationData, WorkbookKey } from '../schema.js';
+import type { WorkbookData, WorkbookKey } from '../schema.js';
 
 const id = z.number().int();
 const text = z.string().nullable();
@@ -15,7 +15,7 @@ const flag = z.boolean().nullable();
 // student, Discord, dean's office and Moodle user column, and the course
 // name, tags and professors override) are read from the workbook data
 // directly (plan-content.ts).
-export const courseRow = z.object({
+const courseRow = z.object({
   available_2018: flag,
   available_2023: flag,
   credits_2018: integer,
@@ -25,8 +25,8 @@ export const courseRow = z.object({
   name_2018_override: text,
   name_2023: text,
 });
-export const staffRow = z.object({ id, name: text });
-export const studentRow = z.object({ id, index_number: text });
+const staffRow = z.object({ id, name: text });
+const studentRow = z.object({ id, index_number: text });
 const curriculumBase = {
   catalog_order: integer,
   channel: flag,
@@ -44,40 +44,40 @@ const curriculumBase = {
   state_siis: text,
   url: text,
 };
-export const curriculum2023Row = z.object({
+const curriculum2023Row = z.object({
   ...curriculumBase,
   state_ie: text,
   state_ssp: text,
 });
-export const curriculum2018Row = z.object({
+const curriculum2018Row = z.object({
   ...curriculumBase,
   state_ke: text,
 });
-export const equivalencyRow = z.object({
+const equivalencyRow = z.object({
   course_2013: text,
   course_2018: text,
   course_2023: text,
   id,
 });
-export const assignmentRow = z.object({
+const assignmentRow = z.object({
   assistants: text,
   course_name: text,
   id,
   professors: text,
 });
-export const patternRow = z.object({
+const patternRow = z.object({
   academic_year: text,
   course_name: text,
   id,
   pattern: text,
 });
-export const councilRow = z.object({
+const councilRow = z.object({
   id,
   index_number: text,
   position: text,
   year: integer,
 });
-export const deansRow = z.object({
+const deansRow = z.object({
   id,
   name: text,
   position: text,
@@ -88,7 +88,7 @@ export type CourseRow = z.infer<typeof courseRow>;
 export type EquivalencyRow = z.infer<typeof equivalencyRow>;
 export type AssignmentRow = z.infer<typeof assignmentRow>;
 export type PatternRow = z.infer<typeof patternRow>;
-export type CouncilRow = z.infer<typeof councilRow>;
+type CouncilRow = z.infer<typeof councilRow>;
 
 export type WorkbookRows = {
   readonly course_enrollment_patterns: readonly PatternRow[];
@@ -105,7 +105,7 @@ export type WorkbookRows = {
 
 // The rows of the parsed workbook the check reads, numbered in reading
 // order.
-export const workbookRows = (data: MigrationData): WorkbookRows => {
+export const workbookRows = (data: WorkbookData): WorkbookRows => {
   const rows = <S extends z.ZodType>(key: WorkbookKey, schema: S) =>
     data[key].map((item, index): z.output<S> =>
       schema.parse({ ...item, id: index + 1 }),

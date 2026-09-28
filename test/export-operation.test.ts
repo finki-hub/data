@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import type { CoordinationFacts } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-facts.js';
 import type { SourceRead } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
-import type { FakeItem } from './migration-test-helpers.js';
+import type { FakeItem } from './store-test-helpers.js';
 
 import { exportActions } from '../directus/extensions/directus-extension-data-operations/src/exports/action-names.js';
 import {

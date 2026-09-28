@@ -6,7 +6,7 @@ import type { StoredOutcomes } from './outcomes.js';
 // a caller can pass a whole failure record without a size check of its own.
 export const errorMessageLength = 600;
 
-export const pageSources = ['history', 'rules'] as const;
+const pageSources = ['history', 'rules'] as const;
 
 export type PageSource = (typeof pageSources)[number];
 
@@ -15,8 +15,6 @@ export type PageSource = (typeof pageSources)[number];
 // family of pages (rule-modes.ts), so its completion never drops a
 // family's rows.
 export const planSources = [...pageSources, 'enrollments'] as const;
-
-export type PlanSource = (typeof planSources)[number];
 
 // The only tables the page planner ever reads, keyed by the enumerated
 // source names an operation may name.

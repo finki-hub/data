@@ -88,12 +88,12 @@ export type FlowTemplate = {
   readonly trigger: 'manual' | 'operation' | 'schedule';
 };
 
-export type OperationEdges = {
+type OperationEdges = {
   readonly reject?: string;
   readonly resolve?: string;
 };
 
-export type OperationSpec = {
+type OperationSpec = {
   readonly edges?: OperationEdges;
   // The Flow family the operation belongs to; its id carries the code.
   readonly family: FlowFamilyCode;

@@ -42,9 +42,9 @@ export const livePresetsSchema = z.array(
   }),
 );
 
-export type LiveCollection = z.infer<typeof liveCollectionsSchema>[number];
+type LiveCollection = z.infer<typeof liveCollectionsSchema>[number];
 export type LiveField = z.infer<typeof liveFieldsSchema>[number];
-export type LivePreset = z.infer<typeof livePresetsSchema>[number];
+type LivePreset = z.infer<typeof livePresetsSchema>[number];
 
 export type PresentationState = {
   readonly collections: ReadonlyMap<string, LiveCollection>;
@@ -52,7 +52,7 @@ export type PresentationState = {
   readonly presets: readonly LivePreset[];
 };
 
-export type PresentationPlan = {
+type PresentationPlan = {
   readonly fields: readonly FieldPresentation[];
   readonly folders: readonly Folder[];
   readonly groups: readonly FieldGroup[];

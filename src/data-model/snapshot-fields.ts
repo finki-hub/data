@@ -4,9 +4,8 @@ import { scalar } from './fields.js';
 
 // The status of the controlled Moodle snapshot import and promotion,
 // written only by the finki-hub-snapshot-import and -promote operations
-// (Task 10) and appended after the coordination columns, so an installed
-// project gains them additively. `import_state` itself is an original
-// column of data_operations.
+// (Task 10). `import_state` itself is declared beside `publication_state`
+// in operations-collections.ts.
 export const snapshotImportFields: readonly ModelField[] = [
   scalar('import_file', 'string', {
     note: 'Directus file id of the private CSV the last import staged.',

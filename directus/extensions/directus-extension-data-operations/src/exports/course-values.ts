@@ -8,14 +8,14 @@ import { idOf, pathValue, textOf } from './values.js';
 // courses.ts) and answers the value the committed public file holds
 // (test/fixtures/expected-exports), resolving relation values on read, so
 // a renamed staff member or curriculum entry is published without any
-// rebuild. A generation or a
-// program is a key row of a published source, never a code constant.
+// rebuild. A generation or a program is a key row of a published source,
+// never a code constant.
 // Anything they cannot resolve unambiguously is refused with ids only;
 // nothing is guessed.
 
 // Joins the labels of one course's professors or assistants. The
 // workbook import links an assignment text to staff rows only when
-// this join gives the text back (`staffListSeparator` of src/migrations/
+// this join gives the text back (`staffListSeparator` of src/import/
 // preflight-staff.ts, pinned equal by a test).
 export const labelSeparator = ', ';
 

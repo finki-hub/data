@@ -23,7 +23,7 @@ import { claimStaleAfterMs } from '../directus/extensions/directus-extension-dat
 import { statusAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/status.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
 
-export const processA = 'process-a';
+const processA = 'process-a';
 
 export const context = (fake: FakeCoordination): ActionContext => ({
   owner: processA,
@@ -79,7 +79,7 @@ export const settled = (...tables: string[]): FakeCoordination => {
 
 // One managed operation of the graph the recording database answers: the
 // scheduler's claim, a root of the calculation graph.
-export const graphRows: readonly GraphRow[] = [
+const graphRows: readonly GraphRow[] = [
   {
     entry: 'op-1',
     flow: 'flow-1',

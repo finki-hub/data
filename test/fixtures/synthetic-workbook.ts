@@ -3,12 +3,12 @@ import ExcelJS from 'exceljs';
 import {
   type ProgramHeaders,
   workbookPrograms,
-} from '../../src/migrations/generations.js';
+} from '../../src/import/generations.js';
 import {
   type FieldSpec,
-  type MigrationData,
   perWorkbookKey,
   type Scalar,
+  type WorkbookData,
   type WorkbookSpec,
 } from '../../src/schema.js';
 import { workbookSpecs } from '../../src/specs/workbook.js';
@@ -66,15 +66,12 @@ export const lifecycleDataset = (
 
 const studentSheets = ['Индекси - Година', 'Индекси - Други'] as const;
 
-const sourceFields = (spec: WorkbookSpec): readonly FieldSpec[] =>
-  spec.fields.filter((field) => field.source !== undefined);
-
 // The worksheet column of every source field: its fixed position, or the
 // next column no fixed position takes.
 const columnsOf = (
   spec: WorkbookSpec,
 ): ReadonlyArray<{ readonly column: number; readonly field: FieldSpec }> => {
-  const fields = sourceFields(spec);
+  const { fields } = spec;
   const taken = new Set(fields.flatMap((field) => field.sourceColumn ?? []));
   let next = 1;
   return fields.map((field) => {
@@ -116,7 +113,7 @@ const setHeader = (
   { column, spec }: { readonly column: number; readonly spec: WorkbookSpec },
   field: FieldSpec,
 ): void => {
-  const code = field.source ?? field.target;
+  const code = field.source;
   const cell = sheet.getRow(1).getCell(column);
   if (!field.target.startsWith('state_')) {
     cell.value = code;
@@ -351,17 +348,17 @@ const specOf = (key: WorkbookSpec['key']): WorkbookSpec => {
 };
 
 // What the workbook readers return for the workbook written from the
-// dataset, after a save and a reload: the source columns only, in reading
+// dataset, after a save and a reload: the read columns only, in reading
 // order, blanks as null.
 export const workbookData = (
   dataset: SyntheticDataset,
   years: readonly string[] = academicYears,
-): MigrationData =>
+): WorkbookData =>
   perWorkbookKey((key) => {
     const spec = specOf(key);
     return readingOrder(spec, dataset[key], years).map((row) =>
       Object.fromEntries(
-        sourceFields(spec).map((field) => [
+        spec.fields.map((field) => [
           field.target,
           normalized(row[field.target]),
         ]),
@@ -372,10 +369,10 @@ export const workbookData = (
 // The program codes each curriculum sheet heads its program columns with.
 export const syntheticProgramHeaders: ProgramHeaders = {
   curriculum_2018: specOf('curriculum_2018').fields.flatMap((field) =>
-    field.target.startsWith('state_') ? [field.source ?? ''] : [],
+    field.target.startsWith('state_') ? [field.source] : [],
   ),
   curriculum_2023: specOf('curriculum_2023').fields.flatMap((field) =>
-    field.target.startsWith('state_') ? [field.source ?? ''] : [],
+    field.target.startsWith('state_') ? [field.source] : [],
   ),
 };
 

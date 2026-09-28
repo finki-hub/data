@@ -82,7 +82,7 @@ export const convertCell = (
   if (value.trim() === '') {
     if (fieldSpec.required) {
       throw new WorkbookDataError(
-        `Missing required value in ${fieldSpec.source ?? fieldSpec.target} at row ${rowNumber}`,
+        `Missing required value in ${fieldSpec.source} at row ${rowNumber}`,
       );
     }
 
@@ -93,7 +93,7 @@ export const convertCell = (
     const parsed = booleanSchema.safeParse(value);
     if (!parsed.success) {
       throw new WorkbookDataError(
-        `Invalid boolean ${JSON.stringify(value)} in ${fieldSpec.source ?? fieldSpec.target} at row ${rowNumber}`,
+        `Invalid boolean ${JSON.stringify(value)} in ${fieldSpec.source} at row ${rowNumber}`,
         { cause: parsed.error },
       );
     }
@@ -105,7 +105,7 @@ export const convertCell = (
     const parsed = integerSchema.safeParse(value);
     if (!parsed.success) {
       throw new WorkbookDataError(
-        `Invalid integer ${JSON.stringify(value)} in ${fieldSpec.source ?? fieldSpec.target} at row ${rowNumber}`,
+        `Invalid integer ${JSON.stringify(value)} in ${fieldSpec.source} at row ${rowNumber}`,
         { cause: parsed.error },
       );
     }

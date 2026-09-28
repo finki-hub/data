@@ -25,7 +25,7 @@ export const publicFileNames = [
   'students',
 ] as const;
 
-export type PublicFileName = (typeof publicFileNames)[number];
+type PublicFileName = (typeof publicFileNames)[number];
 
 // The professors texts of the assignment-text-<n> cases, in case order:
 // the parity dataset with the first assignment row's text replaced.
@@ -40,7 +40,7 @@ export const assignmentTexts = [
   'Prof. Zed Alpha ',
 ] as const;
 
-export type AssignmentTextCase = `assignment-text-${string}`;
+type AssignmentTextCase = `assignment-text-${string}`;
 
 // The cases that hold the four public files.
 export type ExportCase =
@@ -52,14 +52,14 @@ export type ExportCase =
   | AssignmentTextCase;
 
 // The cases that hold enrollments.json.
-export type EnrollmentCase =
+type EnrollmentCase =
   | 'empty-history-pattern'
   | 'legacy-rules'
   | 'legacy-rules-empty'
   | 'legacy-rules-split'
   | 'synthetic';
 
-export const sha256 = (text: string): string =>
+const sha256 = (text: string): string =>
   createHash('sha256').update(text).digest('hex');
 
 const sumLine = /^(?<digest>[0-9a-f]{64}) {2}(?<file>\S+)$/u;
@@ -107,7 +107,7 @@ export const committed = async (relative: string): Promise<string> => {
   return body;
 };
 
-export type ExpectedFile = {
+type ExpectedFile = {
   readonly body: string;
   readonly sha256: string;
 };

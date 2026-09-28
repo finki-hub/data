@@ -15,8 +15,8 @@ const roleChoices = labelledChoices(assignmentRoles, {
 });
 
 export const courseTemplate = '{{name}}';
-export const staffTemplate = '{{name}}';
-export const studentTemplate = '{{index_number}} - {{name}}';
+const staffTemplate = '{{name}}';
+const studentTemplate = '{{index_number}} - {{name}}';
 export const curriculumEntryTemplate =
   '{{code}} - {{name}} ({{generation.code}})';
 export const equivalencyTemplate = '{{course.name}}';

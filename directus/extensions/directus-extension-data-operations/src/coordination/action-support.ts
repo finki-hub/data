@@ -18,10 +18,10 @@ export type ActionContext = {
 
 // Why an abandoned claim was released: the status carries it, since no
 // caller is left to receive a refusal.
-export const abandonedMessage =
+const abandonedMessage =
   'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded. Mark the domain pending (or retry) to run it again.';
 
-export const interruptedMessage =
+const interruptedMessage =
   'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded and the domain runs once more on its own. A second interruption at the same inputs waits for Mark pending.';
 
 // An upload cannot be discarded: the status keeps the outcome each file
@@ -54,19 +54,19 @@ const overtakenPublicationMessages: Readonly<Record<Overtaking, string>> = {
     'A source change committed during the publication; the uploaded files hold the prepared source revision, which is not recorded as published, and publication stays pending. Publish again.',
 };
 
-export type Mismatch = 'claim_mismatch' | 'owner_mismatch';
-
 export type Outcome<T> =
   Overtaken | { readonly kind: 'done'; readonly value: T };
 
-export type Overtaken = {
+type Mismatch = 'claim_mismatch' | 'owner_mismatch';
+
+type Overtaken = {
   // The outcomes of an overtaken publication, kept with its release.
   readonly files?: StoredOutcomes;
   readonly kind: 'overtaken';
   readonly reason: Overtaking;
 };
 
-export type Overtaking = 'fingerprint_changed' | 'source_changed';
+type Overtaking = 'fingerprint_changed' | 'source_changed';
 
 export const done = <T>(value: T): Outcome<T> => ({ kind: 'done', value });
 

@@ -168,13 +168,6 @@ const destroyOperations = async (target) => {
   }
 };
 
-// Removes everything `installPresentation` adds beside the model
-// collections, so a fixture that ran `npm run setup` returns to marker-only.
-export const destroyPresentation = async (target) => {
-  await destroyPresets(target);
-  await destroyFolders(target);
-};
-
 export const destroyDataModel = async (target) => {
   await destroyOperations(target);
   await destroyPresets(target);

@@ -1,8 +1,8 @@
-import type { ImportPlan } from './migrations/plan.js';
-import type { UnstorableValue } from './migrations/storable.js';
+import type { ImportPlan } from './import/plan.js';
+import type { UnstorableValue } from './import/storable.js';
 import type { WorkbookPlaces } from './workbook.js';
 
-import { countByCode, countKeys, type Finding } from './migrations/findings.js';
+import { countByCode, countKeys, type Finding } from './import/findings.js';
 
 const columnOf = ({ collection, field }: UnstorableValue): string =>
   `${collection}.${field}`;

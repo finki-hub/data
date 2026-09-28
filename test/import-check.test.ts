@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest';
 
-import type { CourseCandidate } from '../src/migrations/candidates.js';
+import type { CourseCandidate } from '../src/import/candidates.js';
 
 import {
   blockerCodes,
   skippedCodes,
   warningCodes,
-} from '../src/migrations/findings.js';
-import { planImport } from '../src/migrations/plan.js';
+} from '../src/import/findings.js';
+import { planImport } from '../src/import/plan.js';
 import {
   expectedCouncil,
   expectedEnrollments,

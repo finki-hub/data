@@ -43,7 +43,7 @@ export const calculationDomains: readonly CalculationDomain[] =
 // A claim that is no work domain: the promotion of a staged Moodle
 // snapshot. It is never pending, never dirty and never completed through
 // `complete`; the promotion takes and clears it itself.
-export const snapshotClaim = {
+const snapshotClaim = {
   label: 'Snapshot promotion',
   name: 'snapshot',
 } as const;
@@ -109,8 +109,6 @@ export const coordinatorActionNames = [
   'record',
   'status',
 ] as const;
-
-export type CoordinatorAction = (typeof coordinatorActionNames)[number];
 
 // The states of a Moodle snapshot import (data_operations.import_state).
 export const importStates = [

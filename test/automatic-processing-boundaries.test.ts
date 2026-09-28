@@ -33,10 +33,6 @@ import {
   processPendingFlow,
 } from '../src/flows/process-pending.js';
 import { installFlowFamily } from '../src/flows/registry.js';
-import {
-  readSnapshotReadiness,
-  snapshotReadiness,
-} from '../src/snapshot-readiness.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
 import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
 
@@ -147,7 +143,7 @@ describe('source invalidation of the completed source model', () => {
   });
 });
 
-describe('the editor policy template and the snapshot readiness check', () => {
+describe('the editor policy template', () => {
   test('forbids the native snapshot shortcut and every derived write, and nothing an editor needs', () => {
     const withheld = collectionDeclarations.flatMap((declaration) =>
       isSource(declaration) ? [] : [declaration],
@@ -208,47 +204,6 @@ describe('the editor policy template and the snapshot readiness check', () => {
       { action: 'create', collection: 'directus_permissions' },
       { action: 'update', collection: 'directus_access' },
     ]);
-  });
-
-  test('flags active Moodle users edited outside the snapshot workflow and a failed import', async () => {
-    const report = {
-      active: { fingerprint: 'b', rows: 30 },
-      activeMatchesPromotion: false,
-      promoted: { at: null, fingerprint: 'a', rows: 31 },
-      state: 'completed',
-    };
-
-    const [edited, ...others] = snapshotReadiness(report);
-
-    expect(others).toEqual([]);
-    expect(edited?.code).toBe('active_snapshot_edited');
-    expect(edited?.message).toContain(
-      'The active Moodle users (30 rows) no longer equal the snapshot the last promotion made active (31 rows)',
-    );
-    expect(
-      snapshotReadiness({
-        ...report,
-        activeMatchesPromotion: null,
-        promoted: null,
-      }),
-    ).toEqual([]);
-    expect(
-      snapshotReadiness({
-        ...report,
-        activeMatchesPromotion: true,
-        state: 'failed',
-      }).map(({ code }) => code),
-    ).toEqual(['snapshot_import_failed']);
-    expect(() => snapshotReadiness({ state: 'completed' })).toThrow(z.ZodError);
-
-    const paths: string[] = [];
-    const request: DirectusRequest = async (pathname) => {
-      paths.push(pathname);
-      return report;
-    };
-
-    await expect(readSnapshotReadiness(request)).resolves.toHaveLength(1);
-    expect(paths).toEqual(['/finki-hub-data-operations/snapshot']);
   });
 });
 

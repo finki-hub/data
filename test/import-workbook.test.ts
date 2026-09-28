@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import type { PlannedCollection } from '../src/migrations/planned.js';
-import type { MigrationData } from '../src/schema.js';
+import type { PlannedCollection } from '../src/import/planned.js';
+import type { WorkbookData } from '../src/schema.js';
 
 import { dataModelCollectionKeys } from '../src/data-model/collections.js';
 import { createDirectusRequest } from '../src/directus-request.js';
-import { importWorkbook } from '../src/directus.js';
 import { ImportInterruptedError } from '../src/import-interruption.js';
 import {
   applicationCollections,
   ExistingDataError,
 } from '../src/import-state.js';
-import { planImport } from '../src/migrations/plan.js';
+import { importWorkbook } from '../src/import-workbook.js';
+import { planImport } from '../src/import/plan.js';
 import {
   config,
   emptyData,
@@ -29,12 +29,12 @@ import {
   fakeImportDirectus,
   type ImportFake,
 } from './import-test-helpers.js';
+import { parityDataset } from './relational-export-helpers.js';
 import {
   type FakeItem,
   type FakeStore,
   type RecordedCall,
-} from './migration-test-helpers.js';
-import { parityDataset } from './relational-export-helpers.js';
+} from './store-test-helpers.js';
 
 // The relational rows the import writes for the parity dataset.
 const planned = (): readonly PlannedCollection[] =>
@@ -282,7 +282,7 @@ describe('an import interrupted after it began writing', () => {
 describe('the rows the import writes', () => {
   test('batches large private imports below the request payload limit', async () => {
     const fake = fakeImportDirectus(emptyStore());
-    const data: MigrationData = {
+    const data: WorkbookData = {
       ...emptyData,
       moodle_users: Array.from({ length: 501 }, (_, moodleId) => ({
         ID_new: moodleId,

@@ -128,8 +128,7 @@ export const operationsCollections: readonly ModelCollection[] = [
         readOnly: true,
       }),
       // Coordination status written by the finki-hub-data-coordinate
-      // operation and the source-invalidation trigger; appended after the
-      // original columns so an installed project gains them additively.
+      // operation and the source-invalidation trigger.
       scalar('source_revision', 'integer', {
         defaultValue: 0,
         note: 'Incremented by the source-invalidation trigger inside every source transaction.',

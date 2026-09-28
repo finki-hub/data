@@ -57,7 +57,7 @@ export type RelationAction = {
 
 // A collection is created, refused or skipped: setup takes over no
 // existing one.
-export type CollectionCounts = {
+type CollectionCounts = {
   readonly created: number;
   readonly refused: number;
   readonly skipped: number;
@@ -66,11 +66,11 @@ export type CollectionCounts = {
 // A field or relation can also be adopted: an installed one setup repairs
 // in place (a field that lost its unique or index flag, a relation whose
 // metadata diverges from the declaration).
-export type Counts = CollectionCounts & { readonly adopted: number };
+type Counts = CollectionCounts & { readonly adopted: number };
 
 // Fields also count the enum fields whose code-owned choices and rule were
 // realigned.
-export type FieldCounts = Counts & { readonly aligned: number };
+type FieldCounts = Counts & { readonly aligned: number };
 
 export type InstallSummary = {
   readonly collections: CollectionCounts;

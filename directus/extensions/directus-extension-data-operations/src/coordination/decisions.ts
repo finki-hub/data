@@ -13,7 +13,7 @@ import { blockingFailure, inputRevision } from './failures.js';
 import { type Claim, type LastError, type OperationsState } from './state.js';
 
 // The fingerprint of the last successful run of the domain's kind.
-export const fingerprintFor = (
+const fingerprintFor = (
   state: OperationsState,
   domain: Domain,
 ): null | string =>
@@ -56,7 +56,7 @@ export const abandonedClaim = (
     ? state.claim
     : null;
 
-export type ClaimDecision =
+type ClaimDecision =
   | { readonly blocking: readonly Domain[]; readonly kind: 'upstream_dirty' }
   | { readonly claim: Claim; readonly kind: 'busy' }
   | {
@@ -71,7 +71,7 @@ export type ClaimDecision =
     }
   | { readonly kind: 'nothing_pending' };
 
-export type ClaimRequest = {
+type ClaimRequest = {
   readonly currentFingerprints: Fingerprints;
   readonly domain: ClaimTarget;
   readonly retry: boolean;
@@ -126,12 +126,12 @@ export const decideClaim = (
   return { dirtyDomains: pending, domain, kind: 'claim' };
 };
 
-export type ClaimCheck = {
+type ClaimCheck = {
   readonly owner: string;
   readonly token: string;
 };
 
-export type OwnershipVerdict = 'claim_mismatch' | 'ok' | 'owner_mismatch';
+type OwnershipVerdict = 'claim_mismatch' | 'ok' | 'owner_mismatch';
 
 export const verifyOwnership = (
   state: OperationsState,
@@ -143,7 +143,7 @@ export const verifyOwnership = (
   return state.claim.owner === check.owner ? 'ok' : 'owner_mismatch';
 };
 
-export type ClaimVerdict = 'source_changed' | OwnershipVerdict;
+type ClaimVerdict = 'source_changed' | OwnershipVerdict;
 
 // A claim is usable while its token and owner match and no source
 // transaction that touched the claimed domain's inputs committed since it
@@ -162,7 +162,7 @@ export const verifyClaim = (
     : 'source_changed';
 };
 
-export type StageDecision =
+type StageDecision =
   | { readonly kind: 'ok' }
   | { readonly kind: 'page_unplanned' }
   | { readonly kind: Exclude<ClaimVerdict, 'ok'> };

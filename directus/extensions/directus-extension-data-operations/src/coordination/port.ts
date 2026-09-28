@@ -113,21 +113,6 @@ export type CoordinationStore = {
   ) => Promise<T>;
 };
 
-export type FinishInput = {
-  readonly claimRevision: number;
-  readonly dirtyDomains: readonly Domain[];
-  // Per-file publication outcomes keyed by the published filename; they
-  // replace the previous outcomes whole. Null for a calculation.
-  readonly files: null | StoredOutcomes;
-  readonly fingerprint: string;
-  readonly owner: string;
-  // A publication whose every file was uploaded from its claimed revision
-  // while a later source change committed: it is recorded at that revision
-  // and the caller keeps publication pending for the newer one.
-  readonly superseded: boolean;
-  readonly token: string;
-};
-
 export type MarkResult = {
   readonly dirtyDomains: readonly Domain[];
   readonly sourceRevision: number;
@@ -152,5 +137,20 @@ export type StagedRows = {
   readonly page: string;
   readonly revision: number;
   readonly rows: readonly CountRow[];
+  readonly token: string;
+};
+
+type FinishInput = {
+  readonly claimRevision: number;
+  readonly dirtyDomains: readonly Domain[];
+  // Per-file publication outcomes keyed by the published filename; they
+  // replace the previous outcomes whole. Null for a calculation.
+  readonly files: null | StoredOutcomes;
+  readonly fingerprint: string;
+  readonly owner: string;
+  // A publication whose every file was uploaded from its claimed revision
+  // while a later source change committed: it is recorded at that revision
+  // and the caller keeps publication pending for the newer one.
+  readonly superseded: boolean;
   readonly token: string;
 };

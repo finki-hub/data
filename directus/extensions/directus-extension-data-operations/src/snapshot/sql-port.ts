@@ -144,7 +144,7 @@ const rowObjects = (rows: readonly SnapshotRow[]) =>
     ),
   );
 
-export const snapshotSqlPort = (client: SqlClient): SnapshotPort => ({
+const snapshotSqlPort = (client: SqlClient): SnapshotPort => ({
   beginImport: async ({ file, token }) => {
     await run(client, beginImportSql, [token, file]);
   },

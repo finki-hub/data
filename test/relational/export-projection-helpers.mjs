@@ -11,7 +11,7 @@ import {
 import { snapshotFields } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { validateReadinessFlowId } from '../../src/flows/validate-readiness.js';
-import { writePlan } from '../../src/migrations/write.js';
+import { writePlan } from '../../src/import/write.js';
 import { planOf } from '../import-plan-helpers.js';
 import { json, request } from './data-model-helpers.mjs';
 import { get } from './history-index-helpers.mjs';

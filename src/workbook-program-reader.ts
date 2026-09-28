@@ -9,7 +9,7 @@ import {
   type ProgramSeed,
   stateColumns,
   workbookPrograms,
-} from './migrations/generations.js';
+} from './import/generations.js';
 import { workbookSpecs } from './specs/workbook.js';
 import {
   getWorksheet,
@@ -17,28 +17,24 @@ import {
   WorkbookDataError,
 } from './workbook-values.js';
 
-// The sheet and header row of a curriculum sheet, as its workbook spec
-// reads it.
-const sourceOf = (
-  sheet: EntrySource,
-): Extract<CollectionSource, { readonly kind: 'rows' }> => {
+// The worksheet of a curriculum sheet, as its workbook spec reads it.
+const worksheetOf = (sheet: EntrySource): string => {
   const source: CollectionSource | undefined = workbookSpecs.find(
     ({ key }) => key === sheet,
   )?.source;
   if (source?.kind !== 'rows') {
     throw new TypeError(`${sheet} is not read from a sheet of rows`);
   }
-  return source;
+  return source.sheet;
 };
 
+// The texts heading the program columns of a curriculum sheet, in its
+// first row.
 const headersOf = (
   workbook: ExcelJS.Workbook,
   sheet: EntrySource,
 ): readonly string[] => {
-  const source = sourceOf(sheet);
-  const row = getWorksheet(workbook, source.sheet).getRow(
-    source.headerRow ?? 1,
-  );
+  const row = getWorksheet(workbook, worksheetOf(sheet)).getRow(1);
   return stateColumns(sheet).map(({ column }) =>
     readFirstLine(row.getCell(column)).trim(),
   );
@@ -47,9 +43,7 @@ const headersOf = (
 // The study-program headers of both curriculum sheets: the first line of
 // the text heading each program column (plain, rich or linked text), in
 // column order.
-export const readProgramHeaders = (
-  workbook: ExcelJS.Workbook,
-): ProgramHeaders => ({
+const readProgramHeaders = (workbook: ExcelJS.Workbook): ProgramHeaders => ({
   curriculum_2018: headersOf(workbook, 'curriculum_2018'),
   curriculum_2023: headersOf(workbook, 'curriculum_2023'),
 });

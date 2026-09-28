@@ -80,6 +80,3 @@ export const collectionPlacements: readonly CollectionPlacement[] =
       meta: { group: folder.collection, sort: index + 1 },
     })),
   );
-
-export const findFolder = (collection: string): Folder | undefined =>
-  folders.find((folder) => folder.collection === collection);

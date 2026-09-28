@@ -13,14 +13,14 @@ import {
 // split again by the history contract the installed index runs. A pair
 // without a rule has no count.
 
-export type OracleRule = {
+type OracleRule = {
   readonly course: number;
   readonly mode: string;
   readonly pattern: null | string;
   readonly year: number;
 };
 
-export type OracleMapping = {
+type OracleMapping = {
   readonly course: number;
   readonly label: string;
   readonly year: number;
@@ -35,7 +35,7 @@ const syntax = /[\n\r$()*+.?[\\\]^{|}]/u;
 
 // The generated users: each one's raw history and the lines it was built
 // from (null for a null history), in row order.
-export type OracleUsers = {
+type OracleUsers = {
   readonly histories: ReadonlyArray<null | string>;
   readonly lines: ReadonlyArray<null | readonly string[]>;
 };

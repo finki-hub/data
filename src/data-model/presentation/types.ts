@@ -1,4 +1,4 @@
-export type GroupStart = 'closed' | 'open';
+type GroupStart = 'closed' | 'open';
 
 // A field group of a form: an alias field that hosts the listed members in
 // the given order.
@@ -25,7 +25,7 @@ export type FieldCondition = {
 
 // The Studio-only meta keys the presentation may set on a field. Nothing
 // here changes a column or is enforced by the API.
-export type PresentationMeta = {
+type PresentationMeta = {
   readonly conditions?: readonly FieldCondition[];
   readonly display?: string;
   readonly display_options?: Readonly<Record<string, unknown>>;
@@ -60,7 +60,7 @@ export type CollectionPlacement = {
   readonly meta: { readonly group: string; readonly sort: number };
 };
 
-export type PresentationCounts = {
+type PresentationCounts = {
   readonly adopted: number;
   readonly created: number;
   readonly skipped: number;

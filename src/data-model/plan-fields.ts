@@ -23,7 +23,7 @@ export type PlanActions = {
   readonly relations: RelationAction[];
 };
 
-export type PlanContext = {
+type PlanContext = {
   readonly actions: PlanActions;
   readonly tally: Tally;
 };

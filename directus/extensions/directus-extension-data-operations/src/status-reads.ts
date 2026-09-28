@@ -19,9 +19,9 @@ import { collectionPage, humanize, itemPage } from './managed-flows.js';
 // activity table has an index on its timestamp, so the window keeps the
 // read to the rows of the last hour however large the table has grown.
 // Timestamps are ISO-8601 strings rendered by the database.
-export const scheduleLookBackMinutes = 60;
+const scheduleLookBackMinutes = 60;
 
-export const scheduleSql = `SELECT f."id", f."name", f."status",
+const scheduleSql = `SELECT f."id", f."name", f."status",
   to_char(runs."last" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "last_run",
   FLOOR(EXTRACT(EPOCH FROM clock_timestamp() - runs."last"))::integer AS "age_seconds"
 FROM "directus_flows" f
@@ -32,13 +32,13 @@ LEFT JOIN LATERAL (SELECT MAX(a."timestamp") AS "last" FROM "directus_activity" 
 WHERE f."trigger" = 'schedule' ORDER BY f."name", f."id"`;
 
 // Bindings: bookmark names JSON.
-export const bookmarksSql = `SELECT "id", "collection", "bookmark" FROM "directus_presets"
+const bookmarksSql = `SELECT "id", "collection", "bookmark" FROM "directus_presets"
 WHERE "user" IS NULL AND "role" IS NULL
   AND "bookmark" IN (SELECT "value" FROM json_array_elements_text(?::json))
 ORDER BY "id"`;
 
 // Bindings: policy id, user id (or null), role ids JSON.
-export const holdsPolicySql = `SELECT COUNT(*)::integer AS "count" FROM "directus_access"
+const holdsPolicySql = `SELECT COUNT(*)::integer AS "count" FROM "directus_access"
 WHERE "policy" = ?::uuid
   AND ("user" = ?::uuid OR "role" IN (SELECT "value"::uuid FROM json_array_elements_text(?::json)))`;
 

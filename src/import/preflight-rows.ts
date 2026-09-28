@@ -7,7 +7,7 @@ import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
 import { duplicateRows } from './preflight-duplicates.js';
 import { courseLink, linkedRows } from './preflight-links.js';
 
-export type RowCandidates = Omit<Candidates, 'courses'>;
+type RowCandidates = Omit<Candidates, 'courses'>;
 
 // A pattern row without a course, year or pattern cannot become a rule; a
 // row naming no course, or else a year the workbook does not list, is

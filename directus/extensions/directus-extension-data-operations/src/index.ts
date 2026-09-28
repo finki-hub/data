@@ -6,7 +6,7 @@ import { findMigration, type Migration, migrations } from './migrations.js';
 import { snapshotReport } from './snapshot/report.js';
 import { snapshotStore } from './snapshot/sql-port.js';
 
-export type SqlRunner = {
+type SqlRunner = {
   readonly raw: (sql: string) => PromiseLike<unknown>;
 };
 
@@ -34,7 +34,7 @@ const errorBody = (code: string, message: string) => ({
   errors: [{ extensions: { code }, message }],
 });
 
-export const unknownMigrationMessage = `Unknown migration. Bundled migrations: ${migrations
+const unknownMigrationMessage = `Unknown migration. Bundled migrations: ${migrations
   .map(({ name }) => name)
   .join(', ')}.`;
 

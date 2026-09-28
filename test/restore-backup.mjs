@@ -132,7 +132,7 @@ export const createBackup = async ({ binding, containers, restore }) => {
 // refuses the set, naming each problem, when anything differs (the
 // manifest must also keep each artifact under the name the restore reads).
 // Reads only.
-export const verifyBackup = async (directory) => {
+const verifyBackup = async (directory) => {
   const manifest = manifestSchema.parse(
     JSON.parse(
       await readFile(path.join(directory, backupFiles.manifest), 'utf8'),

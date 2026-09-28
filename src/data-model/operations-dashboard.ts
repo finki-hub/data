@@ -23,7 +23,7 @@ import { snapshotFlowId } from '../flows/snapshot-import.js';
 
 export const operationsDashboardId = rulesId('d0');
 
-export const operationsDashboard = {
+const operationsDashboard = {
   color: null,
   icon: 'monitor_heart',
   id: operationsDashboardId,
@@ -31,7 +31,7 @@ export const operationsDashboard = {
   note: 'The calculations, published files, readiness checks and published keys, and the manual data operations. Add a Run operation panel for any other Data / or Publish / Flow.',
 } as const;
 
-export type PanelDeclaration = {
+type PanelDeclaration = {
   readonly height: number;
   readonly icon: string;
   readonly id: string;

@@ -7,6 +7,11 @@ import {
   schemaConstraints,
 } from '../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import {
+  requiredFields,
+  snapshotFields,
+  snapshotFieldTable,
+} from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
+import {
   dataModelCollectionKeys,
   dataModelCollections,
 } from '../src/data-model/collections.js';
@@ -34,7 +39,6 @@ import {
   type ModelField,
   type ModelRelationField,
 } from '../src/schema.js';
-import { privateWorkbookSpecs } from '../src/specs/private.js';
 import {
   emptyState,
   fakeDirectus,
@@ -172,19 +176,20 @@ describe('target collections', () => {
     ).toEqual(['year', 'index_number', 'position', 'student']);
   });
 
-  test('preserves the 38 Moodle scraper fields on the snapshot and the staging rows', () => {
-    const [spec] = privateWorkbookSpecs;
-    const keys = spec.fields.map(({ target }) => target);
-
-    expect(keys).toHaveLength(38);
-    expect(
-      findCollection('moodle_users').fields.map(({ field }) => field),
-    ).toEqual(keys);
-
+  test('declares the snapshot and the staging rows from the snapshot field table', () => {
     const staging = findCollection('moodle_import_rows');
 
-    expect(staging.fields.map(({ field }) => field)).toEqual(keys);
     expect(staging.hidden).toBeTruthy();
+
+    for (const { fields } of [findCollection('moodle_users'), staging]) {
+      expect(fields.map(({ field }) => field)).toEqual(snapshotFields);
+      expect(fields.map(({ kind }) => kind)).toEqual(
+        snapshotFieldTable.map(({ kind }) => kind),
+      );
+      expect(
+        fields.filter(({ nullable }) => !nullable).map(({ field }) => field),
+      ).toEqual(requiredFields);
+    }
   });
 
   test('uses distinct names for columns and aliases inside every collection', () => {

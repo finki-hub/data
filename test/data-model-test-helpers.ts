@@ -17,7 +17,7 @@ import {
   DirectusRequestError,
 } from '../src/directus-request.js';
 
-export type FakeColumn = {
+type FakeColumn = {
   default_value?: unknown;
   foreign_key_table?: null | string;
   is_indexed: boolean;
@@ -33,7 +33,7 @@ export type FakeMeta = {
   special?: null | readonly string[];
 };
 
-export type FakeField = {
+type FakeField = {
   field: string;
   meta: FakeMeta | null;
   schema: FakeColumn | null;
@@ -53,13 +53,13 @@ export type FakeRelation = {
   schema?: null | { on_delete: null | string };
 };
 
-export type FakeCollection = {
+type FakeCollection = {
   collection: string;
   meta: null | Record<string, unknown>;
   schema: unknown;
 };
 
-export type FakePreset = {
+type FakePreset = {
   bookmark: null | string;
   collection: null | string;
   role: null | string;
@@ -82,7 +82,7 @@ export type RecordedRequest = {
   readonly pathname: string;
 };
 
-export const primaryKeyField: FakeField = {
+const primaryKeyField: FakeField = {
   field: 'id',
   meta: { special: null },
   schema: {
@@ -96,7 +96,7 @@ export const primaryKeyField: FakeField = {
 
 // Meta columns Directus reports as null or false when the installer payload
 // leaves them unset.
-export const metaDefaults: FakeMeta = {
+const metaDefaults: FakeMeta = {
   conditions: null,
   display: null,
   display_options: null,
@@ -111,7 +111,7 @@ export const metaDefaults: FakeMeta = {
 
 // The column Directus would report after the installer created the field,
 // carrying the exact meta the installer payload wrote.
-export const installedField = (field: ModelField, sort = 1): FakeField => ({
+const installedField = (field: ModelField, sort = 1): FakeField => ({
   field: field.field,
   meta: {
     ...metaDefaults,
@@ -131,10 +131,7 @@ export const installedField = (field: ModelField, sort = 1): FakeField => ({
   type: expectedColumnType(field),
 });
 
-export const installedAlias = (
-  alias: ModelRelationAlias,
-  sort = 1,
-): FakeField => ({
+const installedAlias = (alias: ModelRelationAlias, sort = 1): FakeField => ({
   field: alias.field,
   meta: { ...metaDefaults, ...toAliasPayload(alias, sort).meta },
   schema: null,
@@ -157,7 +154,7 @@ export const installedRelation = (relation: ModelRelation): FakeRelation => ({
 
 // Everything `GET /collections`, `GET /fields/:c` and `GET /relations/:c`
 // return once a collection has been installed exactly as declared.
-export const installedCollection = (
+const installedCollection = (
   collection: ModelCollection,
 ): {
   collection: FakeCollection;

@@ -1,7 +1,7 @@
 // How a label names rows: `unique` when exactly one row carries it,
 // `ambiguous` when several do, `missing` when none does, `none` when there
 // is no label.
-export type Resolution = 'ambiguous' | 'missing' | 'none' | 'unique';
+type Resolution = 'ambiguous' | 'missing' | 'none' | 'unique';
 
 export type LinkCandidate = {
   readonly matches: readonly number[];

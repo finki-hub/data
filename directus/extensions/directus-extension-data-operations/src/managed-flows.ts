@@ -12,7 +12,7 @@
 // installed managed Flow starts with a Condition on the administrator flag
 // that rejects into a 403 Throw Error, and a Flow an administrator adds
 // needs the same first step (README, "Data operations dashboard").
-export const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
+const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
 
 // The one collection a panel runs a managed Flow on: the hidden Data
 // Operations singleton, which no editor reads, so the trigger endpoint

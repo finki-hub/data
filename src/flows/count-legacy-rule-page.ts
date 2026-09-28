@@ -27,7 +27,7 @@ const countHistoryPage = await readFile(countHistoryPagePath, 'utf8');
 
 // The legacy_regex rules of the checked rule range: the pattern text as
 // Studio edits it, nothing the coordinator interprets.
-export const legacyRulesQuery = {
+const legacyRulesQuery = {
   fields: ['id', 'course', 'academic_year', 'pattern'],
   filter: {
     id: {
@@ -41,7 +41,7 @@ export const legacyRulesQuery = {
 
 // The id and raw history of every Moodle user of the checked history
 // range; no name, address or profile is read.
-export const legacyUsersQuery = {
+const legacyUsersQuery = {
   fields: ['id', 'Courses'],
   filter: {
     id: {

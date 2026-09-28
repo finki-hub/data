@@ -8,7 +8,7 @@ import type {
   Scalar,
 } from '../schema.js';
 
-export type FieldSchemaPayload = {
+type FieldSchemaPayload = {
   readonly default_value?: Scalar;
   readonly is_indexed?: true;
   readonly is_nullable: boolean;
@@ -16,7 +16,7 @@ export type FieldSchemaPayload = {
   readonly max_length?: number;
 };
 
-export type FieldMetaPayload = {
+type FieldMetaPayload = {
   readonly display?: string;
   readonly display_options?: Readonly<Record<string, unknown>>;
   readonly interface: string;
@@ -30,7 +30,7 @@ export type FieldMetaPayload = {
   readonly width: 'full' | 'half';
 };
 
-export type FieldPayload = {
+type FieldPayload = {
   readonly field: string;
   readonly meta: FieldMetaPayload;
   readonly schema?: FieldSchemaPayload;

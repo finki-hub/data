@@ -32,12 +32,6 @@ export type ColumnRefinement = {
   readonly trigger: string;
 };
 
-// A list of domains a statement marks, never empty: an empty list would
-// generate an untyped ARRAY[], which PostgreSQL cannot plan. The trigger
-// function is planned lazily, so the migration would still apply and the
-// first statement on the source would fail instead.
-export type DomainList = readonly [Domain, ...Domain[]];
-
 export type GuardedDeclaration = {
   readonly collection: string;
   readonly description: string;
@@ -66,10 +60,16 @@ export type SourceDeclaration = {
   readonly why?: string;
 };
 
+// A list of domains a statement marks, never empty: an empty list would
+// generate an untyped ARRAY[], which PostgreSQL cannot plan. The trigger
+// function is planned lazily, so the migration would still apply and the
+// first statement on the source would fail instead.
+type DomainList = readonly [Domain, ...Domain[]];
+
 // A table only its own writer changes. The database guard refuses every
 // other statement unless the writer opened it for its transaction with the
 // setting finki_hub.<writer>, or a foreign key cascade writes it.
-export type WriteGuard = {
+type WriteGuard = {
   readonly remedy: string;
   readonly writer: string;
   readonly writtenBy: string;
@@ -82,7 +82,7 @@ const publishes = <const Collection extends string>(collection: Collection) =>
   ({ collection, invalidates: publication, role: 'source' }) as const;
 
 // Sources in the order their triggers are installed, then the others.
-export const collectionRoles = [
+const collectionRoles = [
   publishes('courses'),
   publishes('staff'),
   publishes('rooms'),

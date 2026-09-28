@@ -33,11 +33,11 @@ const unexpectedPart = (names: readonly string[], count: number): string => {
 };
 
 // Maps the header record onto the snapshot fields: the file must name each
-// of the 38 fields exactly once, in any order, and nothing else (least of
-// all the internal `id`, which would make rows address existing records).
-// The refusal names only the expected field names and counts, never a
-// header text, because a file without a header row would put a person's
-// data there.
+// of them exactly once, in any order, and nothing else (least of all the
+// internal `id`, which would make rows address existing records). The
+// refusal names only the expected field names and counts, never a header
+// text, because a file without a header row would put a person's data
+// there.
 export const headerPositions = (cells: readonly CsvCell[]): number[] => {
   const names = cells.map((cell) => cell ?? '');
   const missing = snapshotFields.filter((field) => !names.includes(field));
@@ -55,12 +55,12 @@ export const headerPositions = (cells: readonly CsvCell[]): number[] => {
   ].filter((part) => part !== '');
   throw snapshotError(
     'INVALID_HEADERS',
-    `The header row must name exactly the 38 Moodle snapshot fields, in any order: ${parts.join('; ')}. Nothing was staged.`,
+    `The header row must name exactly the ${snapshotFields.length} Moodle snapshot fields, in any order: ${parts.join('; ')}. Nothing was staged.`,
     { missing, repeated, unexpected },
   );
 };
 
-export type RowProblem = {
+type RowProblem = {
   readonly field: null | SnapshotField;
   readonly line: number;
   readonly reason: string;
@@ -123,7 +123,11 @@ export class SnapshotRows {
   public accept(record: CsvRecord): null | SnapshotRow {
     this.rows += 1;
     if (record.cells.length !== snapshotFields.length) {
-      this.#problem(record, null, `has ${record.cells.length} cells, not 38`);
+      this.#problem(
+        record,
+        null,
+        `has ${record.cells.length} cells, not ${snapshotFields.length}`,
+      );
       return null;
     }
     const before = this.problems;

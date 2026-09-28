@@ -7,13 +7,13 @@ export type DirectusRequest = (
   init?: Parameters<typeof fetch>[1],
 ) => Promise<unknown>;
 
-export type DirectusErrorDetails = {
+type DirectusErrorDetails = {
   readonly code: null | string;
   readonly reason: null | string;
   readonly status: number;
 };
 
-export type DirectusErrorOptions = DirectusErrorDetails & ErrorOptions;
+type DirectusErrorOptions = DirectusErrorDetails & ErrorOptions;
 
 const responseSchema = z.object({ data: z.unknown() });
 const errorBodySchema = z.object({
@@ -46,7 +46,7 @@ export class DirectusRequestError extends Error {
   }
 }
 
-export const parseDirectusError = (
+const parseDirectusError = (
   status: number,
   body: string,
 ): DirectusErrorDetails => {

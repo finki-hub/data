@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { labelSeparator } from '../directus/extensions/directus-extension-data-operations/src/exports/course-values.js';
-import { staffListSeparator } from '../src/migrations/preflight-staff.js';
+import { staffListSeparator } from '../src/import/preflight-staff.js';
 import { findField } from './data-model-test-helpers.js';
 import {
   courseNames,

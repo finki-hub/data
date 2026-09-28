@@ -13,15 +13,15 @@ import { json, read, request } from './data-model-helpers.mjs';
 // Every row is invented: synthetic names, `.example` addresses, generated
 // course labels.
 
-export const flowPath = `/flows/trigger/${snapshotFlowId}`;
+const flowPath = `/flows/trigger/${snapshotFlowId}`;
 export const snapshotPath = '/finki-hub-data-operations/snapshot';
 export const statusPath = '/finki-hub-data-operations/status';
 export const probeImportFlowId = '9e4d826c-5b1a-4c0e-8f2d-000000001001';
 export const probePromoteFlowId = '9e4d826c-5b1a-4c0e-8f2d-000000001003';
 export const probeStagingFlowId = '9e4d826c-5b1a-4c0e-8f2d-000000001005';
-export const readerPolicyPrefix = 'Synthetic snapshot reader ';
+const readerPolicyPrefix = 'Synthetic snapshot reader ';
 export const backupTitlePrefix = 'moodle-users-backup-';
-export const labelCount = 5_000;
+const labelCount = 5_000;
 export const longLineRows = [29_000, 29_998];
 
 const courseVariants = [
@@ -32,7 +32,7 @@ const courseVariants = [
   'Calculus',
 ];
 
-export const courseLabel = (index) =>
+const courseLabel = (index) =>
   `Synthetic Course ${String(index).padStart(4, '0')} - ${courseVariants[index % courseVariants.length]}`;
 
 const names = [
@@ -86,7 +86,7 @@ const ids = (index, offset) => {
 
 // One synthetic snapshot row, in snapshotFields order, deterministic in
 // its index and offset (a different offset yields a different snapshot).
-export const syntheticRow = (index, offset = 0) => {
+const syntheticRow = (index, offset = 0) => {
   const [idOld, idNew] = ids(index, offset);
   const lines = history(index, offset);
   const values = {
@@ -127,7 +127,7 @@ const cell = (value) => {
 };
 
 // The header in reverse contract order: the import maps columns by name.
-export const csvOrder = snapshotFields.map(
+const csvOrder = snapshotFields.map(
   (_, index) => snapshotFields.length - 1 - index,
 );
 
@@ -178,10 +178,10 @@ export const get = async (target, path) => {
   return outcome.body.data;
 };
 
-export const post = async (target, path, body) =>
+const post = async (target, path, body) =>
   read(await request(target, path, json('POST', body, target.token)), 200);
 
-export const remove = async (target, path) =>
+const remove = async (target, path) =>
   read(
     await request(target, path, { method: 'DELETE', token: target.token }),
     204,

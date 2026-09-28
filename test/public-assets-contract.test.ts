@@ -10,12 +10,12 @@ import {
   makeSyntheticDataset,
 } from './fixtures/synthetic-data.js';
 import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
-import { storeFromDataset } from './migration-test-helpers.js';
 import {
   injecting,
   publishedFiles,
   storeReader,
 } from './relational-export-helpers.js';
+import { storeFromDataset } from './store-test-helpers.js';
 
 // The public contract of the files beside the committed expected files
 // (test/fixtures/expected-exports): the directories the export engine

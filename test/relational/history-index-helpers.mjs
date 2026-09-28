@@ -14,23 +14,23 @@ import {
 // suite (history-index.integration.mjs).
 
 export const flowId = '9e4d826c-5b1a-4c0e-8f2d-000000000901';
-export const operationId = '9e4d826c-5b1a-4c0e-8f2d-000000000902';
+const operationId = '9e4d826c-5b1a-4c0e-8f2d-000000000902';
 // A synthetic Flow that deletes one item of the collection it is run on
 // through the items service without emitting events, the one Directus
 // path that passes the hook: on the memberships only the database guard
 // stands in its way, on the mappings nothing does (the control).
 export const probeFlowId = '9e4d826c-5b1a-4c0e-8f2d-000000000903';
-export const probeOperationId = '9e4d826c-5b1a-4c0e-8f2d-000000000904';
-export const operationType = 'finki-hub-data-coordinate';
-export const statusPath = '/finki-hub-data-operations/status';
-export const triggerPath = `/flows/trigger/${flowId}`;
+const probeOperationId = '9e4d826c-5b1a-4c0e-8f2d-000000000904';
+const operationType = 'finki-hub-data-coordinate';
+const statusPath = '/finki-hub-data-operations/status';
+const triggerPath = `/flows/trigger/${flowId}`;
 // The synthetic manual history runner (history-runner.mjs), which the
 // suites install beside their other synthetic Flows.
 export const historyRunnerId = '9e4d826c-5b1a-4c0e-8f2d-000000001300';
 export const runnerPath = `/flows/trigger/${historyRunnerId}`;
 export const entriesPath = '/items/moodle_course_entries';
 export const membershipsPath = '/items/moodle_history_memberships';
-export const optionKeys = [
+const optionKeys = [
   'action',
   'domain',
   'domains',
@@ -42,10 +42,8 @@ export const optionKeys = [
   'retry',
   'files',
 ];
-export const blankBody = Object.fromEntries(
-  optionKeys.map((key) => [key, null]),
-);
-export const templatedOptions = Object.fromEntries(
+const blankBody = Object.fromEntries(optionKeys.map((key) => [key, null]));
+const templatedOptions = Object.fromEntries(
   optionKeys.map((key) => [key, `{{ $trigger.body.${key} }}`]),
 );
 export const claimMismatch = 'COORDINATION_CLAIM_MISMATCH';
@@ -165,7 +163,7 @@ export const act = async (target, body) => {
   return outcome.body;
 };
 
-export const statusOfCode = (code) =>
+const statusOfCode = (code) =>
   code === invalidOptions || code === 'COORDINATION_DUPLICATE_ROWS' ? 400 : 409;
 
 // A refused runner: the throw-error status and code, and its message.

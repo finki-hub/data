@@ -16,7 +16,7 @@ const pageContext = { page: '{{ $trigger.token }}' };
 // One failure branch: the step whose rejection it takes (`source`), the
 // suffixes of its fail step and failure record, the record key, the stage
 // and the fixed code of a Run Script step (other steps answer their own).
-export type FailureBranch = {
+type FailureBranch = {
   readonly code?: string;
   readonly fail: string;
   readonly key: string;

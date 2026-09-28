@@ -58,7 +58,7 @@ export const checkSameDirectus = (
 // a credential.
 export const databaseSettingNames = ['DB_CLIENT', 'DB_HOST'] as const;
 
-export type DatabaseSettings = Readonly<
+type DatabaseSettings = Readonly<
   Record<(typeof databaseSettingNames)[number], null | string>
 >;
 

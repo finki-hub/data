@@ -17,9 +17,9 @@ const triggerToken = '{{ $trigger.token }}';
 // An operation of the history index family.
 export const historyStep = familyStep(flowFamilyCodes.history);
 
-// The history index family. `03` was the manual runner of Task 9, retired
-// before any deployment: the scheduled Process pending claims the index
-// and runs the refresh Flow (`04`), and Mark pending is the manual path.
+// The history index family (`03` is unused): the scheduled Process
+// pending claims the index and runs the refresh Flow (`04`), and Mark
+// pending is the manual path.
 export const historyFlowIds = {
   page: historyId('02'),
   refresh: historyId('04'),

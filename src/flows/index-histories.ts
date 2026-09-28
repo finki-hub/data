@@ -68,7 +68,7 @@ const refused = branch({
 // at the claimed revision, or fails it with the first failure described
 // (page, stage, refusal, the Moodle user it names). It never claims: the
 // scheduled Process pending does, and Mark pending asks for a run.
-export const refreshFlow: FlowTemplate = {
+const refreshFlow: FlowTemplate = {
   accountability: 'activity',
   description:
     'Refreshes the Moodle history index under a history_index claim the caller holds ({claim}): runs "Data / Index Moodle histories" (every planned page serially), then completes the claim, or fails it (INDEX_FAILED, COMPLETION_REFUSED) with the first failure described so the status shows why. Answers {ok: true, completed, domain, index, revision} or {ok: false, stage, code, message}. Called by "Data / Process pending".',

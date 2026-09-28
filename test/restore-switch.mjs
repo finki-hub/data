@@ -110,7 +110,7 @@ export const sourceOf = async ({ containers, target }) => {
 
 // The private override file, mode 600 in its own mode-700 directory under
 // the backup root (removed again when it cannot be written).
-export const writeOverride = (restore, values) =>
+const writeOverride = (restore, values) =>
   inPrivateDirectory(restore.backupRoot, [overrideName], async (directory) => {
     const file = path.join(directory, overrideName);
     await writeFile(file, overrideYaml(values), { flag: 'wx', mode: 0o600 });

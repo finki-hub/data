@@ -24,7 +24,7 @@ export const sumCountsPath = join(
 
 const sumCounts = await readFile(sumCountsPath, 'utf8');
 
-export const zeroRulesQuery = {
+const zeroRulesQuery = {
   fields: ['id', 'course', 'academic_year'],
   filter: {
     id: { _between: ['{{ check_zeros.from }}', '{{ check_zeros.to }}'] },

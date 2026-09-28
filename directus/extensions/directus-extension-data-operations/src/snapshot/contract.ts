@@ -2,53 +2,74 @@ import { z } from 'zod';
 
 import { blank, flag } from '../coordination/options.js';
 
-// The 38 scraper fields of a Moodle snapshot: exactly the columns that
-// moodle_users and its staging twin moodle_import_rows carry besides the
-// native id. A snapshot CSV names each of them once, in any order, and
-// nothing else. test/snapshot-import.test.ts keeps this list equal to the
-// data model.
-export const snapshotFields = [
-  'ID_old',
-  'ID_new',
-  'Name',
-  'Mail',
-  'Courses',
-  'Courses Count',
-  'Profile_old',
-  'Profile_new',
-  'AIM_new',
-  'AIM_old',
-  'Avatar_new',
-  'Avatar_old',
-  'City_new',
-  'City_old',
-  'Country_new',
-  'Country_old',
-  'Description_new',
-  'Description_old',
-  'ICQ_new',
-  'ICQ_old',
-  'Images_new',
-  'Images_old',
-  'Interests_new',
-  'Interests_old',
-  'Last Access_new',
-  'Last Access_old',
-  'MSN_new',
-  'MSN_old',
-  'MoodleNet_new',
-  'MoodleNet_old',
-  'Skype_new',
-  'Skype_old',
-  'Timezone_new',
-  'Timezone_old',
-  'Web_new',
-  'Web_old',
-  'Yahoo_new',
-  'Yahoo_old',
-] as const;
+export type SnapshotFieldDeclaration = {
+  readonly field: string;
+  readonly kind: SnapshotKind;
+  readonly required?: true;
+};
 
-export type SnapshotField = (typeof snapshotFields)[number];
+// How a scraper field is stored in moodle_users and its staging twin:
+// `string` is a varchar(255), whose length PostgreSQL counts in
+// characters (code points); `text` is unbounded; `integer` is an int4.
+type SnapshotKind = 'integer' | 'string' | 'text';
+
+// The scraper fields of a Moodle snapshot, declared once: exactly the
+// columns that moodle_users and its staging twin moodle_import_rows carry
+// besides the native id (src/data-model/moodle-collections.ts declares
+// them from this table), in this order. A snapshot CSV names each of them
+// once, in any order, and nothing else; the header set is a fixed
+// contract with the scraper, never an import option.
+export const snapshotFieldTable = [
+  { field: 'ID_old', kind: 'integer' },
+  { field: 'ID_new', kind: 'integer' },
+  { field: 'Name', kind: 'string', required: true },
+  { field: 'Mail', kind: 'string' },
+  { field: 'Courses', kind: 'text' },
+  { field: 'Courses Count', kind: 'integer' },
+  { field: 'Profile_old', kind: 'text' },
+  { field: 'Profile_new', kind: 'text' },
+  { field: 'AIM_new', kind: 'string' },
+  { field: 'AIM_old', kind: 'string' },
+  { field: 'Avatar_new', kind: 'text' },
+  { field: 'Avatar_old', kind: 'text' },
+  { field: 'City_new', kind: 'string' },
+  { field: 'City_old', kind: 'string' },
+  { field: 'Country_new', kind: 'string' },
+  { field: 'Country_old', kind: 'string' },
+  { field: 'Description_new', kind: 'text' },
+  { field: 'Description_old', kind: 'text' },
+  { field: 'ICQ_new', kind: 'string' },
+  { field: 'ICQ_old', kind: 'string' },
+  { field: 'Images_new', kind: 'text' },
+  { field: 'Images_old', kind: 'text' },
+  { field: 'Interests_new', kind: 'text' },
+  { field: 'Interests_old', kind: 'text' },
+  { field: 'Last Access_new', kind: 'string' },
+  { field: 'Last Access_old', kind: 'string' },
+  { field: 'MSN_new', kind: 'string' },
+  { field: 'MSN_old', kind: 'string' },
+  { field: 'MoodleNet_new', kind: 'string' },
+  { field: 'MoodleNet_old', kind: 'string' },
+  { field: 'Skype_new', kind: 'string' },
+  { field: 'Skype_old', kind: 'string' },
+  { field: 'Timezone_new', kind: 'string' },
+  { field: 'Timezone_old', kind: 'string' },
+  { field: 'Web_new', kind: 'text' },
+  { field: 'Web_old', kind: 'text' },
+  { field: 'Yahoo_new', kind: 'string' },
+  { field: 'Yahoo_old', kind: 'string' },
+] as const satisfies readonly SnapshotFieldDeclaration[];
+
+export type SnapshotField = (typeof snapshotFieldTable)[number]['field'];
+
+const fieldsWhere = (
+  kept: (declaration: SnapshotFieldDeclaration) => boolean,
+): readonly SnapshotField[] =>
+  snapshotFieldTable.filter(kept).map(({ field }) => field);
+
+export const snapshotFields: readonly SnapshotField[] = snapshotFieldTable.map(
+  ({ field }) => field,
+);
 
 // One staged row: every snapshot field, in snapshotFields order.
 export type SnapshotRow = readonly SnapshotValue[];
@@ -60,37 +81,14 @@ export type SnapshotValue = null | number | string;
 // old and the new instance are never matched with each other.
 export const instanceIdFields = ['ID_old', 'ID_new'] as const;
 
-export const integerFields: readonly SnapshotField[] = [
-  'ID_old',
-  'ID_new',
-  'Courses Count',
-];
+export const integerFields = fieldsWhere(({ kind }) => kind === 'integer');
 
-export const requiredFields: readonly SnapshotField[] = ['Name'];
+export const requiredFields = fieldsWhere(({ required }) => required === true);
 
 export const historyField: SnapshotField = 'Courses';
 
-// Columns Directus created as varchar(255); PostgreSQL counts their
-// length in characters (code points).
-export const boundedFields: readonly SnapshotField[] = snapshotFields.filter(
-  (field) =>
-    ![
-      'Avatar_new',
-      'Avatar_old',
-      'Courses',
-      'Description_new',
-      'Description_old',
-      'Images_new',
-      'Images_old',
-      'Interests_new',
-      'Interests_old',
-      'Profile_new',
-      'Profile_old',
-      'Web_new',
-      'Web_old',
-      ...integerFields,
-    ].includes(field),
-);
+// The varchar(255) columns.
+export const boundedFields = fieldsWhere(({ kind }) => kind === 'string');
 
 export const boundedLength = 255;
 
@@ -188,9 +186,7 @@ export const importOptionsSchema = z.object({
   file: z.preprocess(fileId, z.uuid()),
 });
 
-export type ImportOptions = z.infer<typeof importOptionsSchema>;
-
-export const fingerprintPattern = /^[\da-f]{64}$/u;
+const fingerprintPattern = /^[\da-f]{64}$/u;
 
 // The promotion needs the replacement confirmed, the fingerprint of the
 // staged snapshot it was shown, and, for an empty snapshot, a separate

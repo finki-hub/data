@@ -8,7 +8,7 @@ import { calculationDomains } from '../coordination/domains.js';
 
 // The states of a calculation domain that is not current; each is one
 // blocker code `<domain>_<state>`.
-export const notCurrentStates = ['pending', 'running', 'failed'] as const;
+const notCurrentStates = ['pending', 'running', 'failed'] as const;
 
 // Every calculation domain in every state that is not current, in that
 // order: one blocker code each.

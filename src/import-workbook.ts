@@ -1,15 +1,10 @@
-import type { DirectusConfig } from './config.js';
-import type { PlannedCollection } from './migrations/planned.js';
+import type { DirectusRequest } from './directus-request.js';
+import type { PlannedCollection } from './import/planned.js';
 
-import { applyBranding } from './branding.js';
-import {
-  createDirectusRequest,
-  type DirectusRequest,
-} from './directus-request.js';
 import { ImportInterruptedError } from './import-interruption.js';
 import { countApplicationRecords, ExistingDataError } from './import-state.js';
-import { defaultBatchSize } from './migrations/batches.js';
-import { writePlan } from './migrations/write.js';
+import { defaultBatchSize } from './import/batches.js';
+import { writePlan } from './import/write.js';
 import { runSetup } from './setup.js';
 
 // The aggregate summary `npm run setup` prints.
@@ -22,12 +17,12 @@ export type ImportIo = {
   readonly setup?: (request: DirectusRequest) => Promise<SetupReport>;
 };
 
-export type ImportSummary = {
+type ImportSummary = {
   readonly rows: Readonly<Record<string, number>>;
   readonly setup: SetupReport;
 };
 
-// The one-time workbook import of a checked plan (migrations/plan.ts). It
+// The one-time workbook import of a checked plan (import/plan.ts). It
 // refuses, before any write, a populated project (see
 // countApplicationRecords); runs setup (so an import into an empty project
 // equals setup plus import); then writes the planned relational rows in
@@ -61,17 +56,3 @@ export const importWorkbook = async (
     throw new ImportInterruptedError({ confirmed, total }, { cause: error });
   }
 };
-
-// The branding command's client. It has no import method: the workbook
-// import runs only through importWorkbook, from `npm run import`.
-export class DirectusClient {
-  readonly #request: DirectusRequest;
-
-  public constructor(config: DirectusConfig) {
-    this.#request = createDirectusRequest(config);
-  }
-
-  public async applyBranding(): Promise<void> {
-    await applyBranding((pathname, init) => this.#request(pathname, init));
-  }
-}

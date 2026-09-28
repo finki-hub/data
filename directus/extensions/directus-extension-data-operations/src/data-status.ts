@@ -165,5 +165,3 @@ export const useDataStatus = (
     statusError,
   });
 };
-
-export type DataStatus = ReturnType<typeof useDataStatus>;

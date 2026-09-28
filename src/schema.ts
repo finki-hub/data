@@ -1,6 +1,6 @@
 // The parts of the workbook the one-time import reads, one per sheet (or
 // pair of sheets). They name workbook content only: the import plans the
-// relational rows from them (src/migrations/plan.ts), and none of them is
+// relational rows from them (src/import/plan.ts), and none of them is
 // a collection of its own except where the model declares one.
 export const workbookKeys = [
   'courses',
@@ -46,13 +46,11 @@ export type CollectionSource =
       readonly sheet: string;
     }
   | {
-      readonly headerRow?: number;
-      readonly kind: 'rows';
+      readonly kind: 'course-enrollment-patterns';
       readonly sheet: string;
-      readonly startRow?: number;
     }
   | {
-      readonly kind: 'course-enrollment-patterns';
+      readonly kind: 'rows';
       readonly sheet: string;
     }
   | {
@@ -71,30 +69,30 @@ export type WorkbookSpec = {
   readonly source: CollectionSource;
 };
 
-export type FieldKind = 'boolean' | 'integer' | 'string' | 'text';
+type FieldKind = 'boolean' | 'integer' | 'string' | 'text';
 
 export type FieldSpec = {
   readonly fillDown?: true;
   readonly kind: FieldKind;
   readonly required?: true;
-  readonly source?: string;
+  readonly source: string;
   readonly sourceColumn?: number;
   readonly sourceMode?: 'literal';
   readonly target: string;
 };
 
-export type MigrationData = Readonly<
-  Record<WorkbookKey, readonly MigrationItem[]>
+export type WorkbookData = Readonly<
+  Record<WorkbookKey, readonly WorkbookItem[]>
 >;
 
-export type MigrationItem = Readonly<Record<string, Scalar>>;
+export type WorkbookItem = Readonly<Record<string, Scalar>>;
 
 // Where the import read a row: its sheet and row number, which name it in
 // every message.
 export type SheetRow = { readonly row: number; readonly sheet: string };
 
 export type PlacedItem = {
-  readonly item: MigrationItem;
+  readonly item: WorkbookItem;
   readonly place: SheetRow;
 };
 
@@ -117,13 +115,6 @@ export const literalField = (
   target: string,
   kind: FieldKind = 'string',
 ): FieldSpec => ({ kind, source, sourceMode: 'literal', target });
-
-// A Moodle users column the workbook lacks: the import reads nothing for
-// it, the scraper snapshot fills it.
-export const schemaField = (
-  target: string,
-  kind: FieldKind = 'string',
-): FieldSpec => ({ kind, target });
 
 export const assertNever = (value: never): never => {
   throw new TypeError(`Unexpected collection source: ${String(value)}`);
@@ -161,7 +152,7 @@ export type ModelCollectionKey =
 
 export type ModelScalarKind = 'json' | 'timestamp' | FieldKind;
 
-export type ModelFieldBase = {
+type ModelFieldBase = {
   readonly field: string;
   readonly note?: string;
   readonly nullable: boolean;

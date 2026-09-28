@@ -11,7 +11,7 @@ import {
 
 // The source-invalidation migration, generated at module load from the
 // collection-role registry and the declared domains; it takes no runtime
-// input. src/migrations/source-invalidation.sql is its snapshot (npm run
+// input. source-invalidation.sql beside this file is its snapshot (npm run
 // generate:invalidation), runnable with psql as well, and a unit test
 // fails when the two differ.
 

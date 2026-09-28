@@ -23,20 +23,6 @@ export type EnrollmentFamily = {
   readonly runnerFlowId: string;
 };
 
-// A page of one enrollments plan, its kind declared by its rule mode
-// (rule-modes.ts). A rule page is a range of the mode's rules; a cross page
-// crosses one history page with one rule page (from/to/rows/bytes name the
-// users, rules the rule page and its pattern bytes); a zero page names one
-// rule page, whose pairs without any count are staged as explicit zeros
-// after all of its cross pages.
-export type EnrollmentPage =
-  | (PageRange & {
-      readonly bytes: number;
-      readonly kind: string;
-      readonly rules: SizedRange;
-    })
-  | (PageRange & { readonly kind: string });
-
 export type EnrollmentSources = {
   readonly rules: readonly RuleSize[];
   readonly users: readonly HistorySize[];
@@ -49,6 +35,20 @@ export type RuleSize = {
   readonly id: number;
   readonly mode: null | string;
 };
+
+// A page of one enrollments plan, its kind declared by its rule mode
+// (rule-modes.ts). A rule page is a range of the mode's rules; a cross page
+// crosses one history page with one rule page (from/to/rows/bytes name the
+// users, rules the rule page and its pattern bytes); a zero page names one
+// rule page, whose pairs without any count are staged as explicit zeros
+// after all of its cross pages.
+type EnrollmentPage =
+  | (PageRange & {
+      readonly bytes: number;
+      readonly kind: string;
+      readonly rules: SizedRange;
+    })
+  | (PageRange & { readonly kind: string });
 
 const shownMode = (mode: null | string): string =>
   mode === null ? 'none' : JSON.stringify(mode.slice(0, 40));

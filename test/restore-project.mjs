@@ -116,7 +116,7 @@ export const presetOf = async (target, id) => {
 };
 
 // The state a restore must reproduce, as digests and counts.
-export const projectState = async ({ state, target }) => ({
+const projectState = async ({ state, target }) => ({
   appearance: await appearanceOf(target),
   counts: Object.fromEntries(await installedCounts(target, state.seeded)),
   export: await liveFiles(target),

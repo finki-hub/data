@@ -242,7 +242,7 @@ const installsFlows = async (target, directus, state) => {
 };
 
 // The Task 2 histories and a 40,000-character one are indexed first; then
-// the courses, the fifteen years, the rules the Task 8 converter seeds
+// the courses, the fifteen years, the rules the workbook import seeds
 // (every course/year, last-id overrides, literal defaults) with two mapped
 // rules created between them, and one explicit mapping.
 const seeds = async (target, state) => {

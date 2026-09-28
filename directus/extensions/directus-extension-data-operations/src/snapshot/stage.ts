@@ -41,14 +41,14 @@ export type SnapshotDeps = {
   readonly store: SnapshotStore;
 };
 
-export type SnapshotLimits = {
+type SnapshotLimits = {
   // How often a long promotion step refreshes its claim's heartbeat.
   readonly heartbeatMs: number;
   readonly maxBytes: number;
   readonly timeoutMs: number;
 };
 
-export type StagedSnapshot = {
+type StagedSnapshot = {
   readonly fingerprint: string;
   readonly rows: number;
   readonly warnings: null | SnapshotWarnings;

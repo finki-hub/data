@@ -31,8 +31,6 @@ import {
   warningsOf,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/rows.js';
 import { clearStagingSql } from '../directus/extensions/directus-extension-data-operations/src/snapshot/sql.js';
-import { dataModelCollections } from '../src/data-model/collections.js';
-import { privateWorkbookSpecs } from '../src/specs/private.js';
 import {
   csvFileId,
   FakeSnapshot,
@@ -45,9 +43,6 @@ import {
   syntheticRow,
 } from './snapshot-import-helpers.js';
 
-const staging = dataModelCollections.find(
-  ({ collection }) => collection === 'moodle_import_rows',
-);
 const missingIdOld = /missing ID_old/u;
 const repeatedName = /repeated Name/u;
 const privatePerson = /Synthetic Private Person|private@person/u;
@@ -56,6 +51,15 @@ const snapshotFolder = /folder "Moodle snapshots \(private\)"/u;
 const mustBeCsv = /must be a CSV/u;
 const overBound = /at most 1000000/u;
 const pinnedTimeout = /IMPORT_TIMEOUT: \$\{DIRECTUS_IMPORT_TIMEOUT:-15m\}/u;
+// The header of the scraper's profiles.csv: the fixed contract, in order.
+const scraperHeader = [
+  'ID_old,ID_new,Name,Mail,Courses,Courses Count,Profile_old,Profile_new',
+  'AIM_new,AIM_old,Avatar_new,Avatar_old,City_new,City_old,Country_new',
+  'Country_old,Description_new,Description_old,ICQ_new,ICQ_old,Images_new',
+  'Images_old,Interests_new,Interests_old,Last Access_new,Last Access_old',
+  'MSN_new,MSN_old,MoodleNet_new,MoodleNet_old,Skype_new,Skype_old',
+  'Timezone_new,Timezone_old,Web_new,Web_old,Yahoo_new,Yahoo_old',
+].join(',');
 const header = snapshotFields.join(',');
 const blankCells = (count: number) => ','.repeat(count - 1);
 
@@ -129,24 +133,31 @@ const prepared = async () => {
 };
 
 describe('snapshot contract', () => {
-  test('names exactly the 38 columns of moodle_users and its staging twin', () => {
-    const [users] = privateWorkbookSpecs;
-    const fields = staging?.fields ?? [];
-
+  test('declares exactly the 38 scraper headers of the contract, each with its kind', () => {
     expect(snapshotFields).toHaveLength(38);
-    expect([...snapshotFields]).toEqual(
-      users.fields.map(({ target }) => target),
-    );
-    expect([...snapshotFields]).toEqual(fields.map(({ field }) => field));
-    expect(integerFields).toEqual(
-      fields.filter(({ kind }) => kind === 'integer').map(({ field }) => field),
-    );
-    expect(boundedFields).toEqual(
-      fields.filter(({ kind }) => kind === 'string').map(({ field }) => field),
-    );
-    expect(requiredFields).toEqual(
-      fields.filter(({ nullable }) => !nullable).map(({ field }) => field),
-    );
+    expect(snapshotFields.join(',')).toBe(scraperHeader);
+    expect(integerFields).toEqual(['ID_old', 'ID_new', 'Courses Count']);
+    expect(requiredFields).toEqual(['Name']);
+    expect(
+      snapshotFields.filter(
+        (field) =>
+          !boundedFields.includes(field) && !integerFields.includes(field),
+      ),
+    ).toEqual([
+      'Courses',
+      'Profile_old',
+      'Profile_new',
+      'Avatar_new',
+      'Avatar_old',
+      'Description_new',
+      'Description_old',
+      'Images_new',
+      'Images_old',
+      'Interests_new',
+      'Interests_old',
+      'Web_new',
+      'Web_old',
+    ]);
   });
 
   test('takes a private file id only and a confirmed promotion of a named fingerprint', () => {

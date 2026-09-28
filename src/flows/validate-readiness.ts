@@ -27,7 +27,7 @@ export const publicationButton = {
 } as const;
 
 // The family of an administrator gate's ids: publication unless named.
-export type AdminGatePlacement = {
+type AdminGatePlacement = {
   readonly code?: FlowFamilyCode;
 };
 

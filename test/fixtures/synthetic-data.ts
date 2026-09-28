@@ -1,4 +1,4 @@
-import type { MigrationItem, WorkbookKey } from '../../src/schema.js';
+import type { WorkbookItem, WorkbookKey } from '../../src/schema.js';
 
 /**
  * Deterministic, fully invented dataset covering every part of the workbook.
@@ -10,7 +10,7 @@ import type { MigrationItem, WorkbookKey } from '../../src/schema.js';
  * committed under test/fixtures/expected-exports (test/expected-exports.ts).
  */
 
-export type SyntheticRow = MigrationItem & { readonly id: number };
+export type SyntheticRow = WorkbookItem & { readonly id: number };
 
 export type SyntheticDataset = Readonly<
   Record<WorkbookKey, readonly SyntheticRow[]>
@@ -64,7 +64,7 @@ export const metacharacterCourseName = 'C++ Course';
 const makeCourse = (
   id: number,
   name: string,
-  values: MigrationItem,
+  values: WorkbookItem,
 ): SyntheticRow => ({
   id,
   name,
@@ -82,7 +82,7 @@ const makeCourse = (
 const makeCurriculum2023 = (
   id: number,
   name: string,
-  values: MigrationItem,
+  values: WorkbookItem,
 ): SyntheticRow => ({
   id,
   catalog_order: id,
@@ -107,7 +107,7 @@ const makeCurriculum2023 = (
 const makeCurriculum2018 = (
   id: number,
   name: string,
-  values: MigrationItem,
+  values: WorkbookItem,
 ): SyntheticRow => ({
   id,
   catalog_order: id,
@@ -749,7 +749,7 @@ export const withMetacharacterCourse = (
 });
 
 /** Private-looking columns that a `fields: ['*']` read could hand to an export. */
-export const forbiddenPrivateFields: MigrationItem = {
+export const forbiddenPrivateFields: WorkbookItem = {
   Mail: `${sentinelPrivateMail}@injected.example`,
   Profile_new: `https://moodle.example/user/profile.php?id=${sentinelPrivateId}`,
   source_group: sentinelPrivateSourceGroup,

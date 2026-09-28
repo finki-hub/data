@@ -26,19 +26,19 @@ import {
 // revision again). Nothing is uploaded here; a publication runs the same
 // preparation and uploads the prepared bodies file by file.
 
-export type Durations = {
+export type ExportDeps = ReadinessDeps & {
+  // A monotonic clock in milliseconds, for the durations of the answer.
+  readonly now: () => number;
+};
+
+type Durations = {
   readonly read: number;
   readonly serialize: number;
   readonly total: number;
   readonly validate: number;
 };
 
-export type ExportDeps = ReadinessDeps & {
-  // A monotonic clock in milliseconds, for the durations of the answer.
-  readonly now: () => number;
-};
-
-export type Preparation = {
+type Preparation = {
   readonly durationMs: Durations;
   readonly files: readonly PreparedFile[];
   readonly revision: number;
@@ -59,7 +59,7 @@ export const readinessAction = async (
 
 // Reads, serializes and validates every file in order; each file's
 // sources are released before the next file is read.
-export const prepareFiles = async (
+const prepareFiles = async (
   definitions: readonly ExportDefinition[],
   reader: SourceReader,
   now: () => number,

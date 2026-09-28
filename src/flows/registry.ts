@@ -94,12 +94,12 @@ export const flowTemplates = (
   families: readonly FlowFamily[] = flowFamilies,
 ): readonly FlowTemplate[] => families.flatMap(({ templates }) => templates);
 
-export type FamilyReport = FlowInstallSummary & {
+type FamilyReport = FlowInstallSummary & {
   readonly code: FlowFamilyCode;
   readonly name: string;
 };
 
-export type FlowFamiliesSummary = FlowInstallSummary & {
+type FlowFamiliesSummary = FlowInstallSummary & {
   readonly families: readonly FamilyReport[];
 };
 

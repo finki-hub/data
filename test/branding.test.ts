@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 
-import { DirectusClient } from '../src/directus.js';
+import { applyBranding } from '../src/branding.js';
+import { loadBrandingConfig } from '../src/config.js';
+import { createDirectusRequest } from '../src/directus-request.js';
 import { config, toUrl } from './directus-test-helpers.js';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -38,7 +40,7 @@ describe('Native branding', () => {
       }),
     );
 
-    await new DirectusClient(config).applyBranding();
+    await applyBranding(createDirectusRequest(config));
 
     expect(forms).toHaveLength(2);
     expect(contentTypes).toEqual([false, false]);
@@ -76,7 +78,7 @@ describe('Native branding', () => {
       }),
     );
 
-    await new DirectusClient(config).applyBranding();
+    await applyBranding(createDirectusRequest(config));
 
     expect(uploads).toEqual([`PATCH /files/${id}`, `PATCH /files/${id}`]);
   });
@@ -96,10 +98,39 @@ describe('Native branding', () => {
       }),
     );
 
-    await expect(new DirectusClient(config).applyBranding()).rejects.toThrow(
+    await expect(applyBranding(createDirectusRequest(config))).rejects.toThrow(
       'returned 403',
     );
 
     expect(paths).not.toContain('/settings');
+  });
+});
+
+describe('Branding configuration', () => {
+  const target = {
+    DIRECTUS_TOKEN: 'test-token',
+    DIRECTUS_URL: 'https://directus.test',
+  };
+
+  test('reads the target from the environment', () => {
+    expect(loadBrandingConfig([], target)).toEqual(config);
+    expect(
+      loadBrandingConfig([], {
+        DIRECTUS_ADMIN_TOKEN: 'test-token',
+        DIRECTUS_URL: 'https://directus.test',
+      }),
+    ).toEqual(config);
+  });
+
+  test('takes no argument', () => {
+    expect(() => loadBrandingConfig(['--dry-run'], target)).toThrow(
+      'npm run brand takes no argument (got --dry-run).',
+    );
+  });
+
+  test('refuses a missing token', () => {
+    expect(() =>
+      loadBrandingConfig([], { DIRECTUS_URL: 'https://directus.test' }),
+    ).toThrow(z.ZodError);
   });
 });

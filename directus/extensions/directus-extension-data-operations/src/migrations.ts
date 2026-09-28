@@ -11,7 +11,7 @@ export type Migration = {
   readonly statements: readonly string[];
 };
 
-export const migrationNamePattern = /^[a-z][a-z0-9-]{0,63}$/u;
+const migrationNamePattern = /^[a-z][a-z0-9-]{0,63}$/u;
 
 // Composite domain keys, join indexes, the curriculum generation guards
 // (curriculum-guards.ts), the key guards of published key rows
@@ -48,7 +48,7 @@ $$`,
 
 // The statement-level source-invalidation triggers: the correctness
 // boundary of the coordinator, generated from the collection-role registry
-// (snapshot: src/migrations/source-invalidation.sql).
+// (snapshot: source-invalidation.sql).
 export const sourceInvalidation: Migration = {
   name: 'source-invalidation',
   statements: splitSqlStatements(sourceInvalidationSql),

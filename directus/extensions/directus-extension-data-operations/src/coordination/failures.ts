@@ -22,7 +22,7 @@ export const inputRevision = (
 
 // A run overtaken by a source or graph change was discarded, not failed:
 // it never blocks the rerun that the overtaking asks for.
-export const overtakingCodes: readonly string[] = [
+const overtakingCodes: readonly string[] = [
   'SOURCE_CHANGED',
   'FINGERPRINT_CHANGED',
 ];

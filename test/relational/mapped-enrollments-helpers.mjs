@@ -14,10 +14,9 @@ const syntheticId = (suffix) => `${idPrefix}${suffix}`;
 
 export const driverFlowId = syntheticId('01');
 export const runFlowId = syntheticId('10');
-export const driverPath = `/flows/trigger/${driverFlowId}`;
-export const runPath = `/flows/trigger/${runFlowId}`;
-export const statusPath = '/finki-hub-data-operations/status';
-export const resultsPath = '/items/data_operation_results';
+const driverPath = `/flows/trigger/${driverFlowId}`;
+const runPath = `/flows/trigger/${runFlowId}`;
+const resultsPath = '/items/data_operation_results';
 export const enrollmentsPath = '/items/course_enrollments';
 export const mappingsPath = '/items/moodle_course_mappings';
 

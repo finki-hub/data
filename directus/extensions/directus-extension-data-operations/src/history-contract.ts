@@ -61,18 +61,18 @@ export const historyRowProblem = (
     : null;
 };
 
-// One Moodle user of an index page with the exact entries of its history.
-export type HistoryRow = {
-  readonly entries: readonly string[];
-  readonly id: number;
-};
-
 // One row of moodle_history_memberships: a user carries an entry, at the
 // position of the entry's first occurrence inside the raw history.
 export type MembershipRow = {
   readonly entry: number;
   readonly moodle_user: number;
   readonly sort: number;
+};
+
+// One Moodle user of an index page with the exact entries of its history.
+type HistoryRow = {
+  readonly entries: readonly string[];
+  readonly id: number;
 };
 
 const numeric = (left: number, right: number): number => left - right;

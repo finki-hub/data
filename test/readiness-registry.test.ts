@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import type { FakeItem } from './migration-test-helpers.js';
+import type { FakeItem } from './store-test-helpers.js';
 
 import { unlinkedMember } from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-checks.js';
 import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
@@ -23,10 +23,6 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { reviewPresets } from '../src/data-model/presentation/presets.js';
-import {
-  activeSnapshotEdited,
-  snapshotImportFailed,
-} from '../src/snapshot-readiness.js';
 import {
   edit,
   importedStore,
@@ -268,13 +264,6 @@ describe('the readiness-check registry', () => {
         .map(({ generationScoped }) => generationScoped),
     ).not.toContain(true);
   });
-
-  test('registers the snapshot codes the editor policy reports', () => {
-    expect([activeSnapshotEdited, snapshotImportFailed]).toEqual([
-      'active_snapshot_edited',
-      'snapshot_import_failed',
-    ]);
-  });
 });
 
 describe('the registry rules', () => {
@@ -452,10 +441,10 @@ describe('readiness derived from the registry', () => {
     const answer = await readinessAction(exportDefinitions, deps(store));
 
     expect(answer.reviews).toEqual({
-      // The converted fixture keeps six imported labels without staff,
-      // an unmatched council index, two equivalency labels without an
-      // entry (a generation-scoped review, follow-up 51) and three
-      // equivalencies without a course.
+      // The imported fixture keeps six assignment labels without staff, an
+      // unmatched council index, two equivalency labels without an entry (a
+      // generation-scoped review, follow-up 51) and three equivalencies
+      // without a course.
       assignment_review_label: 'Assignments shown by their label only',
       council_member_unresolved: 'Council members without a student',
       entry_needs_mapping: 'Needs mapping',

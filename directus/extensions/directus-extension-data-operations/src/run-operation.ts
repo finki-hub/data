@@ -32,7 +32,7 @@ import { waitingText } from './status-labels.js';
 // the dialog empty; only a Retry of a failed run offers its inputs again,
 // less the boolean acknowledgements (retryValues).
 
-export type RunOutcome =
+type RunOutcome =
   | (Refusal & { readonly ok: false })
   | { readonly lines: readonly SummaryLine[]; readonly ok: true };
 

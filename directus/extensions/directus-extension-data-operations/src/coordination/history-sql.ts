@@ -6,7 +6,7 @@ import { openGuardSql } from './write-guards.js';
 
 // The raw statement runner of the coordinator's transaction, narrowed so
 // this module needs nothing from the port that embeds it.
-export type RawClient = {
+type RawClient = {
   readonly raw: (
     sql: string,
     bindings?: Array<boolean | null | number | string>,
@@ -18,21 +18,21 @@ export type RawClient = {
 // exact text) and `review_state`.
 
 // Bindings: labels JSON.
-export const entriesSql = `SELECT "id", "label" FROM "moodle_course_entries"
+const entriesSql = `SELECT "id", "label" FROM "moodle_course_entries"
 WHERE "label" IN (SELECT "value" FROM json_array_elements_text(?::json)) ORDER BY "id"`;
 
 // Bindings: labels JSON. A label created by hand in the same instant is
 // skipped by the conflict clause and found by the lookup that follows.
-export const entryInsertSql = `INSERT INTO "moodle_course_entries" ("label", "review_state")
+const entryInsertSql = `INSERT INTO "moodle_course_entries" ("label", "review_state")
 SELECT wanted."value", 'needs_mapping' FROM json_array_elements_text(?::json) AS wanted
 ON CONFLICT ("label") DO NOTHING`;
 
 // Bindings: user ids JSON.
-export const membershipDeleteSql = `DELETE FROM "moodle_history_memberships"
+const membershipDeleteSql = `DELETE FROM "moodle_history_memberships"
 WHERE "moodle_user" IN (SELECT "value"::integer FROM json_array_elements_text(?::json))`;
 
 // Bindings: rows JSON.
-export const membershipInsertSql = `INSERT INTO "moodle_history_memberships" ("moodle_user", "entry", "sort")
+const membershipInsertSql = `INSERT INTO "moodle_history_memberships" ("moodle_user", "entry", "sort")
 SELECT rows."moodle_user", rows."entry", rows."sort"
 FROM json_to_recordset(?::json) AS rows("moodle_user" integer, "entry" integer, "sort" integer)`;
 
@@ -40,10 +40,10 @@ FROM json_to_recordset(?::json) AS rows("moodle_user" integer, "entry" integer, 
 export const openWriterSql = openGuardSql('moodle_history_memberships');
 
 // Bindings: first id, last id.
-export const userIdsSql = `SELECT "id" FROM "moodle_users" WHERE "id" BETWEEN ? AND ? ORDER BY "id"`;
+const userIdsSql = `SELECT "id" FROM "moodle_users" WHERE "id" BETWEEN ? AND ? ORDER BY "id"`;
 
 // The raw scraper field `Courses Count` is compared, never written.
-export const summarySql = `SELECT
+const summarySql = `SELECT
   (SELECT COUNT(*)::integer FROM "moodle_users") AS "users",
   (SELECT COUNT(DISTINCT "moodle_user")::integer FROM "moodle_history_memberships") AS "indexed_users",
   (SELECT COUNT(*)::integer FROM "moodle_history_memberships") AS "memberships",

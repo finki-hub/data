@@ -86,7 +86,7 @@ const livePermissions = z.array(
 
 type LivePermission = z.infer<typeof livePermissions>[number];
 
-export type EditorPolicySummary = {
+type EditorPolicySummary = {
   readonly created: number;
   readonly deleted: number;
   readonly policy: 'aligned' | 'created' | 'unchanged';
@@ -108,10 +108,7 @@ const sorted = (fields: null | readonly string[]): string[] =>
   (fields ?? []).toSorted((left, right) => collator.compare(left, right));
 
 // Whether a live permission already is the derived one.
-export const samePermission = (
-  live: LivePermission,
-  spec: PermissionSpec,
-): boolean =>
+const samePermission = (live: LivePermission, spec: PermissionSpec): boolean =>
   isDeepStrictEqual(sorted(live.fields), sorted(spec.fields)) &&
   isDeepStrictEqual(live.permissions ?? {}, spec.permissions) &&
   live.validation === null &&

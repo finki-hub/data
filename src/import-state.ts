@@ -31,7 +31,7 @@ const countSchema = z
   )
   .length(1);
 
-export type RecordCounts = Readonly<Record<string, number>>;
+type RecordCounts = Readonly<Record<string, number>>;
 
 // The record count of every existing collection of that list holding at
 // least one record; empty when the project has none (no collection yet, or

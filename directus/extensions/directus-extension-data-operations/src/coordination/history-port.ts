@@ -1,10 +1,5 @@
 import type { MembershipRow } from '../history-contract.js';
 
-export type HistoryEntryRef = {
-  readonly id: number;
-  readonly label: string;
-};
-
 // The history index writes, inside the coordinator's transaction. Entries
 // are only ever created (as needs_mapping) and looked up; a label that
 // exists keeps its review state, reason and mappings whatever the page
@@ -43,4 +38,9 @@ export type HistorySummary = {
   readonly memberships: number;
   readonly needsMapping: number;
   readonly users: number;
+};
+
+type HistoryEntryRef = {
+  readonly id: number;
+  readonly label: string;
 };

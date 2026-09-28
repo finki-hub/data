@@ -168,7 +168,7 @@ export const keyRowsOf = async (target) => {
 // The published objects follow the registry: one object per declared
 // file, served as application/json, each the engine's output over the
 // live rows, and every row keeps the declared keys in declared order.
-export const assertPublished = async ({ s3, target }) => {
+const assertPublished = async ({ s3, target }) => {
   const objects = await objectsOf(s3);
   const live = await liveFiles(target);
   const expected = expectedFiles(exportDefinitions, await keyRowsOf(target));

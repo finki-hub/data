@@ -6,77 +6,7 @@ import type { Filter } from '@directus/types';
 // Generic code (engine.ts) reads, serializes and validates every
 // definition; nothing else knows a file's format.
 
-// A read of rows related to the rows of a file, grouped by `by`: the field
-// holding the id of the file's row (for example `course`). Rows whose `by`
-// names no row of the file are not used.
-export type RelatedRead = SourceRead & { readonly by: string };
-
-// Computes one public value from a row and its related rows. It returns
-// null (or undefined, or '') when the value is absent, and throws an
-// export error when it cannot resolve the value unambiguously; it never
-// guesses.
-export type Resolver = (context: RowContext) => unknown;
-
-export type Row = Readonly<Record<string, unknown>>;
-
-// What a resolver sees: one row of the file's main read and its related
-// rows, per related read key, in read order.
-export type RowContext = {
-  readonly related: Readonly<Record<string, readonly Row[]>>;
-  readonly row: Row;
-};
-
-// One native read: a collection, an explicit field list (relational dot
-// paths through M2O relations allowed, never `*`), a sort and optionally a
-// filter (plain field and M2O paths only, never `_some` or `_none`). An
-// aggregate read answers one bounded count over its one field instead of
-// rows (`count` of the matching rows, `countDistinct` of their values).
-export type SourceRead = {
-  readonly aggregate?: Aggregate;
-  readonly collection: string;
-  readonly fields: readonly string[];
-  readonly filter?: Filter;
-  readonly sort: readonly string[];
-};
-
-export const aggregates = ['count', 'countDistinct'] as const;
-
-export type Aggregate = (typeof aggregates)[number];
-
-// The field that places a key row among its siblings (the rows of one
-// parent, for a nested source) before the key text breaks a tie, and what
-// readiness calls such a row: a row without a position, or two siblings
-// sharing one, would move public keys silently, so each blocks
-// (`<row>_unsorted`, `<row>_sort_shared`; key-order.ts).
-export type KeyPosition = {
-  readonly field: string;
-  readonly row: string;
-};
-
-// A read whose rows each name one public key, in read order: the key is
-// the text of the row's `key` field. A nested source's rows belong to a
-// block row of another source: `parent` holds that row's id. `title`
-// names a row for a person beside its key text (its label or name), in
-// the Needs review view of its order blockers.
-export type KeySource = SourceRead & {
-  readonly key: string;
-  readonly parent?: string;
-  readonly position: KeyPosition;
-  readonly title?: string;
-};
-
-// The closed vocabulary of public value forms, as the public files
-// (committed under test/fixtures/expected-exports) carry them: text as
-// is, a number as its decimal text, a numeric boolean as "1"/"0", any
-// other boolean as "TRUE"/"FALSE". Every rule omits null, undefined and
-// ''; false and 0 are kept. A value of another type is refused, never
-// converted.
-export const valueRules = [
-  'text',
-  'number',
-  'numeric_boolean',
-  'boolean',
-] as const;
+export type Aggregate = 'count' | 'countDistinct';
 
 // A block of keys per row of a key source, at this entry's position and in
 // the source's order (today one block per published curriculum
@@ -92,11 +22,6 @@ export type BlockField = {
   readonly rule: ValueRule;
   readonly suffix: string;
   readonly value: (context: RowContext, blockRow: Row) => unknown;
-};
-
-export type BlockLayouts = {
-  readonly byKey: Readonly<Record<string, readonly BlockPart[]>>;
-  readonly default: readonly BlockPart[];
 };
 
 export type BlockPart = BlockField | NestedKeys;
@@ -138,6 +63,18 @@ export type KeyedEntry = {
   readonly value: (context: RowContext, keyRow: Row) => unknown;
 };
 
+// A read whose rows each name one public key, in read order: the key is
+// the text of the row's `key` field. A nested source's rows belong to a
+// block row of another source: `parent` holds that row's id. `title`
+// names a row for a person beside its key text (its label or name), in
+// the Needs review view of its order blockers.
+export type KeySource = SourceRead & {
+  readonly key: string;
+  readonly parent?: string;
+  readonly position: KeyPosition;
+  readonly title?: string;
+};
+
 // The closed vocabulary of key sources (key-sources.ts).
 export type KeySourceName =
   'published_generations' | 'published_programs' | 'published_years';
@@ -165,9 +102,63 @@ export type ReadinessCheck = {
   readonly reads: Readonly<Record<string, SourceRead>>;
 };
 
+// Computes one public value from a row and its related rows. It returns
+// null (or undefined, or '') when the value is absent, and throws an
+// export error when it cannot resolve the value unambiguously; it never
+// guesses.
+export type Resolver = (context: RowContext) => unknown;
+
+export type Row = Readonly<Record<string, unknown>>;
+
+// What a resolver sees: one row of the file's main read and its related
+// rows, per related read key, in read order.
+export type RowContext = {
+  readonly related: Readonly<Record<string, readonly Row[]>>;
+  readonly row: Row;
+};
+
+// One native read: a collection, an explicit field list (relational dot
+// paths through M2O relations allowed, never `*`), a sort and optionally a
+// filter (plain field and M2O paths only, never `_some` or `_none`). An
+// aggregate read answers one bounded count over its one field instead of
+// rows (`count` of the matching rows, `countDistinct` of their values).
+export type SourceRead = {
+  readonly aggregate?: Aggregate;
+  readonly collection: string;
+  readonly fields: readonly string[];
+  readonly filter?: Filter;
+  readonly sort: readonly string[];
+};
+
 export type SourceRows = Readonly<Record<string, readonly Row[]>>;
 
-export type ValueRule = (typeof valueRules)[number];
+// The closed vocabulary of public value forms, as the public files
+// (committed under test/fixtures/expected-exports) carry them: text as
+// is, a number as its decimal text, a numeric boolean as "1"/"0", any
+// other boolean as "TRUE"/"FALSE". Every rule omits null, undefined and
+// ''; false and 0 are kept. A value of another type is refused, never
+// converted.
+export type ValueRule = 'boolean' | 'number' | 'numeric_boolean' | 'text';
+
+type BlockLayouts = {
+  readonly byKey: Readonly<Record<string, readonly BlockPart[]>>;
+  readonly default: readonly BlockPart[];
+};
+
+// The field that places a key row among its siblings (the rows of one
+// parent, for a nested source) before the key text breaks a tie, and what
+// readiness calls such a row: a row without a position, or two siblings
+// sharing one, would move public keys silently, so each blocks
+// (`<row>_unsorted`, `<row>_sort_shared`; key-order.ts).
+type KeyPosition = {
+  readonly field: string;
+  readonly row: string;
+};
+
+// A read of rows related to the rows of a file, grouped by `by`: the field
+// holding the id of the file's row (for example `course`). Rows whose `by`
+// names no row of the file are not used.
+type RelatedRead = SourceRead & { readonly by: string };
 
 // The filename rule of the publish-json storage writer
 // (directus/extensions/directus-extension-publish-json/api.js).

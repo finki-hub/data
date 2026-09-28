@@ -17,7 +17,7 @@ import { exportError } from './errors.js';
 // per count entry, and each check once for the codes it counts. Every read
 // names its fields; an aggregate answers one number, never a record.
 
-export type Facts = {
+type Facts = {
   readonly snapshot: IssueCounts;
   readonly status: IssueCounts;
 };
@@ -28,7 +28,7 @@ const countText = z.union([
 ]);
 
 // The one number an aggregate read answered (Directus answers text).
-export const aggregateCount = (
+const aggregateCount = (
   label: string,
   read: SourceRead,
   answer: unknown,

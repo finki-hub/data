@@ -3,53 +3,42 @@ import { z } from 'zod';
 
 import { loadTargetConfig, SetupConfigError } from './setup-config.js';
 
-const argumentsSchema = z.array(z.enum(['--dry-run'])).max(1);
-const directusConfigSchema = z.object({
-  DIRECTUS_TOKEN: z.string().min(1),
-  DIRECTUS_URL: z.url(),
-});
-
-export type CliConfig = {
-  readonly directus: DirectusConfig | null;
-  readonly dryRun: boolean;
-  readonly workbookPath: string;
-};
-
 export type DirectusConfig = {
   readonly token: string;
   readonly url: URL;
 };
 
-const workbookPathOf = (
-  environment: Readonly<Record<string, string | undefined>>,
-): string => path.resolve(environment['WORKBOOK_PATH'] ?? 'finki-hub.xlsx');
+type ImportConfig = {
+  // null for --dry-run, which never contacts Directus.
+  readonly directus: DirectusConfig | null;
+  readonly workbookPath: string;
+};
 
-// The branding command's configuration: .env supplies the target.
-export const loadConfig = (
+const importArgumentsSchema = z.array(z.enum(['--dry-run'])).max(1);
+const brandingEnvironmentSchema = z.object({
+  DIRECTUS_TOKEN: z.string().min(1),
+  DIRECTUS_URL: z.url(),
+});
+
+// The branding command's configuration. It takes no argument; its target
+// comes from the environment, which npm run brand completes from .env.
+export const loadBrandingConfig = (
   arguments_: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
-): CliConfig => {
-  const parsedArguments = argumentsSchema.parse(arguments_);
-  const dryRun = parsedArguments.includes('--dry-run');
-  const workbookPath = workbookPathOf(environment);
-
-  if (dryRun) {
-    return { directus: null, dryRun, workbookPath };
+): DirectusConfig => {
+  if (arguments_.length > 0) {
+    throw new Error(
+      `npm run brand takes no argument (got ${arguments_.join(' ')}).`,
+    );
   }
-
-  const parsedEnvironment = directusConfigSchema.parse({
+  const parsed = brandingEnvironmentSchema.parse({
     DIRECTUS_TOKEN:
       environment['DIRECTUS_TOKEN'] ?? environment['DIRECTUS_ADMIN_TOKEN'],
     DIRECTUS_URL: environment['DIRECTUS_URL'] ?? 'http://localhost:8055',
   });
-
   return {
-    directus: {
-      token: parsedEnvironment.DIRECTUS_TOKEN,
-      url: new URL(parsedEnvironment.DIRECTUS_URL),
-    },
-    dryRun,
-    workbookPath,
+    token: parsed.DIRECTUS_TOKEN,
+    url: new URL(parsed.DIRECTUS_URL),
   };
 };
 
@@ -59,22 +48,22 @@ export const loadConfig = (
 export const loadImportConfig = (
   arguments_: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
-): CliConfig => {
-  const parsedArguments = argumentsSchema.safeParse(arguments_);
+): ImportConfig => {
+  const parsedArguments = importArgumentsSchema.safeParse(arguments_);
   if (!parsedArguments.success) {
     throw new SetupConfigError(
       `npm run import takes no argument except --dry-run (got ${arguments_.join(' ')}).`,
     );
   }
-  const dryRun = parsedArguments.data.includes('--dry-run');
   return {
-    directus: dryRun
+    directus: parsedArguments.data.includes('--dry-run')
       ? null
       : loadTargetConfig(environment, {
           name: 'The import',
           purpose: 'import the workbook into',
         }),
-    dryRun,
-    workbookPath: workbookPathOf(environment),
+    workbookPath: path.resolve(
+      environment['WORKBOOK_PATH'] ?? 'finki-hub.xlsx',
+    ),
   };
 };

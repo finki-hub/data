@@ -9,7 +9,7 @@ import type {
   IssueCounts,
   SourceRead,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
-import type { FakeItem, FakeStore } from './migration-test-helpers.js';
+import type { FakeItem, FakeStore } from './store-test-helpers.js';
 
 import { definitionProblems } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import {

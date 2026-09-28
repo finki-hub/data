@@ -1,14 +1,14 @@
-import type { PlannedRow } from '../src/migrations/planned.js';
+import type { PlannedRow } from '../src/import/planned.js';
 import type { WorkbookContent } from '../src/workbook.js';
 
-import { type Finding } from '../src/migrations/findings.js';
-import { type ImportPlan, planImport } from '../src/migrations/plan.js';
-import { type Preflight, preflight } from '../src/migrations/preflight.js';
-import { workbookRows } from '../src/migrations/workbook-rows.js';
+import { type Finding } from '../src/import/findings.js';
+import { type ImportPlan, planImport } from '../src/import/plan.js';
+import { type Preflight, preflight } from '../src/import/preflight.js';
+import { workbookRows } from '../src/import/workbook-rows.js';
 import {
-  type MigrationData,
   type ModelCollectionKey,
   perWorkbookKey,
+  type WorkbookData,
   type WorkbookKey,
 } from '../src/schema.js';
 import { workbookSpecs } from '../src/specs/workbook.js';
@@ -83,21 +83,18 @@ export const withCourse = (
   ),
 });
 
-// The columns the workbook reader reads for a part: its fields with a
-// header.
+// The columns the workbook reader reads for a part: its fields.
 const readColumns = (key: WorkbookKey): ReadonlySet<string> =>
   new Set(
     workbookSpecs
       .find((spec) => spec.key === key)
-      ?.fields.flatMap(({ source, target }) =>
-        source === undefined ? [] : [target],
-      ),
+      ?.fields.map(({ target }) => target),
   );
 
 // The workbook rows of a dataset in dataset order, with the columns the
 // reader reads and without their ids: the check numbers them from 1 (the
 // ordinal of a row is its position here).
-export const dataOf = (dataset: SyntheticDataset): MigrationData =>
+const dataOf = (dataset: SyntheticDataset): WorkbookData =>
   perWorkbookKey((key) => {
     const columns = readColumns(key);
     return dataset[key].map((row) =>

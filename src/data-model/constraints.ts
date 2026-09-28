@@ -14,7 +14,7 @@ const resultSchema = z.object({
   statements: z.number().int().nonnegative(),
 });
 
-export type MigrationResult = z.infer<typeof resultSchema>;
+type MigrationResult = z.infer<typeof resultSchema>;
 
 export class DataOperationsUnavailableError extends Error {
   public override readonly name = 'DataOperationsUnavailableError';

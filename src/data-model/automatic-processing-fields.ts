@@ -2,10 +2,9 @@ import type { ModelField } from '../schema.js';
 
 import { scalar } from './fields.js';
 
-// The status columns of automatic processing (Task 13), appended after the
-// snapshot columns so an installed project gains them additively. The
-// input revisions are written by the source-invalidation trigger and by
-// mark only; null (never written yet) reads as the source revision.
+// The status columns of automatic processing (Task 13). The input
+// revisions are written by the source-invalidation trigger and by mark
+// only; null (never written yet) reads as the source revision.
 export const automaticProcessingFields: readonly ModelField[] = [
   scalar('last_error_message', 'text', {
     note: 'What the last failed or discarded run reported (ids and counts only, at most 600 characters).',

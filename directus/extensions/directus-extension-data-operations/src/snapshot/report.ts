@@ -8,7 +8,7 @@ import { activeTable, stagingTable } from './contract.js';
 // nothing was ever promoted. The promoted identity is kept apart from the
 // staging columns, so a later import, whether it succeeds or fails, never
 // hides such a change.
-export const matchesPromotion = (
+const matchesPromotion = (
   state: SnapshotState,
   active: SnapshotSummary,
 ): boolean | null =>

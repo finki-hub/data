@@ -10,7 +10,7 @@ import {
 
 // A planned row refers to a row the plan does not create before it, or two
 // planned rows share a key: a bug in the plan, not a condition to retry.
-export class ImportPlanError extends Error {
+class ImportPlanError extends Error {
   public override readonly name = 'ImportPlanError';
 }
 
@@ -37,7 +37,7 @@ const resolved = (
     }),
   );
 
-export type WriteOptions = {
+type WriteOptions = {
   readonly batchSize: number;
   // Hears the rows Directus confirmed, batch by batch.
   readonly confirmed: (rows: number) => void;

@@ -4,20 +4,20 @@ import type {
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/history-port.js';
 import type { MembershipRow } from '../directus/extensions/directus-extension-data-operations/src/history-contract.js';
 
-export type FakeEntry = {
+type FakeEntry = {
   id: number;
   label: string;
   review_reason: null | string;
   review_state: string;
 };
 
-export type FakeMapping = {
+type FakeMapping = {
   academic_year: number;
   course: number;
   entry: number;
 };
 
-export type FakeMoodleUser = {
+type FakeMoodleUser = {
   coursesCount: null | number;
   id: number;
 };

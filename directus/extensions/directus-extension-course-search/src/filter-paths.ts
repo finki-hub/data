@@ -26,7 +26,7 @@ export type PathRelation = {
   readonly related_collection: null | string;
 };
 
-export type PathRules = {
+type PathRules = {
   readonly maxDepth: number;
   readonly relations: readonly PathRelation[];
   readonly root: string;

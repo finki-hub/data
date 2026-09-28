@@ -93,7 +93,7 @@ const comparable = ({ action, collection, fields, permissions }) =>
     permissions ?? {},
   ]);
 
-export const installedPermissions = (target) =>
+const installedPermissions = (target) =>
   get(
     target,
     `/permissions?fields=collection,action,fields,permissions,validation,presets&limit=-1&filter[policy][_eq]=${editorPolicy.id}`,

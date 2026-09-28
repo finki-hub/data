@@ -25,7 +25,7 @@ const columnSchema = z.looseObject({
   numeric_scale: z.number().nullable().optional(),
 });
 
-export type ExistingColumn = z.infer<typeof columnSchema>;
+type ExistingColumn = z.infer<typeof columnSchema>;
 
 // Response items of `GET /fields/:collection`. Aliases carry a null schema.
 export const existingFieldsSchema = z.array(

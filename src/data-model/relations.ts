@@ -9,7 +9,7 @@ import type {
 
 import { dataModelCollections } from './collections.js';
 
-export type RelationPayload = {
+type RelationPayload = {
   readonly collection: string;
   readonly field: string;
   readonly meta: {
@@ -27,7 +27,7 @@ export type RelationPayload = {
 // `on_delete` only from the payload, and it reads `collection` and
 // `related_collection` from the payload while doing so; leaving any of them
 // out silently strips the foreign key or its delete rule.
-export type RelationAlignmentPayload = {
+type RelationAlignmentPayload = {
   readonly collection: string;
   readonly field: string;
   readonly meta: {

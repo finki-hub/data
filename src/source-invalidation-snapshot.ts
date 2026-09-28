@@ -8,6 +8,6 @@ import { sourceInvalidationSql } from '../directus/extensions/directus-extension
 // snapshot shows the change in review and runs with psql, and
 // test/source-invalidation.test.ts fails while the two differ.
 await writeFile(
-  'src/migrations/source-invalidation.sql',
+  'directus/extensions/directus-extension-data-operations/src/source-invalidation.sql',
   sourceInvalidationSql,
 );

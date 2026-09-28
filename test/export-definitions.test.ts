@@ -7,7 +7,7 @@ import type {
   RowContext,
   SourceRead,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
-import type { FakeItem } from './migration-test-helpers.js';
+import type { FakeItem } from './store-test-helpers.js';
 
 import {
   checkDefinitions,
@@ -28,9 +28,9 @@ import {
 import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
+import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
-import { privateWorkbookSpecs } from '../src/specs/private.js';
 import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
 import {
   edit,
@@ -146,9 +146,7 @@ const outsideAllowlist = ([collection, field]: readonly [string, string]) => {
   return fields === undefined || (fields !== null && !fields.includes(field));
 };
 
-const moodleUserFields = new Set(
-  privateWorkbookSpecs[0].fields.map(({ target }) => target),
-);
+const moodleUserFields: ReadonlySet<string> = new Set(snapshotFields);
 
 const wildcardOrSome = /"_(?:none|some)"|"\*"/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;

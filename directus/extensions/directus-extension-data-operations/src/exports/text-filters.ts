@@ -5,10 +5,7 @@ import type { FieldFilter, FieldFilterOperator, Filter } from '@directus/types';
 // relation). Logical operators stay at the top of each filter, where
 // Studio's filter builder shows them.
 
-export const on = (
-  path: string,
-  operator: FieldFilterOperator,
-): FieldFilter => {
+const on = (path: string, operator: FieldFilterOperator): FieldFilter => {
   const [head = '', ...rest] = path.split('.');
   return {
     [head]: rest.length === 0 ? operator : on(rest.join('.'), operator),

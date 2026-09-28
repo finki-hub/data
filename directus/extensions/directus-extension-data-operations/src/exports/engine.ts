@@ -18,13 +18,6 @@ import { idOf, isAbsent, publicForm } from './values.js';
 // every payload against its definition. The serialization and the
 // validation are pure; only the reader touches Directus.
 
-export type FileSources = {
-  // The rows of each key source the definition places.
-  readonly keyRows: KeyRows;
-  readonly related: Readonly<Record<string, readonly Row[]>>;
-  readonly rows: readonly Row[];
-};
-
 export type PreparedFile = {
   // The compact JSON the file publishes.
   readonly body: string;
@@ -34,9 +27,16 @@ export type PreparedFile = {
   readonly sha256: string;
 };
 
-export type PublicRow = Readonly<Record<string, string>>;
-
 export type SourceReader = (read: SourceRead) => Promise<readonly unknown[]>;
+
+type FileSources = {
+  // The rows of each key source the definition places.
+  readonly keyRows: KeyRows;
+  readonly related: Readonly<Record<string, readonly Row[]>>;
+  readonly rows: readonly Row[];
+};
+
+type PublicRow = Readonly<Record<string, string>>;
 
 const rowList = z.array(z.record(z.string(), z.unknown()));
 
@@ -174,7 +174,7 @@ const checkKeys = (
 // What a payload must hold: a row per read row, and the keys the
 // definition resolved to for its sources (fileKeys). A bare row count
 // stands for a definition without key sources.
-export type FileShape =
+type FileShape =
   number | { readonly keys: readonly string[]; readonly rows: number };
 
 // Validates a payload against its definition, independently of how it was

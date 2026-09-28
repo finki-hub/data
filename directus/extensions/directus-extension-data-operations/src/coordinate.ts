@@ -34,10 +34,7 @@ export const coordinationContext = (database: Database): ActionContext => ({
   store: sqlStore(sqlDatabase(database)),
 });
 
-export const coordinate = (
-  options: unknown,
-  database: Database,
-): Promise<unknown> =>
+const coordinate = (options: unknown, database: Database): Promise<unknown> =>
   runAction(parseCoordinatorInput(options), coordinationContext(database));
 
 export const coordinationStatus = (database: Database): Promise<StatusReport> =>

@@ -1,13 +1,13 @@
 import ExcelJS from 'exceljs';
 
-import type { ProgramSeed } from './migrations/generations.js';
+import type { ProgramSeed } from './import/generations.js';
 
 import {
   assertNever,
-  type MigrationData,
   perWorkbookKey,
   type PlacedItem,
   type SheetRow,
+  type WorkbookData,
   type WorkbookKey,
   type WorkbookSpec,
 } from './schema.js';
@@ -47,7 +47,7 @@ export type WorkbookPlaces = Readonly<Record<WorkbookKey, readonly SheetRow[]>>;
 // formula would copy a calculated value), each with its sheet and row.
 const readParts = (
   workbook: ExcelJS.Workbook,
-): { readonly data: MigrationData; readonly places: WorkbookPlaces } => {
+): { readonly data: WorkbookData; readonly places: WorkbookPlaces } => {
   const read = new Map<WorkbookKey, readonly PlacedItem[]>(
     workbookSpecs.map((spec) => [spec.key, readSource(workbook, spec)]),
   );
@@ -64,7 +64,7 @@ const readParts = (
 // sheets head their program columns with.
 export type WorkbookContent = {
   readonly academicYears: readonly string[];
-  readonly data: MigrationData;
+  readonly data: WorkbookData;
   readonly places: WorkbookPlaces;
   readonly studyPrograms: readonly ProgramSeed[];
 };
@@ -99,9 +99,7 @@ const assertChronological = (years: readonly string[]): void => {
 
 // The academic years of the enrollment sheet, newest first: a later year
 // is one more column group, placed before the years it follows.
-export const readAcademicYears = (
-  workbook: ExcelJS.Workbook,
-): readonly string[] => {
+const readAcademicYears = (workbook: ExcelJS.Workbook): readonly string[] => {
   const years = workbookSpecs.flatMap((spec) =>
     spec.source.kind === 'course-enrollment-patterns'
       ? readEnrollmentYears(workbook, spec.source)

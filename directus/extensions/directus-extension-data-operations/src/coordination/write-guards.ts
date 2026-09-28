@@ -57,7 +57,7 @@ BEGIN
 END
 $$`;
 
-export const writeGuardTriggerSql = (declaration: GuardedDeclaration): string =>
+const writeGuardTriggerSql = (declaration: GuardedDeclaration): string =>
   `CREATE OR REPLACE TRIGGER "${declaration.collection}_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "${declaration.collection}" FOR EACH STATEMENT EXECUTE FUNCTION "${guardFunction}"(${[
     writerSetting(declaration),
     guardMessage(declaration),

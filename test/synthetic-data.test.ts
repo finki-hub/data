@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { type WorkbookKey, workbookKeys } from '../src/schema.js';
 import { workbookSpecs } from '../src/specs/workbook.js';
 import {
@@ -25,11 +26,14 @@ const stringValues = (dataset: SyntheticDataset): readonly string[] =>
     ),
   );
 
-// The columns of a workbook part: its spec fields.
-const workbookTargets = (key: WorkbookKey): readonly string[] =>
-  workbookSpecs
-    .find((spec) => spec.key === key)
-    ?.fields.map(({ target }) => target) ?? [];
+// The columns of a workbook part: its spec fields. A Moodle user carries
+// every scraper field, the ones only the scraper fills included.
+const rowFields = (key: WorkbookKey): readonly string[] =>
+  key === 'moodle_users'
+    ? snapshotFields
+    : (workbookSpecs
+        .find((spec) => spec.key === key)
+        ?.fields.map(({ target }) => target) ?? []);
 
 describe('synthetic fixture', () => {
   test('contains every part of the workbook with ascending unique ids', () => {
@@ -58,11 +62,11 @@ describe('synthetic fixture', () => {
     expect(second.courses[0]).not.toBe(first.courses[0]);
   });
 
-  test('uses exactly the workbook field keys of the spec plus id in every part', () => {
+  test('uses exactly the field keys of every part plus id', () => {
     const dataset = makeSyntheticDataset();
 
     for (const key of workbookKeys) {
-      const expected = ['id', ...workbookTargets(key)].toSorted(byText);
+      const expected = ['id', ...rowFields(key)].toSorted(byText);
       const rows = dataset[key];
       for (const row of rows) {
         expect(Object.keys(row).toSorted(byText)).toEqual(expected);
@@ -70,23 +74,17 @@ describe('synthetic fixture', () => {
     }
   });
 
-  test('orders course and Moodle columns like the specs', () => {
+  test('orders course and Moodle columns like their declarations', () => {
     const dataset = makeSyntheticDataset();
 
     for (const course of dataset.courses) {
-      expect(Object.keys(course)).toEqual([
-        'id',
-        ...workbookTargets('courses'),
-      ]);
+      expect(Object.keys(course)).toEqual(['id', ...rowFields('courses')]);
     }
     for (const user of dataset.moodle_users) {
-      expect(Object.keys(user)).toEqual([
-        'id',
-        ...workbookTargets('moodle_users'),
-      ]);
+      expect(Object.keys(user)).toEqual(['id', ...rowFields('moodle_users')]);
     }
 
-    expect(workbookTargets('moodle_users')).toHaveLength(38);
+    expect(rowFields('moodle_users')).toHaveLength(38);
   });
 
   test('uses .example addresses only', () => {

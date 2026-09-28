@@ -13,7 +13,7 @@ const maybeText = text.nullable();
 const count = z.number().int().nonnegative();
 const revision = z.number().int().nullable();
 
-export const audiences = ['administrator', 'editor'] as const;
+const audiences = ['administrator', 'editor'] as const;
 
 export type Audience = (typeof audiences)[number];
 
@@ -27,9 +27,9 @@ export const domainStates = [
 
 // A domain as the dashboard shows it: a failed publication that uploaded
 // some declared files at its revision reads partial.
-export const domainViewStates = [...domainStates, 'partial'] as const;
+const domainViewStates = [...domainStates, 'partial'] as const;
 
-export const fileOutcomeStates = ['uploaded', 'failed', 'skipped'] as const;
+const fileOutcomeStates = ['uploaded', 'failed', 'skipped'] as const;
 
 const domainView = z.object({
   kind: text,

@@ -23,7 +23,7 @@ export const reviewBookmarks = (
   ),
 ];
 
-export type ReadinessInputs = {
+type ReadinessInputs = {
   readonly answer: ReadinessAnswer;
   readonly audience: Audience;
   // The installed review bookmarks, by bookmarkKey(collection, name).

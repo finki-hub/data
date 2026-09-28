@@ -12,8 +12,8 @@ import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
+import { planImport } from '../../src/import/plan.js';
 import { exitCodes } from '../../src/lifecycle.js';
-import { planImport } from '../../src/migrations/plan.js';
 import { runSetup } from '../../src/setup.js';
 import { loadWorkbook } from '../../src/workbook.js';
 import {

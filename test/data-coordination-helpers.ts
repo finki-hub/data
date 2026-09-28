@@ -50,15 +50,15 @@ type FakeClaim = {
   token: string;
 };
 
-export type FakeCandidate = CountRow & {
+type FakeCandidate = CountRow & {
   readonly page: string;
   readonly revision: number;
   readonly token: string;
 };
 
-export type FakeEnrollment = CountRow & { readonly revision: number };
+type FakeEnrollment = CountRow & { readonly revision: number };
 
-export type FakeData = {
+type FakeData = {
   calculationFingerprint: null | string;
   candidates: FakeCandidate[];
   claim: FakeClaim | null;

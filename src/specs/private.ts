@@ -1,56 +1,78 @@
 import {
-  field,
-  requiredField,
-  schemaField,
-  type WorkbookSpec,
-} from '../schema.js';
+  type SnapshotField,
+  type SnapshotFieldDeclaration,
+  snapshotFieldTable,
+} from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
+import { type FieldSpec, type WorkbookSpec } from '../schema.js';
 
-// The workbook's Courses sheet, the first Moodle users snapshot. Its
-// fields are the columns of the Moodle users model as well
-// (src/data-model/moodle-collections.ts); the scraper-only columns have no
-// header here.
+// The workbook's Courses sheet, the first Moodle users snapshot: a fixed
+// historical export, so its columns never grow. It carries these scraper
+// fields, whose kinds come from the snapshot contract. The fields only the
+// scraper fills (ID_old, Profile_old, Timezone_new, Timezone_old) and any
+// scraper field added later are not among them; the import leaves those
+// columns empty.
+const sheetFields: ReadonlySet<SnapshotField> = new Set([
+  'AIM_new',
+  'AIM_old',
+  'Avatar_new',
+  'Avatar_old',
+  'City_new',
+  'City_old',
+  'Country_new',
+  'Country_old',
+  'Courses',
+  'Courses Count',
+  'Description_new',
+  'Description_old',
+  'ICQ_new',
+  'ICQ_old',
+  'ID_new',
+  'Images_new',
+  'Images_old',
+  'Interests_new',
+  'Interests_old',
+  'Last Access_new',
+  'Last Access_old',
+  'Mail',
+  'MoodleNet_new',
+  'MoodleNet_old',
+  'MSN_new',
+  'MSN_old',
+  'Name',
+  'Profile_new',
+  'Skype_new',
+  'Skype_old',
+  'Web_new',
+  'Web_old',
+  'Yahoo_new',
+  'Yahoo_old',
+]);
+
+// The sheet's headers that differ from the field names.
+const renamedHeaders: Readonly<Partial<Record<SnapshotField, string>>> = {
+  'Courses Count': '#',
+  ID_new: 'ID',
+  Profile_new: 'Profile',
+};
+
+const sheetField = ({
+  field,
+  kind,
+  required,
+}: SnapshotFieldDeclaration & {
+  readonly field: SnapshotField;
+}): FieldSpec => ({
+  kind,
+  ...(required !== undefined && { required }),
+  source: renamedHeaders[field] ?? field,
+  target: field,
+});
+
 export const privateWorkbookSpecs = [
   {
-    fields: [
-      schemaField('ID_old', 'integer'),
-      field('ID', 'ID_new', 'integer'),
-      requiredField('Name', 'Name'),
-      field('Mail', 'Mail'),
-      field('Courses', 'Courses', 'text'),
-      field('#', 'Courses Count', 'integer'),
-      schemaField('Profile_old', 'text'),
-      field('Profile', 'Profile_new', 'text'),
-      field('AIM_new', 'AIM_new'),
-      field('AIM_old', 'AIM_old'),
-      field('Avatar_new', 'Avatar_new', 'text'),
-      field('Avatar_old', 'Avatar_old', 'text'),
-      field('City_new', 'City_new'),
-      field('City_old', 'City_old'),
-      field('Country_new', 'Country_new'),
-      field('Country_old', 'Country_old'),
-      field('Description_new', 'Description_new', 'text'),
-      field('Description_old', 'Description_old', 'text'),
-      field('ICQ_new', 'ICQ_new'),
-      field('ICQ_old', 'ICQ_old'),
-      field('Images_new', 'Images_new', 'text'),
-      field('Images_old', 'Images_old', 'text'),
-      field('Interests_new', 'Interests_new', 'text'),
-      field('Interests_old', 'Interests_old', 'text'),
-      field('Last Access_new', 'Last Access_new'),
-      field('Last Access_old', 'Last Access_old'),
-      field('MSN_new', 'MSN_new'),
-      field('MSN_old', 'MSN_old'),
-      field('MoodleNet_new', 'MoodleNet_new'),
-      field('MoodleNet_old', 'MoodleNet_old'),
-      field('Skype_new', 'Skype_new'),
-      field('Skype_old', 'Skype_old'),
-      schemaField('Timezone_new'),
-      schemaField('Timezone_old'),
-      field('Web_new', 'Web_new', 'text'),
-      field('Web_old', 'Web_old', 'text'),
-      field('Yahoo_new', 'Yahoo_new'),
-      field('Yahoo_old', 'Yahoo_old'),
-    ],
+    fields: snapshotFieldTable
+      .filter(({ field }) => sheetFields.has(field))
+      .map(sheetField),
     key: 'moodle_users',
     source: { kind: 'rows', sheet: 'Courses' },
   },

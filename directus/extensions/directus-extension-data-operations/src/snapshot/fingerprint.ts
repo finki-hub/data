@@ -6,7 +6,7 @@ import { snapshotFields, type SnapshotRow } from './contract.js';
 
 // The fingerprint of a snapshot: sha256 over the concatenated hex sha256
 // digests of its rows in id order, each row rendered as the JSON array of
-// its 38 values in snapshotFields order exactly as PostgreSQL's
+// its values in snapshotFields order exactly as PostgreSQL's
 // json_build_array(...)::text writes it. The database computes it over
 // staging and over the active rows with the SQL below; the bundle mirrors
 // it for a verified backup and the tests, and the fixture suite asserts
@@ -17,7 +17,7 @@ import { snapshotFields, type SnapshotRow } from './contract.js';
 export const rowText = (row: SnapshotRow): string =>
   `[${row.map((value) => JSON.stringify(value)).join(', ')}]`;
 
-export const rowDigest = (row: SnapshotRow): string =>
+const rowDigest = (row: SnapshotRow): string =>
   createHash('sha256').update(rowText(row), 'utf8').digest('hex');
 
 export class SnapshotFingerprint {

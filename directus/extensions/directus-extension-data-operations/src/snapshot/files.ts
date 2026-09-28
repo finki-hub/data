@@ -26,7 +26,7 @@ const fileRows = z.object({
 });
 
 // The private CSV as directus_files describes it, or null without a row.
-export const describeFile = async (
+const describeFile = async (
   client: SqlClient,
   id: string,
 ): Promise<FileFacts | null> => {

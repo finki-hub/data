@@ -1,6 +1,6 @@
 import type {
-  MigrationItem,
   ModelCollectionKey,
+  WorkbookItem,
   WorkbookKey,
 } from '../schema.js';
 import type { Candidates } from './candidates.js';
@@ -19,7 +19,7 @@ import {
 // the model adds later is copied as soon as the workbook part reads it.
 const copied = (
   collection: ModelCollectionKey,
-  item: MigrationItem,
+  item: WorkbookItem,
 ): PlannedRecord =>
   Object.fromEntries(
     (findModelCollection(collection)?.fields ?? []).flatMap(
@@ -40,7 +40,7 @@ export const contentRows = (
     readonly collection: ModelCollectionKey;
     readonly source: WorkbookKey;
   },
-  items: readonly MigrationItem[],
+  items: readonly WorkbookItem[],
   links: (id: number) => PlannedRecord = () => ({}),
 ): readonly PlannedRow[] =>
   items.map((item, index) =>
