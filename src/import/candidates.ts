@@ -9,7 +9,6 @@ import type { LinkCandidate } from './labels.js';
 // in contention and links none; `unresolved` keeps the text as display
 // text; `none` is an empty text.
 export type StaffCandidate = {
-  readonly parts: readonly string[];
   readonly resolution: 'ambiguous' | 'none' | 'unique' | 'unresolved';
   readonly role: (typeof assignmentRoles)[number];
   readonly staff: readonly number[];
@@ -39,7 +38,6 @@ export type CourseCandidate = {
   readonly current: LinkCandidate;
   readonly id: number;
   readonly legacy: LegacyCandidate;
-  readonly name: string;
   readonly rules: readonly RuleCandidate[];
 };
 

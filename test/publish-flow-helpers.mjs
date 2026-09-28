@@ -299,7 +299,7 @@ export const installProbe = async (target, waitBefore, waitMs) => {
     flowBody(
       publishAssetsFlow,
       probeParentId,
-      'Synthetic probe / Public assets (relational)',
+      'Synthetic probe / Public assets',
     ),
     [
       ...parent.filter(({ id }) => id === entry),

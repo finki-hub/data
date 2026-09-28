@@ -37,7 +37,7 @@ export const publishAssetsFlow: FlowTemplate = {
   entry: publishId('11'),
   icon: 'cloud_upload',
   id: publishAssetsFlowId,
-  name: 'Publish / Public assets (relational)',
+  name: 'Publish / Public assets',
   operations: [
     ...adminOnly(
       ['11', '12', '13'],

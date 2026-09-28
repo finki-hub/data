@@ -145,10 +145,10 @@ export const stateRow = z.object({
 export type StateRow = z.infer<typeof stateRow>;
 
 // A row whose token is set is a claim even when its other claim columns
-// are missing (an out-of-band edit, or a row older than the columns): it is
-// reported with an empty owner, no domain and revision -1, so no
-// token-bearing action can use it, and it is released as abandoned once
-// its heartbeat is stale, or at once when it never had one.
+// are missing (an out-of-band edit of the status row): it is reported
+// with an empty owner, no domain and revision -1, so no token-bearing
+// action can use it, and it is released as abandoned once its heartbeat
+// is stale, or at once when it never had one.
 const claimOf = (row: StateRow): OperationsState['claim'] =>
   row.claim_token === null
     ? null

@@ -151,9 +151,6 @@ describe('target collections', () => {
       'student_council',
       'deans_office',
     ]);
-    expect(dataModelCollectionKeys).not.toEqual(
-      expect.arrayContaining(['curriculum_2023']),
-    );
   });
 
   test('keeps only the published columns on a course, and the course links its curriculum', () => {

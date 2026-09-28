@@ -266,9 +266,6 @@ describe('field groups', () => {
       sorted(fieldNames('courses')),
     );
     expect(courseGroups.every(({ start }) => start === 'open')).toBeTruthy();
-    expect(
-      findFieldGroup('teaching_assignments', 'legacy_imported'),
-    ).toBeUndefined();
   });
 
   test('never names a group after a model field and lists only model fields', () => {

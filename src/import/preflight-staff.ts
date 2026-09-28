@@ -8,22 +8,19 @@ const delimiters = [',', ';', '\n'] as const;
 
 type Text = Pick<StaffCandidate, 'role' | 'text'>;
 
-type Matched = Pick<StaffCandidate, 'parts' | 'staff'>;
-
 const candidate = (
   { role, text }: Text,
   resolution: StaffCandidate['resolution'],
-  { parts, staff }: Matched,
+  staff: readonly number[],
 ): StaffCandidate => ({
-  parts: [...parts],
   resolution,
   role,
   staff: [...staff],
   text,
 });
 
-const unresolved = (base: Text, parts: readonly string[]): StaffCandidate =>
-  candidate(base, 'unresolved', { parts, staff: [] });
+const unresolved = (base: Text): StaffCandidate =>
+  candidate(base, 'unresolved', []);
 
 // Complete labels only: `unique` when every label names exactly one staff
 // row (the rows in the order the text names them), `ambiguous` when every
@@ -32,19 +29,18 @@ const unresolved = (base: Text, parts: readonly string[]): StaffCandidate =>
 // names no staff row at all.
 const fromMatches = (
   base: Text,
-  parts: readonly string[],
   matches: ReadonlyArray<readonly number[]>,
 ): StaffCandidate => {
   if (matches.some((ids) => ids.length === 0)) {
-    return unresolved(base, parts);
+    return unresolved(base);
   }
   if (matches.every((ids) => ids.length === 1)) {
-    return candidate(base, 'unique', { parts, staff: matches.flat() });
+    return candidate(base, 'unique', matches.flat());
   }
   const staff = [...new Set(matches.flat())].toSorted(
     (left, right) => left - right,
   );
-  return candidate(base, 'ambiguous', { parts, staff });
+  return candidate(base, 'ambiguous', staff);
 };
 
 // The one form in which a list of staff labels is published: the export
@@ -70,19 +66,19 @@ const resolveStaff = (
   const text = nonEmpty(raw);
   const base = { role, text };
   if (text === null) {
-    return candidate(base, 'none', { parts: [], staff: [] });
+    return candidate(base, 'none', []);
   }
   const whole = text.trim();
   const wholeMatches = staffByName.get(whole) ?? [];
   if (wholeMatches.length > 0) {
     return whole === text
-      ? fromMatches(base, [whole], [wholeMatches])
-      : unresolved(base, [whole]);
+      ? fromMatches(base, [wholeMatches])
+      : unresolved(base);
   }
   const present = delimiters.filter((item) => whole.includes(item));
   const [delimiter] = present;
   if (delimiter === undefined || present.length !== 1) {
-    return unresolved(base, [whole]);
+    return unresolved(base);
   }
   const parts = whole
     .split(delimiter)
@@ -93,11 +89,10 @@ const resolveStaff = (
     new Set(parts).size !== parts.length ||
     parts.join(staffListSeparator) !== text
   ) {
-    return unresolved(base, parts);
+    return unresolved(base);
   }
   return fromMatches(
     base,
-    parts,
     parts.map((part) => staffByName.get(part) ?? []),
   );
 };

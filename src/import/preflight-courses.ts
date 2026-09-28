@@ -39,7 +39,6 @@ const candidateOf = (
       current: current.value,
       id: course.id,
       legacy: legacy.value,
-      name,
       rules: rules.value,
     },
     findings: [

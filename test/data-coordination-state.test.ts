@@ -66,8 +66,8 @@ describe('status row mapping', () => {
     expect(state.lastError).toBeNull();
     expect(state.dirtyDomains).toEqual([publication]);
     expect(state.sourceRevision).toBe(3);
-    // Input revisions never written (a project older than the columns)
-    // read as the source revision: every statement counts, as before.
+    // Input revisions not written yet (null on a fresh row) read as the
+    // source revision: every statement counts.
     expect(state.inputRevisions).toEqual({ enrollments: 3, history_index: 3 });
     expect(
       toState(

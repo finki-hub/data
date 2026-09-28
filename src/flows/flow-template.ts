@@ -51,8 +51,8 @@ export const automationId = familyIds(flowFamilyCodes.automation);
 // public assets).
 export const publicationId = familyIds(flowFamilyCodes.publication);
 
-// The publish family (Publish / Public assets (relational) and its
-// per-file child Publish / One file).
+// The publish family (Publish / Public assets and its per-file child
+// Publish / One file).
 export const publishId = familyIds(flowFamilyCodes.publish);
 
 // The enrollment-rules family (Data / Add enrollment rules and its batch

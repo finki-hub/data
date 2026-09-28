@@ -57,6 +57,7 @@ import {
   instantText,
   orderedChecks,
   retriedText,
+  snapshotText,
   stateLabel,
   toneOf,
   waitingText,
@@ -69,8 +70,8 @@ import {
   operationsDashboardId,
 } from '../src/data-model/operations-dashboard.js';
 import { flowFamilyCodes } from '../src/flows/flow-template.js';
-import { flowTemplates } from '../src/flows/registry.js';
 import { snapshotImportFlow } from '../src/flows/snapshot-import.js';
+import { flowTemplates } from './registry-test-helpers.js';
 
 // Task 16: the generic Run operation and status panels (audit X14), their
 // contract with the manual Flows and the status endpoint, and the default
@@ -579,6 +580,35 @@ describe('the status labels', () => {
     expect(sectionsOf(null)).toEqual([...statusSections]);
   });
 
+  test('writes each Moodle snapshot count in the singular for one, as Search does', () => {
+    const none = {
+      countMismatches: 0,
+      entries: 0,
+      indexedUsers: 0,
+      memberships: 0,
+      needsMapping: 0,
+      users: 0,
+    };
+
+    expect(
+      snapshotText({
+        ...none,
+        countMismatches: 1,
+        entries: 1,
+        indexedUsers: 1,
+        needsMapping: 1,
+        users: 1,
+      }),
+    ).toBe(
+      '1 user, 1 indexed; 1 history entry, 1 still needs a mapping; 1 user whose indexed entries differ from their Courses Count.',
+    );
+    expect(
+      snapshotText({ ...none, entries: 12, indexedUsers: 2, users: 3 }),
+    ).toBe(
+      '3 users, 2 indexed; 12 history entries, 0 still need a mapping; 0 users whose indexed entries differ from their Courses Count.',
+    );
+  });
+
   test('says what Run waits for: the claim, or a run another panel of the page started', () => {
     const claim = {
       domain: 'history_index',
@@ -610,7 +640,7 @@ describe('the Data operations dashboard', () => {
     });
 
     expect(flows).toEqual([
-      'Publish / Public assets (relational)',
+      'Publish / Public assets',
       'Data / Mark pending',
       'Data / Import Moodle snapshot',
       'Data / Add enrollment rules',

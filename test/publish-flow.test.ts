@@ -18,7 +18,8 @@ import {
   publishAssetsFlowId,
   publishFlows,
 } from '../src/flows/publish-public-assets.js';
-import { flowFamilies, flowTemplates } from '../src/flows/registry.js';
+import { flowFamilies } from '../src/flows/registry.js';
+import { flowTemplates } from './registry-test-helpers.js';
 
 const publishJson = 'finki-hub-publish-json';
 const boundedCode = /^[A-Z][A-Z_]{0,63}$/u;
@@ -57,14 +58,14 @@ const reachable = (flow: FlowTemplate, from: string): Set<string> => {
   return seen;
 };
 
-describe('Publish / Public assets (relational)', () => {
+describe('Publish / Public assets', () => {
   const flow = publishAssetsFlow;
 
   test('is an administrators-only manual button with a confirmation, answering synchronously', () => {
     expect(flow).toMatchObject({
       accountability: 'activity',
       id: publishAssetsFlowId,
-      name: 'Publish / Public assets (relational)',
+      name: 'Publish / Public assets',
       trigger: 'manual',
     });
     expect(flow.options).toMatchObject({

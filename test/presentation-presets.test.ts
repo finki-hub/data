@@ -119,7 +119,7 @@ describe('presets', () => {
     ]);
   });
 
-  test('keeps the imported per-generation columns out of the default Courses view', () => {
+  test('shows a course with its tags, curriculum links and assignments in the default Courses view', () => {
     expect(defaultViewOf('courses')?.layout_query.tabular.fields).toEqual([
       'name',
       'tags',

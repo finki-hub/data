@@ -24,10 +24,7 @@ const aggregatePattern =
   /^\/items\/(?<collection>[^/?]+)\?aggregate\[count\]=\*$/u;
 const itemsPattern = /^\/items\/(?<collection>[^/?]+)(?:\?|$)/u;
 
-const itemsBody = z.union([
-  z.array(z.record(z.string(), z.unknown())),
-  z.record(z.string(), z.unknown()),
-]);
+const itemsBody = z.array(z.record(z.string(), z.unknown()));
 
 const forbidden = (what: string): DirectusRequestError =>
   new DirectusRequestError(`You don't have permission to access ${what}.`, {
@@ -120,10 +117,9 @@ export const fakeImportDirectus = (
     if (method !== 'POST' || collection === undefined) {
       return items.request(pathname, init);
     }
-    const body = itemsBody.parse(bodyOf(init));
-    const filled = Array.isArray(body)
-      ? body.map((item) => withColumns(collection, item))
-      : withColumns(collection, body);
+    const filled = itemsBody
+      .parse(bodyOf(init))
+      .map((item) => withColumns(collection, item));
     return items.request(pathname, { ...init, body: JSON.stringify(filled) });
   };
   const setup = async (): Promise<SetupReport> => {

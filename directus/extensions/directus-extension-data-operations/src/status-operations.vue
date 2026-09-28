@@ -2,7 +2,7 @@
 import type { StatusView } from './status-contract.js';
 
 import StatusBadge from './status-badge.vue';
-import { bytesText, instantText, retriedText } from './status-labels.js';
+import { bytesText, instantText, retriedText, snapshotText } from './status-labels.js';
 
 // The calculation domains, the running claim, the last failure, every
 // declared file with its last outcome, and the Moodle snapshot.
@@ -50,11 +50,7 @@ defineProps<{ status: StatusView }>();
 
   <section class="block" aria-label="Moodle snapshot">
     <h4>Moodle snapshot <StatusBadge :state="status.importState" /></h4>
-    <p class="note">
-      {{ status.historyIndex.users }} users, {{ status.historyIndex.indexedUsers }} indexed;
-      {{ status.historyIndex.entries }} history entries, {{ status.historyIndex.needsMapping }} still need a mapping;
-      {{ status.historyIndex.countMismatches }} users whose indexed entries differ from their Courses Count.
-    </p>
+    <p class="note">{{ snapshotText(status.historyIndex) }}</p>
   </section>
 
   <section v-if="status.lastError && status.lastError.blocking" class="block" aria-label="Last failure">

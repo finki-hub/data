@@ -52,6 +52,27 @@ export const retriedText = (retries: number): string => {
   return `, after ${String(retries)} ${retries === 1 ? 'retry' : 'retries'} on a database conflict`;
 };
 
+const englishPlurals = new Intl.PluralRules('en');
+
+// A count followed by its words, as Search counts: the singular words for
+// exactly one, the plural ones for every other count, zero included.
+const countText = (count: number, singular: string, plural: string): string =>
+  `${String(count)} ${englishPlurals.select(count) === 'one' ? singular : plural}`;
+
+// The Moodle snapshot line of the status panel.
+export const snapshotText = ({
+  countMismatches,
+  entries,
+  indexedUsers,
+  needsMapping,
+  users,
+}: StatusView['historyIndex']): string =>
+  [
+    `${countText(users, 'user', 'users')}, ${String(indexedUsers)} indexed;`,
+    `${countText(entries, 'history entry', 'history entries')}, ${countText(needsMapping, 'still needs', 'still need')} a mapping;`,
+    `${countText(countMismatches, 'user', 'users')} whose indexed entries differ from their Courses Count.`,
+  ].join(' ');
+
 // Seconds as "12 s", "4 min" or "3 h".
 export const ageText = (seconds: null | number): string => {
   if (seconds === null) {

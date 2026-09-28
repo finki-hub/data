@@ -32,7 +32,7 @@ export type ReadinessEntry = {
   readonly gates: readonly string[];
   // Each record of the page carries a `generation` column: the review
   // view shows and filters by it (one view, never one per generation
-  // row). Records keyed by per-generation columns are not scoped.
+  // row). An entry whose page has no `generation` column is not scoped.
   readonly generationScoped: boolean;
   // The collection whose Studio page lists the records.
   readonly page: string;

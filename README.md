@@ -36,7 +36,7 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection editors browse, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing), the **Data operations** dashboard and the **Data editor** policy. Writes no records, but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection editors browse, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing), the **Data operations** dashboard and the **Data editor** policy. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
@@ -246,6 +246,41 @@ Directus untouched:
   student carries); others only the import counts (curriculum rows no
   course names, `unreferenced_rows`).
 
+The codes both summaries print (declared in `src/import/findings.ts`):
+
+| Code | Group | Meaning |
+| --- | --- | --- |
+| `ambiguous_course_name` | refuses | A teaching, pattern or equivalency row names a course name that several courses carry. |
+| `ambiguous_curriculum_2018` | refuses | A course's 2018 name (its override or its equivalency label) matches several 2018 curriculum rows. |
+| `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows. |
+| `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
+| `ambiguous_student_index` | refuses | Several students carry the index of a council row. |
+| `duplicate_assignment` | refuses | Two `Наставен Кадар` rows name one course. |
+| `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
+| `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, or the `<name>-<year>` default) is no Unicode regular expression. |
+| `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
+| `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
+| `unlinked_generation_values` | refuses | A course has credits or availability of a generation but no name of that generation. |
+| `unmatched_curriculum_2018_label` | refuses | The 2018 label of a course's first equivalency row matches no 2018 curriculum row. |
+| `unmatched_curriculum_2023_label` | refuses | A course's 2023 name matches no 2023 curriculum row. |
+| `duplicate_pattern` | skipped | An earlier pattern of a course and year; the last one applies. |
+| `orphan_assignment` | skipped | A `Наставен Кадар` row naming no course. |
+| `orphan_pattern` | skipped | A `Слушатели` pattern row naming no course. |
+| `unknown_academic_year` | skipped | A pattern of a year the `Слушатели` sheet does not head. |
+| `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation; the member keeps the label without an entry. |
+| `ambiguous_staff_label` | warning | A teaching text names a staff name several staff rows carry; the text stays display text and links no staff. |
+| `duplicate_course_name` | warning | Several courses share one name. |
+| `duplicate_equivalency` | warning | Several equivalency rows name one course, with no conflicting 2018 label. |
+| `duplicate_staff_name` | warning | Several staff rows share one name. |
+| `duplicate_student_index` | warning | Several students share one index. |
+| `equivalency_label_after_precedent` | warning | A course has no 2018 override, and its first equivalency row, which decides, has no 2018 label while a later one has, so the course gets no 2018 link. |
+| `label_metacharacters` | warning | A course name holds a regular-expression or `LIKE` metacharacter, so its default `<name>-<year>` pattern matches differently than it reads. |
+| `orphan_equivalency` | warning | An equivalency row whose 2023 label names no course; it is imported without a course. |
+| `unmatched_council_index` | warning | A council index no student carries; the member is imported, labelled by the index. |
+| `unmatched_equivalency_entry` | warning | An equivalency label matches no curriculum row of its generation; the member keeps the label without an entry. |
+| `unreferenced_rows` | warning | Curriculum rows no course names; they are imported as entries without a course link. |
+| `unresolved_staff_text` | warning | A teaching text that is neither one staff name nor a list of distinct staff names joined by `, `; it stays display text. |
+
 It then refuses, before its first write, a project in which any application
 collection (every collection the import fills, the relational collections,
 the Moodle staging and index collections) holds a record, and prints the
@@ -286,8 +321,8 @@ confirmed no row, the project may still be empty, and the import simply
 runs again (it refuses, listing them, if the failed request stored rows
 after all).
 
-Publish through **Publish / Public assets (relational)** once readiness
-passes (see [Publishing](#publishing)).
+Publish through **Publish / Public assets** once readiness passes (see
+[Publishing](#publishing)).
 
 There is no update, merge, reconciliation, or ongoing Google Sheets
 synchronization mode. After the import, Directus is the source of truth.
@@ -454,12 +489,12 @@ contain.
 
 Values the import cannot relate unambiguously but can keep (a teaching text
 that names no single staff member, an equivalency label that matches no
-entry, a council index that matches no student) are kept as literal labels
-and counted by readiness. Nothing is guessed: an ambiguity, and every value
-the published files carry that no relational row could hold, refuses the
-import instead (exit code 3). Only rows no published file ever used are
-left out, and the import counts them (see
-[One-time workbook import](#one-time-workbook-import)).
+single entry, a council index that matches no student) are kept as literal
+labels and counted by readiness. Nothing is guessed: an ambiguity a
+published value depends on, and every value the published files carry that
+no relational row could hold, refuses the import instead (exit code 3).
+Only rows no published file ever used are left out, and the import counts
+them (see [One-time workbook import](#one-time-workbook-import)).
 
 ### Editable, derived and bookkeeping collections
 
@@ -938,9 +973,9 @@ panel links the declared name.
 its default panels, once (a rerun creates a missing panel and never
 overwrites an edited one):
 
-- **Run operation** panels for Publish (**Publish / Public assets
-  (relational)**), Recalculate (**Data / Mark pending**), Import Moodle
-  snapshot (**Data / Import Moodle snapshot**) and Add enrollment rules
+- **Run operation** panels for Publish (**Publish / Public assets**),
+  Recalculate (**Data / Mark pending**), Import Moodle snapshot
+  (**Data / Import Moodle snapshot**) and Add enrollment rules
   (**Data / Add enrollment rules**). A panel shows its Flow's own
   confirmation text and dialog fields (the snapshot's private CSV through
   an item picker of the private folder's files) and posts them to the native
@@ -1022,8 +1057,8 @@ them survives every later setup):
   blocker, and with `EXPORT_UNSTABLE_PREPARATION` (409) when the source
   revision or the accepted calculation moved, or a calculation turned
   pending, while the files were prepared.
-- **Publish / Public assets (relational)** (the **Publish** panel), a manual
-  Flow for administrators, with a confirmation. It claims `publication`
+- **Publish / Public assets** (the **Publish** panel), a manual Flow for
+  administrators, with a confirmation. It claims `publication`
   (the button is an explicit request, so it also retries a failed
   publication; it answers 409 `PUBLICATION_NOT_CLAIMED` when another run
   holds the claim, when the calculations are still pending, or when nothing
@@ -1104,8 +1139,7 @@ How `courses.json` projects the relational rows into its existing keys:
   state key `<code>-state-<program>` exists for every published study
   program of the generation, in program `sort` order, valued by the entry's
   state row of that program. `channel` is true when a linked entry of a
-  published generation has its channel. The six per-generation `courses`
-  columns publish nothing.
+  published generation has its channel.
 - The year keys follow the published-year rule: one per published academic
   year, keyed by its label, newest first (`sort` descending, then the label
   descending), valued by the course's `course_enrollments` count of that
@@ -1573,9 +1607,9 @@ To change a file or add one:
 
 No Flow, no schema change and no Studio edit is involved: the publication
 Flows only call the export operation, which serves every definition, and
-**Publish / Public assets (relational)** uploads whatever the definitions
-declare, one file after another in the listed order, recording one outcome
-per file. The dashboard lists the new file from the declarations.
+**Publish / Public assets** uploads whatever the definitions declare, one
+file after another in the listed order, recording one outcome per file.
+The dashboard lists the new file from the declarations.
 
 ### A readiness check
 
@@ -1819,6 +1853,38 @@ After rebuilding a bundle, restart the test project's Directus container
 (`docker restart <container>`, never a recreate) and wait for
 `/server/ping` before running a suite.
 
+### Back to marker-only after a manual run
+
+The suites set the model up and tear it down themselves. After using the
+test project by hand (setup, an import, a publication or a snapshot
+replacement), return it to marker-only before the next suite, or the
+suites refuse it:
+
+1. Delete every file of the `publish` storage location
+   (`GET /files?filter[storage][_eq]=publish`; deleting the file deletes
+   its bucket object) and every file of the **Moodle snapshots (private)**
+   folder (the snapshot CSVs and their backups). The folder stays.
+2. Tear the model down with `destroyDataModel` of
+   `test/relational/data-model-helpers.mjs`, which removes the **Data
+   operations** dashboard, the **Data editor** policy, the declared
+   presets, the model collections and the sidebar folders. With the four
+   target variables set:
+
+   ```sh
+   node --import tsx --input-type=module -e "
+   import { assertMarkerPresent, targetFrom } from './test/isolated-target.mjs';
+   import { destroyDataModel } from './test/relational/data-model-helpers.mjs';
+   const target = targetFrom(process.env);
+   await assertMarkerPresent(target);
+   await destroyDataModel(target);"
+   ```
+
+3. Check the state: `GET /collections` lists the marker collection and no
+   model collection, `GET /files`, `/presets`, `/dashboards` and
+   `/panels` answer no row, every managed Flow is still installed and
+   **Data / Process pending** is active. Remove any user or role you added
+   by hand too.
+
 ### The restore rehearsal
 
 `npm run test:restore` rehearses [Backup and restore](#backup-and-restore)
@@ -1887,4 +1953,5 @@ would not notice, so recover the test project before anything else runs:
    rehearsal's edits as `revertsFixture` in `test/restore-project.mjs`
    does (the publish Flow and its claim operation, the bookmark, the
    password user, the appearance settings, and the files and Flows it
-   added) and tear the model down to marker-only.
+   added) and tear the model down to marker-only (see
+   [Back to marker-only after a manual run](#back-to-marker-only-after-a-manual-run)).

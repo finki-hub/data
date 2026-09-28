@@ -19,9 +19,9 @@ const claim = '{{ $trigger.claim }}';
 // step, editable in Studio like the rest of the Flow.
 const publishStorage = 'publish';
 
-// One published file, run by the publish loop of "Publish / Public assets
-// (relational)" once per upload the export operation staged, in
-// definition order. It keeps the publication claim alive (a heartbeat that
+// One published file, run by the publish loop of "Publish / Public
+// assets" once per upload the export operation staged, in definition
+// order. It keeps the publication claim alive (a heartbeat that
 // leases the claim for the upload), hands the file's single-entry objects
 // map to the existing storage writer, and records the file's outcome with
 // the coordinator at once, so a run that stops before its end still shows
@@ -33,7 +33,7 @@ const publishStorage = 'publish';
 export const publishFileFlow: FlowTemplate = {
   accountability: 'activity',
   description:
-    'Uploads one public file for "Publish / Public assets (relational)", which runs it once per declared file, one after another: keeps the publication claim alive, writes the file through the Publish JSON files operation into the publish storage location, and records its outcome in Data Operations right away. Answers {ok, filename, outcome, code} and never fails the loop: a refused upload answers its code and the next file is still uploaded. Not meant to be run on its own.',
+    'Uploads one public file for "Publish / Public assets", which runs it once per declared file, one after another: keeps the publication claim alive, writes the file through the Publish JSON files operation into the publish storage location, and records its outcome in Data Operations right away. Answers {ok, filename, outcome, code} and never fails the loop: a refused upload answers its code and the next file is still uploaded. Not meant to be run on its own.',
   entry: publishId('51'),
   icon: 'upload_file',
   id: publishFileFlowId,

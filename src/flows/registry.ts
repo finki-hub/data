@@ -89,11 +89,6 @@ export const flowFamily = (
   return family;
 };
 
-// Every template of every family, in installation order.
-export const flowTemplates = (
-  families: readonly FlowFamily[] = flowFamilies,
-): readonly FlowTemplate[] => families.flatMap(({ templates }) => templates);
-
 type FamilyReport = FlowInstallSummary & {
   readonly code: FlowFamilyCode;
   readonly name: string;

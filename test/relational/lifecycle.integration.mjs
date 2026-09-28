@@ -9,7 +9,7 @@ import { findModelCollection } from '../../src/data-model/collections.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
-import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
+import { flowFamilies } from '../../src/flows/registry.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
 import { planImport } from '../../src/import/plan.js';
@@ -21,6 +21,7 @@ import {
   syntheticWorkbook,
 } from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
+import { flowTemplates } from '../registry-test-helpers.js';
 import { parityDataset } from '../relational-export-helpers.js';
 import {
   adminRequest,

@@ -24,8 +24,7 @@ export type RecordedCall = {
   readonly pathname: string;
 };
 
-const listPattern = /^\/items\/(?<collection>[^/?]+)(?:\?|$)/u;
-const collator = new Intl.Collator('en', { numeric: true });
+const itemsPattern = /^\/items\/(?<collection>[^/?]+)(?:\?|$)/u;
 
 const failure = (
   status: number,
@@ -67,7 +66,7 @@ const project = (
 };
 
 const rowsOf = (store: FakeStore, pathname: string) => {
-  const collection = listPattern.exec(pathname)?.groups?.['collection'];
+  const collection = itemsPattern.exec(pathname)?.groups?.['collection'];
   const rows =
     collection === undefined ? undefined : store.items.get(collection);
   if (collection === undefined || rows === undefined) {
@@ -76,25 +75,9 @@ const rowsOf = (store: FakeStore, pathname: string) => {
   return { collection, rows };
 };
 
-// `GET /items/:collection`: the rows by id, a page of them, projected to
-// the requested fields.
-const list = (store: FakeStore, pathname: string): readonly FakeItem[] => {
-  const { collection, rows } = rowsOf(store, pathname);
-  const search = new URL(pathname, 'https://fake.example').searchParams;
-  const fields = (search.get('fields') ?? 'id').split(',');
-  const limit = Number(search.get('limit') ?? '100');
-  const offset = Number(search.get('offset') ?? '0');
-  return rows
-    .toSorted((left, right) =>
-      collator.compare(String(left.id), String(right.id)),
-    )
-    .slice(offset, offset + limit)
-    .map((row) => project(row, fields, collection));
-};
-
 const asItem = (parsed: unknown): FakeItem => {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw failure(400, 'INVALID_PAYLOAD', 'The body must be one object');
+    throw failure(400, 'INVALID_PAYLOAD', 'Every item must be an object');
   }
   return { ...parsed, id: 0 };
 };
@@ -164,14 +147,14 @@ const createOne = (
   return created;
 };
 
-// `POST /items/:collection` with one object creates one row; with an array
-// it creates every row (Directus `createMany`) and returns them all, in
-// both cases projected to the requested fields when `fields` is given.
+// `POST /items/:collection` with an array, as the import writes every
+// batch: creates every row (Directus `createMany`) and returns them all,
+// projected to the requested fields when `fields` is given.
 const create = (
   store: FakeStore,
   pathname: string,
   init: Parameters<typeof fetch>[1],
-): FakeItem | readonly FakeItem[] => {
+): readonly FakeItem[] => {
   if (typeof init?.body !== 'string') {
     throw failure(400, 'INVALID_PAYLOAD', 'A JSON body is required');
   }
@@ -183,17 +166,17 @@ const create = (
     fields === null ? { ...row } : project(row, fields.split(','), collection);
   const table = { collection, sequenceStart: store.sequenceStart ?? 1 };
   const parsed: unknown = JSON.parse(init.body);
-  if (Array.isArray(parsed)) {
-    return parsed.map((item: unknown) =>
-      shape(createOne(table, rows, asItem(item))),
-    );
+  if (!Array.isArray(parsed)) {
+    throw failure(400, 'INVALID_PAYLOAD', 'The body must be an array');
   }
-  return shape(createOne(table, rows, asItem(parsed)));
+  return parsed.map((item: unknown) =>
+    shape(createOne(table, rows, asItem(item))),
+  );
 };
 
-// A DirectusRequest over the in-memory store: paged item listings and
-// creates on any existing collection, with the unique keys enforced like
-// the database would.
+// A DirectusRequest over the in-memory store: batch creates on any
+// existing collection, with the unique keys enforced like the database
+// would.
 export const fakeItemsDirectus = (
   store: FakeStore,
 ): {
@@ -209,14 +192,10 @@ export const fakeItemsDirectus = (
       pathname,
     });
     await Promise.resolve();
-    switch (method) {
-      case 'GET':
-        return list(store, pathname);
-      case 'POST':
-        return create(store, pathname, init);
-      default:
-        throw failure(405, 'METHOD_NOT_ALLOWED', `${method} ${pathname}`);
+    if (method !== 'POST') {
+      throw failure(405, 'METHOD_NOT_ALLOWED', `${method} ${pathname}`);
     }
+    return create(store, pathname, init);
   };
   return { calls, request };
 };

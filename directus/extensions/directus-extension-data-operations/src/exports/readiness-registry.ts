@@ -199,9 +199,3 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     source: mappings,
   }),
 ];
-
-// The registry entry of a code.
-export const readinessEntry = (
-  code: string,
-  registry: readonly ReadinessEntry[] = readinessRegistry,
-): ReadinessEntry | undefined => registry.find((entry) => entry.code === code);

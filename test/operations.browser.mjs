@@ -197,7 +197,7 @@ const showsDashboard = async ({
     '--url',
     `**/admin/settings/flows/${publishAssetsFlowId}`,
   );
-  await admin.command('wait', '--text', 'Publish / Public assets (relational)');
+  await admin.command('wait', '--text', 'Publish / Public assets');
   const settings = await textOf(admin, 'body');
   assert.ok(!settings.includes('Page Not Found'), 'the Flow settings open');
   await openDashboard(admin, target);

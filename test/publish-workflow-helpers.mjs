@@ -195,8 +195,8 @@ const assertPublished = async ({ s3, target }) => {
   return objects;
 };
 
-// Runs the installed "Publish / Public assets (relational)" Flow and, when
-// it published, records the objects as the new accepted state.
+// Runs the installed "Publish / Public assets" Flow and, when it
+// published, records the objects as the new accepted state.
 export const publishes = async (context) => {
   const run = await trigger(context.target, publishAssetsFlowId);
   assert.equal(run.status, 200, JSON.stringify(run.body).slice(0, 1_500));

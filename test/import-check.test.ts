@@ -19,6 +19,7 @@ import {
   makeSyntheticDataset,
   metacharacterCourseName,
   privateSentinels,
+  type SyntheticDataset,
   type SyntheticRow,
   withMetacharacterCourse,
 } from './fixtures/synthetic-data.js';
@@ -42,11 +43,22 @@ const thetaProfessor = 'Prof. Theta';
 const courseRules = ({ id, rules }: CourseCandidate) =>
   rules.map((rule) => ({ ...rule, course: id }));
 
+// The name of a candidate's course row: a candidate carries the row's
+// ordinal, its position in the dataset from 1.
+const nameOf = (
+  dataset: SyntheticDataset,
+  { id }: CourseCandidate,
+): string | undefined => {
+  const name = dataset.courses[id - 1]?.['name'];
+  return typeof name === 'string' ? name : undefined;
+};
+
 const courseCandidate = (
+  dataset: SyntheticDataset,
   courses: readonly CourseCandidate[],
   name: string,
 ): CourseCandidate => {
-  const candidate = courses.find((course) => course.name === name);
+  const candidate = courses.find((course) => nameOf(dataset, course) === name);
   if (candidate === undefined) {
     throw new Error(`No candidate for ${name}`);
   }
@@ -91,7 +103,7 @@ describe('curriculum candidates resolve as the committed files publish them', ()
     const { candidates } = checkOf(dataset);
 
     for (const course of candidates.courses) {
-      const published = publishedCourses.get(course.name);
+      const published = publishedCourses.get(nameOf(dataset, course));
       const precedent =
         dataset.curriculum_2023[(course.current.precedent ?? 0) - 1];
 
@@ -101,14 +113,14 @@ describe('curriculum candidates resolve as the committed files publish them', ()
     }
 
     expect(
-      courseCandidate(candidates.courses, courseNames.alpha).current,
+      courseCandidate(dataset, candidates.courses, courseNames.alpha).current,
     ).toEqual({
       matches: [1, 2],
       precedent: 1,
       resolution: 'ambiguous',
     });
     expect(
-      courseCandidate(candidates.courses, courseNames.delta).current,
+      courseCandidate(dataset, candidates.courses, courseNames.delta).current,
     ).toEqual({
       matches: [],
       precedent: null,
@@ -121,7 +133,7 @@ describe('curriculum candidates resolve as the committed files publish them', ()
     const { candidates } = checkOf(dataset);
 
     for (const course of candidates.courses) {
-      const published = publishedCourses.get(course.name);
+      const published = publishedCourses.get(nameOf(dataset, course));
       const precedent =
         course.legacy.entry.precedent === null
           ? undefined
@@ -134,20 +146,20 @@ describe('curriculum candidates resolve as the committed files publish them', ()
     }
 
     expect(
-      courseCandidate(candidates.courses, courseNames.alpha).legacy,
+      courseCandidate(dataset, candidates.courses, courseNames.alpha).legacy,
     ).toEqual({
       entry: { matches: [1, 9], precedent: 1, resolution: 'ambiguous' },
       equivalencies: { matches: [1, 2], precedent: 1, resolution: 'ambiguous' },
       source: 'equivalency',
     });
     expect(
-      courseCandidate(candidates.courses, courseNames.beta).legacy,
+      courseCandidate(dataset, candidates.courses, courseNames.beta).legacy,
     ).toMatchObject({
       entry: { matches: [3], precedent: 3, resolution: 'unique' },
       source: 'override',
     });
     expect(
-      courseCandidate(candidates.courses, courseNames.gamma).legacy,
+      courseCandidate(dataset, candidates.courses, courseNames.gamma).legacy,
     ).toMatchObject({
       entry: { matches: [], precedent: null, resolution: 'none' },
       source: 'none',
@@ -174,14 +186,12 @@ describe('staff, rule and council candidates', () => {
 
     expect(staffOf(1)).toEqual([
       {
-        parts: ['Prof. Zed Alpha', 'Prof. Abe Alpha'],
         resolution: 'unique',
         role: 'professor',
         staff: [4, 5],
         text: 'Prof. Zed Alpha, Prof. Abe Alpha',
       },
       {
-        parts: ['Asst. Alpha One; Asst. Alpha Two'],
         resolution: 'unique',
         role: 'assistant',
         staff: [6],
@@ -189,7 +199,6 @@ describe('staff, rule and council candidates', () => {
       },
     ]);
     expect(staffOf(7)?.[0]).toEqual({
-      parts: [thetaProfessor],
       resolution: 'ambiguous',
       role: 'professor',
       staff: [7, 8],
@@ -223,8 +232,13 @@ describe('staff, rule and council candidates', () => {
   });
 
   test('seeds one rule per course and year with the last pattern, else the name-year default', () => {
-    const { candidates } = checkOf(makeSyntheticDataset());
-    const alpha = courseCandidate(candidates.courses, courseNames.alpha);
+    const dataset = makeSyntheticDataset();
+    const { candidates } = checkOf(dataset);
+    const alpha = courseCandidate(
+      dataset,
+      candidates.courses,
+      courseNames.alpha,
+    );
 
     for (const course of candidates.courses) {
       expect(course.rules.map(({ academicYear }) => academicYear)).toEqual([
@@ -283,7 +297,7 @@ describe('staff, rule and council candidates', () => {
     const { candidates, findings } = checkOf(dataset);
 
     expect(
-      courseCandidate(candidates.courses, courseNames.alpha).rules[1],
+      courseCandidate(dataset, candidates.courses, courseNames.alpha).rules[1],
     ).toEqual({
       academicYear: '2024/2025',
       overrides: [4],
@@ -296,7 +310,7 @@ describe('staff, rule and council candidates', () => {
     ]);
   });
 
-  test('links council members through the one student of an index, the one the old copied name named', async () => {
+  test('links council members through the one student of an index, whose name the committed council file carries', async () => {
     const dataset = makeSyntheticDataset();
     const { candidates } = checkOf(dataset);
     const council = await expectedCouncil();
@@ -441,12 +455,14 @@ describe('cases that refuse the import', () => {
       { collection: 'courses', ids: [9] },
     ]);
     expect(
-      courseCandidate(candidates.courses, metacharacterCourseName).rules.every(
-        ({ valid }) => !valid,
-      ),
+      courseCandidate(
+        dataset,
+        candidates.courses,
+        metacharacterCourseName,
+      ).rules.every(({ valid }) => !valid),
     ).toBeTruthy();
     expect(
-      courseCandidate(candidates.courses, courseNames.beta).rules.find(
+      courseCandidate(dataset, candidates.courses, courseNames.beta).rules.find(
         ({ academicYear }) => academicYear === '2020/2021',
       ),
     ).toMatchObject({

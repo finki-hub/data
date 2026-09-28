@@ -18,10 +18,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
-import {
-  readinessEntry,
-  readinessRegistry,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import {
   claimNext,
   fail,
@@ -33,6 +30,7 @@ import {
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
 import { planOf } from './import-plan-helpers.js';
+import { readinessEntry } from './registry-test-helpers.js';
 import {
   edit,
   generationIdOf,

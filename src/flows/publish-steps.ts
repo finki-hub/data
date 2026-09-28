@@ -7,8 +7,8 @@ import {
   raise,
 } from './flow-template.js';
 
-// The step makers of "Publish / Public assets (relational)"
-// (publish-public-assets.ts), in the publish family.
+// The step makers of "Publish / Public assets" (publish-public-assets.ts),
+// in the publish family.
 
 const family = flowFamilyCodes.publish;
 

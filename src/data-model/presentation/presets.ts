@@ -86,7 +86,8 @@ export const searchBookmark: PresetDefinition =
 
 // A default table view for every collection editors browse.
 const defaultViews: readonly TabularPreset[] = [
-  // The curriculum links replace the imported per-generation columns.
+  // Each generation's entry, credits and availability are on the
+  // curriculum links.
   defaultView(
     'courses',
     ['name', 'tags', 'curricula', 'assignments'],
@@ -199,8 +200,8 @@ const defaultViews: readonly TabularPreset[] = [
 
 // Every shared preset the presentation declares for a readiness
 // registry: the curriculum bookmark, its Needs review bookmarks, the
-// default table views and the Search bookmark. A populated deployment
-// keeps the views its importer created; these only fill the gaps.
+// default table views and the Search bookmark. Setup installs each once
+// by collection and bookmark name and keeps an existing one.
 export const presetDefinitionsFor = (
   registry: readonly ReadinessEntry[],
 ): readonly PresetDefinition[] => [

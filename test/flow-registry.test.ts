@@ -17,10 +17,10 @@ import { publishFlows } from '../src/flows/publish-public-assets.js';
 import {
   flowFamilies,
   type FlowFamily,
-  flowTemplates,
   installFlowFamilies,
 } from '../src/flows/registry.js';
 import { familyRunnerFlow } from '../src/flows/run-enrollment-family.js';
+import { flowTemplates } from './registry-test-helpers.js';
 
 const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 

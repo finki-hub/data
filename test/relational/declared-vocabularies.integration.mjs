@@ -10,7 +10,7 @@ import {
   installDataModel,
   SchemaRefusalError,
 } from '../../src/data-model/install.js';
-import { flowFamilies, flowTemplates } from '../../src/flows/registry.js';
+import { flowFamilies } from '../../src/flows/registry.js';
 import { countByCode } from '../../src/import/findings.js';
 import { planImport } from '../../src/import/plan.js';
 import { writePlan } from '../../src/import/write.js';
@@ -19,6 +19,7 @@ import { loadWorkbook } from '../../src/workbook.js';
 import { academicYears } from '../fixtures/synthetic-data.js';
 import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
+import { flowTemplates } from '../registry-test-helpers.js';
 import { parityDataset } from '../relational-export-helpers.js';
 import { settle } from './automatic-processing-helpers.mjs';
 import {

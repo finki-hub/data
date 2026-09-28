@@ -21,10 +21,7 @@ import {
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import {
-  readinessEntry,
-  readinessRegistry,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
@@ -32,6 +29,7 @@ import { snapshotFields } from '../directus/extensions/directus-extension-data-o
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
 import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
+import { readinessEntry } from './registry-test-helpers.js';
 import {
   edit,
   importedStore,
