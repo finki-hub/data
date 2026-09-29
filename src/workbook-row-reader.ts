@@ -68,7 +68,12 @@ const readRow = (
       );
     }
 
-    const cell = row.getCell(columnNumber);
+    // A `fillMerged` field reads a cell a merged range covers as the
+    // range's top-left cell (its master; an unmerged cell is its own).
+    const cell =
+      fieldSpec.fillMerged === true
+        ? row.getCell(columnNumber).master
+        : row.getCell(columnNumber);
     const cellText =
       fieldSpec.sourceMode === 'literal' && isFormulaCell(cell)
         ? ''

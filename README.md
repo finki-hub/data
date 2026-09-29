@@ -250,7 +250,9 @@ Directus untouched:
   `unmatched_curriculum_2018_label`). Correct the workbook and run the
   import again; the project is still empty.
 - The curriculum sheets are laid out by semester (column A is merged over
-  each semester block), and a subject that study programs take in
+  each semester block, and every row of a block takes the block's label
+  as its `catalog_order`, which the **Curriculum by generation** bookmark
+  sorts by), and a subject that study programs take in
   different semesters is listed once in each of those blocks, every
   listing with the subject's code; its program columns note the semester
   of each program, such as `задолжителен (сем. 5)`. A curriculum name

@@ -61,8 +61,9 @@ export type CollectionSource =
 // How the import reads one part of the workbook: its sheet, and for every
 // field its header (or fixed column), whether a formula cell reads as
 // empty (`literal`), whether an empty cell repeats the value above it
-// (`fillDown`), whether it must hold a value, and the kind its text is
-// converted to.
+// (`fillDown`), whether a cell a merged range covers reads as the range's
+// top-left cell (`fillMerged`; for any other field it reads as empty),
+// whether it must hold a value, and the kind its text is converted to.
 export type WorkbookSpec = {
   readonly fields: readonly FieldSpec[];
   readonly key: WorkbookKey;
@@ -73,6 +74,7 @@ type FieldKind = 'boolean' | 'integer' | 'string' | 'text';
 
 export type FieldSpec = {
   readonly fillDown?: true;
+  readonly fillMerged?: true;
   readonly kind: FieldKind;
   readonly required?: true;
   readonly source: string;

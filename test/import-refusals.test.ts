@@ -174,12 +174,12 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
       ordinalsOf(dataset.course_equivalencies, 'course_2023', name)[0] ?? 0;
 
     expect([beta, betaAgain]).toEqual([5, 8]);
-    // Column A is merged over each block of more than one row, and read
-    // as the block's label on its first row only.
+    // Column A is merged over each block of more than one row, and every
+    // row of a block reads the block's label.
     expect(new Set(blocks)).toEqual(new Set(['A2:A4', 'A8:A9']));
     expect(
       content.data.curriculum_2023.map((row) => row['catalog_order']),
-    ).toEqual([1, null, null, 2, 3, 4, 5, null, 6, 8]);
+    ).toEqual([1, 1, 1, 2, 3, 4, 5, 5, 6, 8]);
     expect(plan.blockers).toEqual([]);
     expect(lines).toEqual([]);
     expect(countByCode(plan.warnings)).toEqual(countByCode(parity.warnings));

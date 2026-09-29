@@ -8,6 +8,7 @@ import { refusalLines } from '../src/import-report.js';
 import { countByCode } from '../src/import/findings.js';
 import { planImport } from '../src/import/plan.js';
 import {
+  field,
   literalField,
   requiredField,
   workbookKeys,
@@ -47,6 +48,15 @@ const readBack = async (
 
 const specOf = (key: WorkbookSpec['key']) =>
   workbookSpecs.find((spec) => spec.key === key);
+
+// Every field read from merged ranges (`fillMerged`): its part of the
+// workbook, target, header and fixed column.
+const fillMergedFields = (specs: readonly WorkbookSpec[]) =>
+  specs.flatMap(({ fields, key }) =>
+    fields.flatMap(({ fillMerged, source, sourceColumn, target }) =>
+      fillMerged === true ? [[key, target, source, sourceColumn]] : [],
+    ),
+  );
 
 describe('workbook readers', () => {
   test('imports literal source cells without copying cached formula results, with the row of each', () => {
@@ -167,6 +177,13 @@ describe('workbook readers', () => {
     ).toEqual(['year', 'index_number', 'position']);
   });
 
+  test('reads merged ranges as their top-left cell in the semester column A of the two curriculum sheets only', () => {
+    expect(fillMergedFields(workbookSpecs)).toEqual([
+      ['curriculum_2023', 'catalog_order', 'Семестар', 1],
+      ['curriculum_2018', 'catalog_order', 'Семестар', 1],
+    ]);
+  });
+
   test('reads the fixed columns of the Courses sheet into the scraper fields, three of them under a header of its own', () => {
     const fields = specOf('moodle_users')?.fields ?? [];
     const targets = fields.map(({ target }) => target);
@@ -210,7 +227,7 @@ describe('workbook readers', () => {
       'Yahoo_old',
     ]);
     expect(targets).toEqual(
-      snapshotFields.filter((field) => targets.includes(field)),
+      snapshotFields.filter((name) => targets.includes(name)),
     );
     expect(
       fields
@@ -220,6 +237,46 @@ describe('workbook readers', () => {
       ['ID', 'ID_new'],
       ['#', 'Courses Count'],
       ['Profile', 'Profile_new'],
+    ]);
+  });
+});
+
+describe('cells a merged range covers', () => {
+  test('read as the top-left cell of their range for a field declared fillMerged only, and fill no unmerged blank', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Synthetic blocks');
+    sheet.addRow(['block', 'name', 'group', 'note']);
+    sheet.addRow([1, 'Subject One', 'Group One', 'Note One']);
+    sheet.addRow([null, 'Subject Two', null, null]);
+    sheet.addRow([null, 'Subject Three', null, 'Note Three']);
+    sheet.addRow([null, 'Subject Four']);
+    sheet.addRow([2, 'Subject Five']);
+    sheet.mergeCells('A2:A4');
+    sheet.mergeCells('C2:C3');
+    const spec = {
+      fields: [
+        { ...field('block', 'block', 'integer'), fillMerged: true },
+        requiredField('name', 'name'),
+        field('group', 'group'),
+        field('note', 'note'),
+      ],
+      key: 'curriculum_2023',
+      source: { kind: 'rows', sheet: 'Synthetic blocks' },
+    } as const satisfies WorkbookSpec;
+
+    // The block label fills its merged range only (row 5 is no part of it);
+    // the merged group range without the option reads as before, its label
+    // on the first row only; an unmerged blank stays empty.
+    expect(
+      readRows(await reloaded(workbook), spec, spec.source).map(
+        ({ item }) => item,
+      ),
+    ).toEqual([
+      { block: 1, group: 'Group One', name: 'Subject One', note: 'Note One' },
+      { block: 1, group: null, name: 'Subject Two', note: null },
+      { block: 1, group: null, name: 'Subject Three', note: 'Note Three' },
+      { block: null, group: null, name: 'Subject Four', note: null },
+      { block: 2, group: null, name: 'Subject Five', note: null },
     ]);
   });
 });
@@ -253,6 +310,51 @@ describe('generated synthetic workbook', () => {
     for (const key of workbookKeys) {
       expect(content.places[key]).toHaveLength(data[key].length);
     }
+  });
+
+  test('reads the label of a merged semester block on every row of the block, and every other column as the row holds it', async () => {
+    const base = lifecycleDataset();
+    // The first three 2023 rows are one semester block, labelled on its
+    // first row; the two rows it continues leave their level empty too.
+    // The third to fifth 2018 rows are one block of the 2018 sheet.
+    const dataset = {
+      ...base,
+      curriculum_2018: base.curriculum_2018.map((row, index) =>
+        index === 3 || index === 4 ? { ...row, catalog_order: null } : row,
+      ),
+      curriculum_2023: base.curriculum_2023.map((row, index) =>
+        index === 1 || index === 2
+          ? { ...row, catalog_order: null, level: null }
+          : row,
+      ),
+    };
+    const workbook = await reloaded(syntheticWorkbook(dataset));
+    const { data } = readWorkbookContent(workbook);
+
+    expect(workbook.getWorksheet('Предмети - 2023')?.model.merges).toEqual([
+      'A2:A4',
+    ]);
+    expect(workbook.getWorksheet('Предмети - 2018')?.model.merges).toEqual([
+      'A4:A6',
+    ]);
+    expect(data.curriculum_2023.map((row) => row['catalog_order'])).toEqual([
+      1, 1, 1, 5, 6, 7, 8, 9, 10,
+    ]);
+    expect(data.curriculum_2018.map((row) => row['catalog_order'])).toEqual([
+      1, 2, 3, 3, 3, 6, 7, 8, 10,
+    ]);
+    expect(data.curriculum_2023.map((row) => row['level'])).toEqual([
+      1,
+      null,
+      null,
+      1,
+      3,
+      null,
+      2,
+      1,
+      1,
+    ]);
+    expect(data).toEqual(workbookData(dataset));
   });
 
   test('heads its program columns as the real workbook does: two lines, linked rich text in the 2018 sheet', async () => {

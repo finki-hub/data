@@ -137,15 +137,20 @@ const text = (row: SyntheticRow, key: string): string => {
 };
 
 // The real curriculum sheets are laid out by semester: column A is merged
-// over each semester block, its label on the block's first row. A row
-// whose catalog_order is empty continues the block above it, so its cell
-// is merged into that block (the reader reads a merged cell as empty).
+// over each semester block, its label on the block's first row. The column
+// of a field read from merged ranges (`fillMerged`: catalog_order) is
+// merged the same way: a row whose value is empty continues the block
+// above it, and reads the block's label.
 const mergeBlocks = (
   sheet: ExcelJS.Worksheet,
-  { column, rows }: { column: number; rows: readonly SyntheticRow[] },
+  {
+    column,
+    field,
+    rows,
+  }: { column: number; field: FieldSpec; rows: readonly SyntheticRow[] },
 ): void => {
   const starts = rows.flatMap((row, index) =>
-    blanks.has(row['catalog_order']) ? [] : [index + 2],
+    blanks.has(row[field.target]) ? [] : [index + 2],
   );
   for (const [index, start] of starts.entries()) {
     const end = (starts[index + 1] ?? rows.length + 2) - 1;
@@ -173,11 +178,10 @@ const writeRows = (
       setCell(sheet, { column, row: index + 2 }, row[field.target]);
     }
   }
-  const blockColumn = columns.find(
-    ({ field }) => field.target === 'catalog_order',
-  );
-  if (blockColumn !== undefined) {
-    mergeBlocks(sheet, { column: blockColumn.column, rows });
+  for (const { column, field } of columns) {
+    if (field.fillMerged === true) {
+      mergeBlocks(sheet, { column, field, rows });
+    }
   }
 };
 
@@ -373,21 +377,43 @@ const specOf = (key: WorkbookSpec['key']): WorkbookSpec => {
   return spec;
 };
 
+// What a field reads on each row: its value, or, for a field read from
+// merged ranges, the label of the block a row with an empty value
+// continues (none before the first label).
+const readValues = (
+  field: FieldSpec,
+  rows: readonly SyntheticRow[],
+): readonly Scalar[] => {
+  let label: Scalar = null;
+  return rows.map((row) => {
+    const value = normalized(row[field.target]);
+    if (field.fillMerged !== true) {
+      return value;
+    }
+    if (!blanks.has(row[field.target])) {
+      label = value;
+    }
+    return label;
+  });
+};
+
 // What the workbook readers return for the workbook written from the
 // dataset, after a save and a reload: the read columns only, in reading
-// order, blanks as null.
+// order, blanks as null, and the label of its block on every row a merged
+// block continues.
 export const workbookData = (
   dataset: SyntheticDataset,
   years: readonly string[] = academicYears,
 ): WorkbookData =>
   perWorkbookKey((key) => {
     const spec = specOf(key);
-    return readingOrder(spec, dataset[key], years).map((row) =>
+    const rows = readingOrder(spec, dataset[key], years);
+    const values = spec.fields.map(
+      (field) => [field.target, readValues(field, rows)] as const,
+    );
+    return rows.map((_row, index) =>
       Object.fromEntries(
-        spec.fields.map((field) => [
-          field.target,
-          normalized(row[field.target]),
-        ]),
+        values.map(([target, read]) => [target, read[index] ?? null]),
       ),
     );
   });

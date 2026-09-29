@@ -1,7 +1,13 @@
 import { field, requiredField, type WorkbookSpec } from '../schema.js';
 
 const curriculumBaseFields = [
-  { ...field('Семестар', 'catalog_order', 'integer'), sourceColumn: 1 },
+  // Column A is merged over each semester block, its label in the block's
+  // top cell: every row of the block reads that label.
+  {
+    ...field('Семестар', 'catalog_order', 'integer'),
+    fillMerged: true,
+    sourceColumn: 1,
+  },
   requiredField('Предмет', 'name'),
   field('Линк', 'url', 'text'),
   field('Код', 'code'),
