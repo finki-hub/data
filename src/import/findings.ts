@@ -2,8 +2,9 @@ import type { WorkbookKey } from '../schema.js';
 
 // What the up-front check of the one-time import finds in the workbook,
 // declared once. Every finding names the part of the workbook and the rows
-// (ordinals of the rows read, 1 for the first) it concerns; the commands
-// print them by sheet and row or as counts per code, never a value.
+// (ordinals of the rows read, 1 for the first) it concerns, never a value;
+// stdout counts them per code, and stderr explains each refusing case in
+// plain words (src/import/refusal-text.ts).
 
 // Cases that refuse the import before its first write: a relationship
 // with more than one candidate, a row the model cannot hold, and a value
@@ -59,17 +60,47 @@ export type FindingCode =
   | (typeof skippedCodes)[number]
   | (typeof warningCodes)[number];
 
-export type Finding = {
-  readonly code: FindingCode;
+export type BlockerCode = (typeof blockerCodes)[number];
+
+// Rows of one workbook part, by ordinal.
+export type PartRows = {
   readonly collection: WorkbookKey;
   readonly ids: readonly number[];
 };
+
+// What else a case involves, still ordinals and codes only: the rows of
+// other parts it concerns (such as the curriculum rows a name matches),
+// and the curriculum generation of a case about one generation's values.
+type CaseDetail = {
+  readonly generation?: '2018' | '2023';
+  readonly related?: readonly PartRows[];
+};
+
+export type Finding = CaseDetail &
+  PartRows & {
+    readonly code: FindingCode;
+  };
 
 export const finding = (
   code: FindingCode,
   collection: WorkbookKey,
   ids: readonly number[],
 ): Finding => ({ code, collection, ids: [...ids] });
+
+// A finding with what else its case involves.
+export const detailed = (base: Finding, detail: CaseDetail): Finding => ({
+  ...base,
+  ...detail,
+});
+
+// The rows of a part a case involves besides its own.
+export const relatedIds = (
+  { related }: Finding,
+  collection: WorkbookKey,
+): readonly number[] =>
+  (related ?? []).flatMap((rows) =>
+    rows.collection === collection ? rows.ids : [],
+  );
 
 const collator = new Intl.Collator('en');
 
@@ -94,6 +125,11 @@ const inList =
 export const isBlocker = inList(blockerCodes);
 export const isSkipped = inList(skippedCodes);
 export const isWarning = inList(warningCodes);
+
+const blockerSet: ReadonlySet<string> = new Set(blockerCodes);
+
+export const isBlockerCode = (code: FindingCode): code is BlockerCode =>
+  blockerSet.has(code);
 
 // How often each key occurs, sorted by key.
 export const countKeys = (

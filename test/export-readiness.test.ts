@@ -29,7 +29,7 @@ import {
   courseNames,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
-import { planOf } from './import-plan-helpers.js';
+import { planOf, withCourse } from './import-plan-helpers.js';
 import { readinessEntry } from './registry-test-helpers.js';
 import {
   edit,
@@ -581,8 +581,8 @@ describe('the enrollment and curriculum checks of courses.json', () => {
       'unmatched_curriculum_2018_label',
     ],
     [
-      'a 2018 availability without any 2018 label',
-      parityDataset({ gammaAvailability: true }),
+      'a 2018 availability of TRUE without any 2018 label',
+      withCourse(parityDataset(), courseNames.gamma, { available_2018: true }),
       'unlinked_generation_values',
     ],
     [

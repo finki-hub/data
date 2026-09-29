@@ -194,10 +194,23 @@ run the one-time import (below) in place of step 4.
    the rows the import would write per collection, the count per code of
    the cases that would refuse it (`blockers`), of the rows it would skip
    (`skipped`) and of the warnings (`warnings`), and the count per column
-   of the values no column can hold (`unstorable`). It exits with code 3
-   and lists every refusing case and value by sheet and row on stderr when
-   the import would refuse the workbook, and with code 1 when the workbook
-   cannot be read.
+   of the values no column can hold (`unstorable`). When the import would
+   refuse the workbook it exits with code 3 and explains every refusing
+   case on stderr, one line each; it exits with code 1 when the workbook
+   cannot be read. Each value no column can hold is named by sheet, row
+   and column. Each blocking case is headed by its code and says in plain
+   words what the rows state, which course and rows it concerns, and what
+   to change. The lines quote course and curriculum names, curriculum
+   codes, 2018 labels, credits and availabilities only, never a staff or
+   student value; names, codes and labels stand between « and », so a
+   stray space in a cell shows. For example:
+
+   ```text
+   Dry run: npm run import would refuse this workbook: correct these 3 case(s) in the workbook, then import again; nothing was sent to Directus.
+   - [ambiguous_curriculum_2023] «Beta Course» (Предмети (Export) row 3): its 2023 name matches rows 6 and 9 of Предмети - 2023, which carry different codes (row 6: «SYN23-002», row 9: «SYN23-009»); give each subject its own name.
+   - [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.
+   - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 available is TRUE but the 2018 name is empty; fill in the 2018 name or set available to FALSE.
+   ```
 
 2. Run the one-time import against the empty project (steps 1 to 3 of
    [Fresh setup](#fresh-setup) first; the import runs setup itself):
@@ -217,23 +230,42 @@ Directus untouched:
   column's kind (a boolean column holding other text), stops with exit
   code 1, naming the file or the column and row.
 - Everything the import could not write as the workbook states it stops
-  with exit code 3, all of it reported in one run and never by a value:
-  each value the column it is written to cannot hold (a string over 255
-  characters, an integer out of range, an empty required value), named by
-  its sheet, row and column, and each case below, named by its code, sheet
-  and rows. The cases are a relationship with more than one candidate (a
-  course name two courses carry, a curriculum name matching several
-  curriculum rows, a council index two students share, two different 2018
-  labels for one course), a row the model cannot hold (a course without a
-  name, a pattern that is no Unicode regular expression, a repeated
-  council or dean's office row), and every value the published files
-  carry that no relational row could hold: credits or availability of a
-  generation without its name (`unlinked_generation_values`), two
-  `Наставен Кадар` rows for one course (`duplicate_assignment`), a
-  curriculum name, 2018 override or 2018 equivalency label that matches no
-  curriculum row (`unmatched_curriculum_2023_label`,
-  `missing_override_target`, `unmatched_curriculum_2018_label`). Correct
-  the workbook and run the import again; the project is still empty.
+  with exit code 3, all of it reported in one run and never by a staff or
+  student value: each value the column it is written to cannot hold (a
+  string over 255 characters, an integer out of range, an empty required
+  value), named by its sheet, row and column and never quoted, and each
+  case below, named by its code, sheet and rows. The cases are a relationship with more than one candidate (a
+  course name two courses carry, a curriculum name matching curriculum
+  rows of different subjects, a council index two students share, two
+  different 2018 labels for one course), a row the model cannot hold (a
+  course without a name, a pattern that is no Unicode regular expression,
+  a repeated council or dean's office row), and the values the published
+  files carry that no relational row could hold (all but an availability
+  of FALSE without a name, below): credits, or an
+  availability of TRUE, of a generation without its name
+  (`unlinked_generation_values`), two `Наставен Кадар` rows for one
+  course (`duplicate_assignment`), a curriculum name, 2018 override or
+  2018 equivalency label that matches no curriculum row
+  (`unmatched_curriculum_2023_label`, `missing_override_target`,
+  `unmatched_curriculum_2018_label`). Correct the workbook and run the
+  import again; the project is still empty.
+- The curriculum sheets are laid out by semester (column A is merged over
+  each semester block), and a subject that study programs take in
+  different semesters is listed once in each of those blocks, every
+  listing with the subject's code; its program columns note the semester
+  of each program, such as `задолжителен (сем. 5)`. A curriculum name
+  (a 2023 name, a 2018 override, or the 2018 label of an equivalency)
+  that matches several rows which all carry one code therefore names one
+  subject: the course, or the equivalency member, links to the first of
+  them (the earliest row, as today's files do) without a finding, and
+  every listing is imported as its own curriculum entry. Only rows with
+  different codes, or a matching row without a code, refuse the import.
+- An availability of FALSE with no name and no credits for that
+  generation holds no value: the import links no curriculum of that
+  generation and reports nothing, and `courses.json` omits the course's
+  availability key of that generation, as it does for an empty cell.
+  Today's `courses.json` carries that key as `FALSE`; it is the only kind
+  of value of today's files the first publication leaves out.
 - Rows no published file ever used are skipped, and the summary counts
   them per kind: a `Наставен Кадар` or `Слушатели` row naming no course
   (`orphan_assignment`, `orphan_pattern`), a pattern of a year the sheet
@@ -251,8 +283,8 @@ The codes both summaries print (declared in `src/import/findings.ts`):
 | Code | Group | Meaning |
 | --- | --- | --- |
 | `ambiguous_course_name` | refuses | A teaching, pattern or equivalency row names a course name that several courses carry. |
-| `ambiguous_curriculum_2018` | refuses | A course's 2018 name (its override or its equivalency label) matches several 2018 curriculum rows. |
-| `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows. |
+| `ambiguous_curriculum_2018` | refuses | A course's 2018 name (its override or its equivalency label) matches several 2018 curriculum rows that carry different codes, or one without a code. |
+| `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
 | `ambiguous_student_index` | refuses | Several students carry the index of a council row. |
 | `duplicate_assignment` | refuses | Two `Наставен Кадар` rows name one course. |
@@ -260,14 +292,14 @@ The codes both summaries print (declared in `src/import/findings.ts`):
 | `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, or the `<name>-<year>` default) is no Unicode regular expression. |
 | `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
 | `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
-| `unlinked_generation_values` | refuses | A course has credits or availability of a generation but no name of that generation. |
+| `unlinked_generation_values` | refuses | A course has credits, or an availability of TRUE, of a generation but no name of that generation (an availability of FALSE alone is no case). |
 | `unmatched_curriculum_2018_label` | refuses | The 2018 label of a course's first equivalency row matches no 2018 curriculum row. |
 | `unmatched_curriculum_2023_label` | refuses | A course's 2023 name matches no 2023 curriculum row. |
 | `duplicate_pattern` | skipped | An earlier pattern of a course and year; the last one applies. |
 | `orphan_assignment` | skipped | A `Наставен Кадар` row naming no course. |
 | `orphan_pattern` | skipped | A `Слушатели` pattern row naming no course. |
 | `unknown_academic_year` | skipped | A pattern of a year the `Слушатели` sheet does not head. |
-| `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation; the member keeps the label without an entry. |
+| `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation that carry different codes, or one without a code; the member keeps the label without an entry. |
 | `ambiguous_staff_label` | warning | A teaching text names a staff name several staff rows carry; the text stays display text and links no staff. |
 | `duplicate_course_name` | warning | Several courses share one name. |
 | `duplicate_equivalency` | warning | Several equivalency rows name one course, with no conflicting 2018 label. |
@@ -407,7 +439,7 @@ Directus log.
 | 0 | Done. |
 | 1 | Failed before any row was written: a workbook that cannot be read (a missing file names its path; nothing sent to Directus), a target that answers an error (a wrong token answers `401` with `INVALID_CREDENTIALS`; name a static administrator token of that project), or an unexpected error. After an unexpected error the schema or Flows may be partly installed, and rerunning is safe. |
 | 2 | Refused: no explicit target, an unknown argument, a populated project offered to the import (with its record counts), existing definitions the model cannot carry (including a table or column Directus does not manage), a licence that caps the collections, a half-installed Flow, or a Directus without the data-operations bundle. No record was written. |
-| 3 | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them, listed by column or code, sheet and row. Nothing was sent to Directus (the dry run answers the same); correct the workbook and run again. |
+| 3 | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them: each value named by sheet, row and column, each case explained in plain words with its code, course, sheets and rows. Nothing was sent to Directus (the dry run answers the same); correct the workbook and run again. |
 | 4 | Import only: the import stopped after it began writing rows. The message says how many planned rows Directus had confirmed; set up a fresh project and import again (see above). |
 
 A populated project is never imported into: import into a new, empty
@@ -417,7 +449,10 @@ again.
 
 Messages name counts, codes, ids, paths, sheets, rows, columns and
 collections. A refused boolean, integer or year-header cell is quoted so it
-can be found; no other workbook or snapshot value is printed.
+can be found, and the line explaining a case the import refuses quotes the
+course and curriculum names, curriculum codes, 2018 labels, credits and
+availabilities it concerns; no other workbook or snapshot value is
+printed, and never a staff or student value.
 
 ### Compose, image and ports
 
@@ -460,11 +495,11 @@ relational rows straight from them:
 
 | Sheet | Relational rows |
 | --- | --- |
-| `Предмети (Export)` | `courses` (name, tags, `professors_override`); the 2023 and 2018 name, credits and availability of each course become its `course_curricula` links |
+| `Предмети (Export)` | `courses` (name, tags, `professors_override`); the 2023 and 2018 name, credits and availability of each course become its `course_curricula` links (a name that matches several listings of one subject links the first) |
 | `Кадар (Export)` | `staff` |
 | `Простории (Export)` | `rooms` |
 | `Индекси - Година`, `Индекси - Други` | `students` |
-| `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans and duplicates included |
+| `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row |
 | `Наставен Кадар` | `teaching_assignments` role rows (course, staff or label, role, order) |
 | `Слушатели` | `academic_years` from its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
@@ -489,10 +524,13 @@ contain.
 
 Values the import cannot relate unambiguously but can keep (a teaching text
 that names no single staff member, an equivalency label that matches no
-single entry, a council index that matches no student) are kept as literal
+single subject, a council index that matches no student) are kept as literal
 labels and counted by readiness. Nothing is guessed: an ambiguity a
 published value depends on, and every value the published files carry that
-no relational row could hold, refuses the import instead (exit code 3).
+no relational row could hold, refuses the import instead (exit code 3). The
+one exception is an availability of FALSE of a generation a course has no
+name for: it holds no value, so the import links nothing and
+`courses.json` omits that availability key, as for an empty cell.
 Only rows no published file ever used are left out, and the import counts
 them (see [One-time workbook import](#one-time-workbook-import)).
 
@@ -921,11 +959,14 @@ membership linked to no student), `snapshot_staged`,
 `active_snapshot_edited` and `snapshot_never_promoted`.
 
 A value of the workbook that the relational rows could not publish as it
-stands (a curriculum name that matches no entry, credits or availability
-without a name, two teaching rows of one course) never reaches readiness:
-the import refuses the workbook until it is corrected (see
-[One-time workbook import](#one-time-workbook-import)), so the first
-publication never loses or changes text silently.
+stands (a curriculum name that matches no entry, credits, or an
+availability of TRUE, without a name, two teaching rows of one course)
+never reaches readiness: the import refuses the workbook until it is
+corrected (see [One-time workbook import](#one-time-workbook-import)), so
+the first publication loses or changes no text silently. The one exception
+is an availability of FALSE without a name, which holds no value: the
+import links nothing and reports nothing, and `courses.json` omits that
+availability key, as it does for an empty cell.
 
 Unmapped Moodle lines only warn: map an entry, mark it `ignored` with a
 reason, or leave it counted by a reviewed legacy rule; administrative lines

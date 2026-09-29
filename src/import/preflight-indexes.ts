@@ -4,15 +4,16 @@ import type {
   WorkbookRows,
 } from './workbook-rows.js';
 
+import { type CurriculumIndex, indexCurriculum } from './curriculum-labels.js';
 import { indexLabels, type LabelIndex, nonEmpty } from './labels.js';
 
 export type Indexes = {
   readonly assignments: LabelIndex;
   readonly courses: LabelIndex;
-  readonly current: LabelIndex;
+  readonly current: CurriculumIndex;
   readonly equivalencies: LabelIndex;
   readonly equivalencyRows: ReadonlyMap<number, EquivalencyRow>;
-  readonly legacy: LabelIndex;
+  readonly legacy: CurriculumIndex;
   readonly patterns: ReadonlyMap<string, readonly PatternRow[]>;
   readonly staff: LabelIndex;
   readonly students: LabelIndex;
@@ -21,7 +22,8 @@ export type Indexes = {
 export const patternKey = (course: string, year: string): string =>
   `${course}\u{0}${year}`;
 
-// Every label lookup of the check, keyed by the exact label.
+// Every label lookup of the check, keyed by the exact label; the two
+// curriculum sheets with the code of each row.
 export const buildIndexes = (rows: WorkbookRows): Indexes => {
   const patterns = new Map<string, PatternRow[]>();
   for (const row of rows.course_enrollment_patterns) {
@@ -38,14 +40,14 @@ export const buildIndexes = (rows: WorkbookRows): Indexes => {
       nonEmpty(row.course_name),
     ),
     courses: indexLabels(rows.courses, (row) => nonEmpty(row.name)),
-    current: indexLabels(rows.curriculum_2023, (row) => nonEmpty(row.name)),
+    current: indexCurriculum(rows.curriculum_2023),
     equivalencies: indexLabels(rows.course_equivalencies, (row) =>
       nonEmpty(row.course_2023),
     ),
     equivalencyRows: new Map(
       rows.course_equivalencies.map((row) => [row.id, row]),
     ),
-    legacy: indexLabels(rows.curriculum_2018, (row) => nonEmpty(row.name)),
+    legacy: indexCurriculum(rows.curriculum_2018),
     patterns,
     staff: indexLabels(rows.staff, (row) => nonEmpty(row.name)),
     students: indexLabels(rows.students, (row) => nonEmpty(row.index_number)),

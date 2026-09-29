@@ -6,7 +6,7 @@ import type {
 import type { Candidates } from './candidates.js';
 
 import { findModelCollection } from '../data-model/collections.js';
-import { uniqueMatch } from './labels.js';
+import { linkedRow } from './labels.js';
 import {
   planned,
   type PlannedRecord,
@@ -57,7 +57,7 @@ export const equivalencyLinks =
   (candidates: Candidates['equivalencies']) =>
   (id: number): PlannedRecord => {
     const link = candidates.find((candidate) => candidate.id === id);
-    const course = link === undefined ? null : uniqueMatch(link.course);
+    const course = link === undefined ? null : linkedRow(link.course);
     return { course: course === null ? null : ref('courses', course) };
   };
 
@@ -67,6 +67,6 @@ export const councilLinks =
   (candidates: Candidates['council']) =>
   (id: number): PlannedRecord => {
     const member = candidates.find((candidate) => candidate.id === id);
-    const student = member === undefined ? null : uniqueMatch(member.student);
+    const student = member === undefined ? null : linkedRow(member.student);
     return { student: student === null ? null : ref('students', student) };
   };

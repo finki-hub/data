@@ -1,7 +1,9 @@
 // How a label names rows: `unique` when exactly one row carries it,
-// `ambiguous` when several do, `missing` when none does, `none` when there
-// is no label.
-type Resolution = 'ambiguous' | 'missing' | 'none' | 'unique';
+// `repeated` when several rows carry it that list one and the same thing
+// (a subject a curriculum sheet lists in several semester blocks,
+// curriculum-labels.ts), `ambiguous` when several other rows do, `missing`
+// when none does, `none` when there is no label.
+type Resolution = 'ambiguous' | 'missing' | 'none' | 'repeated' | 'unique';
 
 export type LinkCandidate = {
   readonly matches: readonly number[];
@@ -59,9 +61,13 @@ export const resolveLabel = (
   };
 };
 
-// The one row a label names, or null when it names none or several.
-export const uniqueMatch = (link: LinkCandidate): null | number =>
-  link.resolution === 'unique' ? link.precedent : null;
+// The row a label links to: the one row it names, or the first of the
+// rows that repeat one thing; null when it names none, or several that
+// differ.
+export const linkedRow = (link: LinkCandidate): null | number =>
+  link.resolution === 'unique' || link.resolution === 'repeated'
+    ? link.precedent
+    : null;
 
 // Characters that change meaning inside a regular expression or a LIKE
 // pattern; a course name carrying one matches differently than it reads.

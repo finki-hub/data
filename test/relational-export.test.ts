@@ -266,18 +266,16 @@ describe('parity with the committed public files', () => {
   });
 });
 
-describe('every case that would change the committed files refuses the import', () => {
-  test('refuses the lifecycle dataset at its two review items, exactly where its committed files differ from the parity ones', async () => {
+describe('the cases where the committed files differ from what the import writes', () => {
+  test('refuses the lifecycle dataset at its duplicate teaching row; its FALSE 2018 availability without a name publishes nothing, as an empty cell', async () => {
     const blocked = planOf(lifecycleDataset()).blockers;
     const lifecycle = await expectedFiles('lifecycle');
     const parity = await expectedFiles('parity');
 
-    expect(blocked.map(({ code }) => code)).toEqual([
-      'duplicate_assignment',
-      'unlinked_generation_values',
-    ]);
-    // The files as the workbook states them: Alpha's first teaching row
-    // only, and Gamma's 2018 availability without a 2018 curriculum.
+    expect(blocked.map(({ code }) => code)).toEqual(['duplicate_assignment']);
+    // The committed lifecycle files as today's files publish the workbook:
+    // Alpha's first teaching row only, and Gamma's 2018 availability of
+    // FALSE without a 2018 curriculum, which the relational model omits.
     await expect(
       expectedCourse('lifecycle', courseNames.alpha),
     ).resolves.toHaveProperty('professors', 'Prof. Zed Alpha, Prof. Abe Alpha');
@@ -297,12 +295,18 @@ describe('every case that would change the committed files refuses the import', 
       students: parity.students,
     });
 
-    // The operator's resolutions in the workbook: the later row removed,
-    // Gamma's 2018 availability cleared.
-    const store = await importedStore(parityDataset());
+    // The operator's resolution in the workbook, the later row removed:
+    // the import publishes exactly the parity files whether Gamma's FALSE
+    // stays or is cleared.
+    const cleared = await importedStore(parityDataset());
+    const kept = await importedStore(
+      parityDataset({ gammaAvailability: true }),
+    );
 
-    await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
-    await expect(publishedOf(store)).resolves.toEqual(parity);
+    await expect(readinessOf(cleared)).resolves.toMatchObject({ ready: true });
+    await expect(publishedOf(cleared)).resolves.toEqual(parity);
+    await expect(readinessOf(kept)).resolves.toMatchObject({ ready: true });
+    await expect(publishedOf(kept)).resolves.toEqual(parity);
   });
 
   test.each([

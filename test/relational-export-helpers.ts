@@ -25,21 +25,22 @@ import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
 import { planOf } from './import-plan-helpers.js';
 import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 
-// The two review items of the lifecycle dataset whose relational
-// representation would change the published text; the import refuses the
-// workbook until the operator resolves each.
+// The two places the committed lifecycle files (the lifecycle dataset as
+// today's files publish it) differ from the parity ones.
 type ReviewItems = {
   // The duplicate assignment row of Alpha, which the published file never
-  // listed (duplicate_assignment).
+  // listed: the import refuses it (duplicate_assignment) until the operator
+  // removes the row.
   readonly duplicateAssignment?: boolean;
-  // Gamma's 2018 availability, a value without any 2018 curriculum that no
-  // course_curricula link holds (unlinked_generation_values).
+  // Gamma's 2018 availability of FALSE without any 2018 name, which the
+  // committed lifecycle file publishes: it holds no value the relational
+  // model keeps (owner decision 2026-09-29), so the import links no 2018
+  // curriculum and courses.json omits the key, as for an empty cell.
   readonly gammaAvailability?: boolean;
 };
 
-// The lifecycle dataset, by default with both review items resolved as the
-// operator would in the workbook: the duplicate row removed, Gamma's 2018
-// availability cleared.
+// The lifecycle dataset, by default as the committed parity files state
+// it: the duplicate row removed, Gamma's 2018 availability cleared.
 export const parityDataset = ({
   duplicateAssignment = false,
   gammaAvailability = false,

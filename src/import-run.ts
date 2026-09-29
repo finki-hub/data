@@ -7,7 +7,7 @@ import { type ImportIo, importWorkbook } from './import-workbook.js';
 import { type ImportPlan, planImport } from './import/plan.js';
 import { exitCodes, isRefusal } from './lifecycle.js';
 import { WorkbookDataError } from './workbook-values.js';
-import { loadWorkbook, type WorkbookPlaces } from './workbook.js';
+import { loadWorkbook, type WorkbookContent } from './workbook.js';
 
 type ImportCliIo = ImportIo & {
   readonly createRequest: (config: DirectusConfig) => DirectusRequest;
@@ -24,23 +24,23 @@ const sentence = (message: string): string =>
 
 // Everything that refuses the import on stderr: the values no column can
 // hold, each named by sheet, row and column, and the blocking cases, one
-// line per code, each case named by its sheet and rows.
+// line each, in plain words with its code, course and rows.
 const reportBlocked = (
   {
     dryRun,
-    places,
     plan,
+    workbook,
   }: {
     readonly dryRun: boolean;
-    readonly places: WorkbookPlaces;
     readonly plan: ImportPlan;
+    readonly workbook: WorkbookContent;
   },
   stderr: (line: string) => void,
 ): void => {
   stderr(
     `${dryRun ? 'Dry run: npm run import would refuse this workbook' : 'Import blocked'}: correct these ${String(refusalCount(plan))} case(s) in the workbook, then import again; nothing was sent to Directus.`,
   );
-  for (const line of refusalLines(plan, places)) {
+  for (const line of refusalLines(plan, workbook)) {
     stderr(line);
   }
 };
@@ -50,8 +50,8 @@ const reportBlocked = (
 // the same check before Directus is contacted: a workbook that cannot be
 // read fails (exit 1); every value no column can hold and every case the
 // import cannot write as the workbook states it block (exit 3), all named
-// by sheet and row on stderr in one run. Only an unblocked import
-// contacts Directus.
+// by sheet and row on stderr in one run, each case in plain words. Only
+// an unblocked import contacts Directus.
 export const runImportCli = async (
   arguments_: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
@@ -70,7 +70,7 @@ export const runImportCli = async (
       if (!dryRun) {
         io.stdout(JSON.stringify({ mode: 'import', ...summary }));
       }
-      reportBlocked({ dryRun, places: workbook.places, plan }, io.stderr);
+      reportBlocked({ dryRun, plan, workbook }, io.stderr);
       return exitCodes.blocked;
     }
     if (config.directus === null) {

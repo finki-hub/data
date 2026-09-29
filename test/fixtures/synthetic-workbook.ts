@@ -45,10 +45,11 @@ const labelledStaff = [
 // index sheet needs, and every other peculiarity kept: the orphan
 // curriculum, equivalency, assignment and pattern rows, the 2013-only
 // equivalency and the superseded pattern, which the import imports or
-// skips, and two cases that would change the published files (the
-// duplicate assignment row of Alpha and Gamma's 2018 availability without
-// a 2018 name), which refuse the import until resolved (parityDataset of
-// test/relational-export-helpers.ts).
+// skips, and the two places its committed files differ from the parity
+// ones (parityDataset of test/relational-export-helpers.ts): the duplicate
+// assignment row of Alpha, which refuses the import until resolved, and
+// Gamma's 2018 availability of FALSE without a 2018 name, which the import
+// takes as no value.
 export const lifecycleDataset = (
   base = makeSyntheticDataset(),
 ): SyntheticDataset => ({
@@ -135,6 +136,25 @@ const text = (row: SyntheticRow, key: string): string => {
   return value;
 };
 
+// The real curriculum sheets are laid out by semester: column A is merged
+// over each semester block, its label on the block's first row. A row
+// whose catalog_order is empty continues the block above it, so its cell
+// is merged into that block (the reader reads a merged cell as empty).
+const mergeBlocks = (
+  sheet: ExcelJS.Worksheet,
+  { column, rows }: { column: number; rows: readonly SyntheticRow[] },
+): void => {
+  const starts = rows.flatMap((row, index) =>
+    blanks.has(row['catalog_order']) ? [] : [index + 2],
+  );
+  for (const [index, start] of starts.entries()) {
+    const end = (starts[index + 1] ?? rows.length + 2) - 1;
+    if (end > start) {
+      sheet.mergeCells(start, column, end, column);
+    }
+  }
+};
+
 const writeRows = (
   workbook: ExcelJS.Workbook,
   spec: WorkbookSpec,
@@ -152,6 +172,12 @@ const writeRows = (
     for (const { column, field } of columns) {
       setCell(sheet, { column, row: index + 2 }, row[field.target]);
     }
+  }
+  const blockColumn = columns.find(
+    ({ field }) => field.target === 'catalog_order',
+  );
+  if (blockColumn !== undefined) {
+    mergeBlocks(sheet, { column: blockColumn.column, rows });
   }
 };
 

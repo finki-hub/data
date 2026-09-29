@@ -2,7 +2,7 @@ import type { Candidates } from './candidates.js';
 import type { Indexes } from './preflight-indexes.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
-import { type Finding, finding } from './findings.js';
+import { detailed, type Finding, finding } from './findings.js';
 import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
 import { duplicateRows } from './preflight-duplicates.js';
 import { courseLink, linkedRows } from './preflight-links.js';
@@ -52,7 +52,12 @@ const councilFinding = (
     return finding('invalid_source_row', 'student_council', [id]);
   }
   if (student.resolution === 'ambiguous') {
-    return finding('ambiguous_student_index', 'student_council', [id]);
+    return detailed(
+      finding('ambiguous_student_index', 'student_council', [id]),
+      {
+        related: [{ collection: 'students', ids: student.matches }],
+      },
+    );
   }
   return student.resolution === 'missing'
     ? finding('unmatched_council_index', 'student_council', [id])

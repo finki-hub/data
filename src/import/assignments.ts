@@ -1,6 +1,6 @@
 import type { Candidates } from './candidates.js';
 
-import { uniqueMatch } from './labels.js';
+import { linkedRow } from './labels.js';
 import {
   compositeKey,
   planned,
@@ -19,7 +19,7 @@ export const planTeachingAssignments = (
   candidates: Candidates['assignments'],
 ): readonly PlannedRow[] =>
   candidates.flatMap((candidate) => {
-    const course = uniqueMatch(candidate.course);
+    const course = linkedRow(candidate.course);
     if (course === null) {
       return [];
     }

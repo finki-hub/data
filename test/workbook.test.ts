@@ -294,13 +294,10 @@ describe('the up-front check of a workbook file', () => {
     );
   });
 
-  test('refuses the lifecycle workbook at its two review items and skips what nothing published', async () => {
+  test('refuses the lifecycle workbook at its duplicate teaching row and skips what nothing published', async () => {
     const plan = planImport(await readBack(lifecycleDataset()));
 
-    expect(countByCode(plan.blockers)).toEqual({
-      duplicate_assignment: 1,
-      unlinked_generation_values: 1,
-    });
+    expect(countByCode(plan.blockers)).toEqual({ duplicate_assignment: 1 });
     expect(countByCode(plan.skipped)).toEqual({
       duplicate_pattern: 1,
       orphan_assignment: 1,
@@ -315,7 +312,7 @@ const unstorableOf = (dataset: SyntheticDataset) => {
   const content = contentOf(dataset);
   const plan = planImport(content);
   return {
-    lines: refusalLines(plan, content.places),
+    lines: refusalLines(plan, content),
     values: plan.unstorable,
   };
 };

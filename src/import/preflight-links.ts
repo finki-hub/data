@@ -2,7 +2,13 @@ import type { Candidates } from './candidates.js';
 import type { Indexes } from './preflight-indexes.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
-import { type Finding, finding, type FindingCode } from './findings.js';
+import { resolveCurriculum } from './curriculum-labels.js';
+import {
+  detailed,
+  type Finding,
+  finding,
+  type FindingCode,
+} from './findings.js';
 import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
 import { assignmentStaff, staffFindings } from './preflight-staff.js';
 
@@ -32,16 +38,25 @@ export const courseLink = (
   if (link.resolution === 'unique') {
     return { findings: [], link };
   }
-  const code =
-    link.resolution === 'ambiguous' ? 'ambiguous_course_name' : orphan;
-  return { findings: [finding(code, collection, [id])], link };
+  return {
+    findings: [
+      link.resolution === 'ambiguous'
+        ? detailed(finding('ambiguous_course_name', collection, [id]), {
+            related: [{ collection: 'courses', ids: link.matches }],
+          })
+        : finding(orphan, collection, [id]),
+    ],
+    link,
+  };
 };
 
+// The curriculum row an equivalency label names, resolved as a course's
+// curriculum name is (several listings of one subject link the first).
 const entry = (
   { id, label }: { readonly id: number; readonly label: null | string },
   index: Indexes['current'],
 ): Linked => {
-  const link = resolveLabel(label, index);
+  const link = resolveCurriculum(label, index);
   const findings: Finding[] = [];
   if (link.resolution === 'ambiguous') {
     findings.push(

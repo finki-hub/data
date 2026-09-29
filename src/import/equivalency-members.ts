@@ -3,13 +3,14 @@ import type { EquivalencyRow } from './workbook-rows.js';
 
 import { entryKey } from './curricula.js';
 import { type EntrySource, workbookGenerations } from './generations.js';
-import { type LinkCandidate, uniqueMatch } from './labels.js';
+import { type LinkCandidate, linkedRow } from './labels.js';
 import { compositeKey, planned, type PlannedRow, ref } from './planned.js';
 
 // The members of each equivalency row: one per generation whose label
 // column is filled, with the label copied literally and the entry linked
-// when the label names exactly one curriculum row of that generation. A
-// label-only generation (2013) names no entry.
+// when the label names one subject of that generation's curriculum (its
+// only row, or the first listing of a subject listed in several semester
+// blocks). A label-only generation (2013) names no entry.
 
 type Candidate = Candidates['equivalencies'][number];
 
@@ -32,7 +33,7 @@ const entryOf = (
   if (candidate === undefined || sheet === null) {
     return null;
   }
-  const entry = uniqueMatch(entryCandidates[sheet](candidate));
+  const entry = linkedRow(entryCandidates[sheet](candidate));
   return entry === null ? null : entryKey(sheet, entry);
 };
 

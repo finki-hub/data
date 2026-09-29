@@ -338,11 +338,8 @@ describe('staff, rule and council candidates', () => {
 });
 
 describe('cases that refuse the import', () => {
-  test('finds none in the deduplicated dataset once its two cases that change the files are resolved', () => {
-    const resolved = withCourse(uniqueDataset(), courseNames.gamma, {
-      available_2018: null,
-    });
-    const plan = planOf(resolved);
+  test('finds none in the deduplicated dataset, whose FALSE 2018 availability without a 2018 name holds no value', () => {
+    const plan = planOf(uniqueDataset());
 
     expect(plan.blockers).toEqual([]);
     expect(codes(plan.skipped)).toEqual([
@@ -354,7 +351,7 @@ describe('cases that refuse the import', () => {
     );
   });
 
-  test('blocks every ambiguity of the synthetic dataset and each case that would change the published files', () => {
+  test('blocks every ambiguity of the synthetic dataset and the case that would change the published files', () => {
     const plan = planOf(makeSyntheticDataset());
 
     expect(
@@ -377,19 +374,15 @@ describe('cases that refuse the import', () => {
         collection: 'teaching_assignments',
         ids: [1, 2],
       },
-      { code: 'unlinked_generation_values', collection: 'courses', ids: [3] },
     ]);
   });
 
-  test('blocks exactly the two review items of the lifecycle dataset, the places its committed files differ from the parity ones', () => {
+  test('blocks the duplicate teaching row of the lifecycle dataset, not its FALSE 2018 availability without a 2018 name', () => {
     const plan = planOf(lifecycleDataset());
 
     expect(
       plan.blockers.map(({ code, collection, ids }) => [code, collection, ids]),
-    ).toEqual([
-      ['duplicate_assignment', 'teaching_assignments', [1, 2]],
-      ['unlinked_generation_values', 'courses', [3]],
-    ]);
+    ).toEqual([['duplicate_assignment', 'teaching_assignments', [1, 2]]]);
     expect(codes(plan.skipped)).toEqual([
       'duplicate_pattern',
       'orphan_assignment',
@@ -398,9 +391,7 @@ describe('cases that refuse the import', () => {
   });
 
   test('blocks a name that matches no curriculum row, an override naming none, and credits without a label', () => {
-    const base = withCourse(uniqueDataset(), courseNames.gamma, {
-      available_2018: null,
-    });
+    const base = uniqueDataset();
     const blocked = (dataset: typeof base) =>
       planOf(dataset).blockers.map(({ code, ids }) => [code, ids]);
 

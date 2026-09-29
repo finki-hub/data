@@ -45,7 +45,7 @@ const candidateOf = (
       ...nameFindings(course, name),
       ...current.findings,
       ...legacy.findings,
-      ...duplicateAssignment(name, indexes),
+      ...duplicateAssignment(course, name, indexes),
       ...rules.findings,
     ],
   };

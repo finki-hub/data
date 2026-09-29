@@ -171,19 +171,18 @@ const badWorkbookAborts = async (target, context) => {
   assert.deepEqual(await flowIds(target), flowsBefore, 'no Flow was created');
 };
 
-// A workbook with cases the import cannot write as it states them: the
-// import refuses it before Directus is contacted, naming sheet and row.
+// A workbook with a case the import cannot write as it states it: the
+// import refuses it before Directus is contacted, explaining it by course,
+// sheet and row.
 const blockedWorkbookRefused = async (target, context) => {
   const run = importCli(target, context.blocked);
   assert.equal(await run.run(), exitCodes.blocked);
   assert.deepEqual(run.calls, [], 'Directus was never contacted');
   assert.deepEqual(aggregateOnly(run.stdout[0]).blockers, {
     duplicate_assignment: 1,
-    unlinked_generation_values: 1,
   });
   assert.deepEqual(run.stderr.slice(1), [
-    '- duplicate_assignment: Наставен Кадар rows 2, 3',
-    '- unlinked_generation_values: Предмети (Export) row 4',
+    '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
   ]);
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
 };

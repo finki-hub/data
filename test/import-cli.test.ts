@@ -253,7 +253,7 @@ describe('import command', () => {
 });
 
 describe('workbooks the import refuses', () => {
-  test('dry-run names every case an import would refuse by sheet and row, with exit code 3 and no request', async () => {
+  test('dry-run explains every case an import would refuse, by course, sheet and row, with exit code 3 and no request', async () => {
     const run = cli();
 
     await expect(
@@ -263,11 +263,10 @@ describe('workbooks the import refuses', () => {
     ).resolves.toBe(exitCodes.blocked);
     expect(
       checkSummary.parse(JSON.parse(run.stdout.join('\n'))).blockers,
-    ).toEqual({ duplicate_assignment: 1, unlinked_generation_values: 1 });
+    ).toEqual({ duplicate_assignment: 1 });
     expect(run.stderr).toEqual([
-      'Dry run: npm run import would refuse this workbook: correct these 2 case(s) in the workbook, then import again; nothing was sent to Directus.',
-      '- duplicate_assignment: Наставен Кадар rows 2, 3',
-      '- unlinked_generation_values: Предмети (Export) row 4',
+      'Dry run: npm run import would refuse this workbook: correct these 1 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
     ]);
     expect(run.requests.created).toBe(0);
   });
@@ -282,8 +281,7 @@ describe('workbooks the import refuses', () => {
     });
     const refusals = [
       '- Простории (Export) row 2: rooms.name holds 300 characters, but the column stores at most 255',
-      '- duplicate_assignment: Наставен Кадар rows 2, 3',
-      '- unlinked_generation_values: Предмети (Export) row 4',
+      '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
     ];
     const dryRun = cli();
     const run = cli();
@@ -297,16 +295,16 @@ describe('workbooks the import refuses', () => {
     expect(
       checkSummary.parse(JSON.parse(dryRun.stdout.join('\n'))),
     ).toMatchObject({
-      blockers: { duplicate_assignment: 1, unlinked_generation_values: 1 },
+      blockers: { duplicate_assignment: 1 },
       mode: 'dry-run',
       unstorable: { 'rooms.name': 1 },
     });
     expect(dryRun.stderr).toEqual([
-      'Dry run: npm run import would refuse this workbook: correct these 3 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      'Dry run: npm run import would refuse this workbook: correct these 2 case(s) in the workbook, then import again; nothing was sent to Directus.',
       ...refusals,
     ]);
     expect(run.stderr).toEqual([
-      'Import blocked: correct these 3 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      'Import blocked: correct these 2 case(s) in the workbook, then import again; nothing was sent to Directus.',
       ...refusals,
     ]);
     expect(
@@ -329,7 +327,7 @@ describe('workbooks the import refuses', () => {
     ).resolves.toBe(exitCodes.blocked);
     expect(run.stderr).toEqual([
       'Import blocked: correct these 1 case(s) in the workbook, then import again; nothing was sent to Directus.',
-      '- ambiguous_student_index: ФСС row 2',
+      '- [ambiguous_student_index] ФСС row 2: several students carry its index (Индекси - Година row 3, Индекси - Други row 4); correct the index, or keep one student row for it.',
     ]);
     expect(checkSummary.parse(JSON.parse(run.stdout.join('\n')))).toMatchObject(
       {

@@ -3,7 +3,7 @@ import type { EntrySource } from './generations.js';
 import type { CourseRow } from './workbook-rows.js';
 
 import { entryKey } from './curricula.js';
-import { type LinkCandidate, uniqueMatch } from './labels.js';
+import { type LinkCandidate, linkedRow } from './labels.js';
 import {
   compositeKey,
   planned,
@@ -46,11 +46,13 @@ const generationSpecs: readonly GenerationSpec[] = [
 ];
 
 // One course_curricula link per course and generation whose label names
-// exactly one entry: the 2023 entry by its 2023 name, the 2018 entry by
-// its override or first equivalency label, with the credits and
+// one subject: the 2023 entry by its 2023 name, the 2018 entry by its
+// override or first equivalency label (the first listing of a subject the
+// sheet lists in several semester blocks), with the credits and
 // availability of that generation. A course without a label for a
-// generation gets no link of it (a label naming no entry, or several, or
-// values without a label, refuse the import).
+// generation gets no link of it (a label naming no entry or several
+// subjects, and credits or an availability of TRUE without a label,
+// refuse the import; an availability of FALSE alone is no value).
 export const planCourseCurricula = (
   candidates: readonly CourseCandidate[],
   courses: readonly CourseRow[],
@@ -58,7 +60,7 @@ export const planCourseCurricula = (
   candidates.flatMap((candidate) => {
     const row = courses.find((course) => course.id === candidate.id);
     return generationSpecs.flatMap((spec) => {
-      const entry = uniqueMatch(spec.link(candidate));
+      const entry = linkedRow(spec.link(candidate));
       return row === undefined || entry === null
         ? []
         : [
