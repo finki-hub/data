@@ -6,6 +6,7 @@ import {
   raise,
   rulesId,
 } from './flow-template.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 // The steps of "Data / Add enrollment rules": its batch child, a refusal
 // step and a read of its scope.
@@ -24,8 +25,12 @@ export const rulesCollection = 'course_enrollment_rules';
 // reports which batch failed.
 export const ruleSeedingBatchFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'One batch of Data / Add enrollment rules: creates the enrollment rules it is given with one native Create and answers their ids, or the refusal. Runs only from its parent, as the administrator who started it.',
+  description: flowDescription({
+    answers: ['ok: true', 'created'],
+    caller: 'Data / Add enrollment rules',
+    does: 'Creates the enrollment rules of one batch (the trigger payload) with one native Create',
+    failure: {},
+  }),
   entry: rulesId('31'),
   icon: 'playlist_add',
   id: ruleSeedingBatchFlowId,
@@ -55,8 +60,8 @@ export const ruleSeedingBatchFlow: FlowTemplate = {
     }),
     step({
       key: 'refused',
-      name: 'Answer the refusal',
-      options: failureRecord({}),
+      name: stepName.answerFailure('create'),
+      options: failureRecord({ stage: 'create' }),
       position: [19, 19],
       suffix: '33',
       type: 'transform',
@@ -66,9 +71,9 @@ export const ruleSeedingBatchFlow: FlowTemplate = {
   trigger: 'operation',
 };
 
-// A Throw Error step under the step it answers for.
+// A Throw Error step under the step it answers for, named by its code.
 export const refusal = (
-  spec: Pick<Parameters<typeof raise>[0], 'key' | 'name' | 'suffix'> & {
+  spec: Pick<Parameters<typeof raise>[0], 'key' | 'suffix'> & {
     readonly code: string;
     readonly column: number;
     readonly message: string;
@@ -79,7 +84,7 @@ export const refusal = (
     error: { code: spec.code, message: spec.message, status: spec.status },
     family,
     key: spec.key,
-    name: spec.name,
+    name: stepName.raise(spec.code),
     position: [spec.column, 19],
     suffix: spec.suffix,
   });
@@ -121,7 +126,6 @@ export const scopeRead = (spec: {
     column: spec.column,
     key: `${spec.key}_failed`,
     message: `{{ ${spec.key}.message }}`,
-    name: 'Report the refused read',
     status: 500,
     suffix: spec.refusal,
   }),

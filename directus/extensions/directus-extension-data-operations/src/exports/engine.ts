@@ -97,7 +97,7 @@ const publicRow = (
     if (form === null) {
       throw exportError(
         'INVALID_PAYLOAD',
-        `${definition.filename}: ${definition.orderBy} ${id} answered a ${typeof value} for ${entry.key}, which the definition publishes as ${entry.rule}; nothing was prepared`,
+        `${definition.filename}: ${definition.orderBy} ${String(id)} key ${entry.key}: ${typeof value}, expected ${entry.rule}`,
       );
     }
     output[entry.key] = form;
@@ -139,14 +139,18 @@ export const fileKeys = (
 
 const payloadSchema = z.array(z.record(z.string(), z.string().min(1)));
 
+// A payload refusal, placed at the file or at one of its rows:
+// `<file>[ row <n>]: <fault>`.
 const refusePayload = (
   definition: ExportDefinition,
-  problem: string,
+  fault: string,
+  row?: number,
 ): never => {
-  throw exportError(
-    'INVALID_PAYLOAD',
-    `${definition.filename} ${problem}; nothing may be published`,
-  );
+  const place =
+    row === undefined
+      ? definition.filename
+      : `${definition.filename} row ${String(row)}`;
+  throw exportError('INVALID_PAYLOAD', `${place}: ${fault}`);
 };
 
 // Every key of a row is declared, once and in declaration order.
@@ -159,13 +163,10 @@ const checkKeys = (
   for (const key of Object.keys(row)) {
     const next = declared.indexOf(key);
     if (next === -1) {
-      refusePayload(
-        definition,
-        `row ${index} carries the undeclared key ${key.slice(0, 60)}`,
-      );
+      refusePayload(definition, `undeclared key ${key.slice(0, 60)}`, index);
     }
     if (next <= position) {
-      refusePayload(definition, `row ${index} lists ${key} out of order`);
+      refusePayload(definition, `key ${key} out of order`, index);
     }
     position = next;
   }
@@ -192,12 +193,12 @@ export const validateFile = (
       : shape;
   const parsed = payloadSchema.safeParse(payload);
   if (!parsed.success) {
-    return refusePayload(definition, 'is not a list of rows of text values');
+    return refusePayload(definition, 'not a list of rows of text values');
   }
   if (parsed.data.length !== expectedRows) {
     refusePayload(
       definition,
-      `holds ${parsed.data.length} rows for ${expectedRows} read`,
+      `rows ${String(parsed.data.length)}, expected ${String(expectedRows)}`,
     );
   }
   for (const [index, row] of parsed.data.entries()) {
@@ -208,7 +209,7 @@ export const validateFile = (
   if (bytes > definition.maxBytes) {
     refusePayload(
       definition,
-      `has ${bytes} bytes, above its bound of ${definition.maxBytes}`,
+      `${String(bytes)} bytes, max ${String(definition.maxBytes)}`,
     );
   }
   return {

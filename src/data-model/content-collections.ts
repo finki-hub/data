@@ -137,7 +137,7 @@ export const contentCollections: readonly ModelCollection[] = [
         note: 'The staff member; a label no staff row carries stays in display_override.',
         template: staffTemplate,
       }),
-      enumField('role', roleChoices, { note: 'professor or assistant.' }),
+      enumField('role', roleChoices),
       scalar('sort', 'integer'),
       // `text`, not `string`: an unresolved imported label is the whole
       // professors or assistants cell of the workbook, an unbounded text.
@@ -178,7 +178,7 @@ export const contentCollections: readonly ModelCollection[] = [
           fields: ['year', 'position'],
           template: '{{year}} - {{position}}',
         },
-        note: 'The student record of the index; an empty link needs review, and the index labels the member meanwhile.',
+        note: 'Student record of the index. Empty: needs review; the index labels the member.',
         template: studentTemplate,
       }),
     ],

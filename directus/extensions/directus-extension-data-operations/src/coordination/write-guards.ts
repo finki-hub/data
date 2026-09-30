@@ -22,13 +22,14 @@ const literal = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 export const writerSetting = ({ guard }: GuardedDeclaration): string =>
   `finki_hub.${guard.writer}`;
 
-// Why a write outside the writer is refused.
+// Why a write outside the writer is refused:
+// `Write refused: <collection> (<role>; writer: <writer>)`.
 export const guardMessage = ({
   collection,
-  description,
   guard,
+  role,
 }: GuardedDeclaration): string =>
-  `${collection} is ${description}; only ${guard.writtenBy} writes it`;
+  `Write refused: ${collection} (${role}; writer: ${guard.writtenBy})`;
 
 const guarded = (collection: GuardedCollection): GuardedDeclaration => {
   const declaration = declarationOf(collection);
@@ -61,7 +62,7 @@ const writeGuardTriggerSql = (declaration: GuardedDeclaration): string =>
   `CREATE OR REPLACE TRIGGER "${declaration.collection}_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "${declaration.collection}" FOR EACH STATEMENT EXECUTE FUNCTION "${guardFunction}"(${[
     writerSetting(declaration),
     guardMessage(declaration),
-    declaration.guard.remedy,
+    declaration.guard.hint,
   ]
     .map(literal)
     .join(', ')})`;

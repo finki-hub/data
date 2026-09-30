@@ -3,9 +3,11 @@ import type ExcelJS from 'exceljs';
 import type { CollectionSource, PlacedItem } from './schema.js';
 
 import {
+  type CellPlace,
   getWorksheet,
   isFormulaCell,
   readCellText,
+  sheetPlace,
   WorkbookDataError,
 } from './workbook-values.js';
 
@@ -13,12 +15,12 @@ const firstYearColumn = 3;
 const firstPatternColumn = 5;
 const columnStride = 3;
 
-const assertPattern = (pattern: string, rowNumber: number): void => {
+const assertPattern = (pattern: string, { row, sheet }: CellPlace): void => {
   try {
     new RegExp(pattern, 'u');
   } catch (error) {
     throw new WorkbookDataError(
-      `Invalid enrollment pattern at row ${rowNumber}`,
+      `${sheetPlace(sheet, row)}: invalid enrollment pattern`,
       { cause: error },
     );
   }
@@ -47,11 +49,11 @@ const readPatternCell = (context: PatternCellContext): null | PlacedItem => {
   const courseName = readCellText(row.getCell(1)).trim();
   if (courseName === '') {
     throw new WorkbookDataError(
-      `Missing course name for enrollment pattern at row ${context.rowNumber}`,
+      `${sheetPlace(context.sheet, context.rowNumber)}: missing course name`,
     );
   }
 
-  assertPattern(pattern, context.rowNumber);
+  assertPattern(pattern, { row: context.rowNumber, sheet: context.sheet });
   return {
     item: {
       academic_year: context.academicYear,
@@ -91,12 +93,12 @@ const yearColumns = (
     ).trim();
     if (academicYear === '') {
       throw new WorkbookDataError(
-        `Missing academic year in ${sheet} column ${yearColumn}`,
+        `${sheetPlace(sheet, 1, yearColumn)}: missing academic year`,
       );
     }
     if (columns.some((column) => column.academicYear === academicYear)) {
       throw new WorkbookDataError(
-        `Academic year ${academicYear} heads two column groups of ${sheet}`,
+        `${sheetPlace(sheet, 1)}: academic year ${academicYear} heads two column groups`,
       );
     }
     columns.push({ academicYear, patternColumn });

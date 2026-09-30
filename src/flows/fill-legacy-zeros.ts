@@ -6,10 +6,12 @@ import { legacyPlanQuery, zeroPageCheckScript } from './legacy-scripts.js';
 import { failureSteps, readStep } from './legacy-steps.js';
 import {
   legacyEnrollmentFlowIds,
+  legacyFailureCode,
   legacyId,
   legacyRuleMode,
   legacyStep as step,
 } from './shared.js';
+import { flowDescription } from './text-fragments.js';
 
 // The Run Script body, kept as a plain file so it can be read and edited
 // as JavaScript; the template installs its exact text.
@@ -53,8 +55,13 @@ export const legacySumsQuery = {
 // other legacy pair of the rule page is staged as an explicit zero.
 export const legacyZerosFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    "Fills the explicit zeros of one planned legacy rule page of an enrollments claim. Input {claim, token, from, to, rows, revision}: checks the page against the stored plan and that all of its legacy pages are staged, reads its legacy_regex rules and the native sum(count) grouped by course and academic year over this claim's candidates of those pages only, validates it, and stages a zero row for every rule pair no page counted. Answers {page, rules, counted, zeros, staged}; on any failure it fails the claim at once (LEGACY_COUNT_FAILED) and answers {ok: false, page, stage, code, message}. The completion installs the sums of the staged rows.",
+  description: flowDescription({
+    answers: ['page', 'rules', 'counted', 'zeros', 'staged'],
+    caller: 'Data / Count legacy enrollments',
+    does: 'Stages a zero row for every legacy pair of one planned legacy rule page that no legacy page counted',
+    failure: { codes: [legacyFailureCode], context: ['page'] },
+    input: ['claim', 'token', 'from', 'to', 'rows', 'revision'],
+  }),
   entry: legacyId('31'),
   icon: 'exposure_zero',
   id: legacyEnrollmentFlowIds.zeros,

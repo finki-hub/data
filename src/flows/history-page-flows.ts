@@ -11,6 +11,7 @@ import {
   splitEntriesScript,
   summaryScript,
 } from './history-script.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const triggerToken = '{{ $trigger.token }}';
 
@@ -39,8 +40,19 @@ export const historyFlowIds = {
 // instead of a result.
 export const pageFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Indexes one planned range of Moodle users: checks that its claim is still live, reads id and Courses, splits the exact history entries and replaces the memberships of those users. Called serially by "Data / Index Moodle histories".',
+  description: flowDescription({
+    answers: [
+      'page',
+      'users',
+      'entriesCreated',
+      'membershipsRemoved',
+      'membershipsWritten',
+    ],
+    caller: 'Data / Index Moodle histories',
+    does: 'Indexes one planned range of Moodle users: checks its claim, reads id and Courses, splits the exact history entries and replaces the memberships of those users',
+    failure: { context: ['page'] },
+    input: ['claim', 'token', 'from', 'to', 'rows'],
+  }),
   entry: historyId('27'),
   icon: 'history_edu',
   id: historyFlowIds.page,
@@ -49,7 +61,7 @@ export const pageFlow: FlowTemplate = {
     historyStep({
       edges: { reject: historyId('28'), resolve: historyId('21') },
       key: 'check_claim',
-      name: 'Check that the claim is still live',
+      name: 'Check the claim',
       options: { action: 'heartbeat', token: '{{ $trigger.claim }}' },
       position: [1, 1],
       suffix: '27',
@@ -57,7 +69,7 @@ export const pageFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'claim_failed',
-      name: 'Record the lost claim',
+      name: stepName.answerFailure('claim'),
       options: failureRecord({ page: triggerToken, stage: 'claim' }),
       position: [1, 19],
       suffix: '28',
@@ -109,7 +121,7 @@ export const pageFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'read_failed',
-      name: 'Record the read failure',
+      name: stepName.answerFailure('read'),
       options: failureRecord({ page: triggerToken, stage: 'read' }),
       position: [19, 19],
       suffix: '24',
@@ -117,7 +129,7 @@ export const pageFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'split_failed',
-      name: 'Record the split failure',
+      name: stepName.answerFailure('split'),
       options: failureRecord({ page: triggerToken, stage: 'split' }),
       position: [37, 19],
       suffix: '25',
@@ -125,7 +137,7 @@ export const pageFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'index_failed',
-      name: 'Record the index failure',
+      name: stepName.answerFailure('index'),
       options: failureRecord({ page: triggerToken, stage: 'index' }),
       position: [55, 19],
       suffix: '26',
@@ -141,8 +153,20 @@ export const pageFlow: FlowTemplate = {
 // claim, its completion and its failure belong to the caller.
 export const runFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Plans the Moodle history pages of a claim ({ token }) and indexes them serially with "Data / Index history page"; answers a summary with ok, pages, users, entriesCreated, membershipsWritten and the failed pages. Claim, completion and failure belong to the caller.',
+  description: flowDescription({
+    answers: [
+      'ok',
+      'pages',
+      'users',
+      'entriesCreated',
+      'membershipsWritten',
+      'failed',
+    ],
+    caller: 'Data / Refresh history index',
+    does: `Plans the Moodle history pages of a claim and indexes them serially through "${pageFlow.name}"`,
+    failure: { context: ['pages'] },
+    input: ['token'],
+  }),
   entry: historyId('11'),
   icon: 'history_edu',
   id: historyFlowIds.run,
@@ -193,7 +217,7 @@ export const runFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'plan_failed',
-      name: 'Record the planning failure',
+      name: stepName.answerFailure('plan'),
       options: failureRecord({ pages: '0', stage: 'plan' }),
       position: [19, 19],
       suffix: '15',
@@ -201,7 +225,7 @@ export const runFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'token_failed',
-      name: 'Record the token failure',
+      name: stepName.answerFailure('token'),
       options: failureRecord({ pages: '0', stage: 'token' }),
       position: [37, 19],
       suffix: '16',
@@ -209,7 +233,7 @@ export const runFlow: FlowTemplate = {
     }),
     historyStep({
       key: 'pages_failed',
-      name: 'Record the page-run failure',
+      name: stepName.answerFailure('pages'),
       options: failureRecord({ pages: '0', stage: 'pages' }),
       position: [55, 19],
       suffix: '17',

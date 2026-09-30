@@ -4,9 +4,13 @@ import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
 import { countOf, readPage } from './count-order.js';
+import {
+  criteriaProblem,
+  criteriaSchema,
+  invalidCriteria,
+} from './criteria.js';
 import { filterPathProblem, relationalDepthLimit } from './filter-paths.js';
 import { courseCondition, splitHistory } from './history.js';
-import { nativeFilter } from './native-filter.js';
 
 const macedonianCollator = new Intl.Collator('mk');
 
@@ -18,14 +22,6 @@ declare global {
   }
 }
 
-const criteriaSchema = z.object({
-  exclude: z.array(z.string().min(1).max(2_000)).max(20),
-  filter: nativeFilter.nullish(),
-  include: z.array(z.string().min(1).max(2_000)).max(20),
-  page: z.number().int().min(1),
-  search: z.string().max(1_000).nullish(),
-  sort: z.enum(['Name', 'Courses Count', '-Courses Count']).default('Name'),
-});
 const historyRows = z.array(z.object({ Courses: z.string().nullish() }));
 const resultFields = [
   'id',
@@ -49,6 +45,11 @@ type SearchCriteria = {
   readonly search?: null | string | undefined;
 };
 
+// Directus's own error body: one error, its code in `extensions`.
+const errorBody = (code: string, message: string) => ({
+  errors: [{ extensions: { code }, message }],
+});
+
 export const buildSearchQuery = (
   criteria: SearchCriteria,
 ): CourseSearchQuery => ({
@@ -69,7 +70,7 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
     if (!request.accountability?.user) {
       response
         .status(403)
-        .json({ errors: [{ message: 'Sign in to search course histories.' }] });
+        .json(errorBody('FORBIDDEN', 'Authentication required'));
       return;
     }
     next();
@@ -108,25 +109,30 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
   router.post('/search', async (request, response, next) => {
     try {
       const parsed = criteriaSchema.safeParse(request.body);
+      if (!parsed.success) {
+        response
+          .status(400)
+          .json(errorBody('INVALID_PAYLOAD', criteriaProblem(parsed.error)));
+        return;
+      }
       const schema = await getSchema();
       // A filter path that passes a collection twice or names more fields
-      // than REST allows gets the same answer as an unsupported filter.
-      if (
-        !parsed.success ||
-        filterPathProblem(parsed.data.filter, {
-          maxDepth,
-          relations: schema.relations,
-          root: 'moodle_users',
-        }) !== undefined
-      ) {
-        response.status(400).json({
-          errors: [
-            {
-              message:
-                'Choose up to 20 courses in each group and a valid page.',
-            },
-          ],
-        });
+      // than REST allows is refused like an unsupported filter, with its
+      // own reason.
+      const pathProblem = filterPathProblem(parsed.data.filter, {
+        maxDepth,
+        relations: schema.relations,
+        root: 'moodle_users',
+      });
+      if (pathProblem !== undefined) {
+        response
+          .status(400)
+          .json(
+            errorBody(
+              'INVALID_PAYLOAD',
+              invalidCriteria('filter', pathProblem),
+            ),
+          );
         return;
       }
       const criteria = parsed.data;

@@ -16,13 +16,15 @@ const resultSchema = z.object({
 
 type MigrationResult = z.infer<typeof resultSchema>;
 
+// Directus does not serve the migration endpoint of the data-operations
+// bundle, so the constraints and triggers it installs are missing; README
+// names the build and restart.
 export class DataOperationsUnavailableError extends Error {
   public override readonly name = 'DataOperationsUnavailableError';
 
   public constructor(pathname: string, options?: ErrorOptions) {
     super(
-      `Directus does not serve POST ${pathname} (HTTP 404), so the composite domain keys, the generation guard and the source-invalidation triggers were not applied. ` +
-        'Build the data-operations bundle with `npm run build:operations`, restart the Directus container so it loads the bundle (GET /extensions must list the finki-hub-data-operations endpoint), then run `npm run setup` again.',
+      `POST ${pathname}: HTTP 404 (data-operations bundle not loaded)`,
       options,
     );
   }

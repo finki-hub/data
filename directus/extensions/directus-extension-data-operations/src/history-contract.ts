@@ -47,17 +47,17 @@ export const historyRowProblem = (
   entries: readonly string[],
 ): null | string => {
   if (entries.length > maxRowsPerPage) {
-    return `${entries.length} distinct history lines, one user holds at most ${maxRowsPerPage}`;
+    return `history lines ${String(entries.length)}, max ${String(maxRowsPerPage)}`;
   }
   if (entries.some((entry) => !isExactLabel(entry))) {
-    return 'an entry is empty or contains a line feed, which the splitter never emits';
+    return 'empty or multi-line entry';
   }
   let longest = 0;
   for (const entry of entries) {
     longest = Math.max(longest, labelBytes(entry));
   }
   return longest > maxLabelBytes
-    ? `a history line of ${longest} bytes, one entry holds at most ${maxLabelBytes} bytes; shorten that line in the raw Courses history`
+    ? `history line ${String(longest)} bytes, max ${String(maxLabelBytes)}`
     : null;
 };
 

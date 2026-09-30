@@ -1,10 +1,11 @@
 import { keySources, optInField } from './exports/key-sources.js';
 import {
+  fact,
   type Guard,
   guardStatements,
-  keyDetail,
+  keyFacts,
   refuse,
-  text,
+  rowMessage,
 } from './row-guards.js';
 
 // The key guards, derived from the key sources (exports/key-sources.ts):
@@ -22,13 +23,11 @@ const optIn = (row: 'NEW' | 'OLD') => `${row}."${optInField}" IS TRUE`;
 
 const keyGuard = ({ key, table }: KeyedTable): Guard => {
   const column = `"${key}"`;
-  const message = `${table}.${key} cannot change while the row is published`;
-  const previous = text(`OLD.${column}`);
-  const detail = keyDetail(
-    key,
-    `NEW.${column}`,
-    `') would replace the public key text ' || ${previous} || ' of published row ' || NEW."id" || '; unpublish it first.'`,
-  );
+  const message = rowMessage(table, key, 'locked: row published');
+  const detail = keyFacts(key, `NEW.${column}`, [
+    fact(['published row', 'NEW."id"']),
+    fact(['current key', `OLD.${column}`]),
+  ]);
   return {
     body: `IF ${optIn('OLD')} AND ${optIn('NEW')} AND NEW.${column} IS DISTINCT FROM OLD.${column} THEN
     ${refuse(table, message, detail)}

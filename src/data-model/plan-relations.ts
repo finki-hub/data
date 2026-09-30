@@ -1,7 +1,13 @@
 import type { ModelRelation } from '../schema.js';
 import type { ExistingRelation } from './directus-schema.js';
-import type { Refusal, RelationAction, Tally } from './plan-types.js';
 
+import {
+  type Mismatch,
+  type Refusal,
+  refusalOf,
+  type RelationAction,
+  type Tally,
+} from './plan-types.js';
 import { toRelationAlignmentPayload } from './relations.js';
 
 type RelationContext = {
@@ -18,9 +24,12 @@ type RelationContext = {
 const relationRefusal = (
   relation: ModelRelation,
   existing: ExistingRelation,
-): null | string => {
+): Mismatch | null => {
   if (existing.related_collection !== relation.related) {
-    return `targets ${String(existing.related_collection)} but the model targets ${relation.related}`;
+    return {
+      expected: relation.related,
+      live: `target ${String(existing.related_collection)}`,
+    };
   }
   const oneField = existing.meta?.one_field ?? null;
   if (
@@ -28,7 +37,10 @@ const relationRefusal = (
     oneField !== null &&
     oneField !== relation.alias.field
   ) {
-    return `has reverse alias ${oneField} but the model declares ${relation.alias.field}`;
+    return {
+      expected: relation.alias.field,
+      live: `reverse alias ${oneField}`,
+    };
   }
   return null;
 };
@@ -70,11 +82,13 @@ export const planRelation = (
   }
   const refusal = relationRefusal(relation, existing);
   if (refusal !== null) {
-    context.actions.refusals.push({
-      collection: relation.collection,
-      field: relation.field,
-      reason: `Relation ${relation.collection}.${relation.field} ${refusal}`,
-    });
+    context.actions.refusals.push(
+      refusalOf(
+        'Relation',
+        { collection: relation.collection, field: relation.field },
+        refusal,
+      ),
+    );
     context.tally.add('relations', 'refused');
     return;
   }

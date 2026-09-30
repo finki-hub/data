@@ -101,7 +101,7 @@ describe('write guards of the collection-role registry', () => {
         trigger.includes('"course_enrollments_write_guard"'),
       ),
     ).toBe(
-      'CREATE OR REPLACE TRIGGER "course_enrollments_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"(\'finki_hub.enrollments_writer\', \'course_enrollments is the derived enrollment counts; only the completion of an enrollments claim writes it\', \'Edit the mappings, the enrollment rules or the Moodle histories; the scheduled "Data / Process pending" Flow recounts.\')',
+      'CREATE OR REPLACE TRIGGER "course_enrollments_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"(\'finki_hub.enrollments_writer\', \'Write refused: course_enrollments (derived; writer: enrollments claim completion)\', \'Source: moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending\')',
     );
 
     for (const [index, declaration] of guardedDeclarations.entries()) {
@@ -164,7 +164,8 @@ describe('write guards of the collection-role registry', () => {
       const handlers = registered.filter(({ event }) =>
         event.startsWith(`${declaration.collection}.items.`),
       );
-      const message = `${guardMessage(declaration)}. ${declaration.guard.remedy}`;
+      // The hook refuses with the database guard's own message.
+      const message = guardMessage(declaration);
 
       expect(handlers).toHaveLength(3);
 

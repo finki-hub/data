@@ -4,9 +4,10 @@ const path =
   '/directus/node_modules/@directus/api/dist/services/import/import.js';
 const source = readFileSync(path, 'utf8');
 const original = 'createReadStream(tmpFile.path).on("error",';
-if (source.split(original).length !== 2) {
+const matches = source.split(original).length - 1;
+if (matches !== 1) {
   throw new Error(
-    'Directus CSV source changed; review the UTF-8 patch before upgrading.',
+    `UTF-8 CSV import patch failed: import.js matches ${matches}, expected 1`,
   );
 }
 

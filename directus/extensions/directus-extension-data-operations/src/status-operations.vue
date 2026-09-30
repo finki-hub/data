@@ -2,7 +2,8 @@
 import type { StatusView } from './status-contract.js';
 
 import StatusBadge from './status-badge.vue';
-import { bytesText, instantText, retriedText, snapshotText } from './status-labels.js';
+import { claimText, lastErrorText, lastRunText, publicationText, snapshotText, waitsForText } from './status-facts.js';
+import { bytesText } from './status-labels.js';
 
 // The calculation domains, the running claim, the last failure, every
 // declared file with its last outcome, and the Moodle snapshot.
@@ -17,14 +18,12 @@ defineProps<{ status: StatusView }>();
         <tr v-for="domain in status.domains" :key="domain.name" :data-domain="domain.name">
           <th scope="row">{{ domain.label }}</th>
           <td><StatusBadge :state="domain.state" /></td>
-          <td class="note">{{ domain.waitingFor.length > 0 ? `waits for ${domain.waitingFor.join(', ')}` : '' }}</td>
+          <td class="note">{{ waitsForText(domain.waitingFor) }}</td>
         </tr>
       </tbody>
     </table>
-    <p v-if="status.claim" class="note">
-      Running: {{ status.claim.label }} since {{ instantText(status.claim.startedAt) }}{{ status.claim.stale ? ' (stale: released as abandoned by the next claim)' : '' }}
-    </p>
-    <p class="note">Last run {{ instantText(status.lastRun.startedAt) }} to {{ instantText(status.lastRun.finishedAt) }}{{ retriedText(status.lastRun.retries) }}</p>
+    <p v-if="status.claim" class="note">{{ claimText(status.claim) }}</p>
+    <p class="note">{{ lastRunText(status.lastRun) }}</p>
   </section>
 
   <section class="block" aria-label="Published files">
@@ -43,9 +42,7 @@ defineProps<{ status: StatusView }>();
         </tr>
       </tbody>
     </table>
-    <p class="note">
-      Last publication: revision {{ status.publication.lastRevision ?? '--' }}{{ status.publication.complete ? ', every declared file uploaded' : status.publication.lastRevision === null ? '' : ', not every declared file uploaded' }}
-    </p>
+    <p class="note">{{ publicationText(status.publication) }}</p>
   </section>
 
   <section class="block" aria-label="Moodle snapshot">
@@ -55,13 +52,10 @@ defineProps<{ status: StatusView }>();
 
   <section v-if="status.lastError && status.lastError.blocking" class="block" aria-label="Last failure">
     <v-notice type="danger" class="failure">
-      <span>
-        <strong>{{ status.lastError.code }}</strong> in {{ status.lastError.domain ?? 'unknown' }} at revision {{ status.lastError.revision ?? '--' }},
-        {{ instantText(status.lastError.at) }}{{ retriedText(status.lastError.retries) }}. Retry: run the operation again, or mark the domain pending (Data / Mark pending).
-      </span>
+      <span><strong>{{ status.lastError.code }}</strong> · {{ lastErrorText(status.lastError) }}</span>
     </v-notice>
     <details v-if="status.lastError.message" class="message">
-      <summary>What the failing step said</summary>
+      <summary>Message</summary>
       <p>{{ status.lastError.message }}</p>
     </details>
   </section>

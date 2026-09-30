@@ -13,6 +13,8 @@ const booleanSchema = z
   .pipe(z.enum(['0', '1', 'FALSE', 'TRUE']))
   .transform((value) => value === '1' || value === 'TRUE');
 
+// The workbook cannot be read as the import reads it. The message is
+// `<place>: <fact>`, the place a sheet, row and column (sheetPlace).
 export class WorkbookDataError extends Error {
   public override readonly name = 'WorkbookDataError';
 
@@ -20,6 +22,25 @@ export class WorkbookDataError extends Error {
     super(message, options);
   }
 }
+
+// A place in the workbook: `<sheet> row N`, with `, column "<header>"` for
+// a column named by its header or `, column N` for one by its number.
+export const sheetPlace = (
+  sheet: string,
+  row: number,
+  column?: number | string,
+): string => {
+  const place = `${sheet} row ${String(row)}`;
+  if (column === undefined) {
+    return place;
+  }
+  return typeof column === 'number'
+    ? `${place}, column ${String(column)}`
+    : `${place}, column ${JSON.stringify(column)}`;
+};
+
+// A cell's sheet and row.
+export type CellPlace = { readonly row: number; readonly sheet: string };
 
 // Rich text: runs of formatted text, read as their joined text.
 const richTextSchema = z
@@ -77,13 +98,12 @@ export const isFormulaCell = (cell: ExcelJS.Cell): boolean =>
 export const convertCell = (
   value: string,
   fieldSpec: FieldSpec,
-  rowNumber: number,
+  { row, sheet }: CellPlace,
 ): Scalar => {
+  const place = sheetPlace(sheet, row, fieldSpec.source);
   if (value.trim() === '') {
     if (fieldSpec.required) {
-      throw new WorkbookDataError(
-        `Missing required value in ${fieldSpec.source} at row ${rowNumber}`,
-      );
+      throw new WorkbookDataError(`${place}: missing required value`);
     }
 
     return null;
@@ -93,7 +113,7 @@ export const convertCell = (
     const parsed = booleanSchema.safeParse(value);
     if (!parsed.success) {
       throw new WorkbookDataError(
-        `Invalid boolean ${JSON.stringify(value)} in ${fieldSpec.source} at row ${rowNumber}`,
+        `${place}: invalid boolean ${JSON.stringify(value)}`,
         { cause: parsed.error },
       );
     }
@@ -105,7 +125,7 @@ export const convertCell = (
     const parsed = integerSchema.safeParse(value);
     if (!parsed.success) {
       throw new WorkbookDataError(
-        `Invalid integer ${JSON.stringify(value)} in ${fieldSpec.source} at row ${rowNumber}`,
+        `${place}: invalid integer ${JSON.stringify(value)}`,
         { cause: parsed.error },
       );
     }
@@ -122,7 +142,9 @@ export const getWorksheet = (
 ): ExcelJS.Worksheet => {
   const worksheet = workbook.getWorksheet(sheet);
   if (worksheet === undefined) {
-    throw new WorkbookDataError(`Missing worksheet ${JSON.stringify(sheet)}`);
+    throw new WorkbookDataError(
+      `workbook: missing worksheet ${JSON.stringify(sheet)}`,
+    );
   }
 
   return worksheet;

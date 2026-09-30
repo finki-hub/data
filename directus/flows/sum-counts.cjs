@@ -18,8 +18,10 @@ const whole = function (value, least) {
   return Number.isSafeInteger(value) && value >= least;
 };
 
-const refuse = function (message) {
-  throw new Error(`${message}; nothing was staged.`);
+// The leaf form of every Flow refusal, `<place>: <fault>`: a sandboxed
+// copy of refuseFragment in src/flows/text-fragments.ts.
+const refuse = function (place, fault) {
+  throw new Error(`${place}: ${fault}`);
 };
 
 const onlyKeys = function (value, keys) {
@@ -44,7 +46,7 @@ const checkedPage = function (page) {
     !whole(page.rows, 1) ||
     !Array.isArray(page.cells)
   ) {
-    refuse('check_zeros answered no planned zero page');
+    refuse('check_zeros', 'no planned zero page');
   }
   return page;
 };
@@ -53,7 +55,8 @@ const checkedPage = function (page) {
 const rulePairs = function (rules, page) {
   if (!Array.isArray(rules) || rules.length !== page.rows) {
     refuse(
-      `Read ${Array.isArray(rules) ? rules.length : 'no'} legacy rules of page ${page.token}, planned ${page.rows}`,
+      `Page ${page.token}`,
+      `rules ${Array.isArray(rules) ? rules.length : 'none'}, planned ${page.rows}`,
     );
   }
   const ids = new Set();
@@ -66,16 +69,17 @@ const rulePairs = function (rules, page) {
       rule.id > page.to ||
       ids.has(rule.id)
     ) {
-      refuse(`read_rules answered a rule outside page ${page.token}`);
+      refuse('read_rules', `rule outside page ${page.token}`);
     }
     ids.add(rule.id);
     if (!whole(rule.course, 1) || !whole(rule.academic_year, 1)) {
-      refuse(`Rule ${rule.id} has no course or academic year id`);
+      refuse(`Rule ${rule.id}`, 'course or academic_year missing');
     }
     const key = `${rule.course}/${rule.academic_year}`;
     if (pairs.has(key)) {
       refuse(
-        `Rule ${rule.id} repeats course ${rule.course} / academic year ${rule.academic_year}`,
+        `Rule ${rule.id}`,
+        `duplicate pair course ${rule.course} / academic year ${rule.academic_year}`,
       );
     }
     pairs.set(key, { academic_year: rule.academic_year, course: rule.course });
@@ -90,14 +94,12 @@ const sumOf = function (row) {
     !whole(row.course, 1) ||
     !whole(row.academic_year, 1)
   ) {
-    refuse(
-      'read_sums must answer the sum of count grouped by course and academic year and nothing else',
-    );
+    refuse('read_sums', 'expected sum(count) grouped by course, academic_year');
   }
   const value = row.sum.count;
   const text = typeof value === 'number' ? String(value) : value;
   if (typeof text !== 'string' || !sumPattern.test(text)) {
-    refuse('read_sums answered a sum that is not a non-negative integer');
+    refuse('read_sums', 'sum not a non-negative integer');
   }
   return Number(text);
 };
@@ -107,7 +109,7 @@ const sumCounts = (data) => {
   const pairs = rulePairs(data.read_rules, page);
   const sums = data.read_sums;
   if (!Array.isArray(sums)) {
-    refuse('read_sums returned no aggregate list');
+    refuse('read_sums', 'no aggregate list');
   }
   const counted = new Set();
   let total = 0;
@@ -116,12 +118,14 @@ const sumCounts = (data) => {
     const key = `${row.course}/${row.academic_year}`;
     if (!pairs.has(key)) {
       refuse(
-        `read_sums answered course ${row.course} / academic year ${row.academic_year}, which no legacy rule of page ${page.token} names`,
+        'read_sums',
+        `course ${row.course} / academic year ${row.academic_year} not on page ${page.token}`,
       );
     }
     if (counted.has(key)) {
       refuse(
-        `read_sums answered course ${row.course} / academic year ${row.academic_year} twice`,
+        'read_sums',
+        `course ${row.course} / academic year ${row.academic_year} repeated`,
       );
     }
     counted.add(key);

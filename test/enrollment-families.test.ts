@@ -114,7 +114,7 @@ describe('the enrollment dispatcher scripts', () => {
           plan: { pages: [], total: 0 },
         }),
       ),
-    ).toBe('plan_pages returned no family list; nothing was counted.');
+    ).toBe('plan_pages: no family list');
     expect(
       refusalOf(() =>
         runScript(familiesScript, {
@@ -125,9 +125,7 @@ describe('the enrollment dispatcher scripts', () => {
           },
         }),
       ),
-    ).toBe(
-      'Family 1 of the plan names no kind, runner Flow or page list; nothing was counted.',
-    );
+    ).toBe('Plan family 1: kind, runnerFlowId or pages missing');
   });
 
   test('accepts the families only when each answered its own kind as counted', () => {
@@ -162,16 +160,17 @@ describe('the enrollment dispatcher scripts', () => {
           run_families: [
             {
               code: 'LEGACY_COUNT_FAILED',
-              message: 'Legacy page p0003 failed.',
+              message:
+                'Legacy page p0003 failed [count LEGACY_COUNT_FAILED]: Rule 12: pattern missing',
               ok: false,
-              stage: 'family',
+              stage: 'legacy',
             },
             answers[1],
           ],
         }),
       ),
     ).toBe(
-      'Enrollment family mapped_entries failed (family: LEGACY_COUNT_FAILED Legacy page p0003 failed.); nothing was installed.',
+      'Family mapped_entries failed [legacy LEGACY_COUNT_FAILED]: Legacy page p0003 failed [count LEGACY_COUNT_FAILED]: Rule 12: pattern missing',
     );
 
     // A runner that answered nothing, or another family's answer.
@@ -183,9 +182,7 @@ describe('the enrollment dispatcher scripts', () => {
             run_families: [answers[0], answer],
           }),
         ),
-      ).toBe(
-        'Enrollment family legacy_regex failed (no valid answer); nothing was installed.',
-      );
+      ).toBe('Family legacy_regex: no valid answer');
     }
 
     expect(
@@ -195,7 +192,7 @@ describe('the enrollment dispatcher scripts', () => {
           run_families: [answers[0]],
         }),
       ),
-    ).toContain('run_families answered 1 results for 2 families');
+    ).toBe('run_families: results 1, expected 2');
   });
 });
 
@@ -267,13 +264,13 @@ describe('the family runner', () => {
     ).toEqual({
       json: {
         code: '{{ run.code }}',
-        message: '{{ run.stage }}: {{ run.code }} {{ run.message }}',
+        message: '{{ run.message }}',
         ok: false,
-        stage: 'family',
+        stage: '{{ run.stage }}',
       },
     });
-    expect(String(failures.silent?.options['message'])).toContain(
-      '{{ $trigger.runner }} is inactive or deleted',
+    expect(String(failures.silent?.options['message'])).toBe(
+      'Runner Flow {{ $trigger.runner }}: no answer (inactive or deleted)',
     );
   });
 });

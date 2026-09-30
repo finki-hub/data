@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { exportDefinitions } from '../exports/index.js';
 import { publicFilenamePattern } from '../exports/types.js';
+import { listText } from '../text.js';
 import {
   type ClaimDomain,
   type FileOutcome,
@@ -9,6 +10,7 @@ import {
   type PublicationState,
 } from './domains.js';
 import { coordinationError } from './errors.js';
+import { domainMismatch } from './refusals.js';
 import { maxPublishedFiles } from './state.js';
 
 // The per-file outcomes of a publication, keyed by the published filename:
@@ -43,13 +45,13 @@ const fileOutcomeSchema = z
   .refine(
     ({ code, outcome }) =>
       (outcome === 'uploaded') === (code === null || code === undefined),
-    'an uploaded file carries no code; a failed or skipped file carries its code',
+    'Code not allowed for outcome uploaded; required for failed and skipped',
   );
 
 export const filesSchema = z
   .record(z.string().regex(publicFilenamePattern), fileOutcomeSchema)
   .refine((files) => Object.keys(files).length <= maxPublishedFiles, {
-    message: `At most ${maxPublishedFiles} files`,
+    message: `Too many files: max ${maxPublishedFiles}`,
   });
 
 // One file as the coordinator keeps it: its outcome and code, the bytes
@@ -96,9 +98,8 @@ export const checkReportedFiles = (
     return;
   }
   if (domain !== 'publication') {
-    throw coordinationError(
-      'DOMAIN_MISMATCH',
-      `Only a publication claim records file outcomes; this claim is ${domain ?? 'unknown'}.`,
+    throw domainMismatch(
+      { actual: domain, expected: 'publication', subject: 'File outcomes' },
       { status: 400 },
     );
   }
@@ -108,7 +109,7 @@ export const checkReportedFiles = (
   if (unknown.length > 0) {
     throw coordinationError(
       'UNKNOWN_FILE',
-      `No export definition declares ${unknown.slice(0, 5).join(', ')}; declared: ${declared.join(', ')}.`,
+      `Undeclared files: ${listText(unknown)}; declared: ${declared.join(', ')}`,
       { details: { unknown: unknown.slice(0, 5) }, status: 400 },
     );
   }
@@ -126,7 +127,7 @@ export const requireEveryFileUploaded = (
   if (missing.length > 0) {
     throw coordinationError(
       'OUTCOMES_INCOMPLETE',
-      `A publication completes only when every declared file was uploaded; not uploaded: ${missing.slice(0, 5).join(', ')}. Record the outcomes with fail instead.`,
+      `Publication incomplete: not uploaded: ${listText(missing)}`,
       { details: { missing: missing.slice(0, 5) } },
     );
   }

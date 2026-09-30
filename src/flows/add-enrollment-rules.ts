@@ -1,3 +1,4 @@
+import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   pairsScript,
   ruleSeedingOptions,
@@ -19,6 +20,7 @@ import {
   rulesId,
 } from './flow-template.js';
 import { mappedRuleMode } from './shared.js';
+import { flowDescription } from './text-fragments.js';
 
 const family = flowFamilyCodes.rules;
 const step = familyStep(family);
@@ -37,7 +39,11 @@ export const ruleSeedingFlowId = rulesId('01');
 // through the source triggers, and Data / Process pending counts them.
 export const ruleSeedingFlow: FlowTemplate = {
   accountability: 'activity',
-  description: `Creates the missing enrollment rules (administrators only): for an academic year every course, for a course every academic year, for both the one pair. Each new rule has mode ${mappedRuleMode.mode}; existing rules of any mode are kept and skipped, so running it again creates nothing, and it never creates a mapping. Data / Process pending counts the new rules at its next tick; a year reaches courses.json only once it is published.`,
+  description: flowDescription({
+    adminOnly: true,
+    does: `Creates missing enrollment rules (mode ${mappedRuleMode.mode}) for an academic year, a course or one pair`,
+    note: 'Existing rules are skipped',
+  }),
   entry: rulesId('11'),
   icon: 'playlist_add',
   id: ruleSeedingFlowId,
@@ -56,15 +62,14 @@ export const ruleSeedingFlow: FlowTemplate = {
       code: 'FORBIDDEN',
       column: 19,
       key: 'raise_forbidden',
-      message: 'Only administrators may add enrollment rules.',
-      name: 'Refuse a non-administrator',
+      message: adminOnlyText('add enrollment rules'),
       status: 403,
       suffix: '21',
     }),
     step({
       edges: { reject: rulesId('22'), resolve: rulesId('13') },
       key: 'scope',
-      name: 'The year, the course or the pair',
+      name: 'Resolve the scope',
       options: { code: scopeScript },
       position: [37, 1],
       suffix: '12',
@@ -75,7 +80,6 @@ export const ruleSeedingFlow: FlowTemplate = {
       column: 37,
       key: 'raise_scope',
       message: '{{ scope.message }}',
-      name: 'Report the invalid scope',
       status: 400,
       suffix: '22',
     }),
@@ -115,7 +119,7 @@ export const ruleSeedingFlow: FlowTemplate = {
     step({
       edges: { reject: rulesId('24'), resolve: rulesId('17') },
       key: 'pairs',
-      name: 'The missing pairs, in batches',
+      name: 'List the missing pairs',
       options: { code: pairsScript },
       position: [109, 1],
       suffix: '16',
@@ -126,7 +130,6 @@ export const ruleSeedingFlow: FlowTemplate = {
       column: 109,
       key: 'raise_pairs',
       message: '{{ pairs.message }}',
-      name: 'Report the unknown year or course',
       status: 404,
       suffix: '24',
     }),
@@ -148,7 +151,6 @@ export const ruleSeedingFlow: FlowTemplate = {
       column: 127,
       key: 'raise_loop',
       message: '{{ create_batches.message }}',
-      name: 'Report the failed loop',
       status: 500,
       suffix: '25',
     }),
@@ -166,7 +168,6 @@ export const ruleSeedingFlow: FlowTemplate = {
       column: 145,
       key: 'raise_batches',
       message: '{{ tally.message }}',
-      name: 'Report the failed batch',
       status: 409,
       suffix: '28',
     }),
@@ -180,7 +181,6 @@ export const ruleSeedingFlow: FlowTemplate = {
           created: '{{ tally.created }}',
           existing: '{{ pairs.existing }}',
           mode: mappedRuleMode.mode,
-          next: 'Data / Process pending counts the new rules at its next tick (every 15 seconds); a year reaches courses.json only once it is published.',
           years: '{{ pairs.years }}',
         },
       },

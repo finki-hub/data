@@ -50,14 +50,24 @@ export const branch = (
   >,
 ): ReleaseBranch => ({ ...spec, family, token: claimToken });
 
+// The branch that releases the claim when the child Flow `name` answered
+// nothing (it is inactive or deleted).
+export const missingBranch = (
+  name: string,
+  spec: Pick<ReleaseBranch, 'code' | 'position' | 'stage' | 'suffixes'>,
+): ReleaseBranch =>
+  branch({
+    ...spec,
+    message: `Flow "${name}": no answer (inactive or deleted)`,
+  });
+
 // A claim of a domain no route runs (a domain declared later without a
 // route, or a claim edited by hand): the scheduler fails it with its own
 // code instead of handing it to a child that would refuse it for another
 // reason.
 const unknownDomain = branch({
   code: 'DOMAIN_UNKNOWN',
-  message:
-    'The claim named the domain {{ claim.domain }}, which no route of "Data / Process pending" runs; the claim was released without a run.',
+  message: 'Claim domain {{ claim.domain }}: no route',
   position: [55, 109],
   stage: 'unknown_domain',
   suffixes: ['49', '4a'],

@@ -1,3 +1,4 @@
+import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   condition,
   exportsOperation,
@@ -9,6 +10,7 @@ import {
   publicationId,
   raise,
 } from './flow-template.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const family = flowFamilyCodes.publication;
 
@@ -35,12 +37,13 @@ type AdminGatePlacement = {
 // it (the trigger endpoint checks read access only); the export operation
 // reads with system rights, so the Flow is gated on the administrator flag
 // (the operation checks it again). The suffixes are those of the gate, its
-// refusal and the step it lets through. The gate takes the first column
-// and its refusal the row below. A Flow answers the refusal (403) only with
+// refusal and the step it lets through; `action` completes the refusal
+// `Only administrators may <action>`. The gate takes the first column and
+// its refusal the row below. A Flow answers the refusal (403) only with
 // error_on_reject.
 export const adminOnly = (
   suffixes: readonly [string, string, string],
-  message: string,
+  action: string,
   { code = family }: AdminGatePlacement = {},
 ): Array<ReturnType<typeof condition>> => {
   const id = familyIds(code);
@@ -55,10 +58,10 @@ export const adminOnly = (
       suffix: suffixes[0],
     }),
     raise({
-      error: { code: 'FORBIDDEN', message, status: 403 },
+      error: { code: 'FORBIDDEN', message: adminOnlyText(action), status: 403 },
       family: code,
       key: 'raise_forbidden',
-      name: 'Refuse a non-administrator',
+      name: stepName.raise('FORBIDDEN'),
       position: [19, 19],
       suffix: suffixes[1],
     }),
@@ -70,17 +73,26 @@ export const adminOnly = (
 // calls it; it holds no coordinator step and reads nothing itself.
 export const validateReadinessFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Checks whether the public files can be prepared now (administrators only): the history index and enrollment counts current, no Moodle snapshot import running or failed, and every readiness check the export definitions of the data-operations extension declare for their files. Answers ready, the source revision, the blocker and warning codes with their counts and the Studio page of each; never a record. Changes nothing.',
+  description: flowDescription({
+    adminOnly: true,
+    answers: [
+      'ready',
+      'revision',
+      'blockers',
+      'warnings',
+      'issueCounts',
+      'links',
+      'reviews',
+      'blockedFiles',
+    ],
+    does: 'Checks publication readiness: history index and enrollment counts current, no Moodle snapshot import running or failed, every declared readiness check',
+  }),
   entry: publicationId('41'),
   icon: 'fact_check',
   id: validateReadinessFlowId,
   name: 'Data / Validate readiness',
   operations: [
-    ...adminOnly(
-      ['41', '42', '43'],
-      'Only administrators may check the publication readiness.',
-    ),
+    ...adminOnly(['41', '42', '43'], 'check the publication readiness'),
     operation({
       family,
       key: 'readiness',

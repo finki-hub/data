@@ -141,6 +141,9 @@ const answered = (
         outcome: 'failed',
       };
 
+const movedSource =
+  /^Source changed after claim: claimed revision 41, prepared revision \d+$/u;
+
 describe('the stage action', () => {
   test('is one of the four actions of the export operation', () => {
     expect(exportActions).toEqual([
@@ -187,7 +190,7 @@ describe('the stage action', () => {
       code: 'EXPORT_UNSTABLE_PREPARATION',
       status: 409,
     });
-    expect(refused.message).toContain('nothing was uploaded');
+    expect(refused.message).toMatch(movedSource);
   });
 
   test('refuses while readiness has a blocker, with its codes', async () => {
@@ -252,7 +255,7 @@ describe('the outcomes action', () => {
           answered(first, { bytes: 2 }),
           answered(second, {
             code: 'PUBLISH_UPLOAD_FAILED',
-            message: 'Uploading failed: InternalError',
+            message: `Upload of ${second} to publish failed: InternalError`,
           }),
           answered(third, { bytes: 4 }),
           answered(fourth, { bytes: 5 }),
@@ -271,7 +274,9 @@ describe('the outcomes action', () => {
       outcome: 'failed',
     });
     expect(answer.message).toContain(`${second} (PUBLISH_UPLOAD_FAILED`);
-    expect(answer.message).toContain('not recorded as published');
+    expect(answer.message).toBe(
+      `Uploaded 3 of 4; failed: ${second} (PUBLISH_UPLOAD_FAILED). First failure: Upload of ${second} to publish failed: InternalError`,
+    );
   });
 
   test('answers failed when nothing was uploaded, and fills an unanswered or garbled file as failed', async () => {

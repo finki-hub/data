@@ -11,6 +11,7 @@ import {
   legacyRuleMode,
   legacyStep as step,
 } from './shared.js';
+import { flowDescription } from './text-fragments.js';
 
 // The Run Script body, kept as a plain file so it can be read and edited
 // as JavaScript; the template installs its exact text.
@@ -57,8 +58,22 @@ const legacyUsersQuery = {
 // and user page are read, counted in one Run Script and staged at once.
 export const legacyPageFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Counts one planned legacy page of an enrollments claim: at most 250 Moodle users (id and raw Courses, at most 800,000 UTF-8 bytes) against at most 500 legacy_regex rules (at most 1,000,000 UTF-8 bytes of pattern). Input {claim, token, from, to, rows, bytes, rules, revision}: checks the page against the stored plan, reads the rules and users of its ranges, compiles each pattern with the u flag, tests each user once per rule, and stages the nonzero partial counts with stage_page. Answers {page, users, rules, staged}. On any failure it fails the claim at once (LEGACY_COUNT_FAILED), so the later pages of the run refuse without counting, and answers {ok: false, page, stage, code, message} with nothing staged. Called serially by "Data / Count legacy enrollments".',
+  description: flowDescription({
+    answers: ['page', 'users', 'rules', 'staged'],
+    caller: 'Data / Count legacy enrollments',
+    does: `Counts one planned legacy page (at most 250 users, 800,000 bytes of Courses; at most 500 ${legacyRuleMode.mode} rules, 1,000,000 bytes of pattern) and stages the nonzero counts`,
+    failure: { codes: [legacyFailureCode], context: ['page'] },
+    input: [
+      'claim',
+      'token',
+      'from',
+      'to',
+      'rows',
+      'bytes',
+      'rules',
+      'revision',
+    ],
+  }),
   entry: legacyId('21'),
   icon: 'rule',
   id: legacyEnrollmentFlowIds.page,

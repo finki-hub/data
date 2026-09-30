@@ -22,6 +22,29 @@ export const text = (expression: string) =>
 export const keyDetail = (field: string, value: string, rest: string): string =>
   `'Key (${field})=(' || ${text(value)} || ${rest}`;
 
+// The MESSAGE of a row guard: `<table>.<column> <state>`.
+export const rowMessage = (
+  table: string,
+  column: string,
+  state: string,
+): string => `${table}.${column} ${state}`;
+
+type FactPart = readonly [label: string, expression: string];
+
+// One fact of a DETAIL as SQL: `<label> <value>` parts joined by spaces,
+// each value a SQL expression as text.
+export const fact = (...parts: readonly FactPart[]): string =>
+  parts
+    .map(([label, expression]) => `'${label} ' || ${text(expression)}`)
+    .join(" || ' ' || ");
+
+// The DETAIL of a row guard: `Key (<field>)=(<value>): <fact>, <fact>`.
+export const keyFacts = (
+  field: string,
+  value: string,
+  facts: readonly string[],
+): string => keyDetail(field, value, `'): ' || ${facts.join(" || ', ' || ")}`);
+
 export const refuse = (
   table: string,
   message: string,

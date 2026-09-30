@@ -3,6 +3,7 @@ import type { WorkbookPlaces } from '../workbook.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
 import { workbookSpecs } from '../specs/workbook.js';
+import { listText, pluralText } from '../text.js';
 import { nonEmpty } from './labels.js';
 
 // What a refusal line may name: the sheet and row of every row read and
@@ -12,14 +13,6 @@ import { nonEmpty } from './labels.js';
 export type RefusalContext = {
   readonly places: WorkbookPlaces;
   readonly rows: WorkbookRows;
-};
-
-// "a", "a and b", "a, b and c".
-export const joined = (items: readonly string[]): string => {
-  const last = items.at(-1) ?? '';
-  return items.length < 2
-    ? last
-    : `${items.slice(0, -1).join(', ')} and ${last}`;
 };
 
 export const quoted = (text: null | string): string => `«${text ?? ''}»`;
@@ -45,9 +38,10 @@ const bySheet = (
 ];
 
 const numbered = (rows: readonly SheetRow[]): string =>
-  `${rows.length === 1 ? 'row' : 'rows'} ${joined(rows.map(({ row }) => String(row)))}`;
+  `${pluralText(rows.length, 'row', 'rows')} ${listText(rows.map(({ row }) => String(row)))}`;
 
-// Rows as the subject of a sentence: "Наставен Кадар rows 12 and 13".
+// Rows by sheet: "Наставен Кадар rows 12, 13", several sheets joined by
+// ", ".
 export const rowsAt = (
   collection: WorkbookKey,
   ids: readonly number[],
@@ -57,23 +51,9 @@ export const rowsAt = (
     .map(([sheet, rows]) => `${sheet} ${numbered(rows)}`)
     .join(', ');
 
-// Rows as the object of a sentence: "rows 34 and 74 of Предмети - 2023".
-export const rowsOf = (
-  collection: WorkbookKey,
-  ids: readonly number[],
-  context: RefusalContext,
-): string =>
-  bySheet(collection, ids, context)
-    .map(([sheet, rows]) => `${numbered(rows)} of ${sheet}`)
-    .join(', ');
-
 export const courseRow = (id: number, { rows }: RefusalContext) =>
   rows.courses[id - 1];
 
-// A course named first: «Alpha Course» (Предмети (Export) row 2).
-export const courseNamed = (id: number, context: RefusalContext): string =>
-  `${quoted(nonEmpty(courseRow(id, context)?.name))} (${rowsAt('courses', [id], context)})`;
-
-// A course row named first: Предмети (Export) row 2 «Alpha Course».
+// A course by its row, then its name: Предмети (Export) row 2 «Alpha Course».
 export const courseRowNamed = (id: number, context: RefusalContext): string =>
   `${rowsAt('courses', [id], context)} ${quoted(nonEmpty(courseRow(id, context)?.name))}`;

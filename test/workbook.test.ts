@@ -37,8 +37,6 @@ import {
 import { contentOf, planOf, withCourse } from './import-plan-helpers.js';
 import { parityDataset } from './relational-export-helpers.js';
 
-const unreadablePattern = /could not be read as an .xlsx file/u;
-
 // The workbook written from the dataset, saved and reloaded, as the import
 // reads it from a file.
 const readBack = async (
@@ -370,11 +368,14 @@ describe('generated synthetic workbook', () => {
   });
 
   test('names an unreadable workbook file instead of failing inside the parser', async () => {
-    await expect(
-      loadWorkbook(
-        path.join(os.tmpdir(), 'finki-hub-missing-synthetic-workbook.xlsx'),
-      ),
-    ).rejects.toThrow(unreadablePattern);
+    const missing = path.join(
+      os.tmpdir(),
+      'finki-hub-missing-synthetic-workbook.xlsx',
+    );
+
+    await expect(loadWorkbook(missing)).rejects.toThrow(
+      `workbook ${missing}: not readable as .xlsx (File not found)`,
+    );
   });
 });
 
@@ -438,7 +439,7 @@ describe('values the relational columns cannot hold', () => {
     const { lines, values } = unstorableOf(withStaffValues({ courses: long }));
 
     expect(lines).toEqual([
-      '- Кадар (Export) row 3: staff.courses holds 280 characters, but the column stores at most 255',
+      '- [unstorable] Кадар (Export) row 3, staff.courses: 280 characters, max 255',
     ]);
     expect(JSON.stringify(values)).not.toContain('Course label');
   });
@@ -453,9 +454,9 @@ describe('values the relational columns cannot hold', () => {
     });
 
     expect(lines).toEqual([
-      '- Кадар (Export) row 3: staff.cabinet holds 280 characters, but the column stores at most 255',
-      '- Кадар (Export) row 3: staff.courses holds 280 characters, but the column stores at most 255',
-      '- Простории (Export) row 2: rooms.capacity holds an integer outside the range of the column',
+      '- [unstorable] Кадар (Export) row 3, staff.cabinet: 280 characters, max 255',
+      '- [unstorable] Кадар (Export) row 3, staff.courses: 280 characters, max 255',
+      '- [unstorable] Простории (Export) row 2, rooms.capacity: integer outside int4 range',
     ]);
   });
 
@@ -470,7 +471,7 @@ describe('values the relational columns cannot hold', () => {
 
     expect(values).toHaveLength(1);
     expect(lines[0]).toBe(
-      '- Предмети - 2018 row 8: curriculum_entries.name holds 390 characters, but the column stores at most 255',
+      '- [unstorable] Предмети - 2018 row 8, curriculum_entries.name: 390 characters, max 255',
     );
 
     const labelled = {
@@ -501,7 +502,7 @@ describe('values the relational columns cannot hold', () => {
         ),
       }).lines,
     ).toEqual([
-      '- Простории (Export) row 2: rooms.capacity holds an integer outside the range of the column',
+      '- [unstorable] Простории (Export) row 2, rooms.capacity: integer outside int4 range',
     ]);
   });
 
@@ -542,7 +543,7 @@ describe('study programs of the curriculum sheets', () => {
 
     expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
     expect(() => readWorkbookContent(workbook)).toThrow(
-      'The program column 6 of the curriculum_2023 sheet is headed "Нов смер"',
+      'Предмети - 2023 row 1, column 13: header "Нов смер", expected "ИЕ"',
     );
   });
 });
@@ -580,7 +581,7 @@ describe('academic years of the enrollment sheet', () => {
 
     expect(() => readWorkbookContent(workbook)).toThrow(WorkbookDataError);
     expect(() => readWorkbookContent(workbook)).toThrow(
-      'The enrollment sheet lists the academic year 2026/2027 after 2011/2012; order its column groups newest first, since each year sorts by its position.',
+      'Слушатели row 1: academic year 2026/2027 after 2011/2012 (column groups not newest first)',
     );
   });
 
@@ -596,7 +597,7 @@ describe('academic years of the enrollment sheet', () => {
     );
 
     expect(() => readWorkbookContent(workbook)).toThrow(
-      'The enrollment sheet lists the academic year 2020/2021 after 2019/2020;',
+      'Слушатели row 1: academic year 2020/2021 after 2019/2020 (column groups not newest first)',
     );
   });
 
@@ -606,7 +607,7 @@ describe('academic years of the enrollment sheet', () => {
     );
 
     expect(() => readWorkbookContent(workbook)).toThrow(
-      'The enrollment sheet heads a column group with "2026/27", which is not an academic year such as 2025/2026.',
+      'Слушатели row 1: column group header "2026/27" not an academic year (YYYY/YYYY+1)',
     );
   });
 
@@ -622,7 +623,7 @@ describe('academic years of the enrollment sheet', () => {
     sheet.getRow(1).getCell(next + 2).value = 'Регекс';
 
     expect(() => readWorkbookContent(workbook)).toThrow(
-      'Academic year 2025/2026 heads two column groups of Слушатели',
+      'Слушатели row 1: academic year 2025/2026 heads two column groups',
     );
   });
 

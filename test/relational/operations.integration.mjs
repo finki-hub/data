@@ -68,7 +68,8 @@ const runFlows = [
 const forbiddenPayload = ['token', 'owner', 'fingerprint', 'process'];
 
 const bookmarkPattern = /bookmark=(?<id>\d+)$/u;
-const adminRefusal = /^Only administrators may /u;
+// The one administrator refusal: a one-line message, no trailing period.
+const adminRefusal = /^Only administrators may .+[^.]$/u;
 
 // A request of the given caller, as { status, body }.
 const as = (target, token) => (method, path, body) =>
@@ -336,7 +337,7 @@ const refusesReader = async ({ state, t, target }) => {
   });
   assert.equal(
     messages.get(ruleSeedingFlowId),
-    'Only administrators may add enrollment rules.',
+    'Only administrators may add enrollment rules',
   );
   for (const [id, message] of messages) {
     assert.match(message, adminRefusal, id);

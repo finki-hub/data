@@ -109,11 +109,14 @@ const totalFields = dataModelCollections.reduce(
   0,
 );
 
-const limitError = new DirectusRequestError('POST /collections returned 403', {
-  code: 'LIMIT_EXCEEDED',
-  reason: null,
-  status: 403,
-});
+const limitError = new DirectusRequestError(
+  'POST /collections: HTTP 403 LIMIT_EXCEEDED',
+  {
+    code: 'LIMIT_EXCEEDED',
+    reason: null,
+    status: 403,
+  },
+);
 
 const collectionBody = z.object({
   collection: z.string(),
@@ -603,9 +606,9 @@ describe('enumerations', () => {
     expect(enumOf('data_operations', 'publication_state').choices).toEqual([
       { label: 'Idle', value: 'idle' },
       { label: 'Running', value: 'running' },
-      { label: 'Published (every file)', value: 'completed' },
-      { label: 'Partly published', value: 'partial' },
-      { label: 'Failed (no file uploaded)', value: 'failed' },
+      { label: 'Completed', value: 'completed' },
+      { label: 'Partial', value: 'partial' },
+      { label: 'Failed', value: 'failed' },
     ]);
     // One JSON map keyed by filename; no column per published file, so a
     // new export definition changes no schema.
@@ -955,7 +958,7 @@ describe('installDataModel on fresh and installed projects', () => {
     );
   });
 
-  test('turns the licence cap into an actionable failure', async () => {
+  test('turns the licence cap into a refusal naming the collection', async () => {
     const { request, requests } = fakeDirectus(
       emptyState(),
       new Map([['POST /collections', limitError]]),
@@ -964,11 +967,8 @@ describe('installDataModel on fresh and installed projects', () => {
     const failure = await failureOf(installDataModel(request));
 
     expect(failure).toBeInstanceOf(CollectionLimitError);
-    expect(failure instanceof Error && failure.message).toContain(
-      'LIMIT_EXCEEDED',
-    );
-    expect(failure instanceof Error && failure.message).toContain(
-      `${String(dataModelCollectionKeys.length)} collections`,
+    expect(failure instanceof Error && failure.message).toBe(
+      `collection courses not created: licence collection limit (LIMIT_EXCEEDED); model collections: ${String(dataModelCollectionKeys.length)}`,
     );
     expect(failure instanceof CollectionLimitError && failure.collection).toBe(
       'courses',
@@ -977,11 +977,14 @@ describe('installDataModel on fresh and installed projects', () => {
   });
 
   test('rethrows other request failures untouched', async () => {
-    const outage = new DirectusRequestError('POST /collections returned 500', {
-      code: 'INTERNAL_SERVER_ERROR',
-      reason: null,
-      status: 500,
-    });
+    const outage = new DirectusRequestError(
+      'POST /collections: HTTP 500 INTERNAL_SERVER_ERROR',
+      {
+        code: 'INTERNAL_SERVER_ERROR',
+        reason: null,
+        status: 500,
+      },
+    );
     const { request } = fakeDirectus(
       emptyState(),
       new Map([['POST /collections', outage]]),

@@ -1,5 +1,6 @@
 import type { CoordinatorInput } from './options.js';
 
+import { listText } from '../text.js';
 import {
   type ActionContext,
   done,
@@ -45,14 +46,12 @@ const pagesMissing = (
   >,
 ) =>
   decision.kind === 'unplanned'
-    ? coordinationError(
-        'PAGES_MISSING',
-        'A history index or enrollment run must plan its pages (plan_pages) before it can complete.',
-        { details: { missing: null } },
-      )
+    ? coordinationError('PAGES_MISSING', 'Pages not planned', {
+        details: { missing: null },
+      })
     : coordinationError(
         'PAGES_MISSING',
-        `Pages not staged yet: ${decision.missing.join(', ')}.`,
+        `Pages not staged: ${listText(decision.missing)}`,
         { details: { missing: decision.missing } },
       );
 
@@ -130,7 +129,7 @@ export const completeAction = (
       // of the install rather than trusted.
       throw coordinationError(
         'COMPLETION_RACED',
-        'The claim changed while its output was being installed; nothing was installed.',
+        'Claim changed during install',
       );
     }
     return done({

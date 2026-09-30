@@ -11,11 +11,11 @@ export const automaticProcessingFields: readonly ModelField[] = [
     readOnly: true,
   }),
   scalar('history_index_input_revision', 'integer', {
-    note: 'Source revision of the last change to the inputs of the history index (Moodle users, entry deletions and labels, or a mark). A running index is overtaken only by a newer one.',
+    note: 'Source revision of the last change to the history index inputs (Moodle users, entry deletions and labels, or a mark).',
     readOnly: true,
   }),
   scalar('enrollments_input_revision', 'integer', {
-    note: 'Source revision of the last change to the inputs of the enrollment counts (their tables, the history index inputs, or a mark). A running count is overtaken only by a newer one; a publication-only edit never is.',
+    note: 'Source revision of the last change to the enrollment count inputs (their tables, the history index inputs, or a mark).',
     readOnly: true,
   }),
 ];

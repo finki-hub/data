@@ -6,6 +6,8 @@ import {
   type CollectionAction,
   type FieldAction,
   type InstallPlan,
+  type Mismatch,
+  refusalOf,
   Tally,
 } from './plan-types.js';
 import { aliasesFor, relationsOf } from './relations.js';
@@ -15,11 +17,11 @@ import { aliasesFor, relationsOf } from './relations.js';
 const collectionRefusal = ({
   meta,
   schema,
-}: ExistingCollection): null | string => {
+}: ExistingCollection): Mismatch | null => {
   if (schema === null) {
-    return 'exists as a folder without a table';
+    return { live: 'folder without table' };
   }
-  return meta === null ? 'exists as a table Directus does not manage' : null;
+  return meta === null ? { live: 'table not managed by Directus' } : null;
 };
 
 // Diffs the declared model against the live schema. The plan only ever adds
@@ -49,11 +51,13 @@ export const planDataModel = (state: ExistingState): InstallPlan => {
     }
     const refusal = collectionRefusal(existing);
     if (refusal !== null) {
-      actions.refusals.push({
-        collection: collection.collection,
-        field: null,
-        reason: `Collection ${collection.collection} ${refusal}`,
-      });
+      actions.refusals.push(
+        refusalOf(
+          'Collection',
+          { collection: collection.collection, field: null },
+          refusal,
+        ),
+      );
       tally.addCollection('refused');
       continue;
     }

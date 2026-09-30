@@ -22,12 +22,15 @@ import {
 } from './snapshot/decisions.js';
 import {
   asSnapshotError,
+  claimBusy,
+  claimLost,
   describeFailure,
   logFailure,
   recordQuietly,
   snapshotError,
 } from './snapshot/errors.js';
 import { type SnapshotDeps } from './snapshot/stage.js';
+import { countText } from './text.js';
 
 const snapshotPromoteId = 'finki-hub-snapshot-promote';
 
@@ -66,10 +69,7 @@ const replace = async ({ coordination, snapshot }: SnapshotPorts, run: Run) => {
     token: run.claimToken,
   });
   if (owned !== 'ok') {
-    throw snapshotError(
-      'CLAIM_LOST',
-      'The snapshot claim was released while the promotion ran; nothing was replaced.',
-    );
+    throw claimLost('promotion');
   }
   const current = await snapshot.read();
   const staged = await snapshot.summary(stagingTable);
@@ -81,7 +81,7 @@ const replace = async ({ coordination, snapshot }: SnapshotPorts, run: Run) => {
   ) {
     throw snapshotError(
       'STAGING_CHANGED',
-      'The staged snapshot changed after it was confirmed; nothing was replaced.',
+      'Staged snapshot changed after confirmation',
     );
   }
   const active = await snapshot.summary(activeTable);
@@ -91,7 +91,7 @@ const replace = async ({ coordination, snapshot }: SnapshotPorts, run: Run) => {
   ) {
     throw snapshotError(
       'ACTIVE_CHANGED',
-      'The active Moodle users changed after the backup was written; nothing was replaced. Promote again to back up the current rows.',
+      'Active Moodle users changed after backup',
     );
   }
   const replaced = await snapshot.replaceActive();
@@ -104,7 +104,7 @@ const replace = async ({ coordination, snapshot }: SnapshotPorts, run: Run) => {
   ) {
     throw snapshotError(
       'COUNT_MISMATCH',
-      `The replacement produced ${promoted.rows} active rows for ${staged.rows} staged ones; nothing was replaced.`,
+      `Replacement mismatch: active ${countText(promoted.rows, 'row', 'rows')}, staged ${countText(staged.rows, 'row', 'rows')}`,
     );
   }
   await snapshot.openStagingWriter();
@@ -116,10 +116,7 @@ const replace = async ({ coordination, snapshot }: SnapshotPorts, run: Run) => {
     token: run.token,
   });
   if (!completed) {
-    throw snapshotError(
-      'CLAIM_LOST',
-      'The snapshot claim changed while the promotion ran; nothing was replaced.',
-    );
+    throw claimLost('promotion');
   }
   const after = await coordination.readState(false);
   return {
@@ -165,10 +162,7 @@ export const runSnapshotPromotion = async (
       token: claimToken,
     });
     if (!taken) {
-      throw snapshotError(
-        'CLAIM_BUSY',
-        'Another data operation took the claim first.',
-      );
+      throw claimBusy();
     }
     await snapshot.beginPromotion(token);
   });
@@ -180,10 +174,7 @@ export const runSnapshotPromotion = async (
         (await coordination.heartbeat(claimToken, deps.owner)) &&
         (await snapshot.recordBackup({ backup, token }));
       if (!kept) {
-        throw snapshotError(
-          'CLAIM_LOST',
-          'The snapshot claim was released while the backup was written; nothing was replaced.',
-        );
+        throw claimLost('backup');
       }
     });
     const result = await deps.store.transaction((ports) =>

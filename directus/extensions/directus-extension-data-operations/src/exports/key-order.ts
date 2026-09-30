@@ -85,7 +85,7 @@ const orderEntries = (name: KeySourceName): readonly ReadinessEntry[] => {
   const gates = placingFiles(name);
   const files = gates.join(', ');
   const shared = `${row}_sort_shared`;
-  const sibling = parent === undefined ? '' : ` of its ${parent}`;
+  const scope = parent === undefined ? '' : ` within a ${parent}`;
   const unsorted = within(name, { [field]: { _null: true } });
   const entry: Pick<
     ReadinessEntry,
@@ -101,7 +101,7 @@ const orderEntries = (name: KeySourceName): readonly ReadinessEntry[] => {
     {
       ...entry,
       code: `${row}_unsorted`,
-      description: `A published ${noun} has no ${field}, so its keys have no place in ${files}. Give it a ${field}.`,
+      description: `Published ${noun} without a ${field}; keys unplaced in ${files}`,
       review: unsortedView(name, unsorted),
       source: {
         aggregate: 'count',
@@ -113,7 +113,7 @@ const orderEntries = (name: KeySourceName): readonly ReadinessEntry[] => {
     {
       ...entry,
       code: shared,
-      description: `A published ${noun} shares its ${field} with another${sibling}, so their keys have no order in ${files}. Give each its own ${field}.`,
+      description: `Published ${noun}s sharing a ${field}${scope}; key order undefined in ${files}`,
       source: { check: sharedPlaces(name, shared), kind: 'check' },
     },
   ];

@@ -53,11 +53,14 @@ import {
   statusViewSchema,
 } from '../directus/extensions/directus-extension-data-operations/src/status-contract.js';
 import {
+  lastRunText,
+  retriesFacts,
+  snapshotText,
+} from '../directus/extensions/directus-extension-data-operations/src/status-facts.js';
+import {
   ageText,
   instantText,
   orderedChecks,
-  retriedText,
-  snapshotText,
   stateLabel,
   toneOf,
   waitingText,
@@ -160,19 +163,21 @@ describe('the Run operation panel contract', () => {
       { ...fixtureFlow, options: { collections: ['data_operations'] } },
     ].map((flow) => runPlan(flow));
 
-    expect(reasons.map((plan) => plan.runnable)).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
+    expect(reasons).toEqual(
+      [
+        'trigger not manual',
+        'name without a "Data / " or "Publish / " prefix',
+        'Flow inactive',
+        'no collection',
+        'requires item selection',
+      ].map((rule) => ({ reason: `Not runnable: ${rule}`, runnable: false })),
+    );
   });
 
   test('runs a Flow only on the collection no editor reads', () => {
     expect(operationsCollection).toBe('data_operations');
     expect(on(['courses'])).toEqual({
-      reason: `A data operation runs on the collection ${operationsCollection} alone, which no editor reads; set it as the Flow's only collection.`,
+      reason: `Not runnable: collections must be exactly ${operationsCollection}`,
       runnable: false,
     });
     expect(on([operationsCollection, 'courses']).runnable).toBe(false);
@@ -184,7 +189,7 @@ describe('the Run operation panel contract', () => {
 
   test('runs only a Flow that reports its failures: synchronous, with Error on Reject', () => {
     const reason =
-      'This Flow would not report a failure to the panel: in its trigger, turn Asynchronous off and Error on Reject on.';
+      'Not runnable: requires Asynchronous off and Error on Reject on';
     const plans = [
       { async: true },
       { async: true, error_on_reject: true },
@@ -250,7 +255,16 @@ describe('the Run operation panel contract', () => {
         },
       }),
     ).toEqual({ code: 'FORBIDDEN', message: 'Only admins.', status: 403 });
-    expect(refusalOf(new Error('socket hang up')).code).toBe('NO_ANSWER');
+    expect(refusalOf(new Error('socket hang up'))).toEqual({
+      code: 'NO_ANSWER',
+      message: 'No response from Directus',
+      status: null,
+    });
+    expect(refusalOf({ response: { status: 502 } })).toEqual({
+      code: 'HTTP_502',
+      message: '',
+      status: 502,
+    });
     expect(
       answerSummary({
         created: 3,
@@ -260,7 +274,7 @@ describe('the Run operation panel contract', () => {
       }),
     ).toEqual([
       { label: 'Created', text: '3' },
-      { label: 'Files', text: '1 entries' },
+      { label: 'Files', text: '1 entry' },
       { label: 'Long', text: `${'x'.repeat(600)}…` },
       { label: 'Rows', text: '2 entries' },
     ]);
@@ -562,11 +576,23 @@ describe('the status labels', () => {
     expect(instantText('2026-09-24T16:20:01.123Z')).toBe(
       '2026-09-24 16:20:01 UTC',
     );
-    expect([0, 1, 2].map(retriedText)).toEqual([
-      '',
-      ', after 1 retry on a database conflict',
-      ', after 2 retries on a database conflict',
+    expect([0, 1, 2].map(retriesFacts)).toEqual([
+      [],
+      [['Retries', 1]],
+      [['Retries', 2]],
     ]);
+    expect(
+      lastRunText({
+        finishedAt: '2026-09-24T16:21:07.000Z',
+        retries: 1,
+        startedAt: '2026-09-24T16:20:01.000Z',
+      }),
+    ).toBe(
+      'Last run: 2026-09-24 16:20:01 UTC – 2026-09-24 16:21:07 UTC · Retries: 1',
+    );
+    expect(lastRunText({ finishedAt: null, retries: 0, startedAt: null })).toBe(
+      'Last run: --',
+    );
     expect([12, 300, 9_000, null].map(ageText)).toEqual([
       '12 s',
       '5 min',
@@ -580,7 +606,7 @@ describe('the status labels', () => {
     expect(sectionsOf(null)).toEqual([...statusSections]);
   });
 
-  test('writes each Moodle snapshot count in the singular for one, as Search does', () => {
+  test('writes each Moodle snapshot count as a labelled fact', () => {
     const none = {
       countMismatches: 0,
       entries: 0,
@@ -600,12 +626,12 @@ describe('the status labels', () => {
         users: 1,
       }),
     ).toBe(
-      '1 user, 1 indexed; 1 history entry, 1 still needs a mapping; 1 user whose indexed entries differ from their Courses Count.',
+      'Users: 1 · Indexed: 1 · History entries: 1 · Needs mapping: 1 · Courses Count mismatches: 1',
     );
     expect(
       snapshotText({ ...none, entries: 12, indexedUsers: 2, users: 3 }),
     ).toBe(
-      '3 users, 2 indexed; 12 history entries, 0 still need a mapping; 0 users whose indexed entries differ from their Courses Count.',
+      'Users: 3 · Indexed: 2 · History entries: 12 · Needs mapping: 0 · Courses Count mismatches: 0',
     );
   });
 
@@ -619,14 +645,12 @@ describe('the status labels', () => {
     };
 
     expect(waitingText(null, false)).toBeNull();
-    expect(waitingText(null, true)).toBe(
-      'another data operation started on this page is running.',
-    );
+    expect(waitingText(null, true)).toBe('run in progress on this page');
     expect(waitingText(claim, false)).toBe(
-      'Moodle history index holds the data operations claim.',
+      'claim held by Moodle history index',
     );
-    expect(waitingText({ ...claim, stale: true }, true)).toContain(
-      'released as abandoned',
+    expect(waitingText({ ...claim, stale: true }, true)).toBe(
+      'claim held by Moodle history index (stale)',
     );
   });
 });

@@ -1,10 +1,4 @@
 import type { ModelCollection, ModelField } from '../schema.js';
-import type {
-  FieldAction,
-  Refusal,
-  RelationAction,
-  Tally,
-} from './plan-types.js';
 
 import {
   alterableColumn,
@@ -15,6 +9,14 @@ import { aliasSpecial } from './field-payloads.js';
 import { expectedColumnType } from './fields.js';
 import { realignedChoices } from './plan-choices.js';
 import { planRelation } from './plan-relations.js';
+import {
+  type FieldAction,
+  type Mismatch,
+  type Refusal,
+  refusalOf,
+  type RelationAction,
+  type Tally,
+} from './plan-types.js';
 import { aliasesFor, relationsOf } from './relations.js';
 
 export type PlanActions = {
@@ -32,23 +34,23 @@ type PlanContext = {
 const columnRefusal = (
   field: ModelField,
   existing: ExistingField,
-): null | string => {
+): Mismatch | null => {
   if (existing.schema === null) {
-    return 'exists as an alias field but the model declares a column';
+    return { expected: 'column', live: 'alias field' };
   }
   const expected = expectedColumnType(field);
   if (existing.type !== expected) {
-    return `has type ${String(existing.type)} but the model declares ${expected}`;
+    return { expected, live: `type ${String(existing.type)}` };
   }
   if (
     field.nullable &&
     !existing.schema.is_nullable &&
     (existing.schema.default_value ?? null) === null
   ) {
-    return 'is NOT NULL without a default but the model declares it nullable';
+    return { expected: 'nullable', live: 'NOT NULL without default' };
   }
   if (!field.nullable && existing.schema.is_nullable) {
-    return 'is nullable but the model declares it required';
+    return { expected: 'required', live: 'nullable' };
   }
   const foreignTable = existing.schema.foreign_key_table ?? null;
   if (
@@ -56,7 +58,7 @@ const columnRefusal = (
     foreignTable !== null &&
     foreignTable !== field.related
   ) {
-    return `references ${foreignTable} but the model relates it to ${field.related}`;
+    return { expected: field.related, live: `references ${foreignTable}` };
   }
   return null;
 };
@@ -138,14 +140,12 @@ const planColumn = (
   }
   const refusal =
     existing.meta === null
-      ? 'is a column Directus does not manage'
+      ? { live: 'column not managed by Directus' }
       : columnRefusal(field, existing);
   if (refusal !== null) {
-    context.actions.refusals.push({
-      collection,
-      field: field.field,
-      reason: `Field ${collection}.${field.field} ${refusal}`,
-    });
+    context.actions.refusals.push(
+      refusalOf('Field', { collection, field: field.field }, refusal),
+    );
     context.tally.add('fields', 'refused');
     return;
   }
@@ -190,11 +190,17 @@ const planAliases = (
     ) {
       context.tally.add('fields', 'skipped');
     } else {
-      context.actions.refusals.push({
-        collection: name,
-        field: alias.field,
-        reason: `Field ${name}.${alias.field} is not an ${aliasSpecial(alias).toUpperCase()} alias but the model declares one`,
-      });
+      const special = aliasSpecial(alias).toUpperCase();
+      context.actions.refusals.push(
+        refusalOf(
+          'Field',
+          { collection: name, field: alias.field },
+          {
+            expected: `${special} alias`,
+            live: `not an ${special} alias`,
+          },
+        ),
+      );
       context.tally.add('fields', 'refused');
     }
   }

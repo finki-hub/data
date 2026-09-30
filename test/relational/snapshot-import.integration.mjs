@@ -88,12 +88,13 @@ const sampled = [
   29_999,
 ];
 const lateDuplicatePattern =
-  /row 29991 \(line \d+\) ID_new repeats the id of row 7/u;
-const lateQuotePattern = /unterminated quote on line \d+/u;
-const warningPattern = /HISTORY_LINE_TOO_LONG: 2 row/u;
+  /^Invalid rows: \d+ problems? in \d+ rows: (?:.+; )?row 29991 \(line \d+\) ID_new repeats the id of row 7/u;
+const lateQuotePattern = /^Invalid CSV: unterminated quote on line \d+$/u;
+const warningPattern =
+  /^HISTORY_LINE_TOO_LONG: 2 rows over 2048 bytes: \d+, \d+$/u;
 const syntheticTextPattern = /Synthetic|Unterminated/u;
-const notNullPattern = /code 23502/u;
-const folderPattern = /folder "Moodle snapshots \(private\)"/u;
+const notNullPattern = /^Unexpected error \(code: 23502\)$/u;
+const folderPattern = /^File outside folder "Moodle snapshots \(private\)"$/u;
 const probeIds = [probeImportFlowId, probePromoteFlowId, probeStagingFlowId];
 // The staged rows the failed replacement leaves behind (see
 // rollsBackFailedReplacement); the next import deletes them.
@@ -305,7 +306,7 @@ const refusesDirectAndUnauthorised = async (target, state, t) => {
     assert.equal(flow.status, 403);
     assert.equal(
       messageOf(flow.body),
-      'Only administrators may import a Moodle snapshot.',
+      'Only administrators may import a Moodle snapshot',
     );
     const imported = await triggerProbe(target, probeImportFlowId, {
       body: { file: state.firstFile },
@@ -662,9 +663,9 @@ const handlesEmptyLines = async (target, state) => {
   });
   assert.equal(refused.status, 400, JSON.stringify(refused.body));
   assert.equal(codeOf(refused.body), 'SNAPSHOT_INVALID_CSV');
-  assert.ok(
-    messageOf(refused.body).includes(`empty line on line ${firstBlank}.`),
+  assert.equal(
     messageOf(refused.body),
+    `Invalid CSV: empty line on line ${firstBlank}`,
   );
   const report = await get(target, snapshotPath);
   assert.deepEqual(report.active, {

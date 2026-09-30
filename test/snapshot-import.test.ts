@@ -46,10 +46,12 @@ import {
 const missingIdOld = /missing ID_old/u;
 const repeatedName = /repeated Name/u;
 const privatePerson = /Synthetic Private Person|private@person/u;
-const localStorage = /local storage location/u;
-const snapshotFolder = /folder "Moodle snapshots \(private\)"/u;
-const mustBeCsv = /must be a CSV/u;
-const overBound = /at most 1000000/u;
+const localStorage = /^File storage "publish", expected "local"$/u;
+const snapshotFolder = /^File outside folder "Moodle snapshots \(private\)"$/u;
+const mustBeCsv =
+  /^File type (?:image\/png|text\/plain), expected text\/csv or a \.csv name$/u;
+const overBound =
+  /^File size 2000000 bytes, max 1000000 \(FINKI_HUB_SNAPSHOT_MAX_BYTES\)$/u;
 const pinnedTimeout = /IMPORT_TIMEOUT: \$\{DIRECTUS_IMPORT_TIMEOUT:-15m\}/u;
 // The header of the scraper's profiles.csv: the fixed contract, in order.
 const scraperHeader = [
@@ -251,7 +253,9 @@ describe('snapshot rows', () => {
     );
 
     expect(injected.code).toBe('SNAPSHOT_INVALID_HEADERS');
-    expect(injected.message).toContain('one of them the internal id');
+    expect(injected.message).toBe(
+      'Invalid header: unexpected columns: 1 (includes id)',
+    );
 
     // A file without a header row puts a person's data there; the refusal
     // never repeats it.
@@ -316,6 +320,9 @@ describe('snapshot rows', () => {
     );
     expect(duplicated.rows.describe()).toContain(
       'row 3 (line 4) ID_new repeats the id of row 2',
+    );
+    expect(duplicated.rows.describe()).toBe(
+      'Invalid rows: 2 problems in 3 rows: row 2 (line 3) ID_old repeats the id of row 1; row 3 (line 4) ID_new repeats the id of row 2',
     );
   });
 
@@ -485,7 +492,9 @@ describe('snapshot import operation', () => {
       expect(rowsOf(world.data.active)).toEqual([syntheticRow(90)]);
     }
 
-    expect(world.data.state.error).toContain('The file is empty');
+    expect(world.data.state.error).toBe(
+      'SNAPSHOT_INVALID_HEADERS: File empty: no header row',
+    );
   });
 
   test('sends a staging batch after 250 rows or once its cells reach the character budget', async () => {
@@ -625,7 +634,7 @@ describe('snapshot import guards', () => {
       runSnapshotImport({ file: otherFileId }, world.deps()),
     );
 
-    expect(missing.message).toBe('No file with this id exists.');
+    expect(missing.message).toBe('File not found');
   });
 
   test('runs one import at a time and takes over a dead one', async () => {
@@ -922,7 +931,7 @@ describe('snapshot promotion failures', () => {
     const failed = await errorOf(promote(world));
 
     expect(failed.code).toBe('SNAPSHOT_PROMOTION_FAILED');
-    expect(failed.message).toContain('23502');
+    expect(failed.message).toBe('Unexpected error (code: 23502)');
     expect(failed.message).not.toMatch(privatePerson);
     expect(world.logs).toEqual([
       {
@@ -936,8 +945,7 @@ describe('snapshot promotion failures', () => {
           code: 'SNAPSHOT_PROMOTION_FAILED',
           operation: 'promotion',
         },
-        message:
-          'The Moodle snapshot promotion failed with SNAPSHOT_PROMOTION_FAILED',
+        message: 'Snapshot promotion failed: SNAPSHOT_PROMOTION_FAILED',
       },
     ]);
     expect(JSON.stringify(world.logs)).not.toMatch(privatePerson);
@@ -952,6 +960,9 @@ describe('snapshot promotion failures', () => {
     const cancelled = await errorOf(promote(world));
 
     expect(cancelled.code).toBe('SNAPSHOT_IMPORT_TIMEOUT');
+    expect(cancelled.message).toBe(
+      'Statement cancelled: statement_timeout (IMPORT_TIMEOUT) or manual cancel',
+    );
     expect(cancelled.status).toBe(408);
     expect(rowsOf(world.data.active)).toEqual(previous);
   });

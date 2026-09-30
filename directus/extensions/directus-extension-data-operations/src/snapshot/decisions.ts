@@ -3,13 +3,14 @@ import { z } from 'zod';
 import type { OperationsState } from '../coordination/state.js';
 import type { FileFacts, SnapshotState } from './port.js';
 
+import { adminOnlyText, invalidOptionsText } from '../text.js';
 import {
   csvTypes,
   type PromoteOptions,
   snapshotFolderId,
   snapshotFolderName,
 } from './contract.js';
-import { type SnapshotError, snapshotError } from './errors.js';
+import { claimBusy, type SnapshotError, snapshotError } from './errors.js';
 
 const adminAccountability = z.object({ admin: z.literal(true) });
 
@@ -20,7 +21,7 @@ export const requireAdmin = (accountability: unknown): void => {
   if (!adminAccountability.safeParse(accountability).success) {
     throw snapshotError(
       'FORBIDDEN',
-      'Only administrators may import or promote a Moodle snapshot.',
+      adminOnlyText('import or promote a Moodle snapshot'),
     );
   }
 };
@@ -35,7 +36,7 @@ export const parseOptions = <T>(schema: z.ZodType<T>, options: unknown): T => {
   ];
   throw snapshotError(
     'INVALID_OPTIONS',
-    `Invalid snapshot options (${fields.join(', ') || 'options'}).`,
+    invalidOptionsText(parsed.error.issues),
     { fields },
   );
 };
@@ -55,14 +56,11 @@ export const importRefusal = (
   ) {
     return snapshotError(
       'IMPORT_RUNNING',
-      `A snapshot import is already ${snapshot.state}; wait until it ends (at most ${Math.round(staleAfterMs / 1_000)} s after it started).`,
+      `Snapshot import running: state ${snapshot.state}, stale after ${String(Math.round(staleAfterMs / 1_000))} s`,
     );
   }
   if (snapshot.state === 'promoting' && claim?.domain === 'snapshot') {
-    return snapshotError(
-      'PROMOTION_RUNNING',
-      'A snapshot promotion is running; wait until it ends.',
-    );
+    return snapshotError('PROMOTION_RUNNING', 'Snapshot promotion running');
   }
   return null;
 };
@@ -77,31 +75,38 @@ export const promotionRefusal = (
   options: PromoteOptions,
 ): null | SnapshotError => {
   if (operations.claim !== null) {
-    return snapshotError(
-      'CLAIM_BUSY',
-      `Another data operation (${operations.claim.domain ?? 'unknown'}) holds the claim; promote once it has finished.`,
-    );
+    return claimBusy(operations.claim.domain);
   }
   if (snapshot.state !== 'ready' && snapshot.state !== 'promoting') {
     return snapshotError(
       'NOT_READY',
-      `No staged snapshot is ready (the import state is ${snapshot.state}); import the CSV first.`,
+      `No staged snapshot: import state ${snapshot.state}`,
     );
   }
   if (snapshot.fingerprint !== options.staging_fingerprint) {
     return snapshotError(
       'FINGERPRINT_MISMATCH',
-      'The staged snapshot is not the one this promotion was asked for; import the file again and promote its fingerprint.',
+      'Staged snapshot fingerprint mismatch',
     );
   }
   if ((snapshot.rows ?? 0) === 0 && !options.allow_empty) {
     return snapshotError(
       'EMPTY_NOT_CONFIRMED',
-      'The staged snapshot has no rows; replacing the active Moodle users with nothing needs the separate "Allow an empty snapshot" confirmation.',
+      'Staged snapshot empty: allow_empty not confirmed',
     );
   }
   return null;
 };
+
+// The one wording of a file over the byte bound; the streaming check
+// (stage.ts) knows only that the bytes read went above it.
+export const fileTooLarge = (maxBytes: number, size?: number): SnapshotError =>
+  snapshotError(
+    'FILE_INVALID',
+    size === undefined
+      ? `File size above max ${String(maxBytes)} bytes (FINKI_HUB_SNAPSHOT_MAX_BYTES)`
+      : `File size ${String(size)} bytes, max ${String(maxBytes)} (FINKI_HUB_SNAPSHOT_MAX_BYTES)`,
+  );
 
 const csvName = /\.csv$/iu;
 
@@ -114,18 +119,18 @@ export const fileRefusal = (
   maxBytes: number,
 ): null | SnapshotError => {
   if (file === null) {
-    return snapshotError('FILE_INVALID', 'No file with this id exists.');
+    return snapshotError('FILE_INVALID', 'File not found');
   }
   if (file.storage !== 'local') {
     return snapshotError(
       'FILE_INVALID',
-      `The CSV must be a private upload in the local storage location, not in "${file.storage}".`,
+      `File storage "${file.storage}", expected "local"`,
     );
   }
   if (file.folder !== snapshotFolderId) {
     return snapshotError(
       'FILE_INVALID',
-      `The CSV must be uploaded into the File Library folder "${snapshotFolderName}" (created by npm run setup), which holds the private snapshot files; move it there and run the import again.`,
+      `File outside folder "${snapshotFolderName}"`,
     );
   }
   const named = csvName.test(file.filename ?? '');
@@ -135,14 +140,11 @@ export const fileRefusal = (
   )) {
     return snapshotError(
       'FILE_INVALID',
-      `The file must be a CSV (text/csv, or a .csv name); it is ${file.type ?? 'untyped'}.`,
+      `File type ${file.type ?? 'none'}, expected text/csv or a .csv name`,
     );
   }
   if (file.size !== null && file.size > maxBytes) {
-    return snapshotError(
-      'FILE_INVALID',
-      `The file has ${file.size} bytes; a snapshot holds at most ${maxBytes} (FINKI_HUB_SNAPSHOT_MAX_BYTES).`,
-    );
+    return fileTooLarge(maxBytes, file.size);
   }
   return null;
 };

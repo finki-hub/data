@@ -8,8 +8,7 @@ const text = (value: unknown): string =>
 // Studio definition of the export operation; the API side is
 // exports-operation.ts, the published files are exports/index.ts.
 export default defineOperationApp({
-  description:
-    'Checks, prepares and stages the public JSON files declared in the data-operations extension (administrators only): readiness answers ready, the source revision and issue counts; prepare reads, serializes and validates every file and answers its rows, bytes and sha256; stage does the same for the publication holding its claim and answers one upload per file; outcomes folds the publish loop answers into one outcome per file. Uploads nothing itself.',
+  description: `Public JSON files of the export definitions (administrators only). Actions: ${exportActions.join(', ')}. No upload.`,
   icon: 'inventory',
   id: 'finki-hub-exports',
   name: 'FINKI Hub public files',
@@ -32,7 +31,7 @@ export default defineOperationApp({
       field: 'revision',
       meta: {
         interface: 'input',
-        note: 'stage: the source revision of the publication claim, for example {{ claim.revision }}; the preparation is refused when the source moved since.',
+        note: 'stage: claimed source revision, for example {{ claim.revision }}.',
         width: 'half',
       },
       name: 'Claimed revision',
@@ -42,7 +41,7 @@ export default defineOperationApp({
       field: 'token',
       meta: {
         interface: 'input',
-        note: 'stage: the publication claim token, for example {{ claim.token }}, handed to each file so its child keeps the claim alive.',
+        note: 'stage: publication claim token, for example {{ claim.token }}.',
         width: 'half',
       },
       name: 'Claim token',

@@ -5,7 +5,7 @@ import {
   curriculumEntryTemplate,
 } from './content-collections.js';
 import { m2o, scalar } from './fields.js';
-import { generationReference } from './generation-collections.js';
+import { generationReference, published } from './generation-collections.js';
 
 export const academicYearTemplate = '{{label}}';
 
@@ -22,15 +22,14 @@ export const curriculumCollections: readonly ModelCollection[] = [
       scalar('sort', 'integer', {
         note: 'Chronological order: a later year sorts higher. courses.json lists the published years newest first.',
       }),
-      scalar('published', 'boolean', {
-        defaultValue: false,
-        note: "Adds this year to courses.json as a key named by its label, valued by each course's enrollment count. A new year stays out until this is set; readiness then requires a count for every course.",
-        nullable: false,
+      published('the year', {
+        condition: 'readiness then requires a count per course',
+        detail: "key: label; value: each course's enrollment count",
       }),
     ],
     hidden: false,
     icon: 'calendar_month',
-    note: 'Academic years referenced by enrollment rules, counts and Moodle mappings. A new year is a new row; it reaches courses.json only once published.',
+    note: 'Academic years referenced by enrollment rules, counts and Moodle mappings.',
     singleton: false,
     sort: 14,
   },
@@ -52,7 +51,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
     ],
     hidden: false,
     icon: 'menu_book',
-    note: 'One row per row of a generation’s curriculum sheet, including orphans and duplicates; its study-program states are rows of its own.',
+    note: "One row per row of a generation's curriculum sheet, including orphans and duplicates; its study-program states are rows of its own.",
     singleton: false,
     sort: 15,
   },

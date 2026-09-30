@@ -36,7 +36,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     fields: moodleUserFields,
     hidden: false,
     icon: 'person',
-    note: 'Private Moodle profile snapshot. Use Studio search and filters instead of the Пребарување sheet.',
+    note: 'Private Moodle profile snapshot.',
     singleton: false,
     sort: 13,
   },
@@ -55,7 +55,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     displayTemplate: historyEntryTemplate,
     fields: [
       scalar('label', 'text', {
-        note: 'Exact history entry text of at most 2048 bytes (the unique index bound); no trimming, case folding or transliteration. Written by the history index run only.',
+        note: 'Exact Moodle history line (max 2048 bytes; case and whitespace kept); written by the index run, read-only.',
         nullable: false,
         readOnly: true,
         unique: true,
@@ -65,7 +65,7 @@ export const moodleCollections: readonly ModelCollection[] = [
         nullable: false,
       }),
       scalar('review_reason', 'text', {
-        note: 'Why this entry is ignored or otherwise needs attention.',
+        note: 'Reason the entry is unmapped or ignored.',
       }),
     ],
     hidden: false,

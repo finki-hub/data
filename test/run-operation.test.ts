@@ -16,8 +16,8 @@ import {
 // Task 16: the Run operation panel's state as Studio drives it, with the
 // Studio API replaced by a synthetic one. Every Run opens the Flow's
 // dialog empty; only a Retry of a failed run offers its inputs again, less
-// the boolean acknowledgements; a failed status read says why Run waits
-// and is read again, a refusal is not.
+// the boolean acknowledgements; a failed status read is named where Run
+// waits and is read again, a refusal is not.
 
 const api = vi.hoisted(() => ({
   get: vi.fn<(path: string) => Promise<unknown>>(),
@@ -225,7 +225,7 @@ describe('the Run operation dialog', () => {
 });
 
 describe('the Run operation status read', () => {
-  test('says why Run waits when the status cannot be read, and reads it again', async () => {
+  test('names the failed status read Run waits for, and reads it again', async () => {
     vi.useFakeTimers();
     statusAnswers.push(() =>
       Promise.reject(new Error('synthetic network failure')),
@@ -233,9 +233,7 @@ describe('the Run operation status read', () => {
     const run = await mount();
 
     expect(run.canRun).toBe(false);
-    expect(run.statusProblem).toBe(
-      'The data status could not be read (NO_ANSWER); Run waits for it and reads it again shortly.',
-    );
+    expect(run.statusProblem).toBe('Data status read failed: NO_ANSWER');
 
     await vi.advanceTimersByTimeAsync(pollMs);
 
@@ -251,9 +249,7 @@ describe('the Run operation status read', () => {
     );
     const run = await mount();
 
-    expect(run.statusProblem).toBe(
-      'You may not read the data status; data operations are for administrators.',
-    );
+    expect(run.statusProblem).toBe('Data status read refused: FORBIDDEN');
     expect(statusReads()).toBe(1);
 
     await vi.advanceTimersByTimeAsync(10 * pollMs);

@@ -45,7 +45,7 @@ const membershipKey = (row: MembershipRow): string =>
   `${row.moodle_user}/${row.entry}`;
 
 export const membershipGuardMessage =
-  'moodle_history_memberships is the derived Moodle history index; only the history index run writes it';
+  'Write refused: moodle_history_memberships (derived; writer: history index run)';
 
 // An in-memory stand-in for the history SQL port of one transaction.
 // `onEntryStatement` mirrors the statement-level source trigger of

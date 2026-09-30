@@ -97,8 +97,11 @@ const provenCollections: ReadonlySet<string> = new Set([
   'study_programs',
   'teaching_assignments',
 ]);
+// The text-style pass (2026-09-30) reworded the RAISE of a missing status
+// row only: with that one line reverted, the migration hashes to the
+// earlier 3e4a956aa89fe3db38148d8e60d91b266494b2dab6064eca68b3bcfa8d621584.
 const provenSha256 =
-  '3e4a956aa89fe3db38148d8e60d91b266494b2dab6064eca68b3bcfa8d621584';
+  '25c7831910b8db34d25e7aea7dda3bf7eb60098395628448439942c5df810f16';
 
 // The statements the migration of a registry holds: the singleton row, its
 // index and the trigger function, then the triggers of every source (its
@@ -533,7 +536,9 @@ describe('source-invalidation migration', () => {
       '"requested_revision" = "source_revision" + 1',
     );
     expect(functionStatement).toContain("ELSE ARRAY['publication']");
-    expect(functionStatement).toContain('RAISE EXCEPTION');
+    expect(functionStatement).toContain(
+      "RAISE EXCEPTION 'Change to % refused: data_operations status row missing', TG_TABLE_NAME;",
+    );
     // One arm per source whose domains differ from the default, no other.
     expect(functionStatement.match(armPattern) ?? []).toHaveLength(
       listed.length,
@@ -659,7 +664,7 @@ describe('a declaration with an empty domain list', () => {
     expect(emptyAccepted).toEqual([false, false, false]);
 
     // ... and the generator refuses one that reaches it untyped.
-    expect(() => sqlArray([])).toThrow('untyped ARRAY[]');
+    expect(() => sqlArray([])).toThrow('Empty domain list: untyped ARRAY[]');
     expect(sqlArray(['enrollments', 'publication'])).toBe(
       "ARRAY['enrollments', 'publication']",
     );

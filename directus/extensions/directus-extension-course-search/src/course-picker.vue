@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/vue-virtual';
+import { courseLimit } from './limits.js';
 
 const props = defineProps<{
   id: string;
@@ -14,7 +15,12 @@ const emit = defineEmits<{ change: [courses: string[]] }>();
 const query = ref('');
 const open = ref(false);
 const activeIndex = ref(-1);
-const disabled = computed(() => props.loading || props.selected.length >= 20);
+const full = computed(() => props.selected.length >= courseLimit);
+const disabled = computed(() => props.loading || full.value);
+const placeholder = computed(() => {
+  if (props.loading) return 'Loading courses…';
+  return full.value ? `Limit reached: ${String(courseLimit)} courses` : 'Search courses…';
+});
 const available = computed(() => props.courses.filter((course) =>
   !props.selected.includes(course) && !props.blocked.includes(course)));
 const matches = computed(() => {
@@ -86,7 +92,7 @@ async function keydown(event: KeyboardEvent) {
 }
 
 function add(value: unknown) {
-  if (typeof value === 'string' && available.value.includes(value) && props.selected.length < 20) {
+  if (typeof value === 'string' && available.value.includes(value) && !full.value) {
     emit('change', [...props.selected, value]);
     query.value = '';
     open.value = false;
@@ -101,7 +107,7 @@ function add(value: unknown) {
     <v-menu v-model="open" attached full-height placement="bottom-start" :disabled="disabled" :close-on-content-click="false" no-focus-return>
       <template #activator>
         <v-input class="course-field" :model-value="query" :disabled="disabled" :nullable="false" :active="open"
-          :placeholder="loading ? 'Loading course choices…' : selected.length >= 20 ? '20 courses selected' : 'Search and add a course…'"
+          :placeholder="placeholder"
           role="combobox" aria-autocomplete="list" :aria-expanded="open" :aria-controls="`${id}-options`"
           :aria-activedescendant="open && activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined"
           :aria-labelledby="`${id}-label`"

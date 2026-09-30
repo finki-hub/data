@@ -35,7 +35,7 @@ export const createRows = async (
   );
   if (created.length !== records.length) {
     throw new Error(
-      `Directus confirmed ${String(created.length)} of ${String(records.length)} ${collection} rows in one batch.`,
+      `POST /items/${collection}: ids ${String(created.length)}, expected ${String(records.length)}`,
     );
   }
   return created.map(({ id }) => id).toSorted((left, right) => left - right);

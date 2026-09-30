@@ -16,8 +16,10 @@ import {
 } from './release-steps.js';
 import {
   familyFailureCode,
+  familyRunnerFlow,
   familyRunnerFlowId,
 } from './run-enrollment-family.js';
+import { flowDescription } from './text-fragments.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -92,8 +94,21 @@ const branches = {
 // and any failure fails the claim so nothing partial is installed.
 export const dispatcherFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Counts every enrollment pair under an enrollments claim the caller holds ({claim, revision}): plans every rule mode once (plan_pages source enrollments, one family of pages per mode that has rules), runs the families serially with "Data / Run enrollment family", which hands each to the runner Flow the plan names for its mode, checks every answer, then completes the claim, which installs every pair at once and refuses while any planned page is not staged. Any failure fails the claim with its code and message. Answers {ok: true, completed, domain, installed, revision, pages, families} or {ok: false, stage, code, message}. Called by "Data / Process pending".',
+  description: flowDescription({
+    answers: [
+      'ok: true',
+      'completed',
+      'domain',
+      'installed',
+      'revision',
+      'pages',
+      'families',
+    ],
+    caller: 'Data / Process pending',
+    does: `Counts every enrollment pair of an enrollments claim: plans every rule family, runs each through "${familyRunnerFlow.name}", completes the claim`,
+    failure: {},
+    input: ['claim', 'revision'],
+  }),
   entry: automationId('11'),
   icon: 'functions',
   id: dispatcherFlowId,

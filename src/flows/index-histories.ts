@@ -17,6 +17,7 @@ import {
   type ReleaseBranch,
   releaseSteps,
 } from './release-steps.js';
+import { flowDescription } from './text-fragments.js';
 
 const claimToken = '{{ $trigger.claim }}';
 
@@ -68,10 +69,15 @@ const refused = branch({
 // at the claimed revision, or fails it with the first failure described
 // (page, stage, refusal, the Moodle user it names). It never claims: the
 // scheduled Process pending does, and Mark pending asks for a run.
-const refreshFlow: FlowTemplate = {
+export const refreshFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Refreshes the Moodle history index under a history_index claim the caller holds ({claim}): runs "Data / Index Moodle histories" (every planned page serially), then completes the claim, or fails it (INDEX_FAILED, COMPLETION_REFUSED) with the first failure described so the status shows why. Answers {ok: true, completed, domain, index, revision} or {ok: false, stage, code, message}. Called by "Data / Process pending".',
+  description: flowDescription({
+    answers: ['ok: true', 'completed', 'domain', 'index', 'revision'],
+    caller: 'Data / Process pending',
+    does: `Refreshes the Moodle history index under a history_index claim: runs "${runFlow.name}", then completes the claim`,
+    failure: { codes: ['INDEX_FAILED', 'COMPLETION_REFUSED'] },
+    input: ['claim'],
+  }),
   entry: historyId('51'),
   icon: 'history_edu',
   id: historyFlowIds.refresh,

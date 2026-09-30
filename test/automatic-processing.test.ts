@@ -283,7 +283,7 @@ describe('failures and changes during a run', () => {
     });
     expect(fake.data.dirtyDomains).toEqual([enrollments, publication]);
     expect(fake.data.lastError?.code).toBe('SOURCE_CHANGED');
-    expect(fake.data.lastError?.message).toContain('source change committed');
+    expect(fake.data.lastError?.message).toBe('Source changed during run');
 
     const rerun = await claimNext(fake);
 

@@ -48,25 +48,30 @@ const knownActions: readonly string[] = coordinatorActions;
 const pairLabel = /course 3 \/ academic year 5/u;
 // Errors thrown inside node:vm belong to the sandbox realm, so they are
 // matched by message rather than by the host Error class.
-const readCountRefusal = /^read_count (?:answered|must)/u;
-const requestRefusal = /positive integer ids|revision must|trigger payload/u;
-const pageRefusal = /page|rule/iu;
-const planRefusal = /^Page p\d{4} .+; nothing was counted\.$/u;
+const readCountRefusal = /^read_count: /u;
+const requestRefusal = /^Invalid trigger payload: /u;
+const pageRefusal =
+  /^(?:Invalid trigger payload|check_page|read_rules|Page p\d{4}|Rule \d+): /u;
+const planRefusal = /^Page p\d{4}: .+$/u;
 const legacyRefusal =
-  /^Rule 12 of page p0002 has the mode legacy_regex; .+ nothing was counted\.$/u;
-const modelessRefusal = /^Rule 12 of page p0002 has the mode null; /u;
-// The reason each refused page names.
-const range = /was planned as ids /u;
-const unplanned = /is not planned with its range under this claim/u;
-const foreign = /names a claim that is not the current claim/u;
-const revision = /names revision 6, and the claim runs at revision 7/u;
-const historyDomain = /the current claim runs history_index/u;
-const publicationDomain = /the current claim runs publication/u;
-const otherKind =
-  /is planned as a legacy(?:_zeros)? page, not a mapped rule page/u;
-const statusRefusal =
-  /^read_plan must answer the one coordination status row\.$/u;
-const nothingStaged = /nothing was staged\.$/u;
+  /^Rule 12 \(page p0002\): mode legacy_regex, expected mapped_entries$/u;
+const modelessRefusal =
+  /^Rule 12 \(page p0002\): mode none, expected mapped_entries$/u;
+// The fault each refused page names.
+const subRange = /: range 10-10 \(1 row\), planned 10-14 \(3 rows\)$/u;
+const otherRange = /: range 1-9 \(4 rows\), planned 10-14 \(3 rows\)$/u;
+const otherRows = /: range 10-14 \(2 rows\), planned 10-14 \(3 rows\)$/u;
+const unplanned = /: not planned under this claim$/u;
+const foreign = /: claim is not the current claim$/u;
+const revision = /: revision 6, expected 7$/u;
+const historyDomain = /: claim domain history_index, expected enrollments$/u;
+const publicationDomain = /: claim domain publication, expected enrollments$/u;
+const otherKind = /: kind legacy(?:_zeros)?, expected mapped$/u;
+const statusRefusal = /^read_plan: expected 1 status row$/u;
+const pairFailure =
+  /Pair course 3 \/ academic year 5 failed \[validate INVALID_AGGREGATE\]: read_count: expected 1 aggregate row x+$/u;
+const candidateRefusal =
+  /^(?:count_pairs: results \w+, expected \d+|Pair course \d+ \/ academic year \d+: (?:invalid count|no count))$/u;
 const logicalOperators = /_and|_none|_or|_some/u;
 const collator = new Intl.Collator('en');
 
@@ -263,17 +268,17 @@ describe('page plan script', () => {
   test.each([
     {
       name: 'a consistent sub-range',
-      reason: range,
+      reason: subRange,
       trigger: { ...page, rows: 1, to: 10 },
     },
     {
       name: 'the range of another page under this token',
-      reason: range,
+      reason: otherRange,
       trigger: { ...firstPage, token: 'p0002' },
     },
     {
       name: 'a row count off by one',
-      reason: range,
+      reason: otherRows,
       trigger: { ...page, rows: 2 },
     },
     {
@@ -484,7 +489,7 @@ describe('rule page scripts', () => {
       academic_year: 5,
       code: 'INVALID_AGGREGATE',
       course: 3,
-      message: `read_count must answer one row ${'x'.repeat(2_000)}`,
+      message: `read_count: expected 1 aggregate row ${'x'.repeat(2_000)}`,
       ok: false,
       stage: 'validate',
     };
@@ -502,6 +507,7 @@ describe('rule page scripts', () => {
 
     expect(message).toContain('INVALID_AGGREGATE');
     expect(message).toContain('validate');
+    expect(message).toMatch(pairFailure);
     expect(message.length).toBeLessThan(600);
   });
 
@@ -541,7 +547,7 @@ describe('rule page scripts', () => {
       ],
     ],
   ])('refuses %s instead of staging a zero', (_name, results) => {
-    expect(() => rows(results)).toThrow(nothingStaged);
+    expect(() => rows(results)).toThrow(candidateRefusal);
   });
 });
 
@@ -799,9 +805,7 @@ describe('mapped family runner', () => {
           },
         }),
       ),
-    ).toBe(
-      'Page 2 of the mapped family is not a mapped page; nothing was counted.',
-    );
+    ).toBe('Family page 2: kind legacy, expected mapped');
   });
 
   test('accepts a mapped page only when it staged every planned pair, zeros included', () => {
@@ -812,15 +816,13 @@ describe('mapped family runner', () => {
       refusalOf(() =>
         checkedAnswers([pageAnswers[0], { ...pageAnswers[1], staged: 0 }]),
       ),
-    ).toBe(
-      'Mapped page p0002 answered no valid summary; nothing was installed.',
-    );
+    ).toBe('Mapped page p0002: invalid summary');
     expect(
       refusalOf(() =>
         checkedAnswers([
           {
             code: 'COORDINATION_SOURCE_CHANGED',
-            message: 'A source change committed during the run.',
+            message: 'Source changed during run',
             ok: false,
             page: 'p0001',
             stage: 'stage',
@@ -829,10 +831,10 @@ describe('mapped family runner', () => {
         ]),
       ),
     ).toBe(
-      'Mapped page p0001 failed (stage: COORDINATION_SOURCE_CHANGED A source change committed during the run.); nothing was installed.',
+      'Mapped page p0001 failed [stage COORDINATION_SOURCE_CHANGED]: Source changed during run',
     );
-    expect(refusalOf(() => checkedAnswers([pageAnswers[0]]))).toContain(
-      'count_pages answered 1 results for 2 mapped pages',
+    expect(refusalOf(() => checkedAnswers([pageAnswers[0]]))).toBe(
+      'count_pages: results 1, expected 2',
     );
   });
 

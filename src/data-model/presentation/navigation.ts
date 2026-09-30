@@ -30,7 +30,7 @@ export const folders: readonly Folder[] = [
     icon: 'groups',
     label: 'Staff & rooms',
     members: ['staff', 'teaching_assignments', 'rooms', 'deans_office'],
-    note: 'Staff directory, teaching assignments, rooms and the dean’s office history.',
+    note: "Staff directory, teaching assignments, rooms and the dean's office history.",
     sort: 2,
   },
   {

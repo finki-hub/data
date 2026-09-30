@@ -1,5 +1,10 @@
 import type { CheckView, StatusView } from './status-contract.js';
 
+import {
+  domainLabel,
+  isClaimDomain,
+  stateLabels,
+} from './coordination/domains.js';
 import { humanize } from './managed-flows.js';
 
 // How the dashboard names and colours a state, an outcome or a severity
@@ -26,11 +31,12 @@ const tones: Readonly<Record<string, Tone>> = {
   warning: 'warning',
 };
 
-// A domain whose derived rows are those of the current source revision is
+// The stored states keep the one label Studio shows too (stateLabels); a
+// domain whose derived rows are those of the current source revision is
 // idle: nothing waits for it.
 const labels: Readonly<Record<string, string>> = {
+  ...stateLabels,
   current: 'Idle',
-  ready: 'Staged',
 };
 
 export const toneOf = (state: null | string): Tone =>
@@ -43,35 +49,17 @@ export const stateLabel = (state: null | string): string =>
 export const instantText = (iso: null | string): string =>
   iso === null ? '--' : `${iso.replace('T', ' ').slice(0, 19)} UTC`;
 
-// A run's retries after a database conflict as a clause of its line:
-// ", after 1 retry on a database conflict"; nothing without one.
-export const retriedText = (retries: number): string => {
-  if (retries === 0) {
-    return '';
+// The one marker of a claim whose process stopped heartbeating.
+export const staleText = (stale: boolean): string => (stale ? ' (stale)' : '');
+
+// The label of a domain the status names: a claim domain's declared
+// label, "unknown" for none, any other name as it is.
+export const domainText = (domain: null | string): string => {
+  if (domain === null) {
+    return 'unknown';
   }
-  return `, after ${String(retries)} ${retries === 1 ? 'retry' : 'retries'} on a database conflict`;
+  return isClaimDomain(domain) ? domainLabel(domain) : domain;
 };
-
-const englishPlurals = new Intl.PluralRules('en');
-
-// A count followed by its words, as Search counts: the singular words for
-// exactly one, the plural ones for every other count, zero included.
-const countText = (count: number, singular: string, plural: string): string =>
-  `${String(count)} ${englishPlurals.select(count) === 'one' ? singular : plural}`;
-
-// The Moodle snapshot line of the status panel.
-export const snapshotText = ({
-  countMismatches,
-  entries,
-  indexedUsers,
-  needsMapping,
-  users,
-}: StatusView['historyIndex']): string =>
-  [
-    `${countText(users, 'user', 'users')}, ${String(indexedUsers)} indexed;`,
-    `${countText(entries, 'history entry', 'history entries')}, ${countText(needsMapping, 'still needs', 'still need')} a mapping;`,
-    `${countText(countMismatches, 'user', 'users')} whose indexed entries differ from their Courses Count.`,
-  ].join(' ');
 
 // Seconds as "12 s", "4 min" or "3 h".
 export const ageText = (seconds: null | number): string => {
@@ -126,12 +114,7 @@ export const waitingText = (
   otherRun: boolean,
 ): null | string => {
   if (claim === null) {
-    return otherRun
-      ? 'another data operation started on this page is running.'
-      : null;
+    return otherRun ? 'run in progress on this page' : null;
   }
-  const stale = claim.stale
-    ? ' Its process stopped answering; the claim is released as abandoned.'
-    : '';
-  return `${claim.label} holds the data operations claim.${stale}`;
+  return `claim held by ${claim.label}${staleText(claim.stale)}`;
 };

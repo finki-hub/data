@@ -71,6 +71,19 @@ describe('the key guards', () => {
     }
   });
 
+  test('state the refused key as `<table>.<key> <state>` and its facts after the Key prefix', () => {
+    for (const [index, { body, table }] of keyGuards.entries()) {
+      const column = String(guardedKeys[index]?.[1]);
+
+      expect(body).toContain(
+        `RAISE EXCEPTION '${table}.${column} locked: row published'`,
+      );
+      expect(body).toContain(
+        `DETAIL = 'Key (${column})=(' || COALESCE(NEW."${column}"::text, 'NULL') || '): ' || 'published row ' || COALESCE(NEW."id"::text, 'NULL') || ', ' || 'current key ' || COALESCE(OLD."${column}"::text, 'NULL');`,
+      );
+    }
+  });
+
   test('guard the opt-in every key source reads: the row is published', () => {
     for (const { filter } of Object.values(keySources)) {
       expect(conditionsOf(filter)).toContainEqual({

@@ -6,6 +6,7 @@ import {
   publishId,
   raise,
 } from './flow-template.js';
+import { stepName } from './text-fragments.js';
 
 // The step makers of "Publish / Public assets" (publish-public-assets.ts),
 // in the publish family.
@@ -37,7 +38,7 @@ export const refusal = (spec: {
     },
     family,
     key: `${spec.key}_fail`,
-    name: `Fail the publication (${spec.key})`,
+    name: stepName.failClaim(spec.key),
     options: { action: 'fail', message: spec.message, token, ...spec.fail },
     position: [spec.column, 19],
     suffix: spec.suffixes[0],
@@ -47,7 +48,7 @@ export const refusal = (spec: {
     error: { ...spec.error, message: spec.message },
     family,
     key: `raise_${spec.key}`,
-    name: `Report the ${spec.key} failure`,
+    name: stepName.raise(spec.error.code),
     position: [spec.column, 37],
     suffix: spec.suffixes[1],
   }),

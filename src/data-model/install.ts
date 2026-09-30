@@ -12,6 +12,7 @@ import {
   type DirectusRequest,
   DirectusRequestError,
 } from '../directus-request.js';
+import { countText } from '../text.js';
 import { dataModelCollections } from './collections.js';
 import {
   existingCollectionsSchema,
@@ -30,6 +31,8 @@ import {
   toRelationPayload,
 } from './relations.js';
 
+// Existing definitions the model cannot carry: the message counts them,
+// each refusal's reason names one (the commands print one line each).
 export class SchemaRefusalError extends Error {
   public override readonly name = 'SchemaRefusalError';
   public readonly refusals: readonly Refusal[];
@@ -37,9 +40,7 @@ export class SchemaRefusalError extends Error {
 
   public constructor(plan: InstallPlan, options?: ErrorOptions) {
     super(
-      `Refusing to install the data model over incompatible existing definitions:\n${plan.refusals
-        .map(({ reason }) => `- ${reason}`)
-        .join('\n')}`,
+      `data model: ${countText(plan.refusals.length, 'incompatible definition', 'incompatible definitions')}`,
       options,
     );
     this.refusals = plan.refusals;
@@ -52,8 +53,7 @@ export class CollectionLimitError extends Error {
 
   public constructor(public readonly collection: string) {
     super(
-      `Directus refused to create collection ${collection} because the licence caps active collections (LIMIT_EXCEEDED). ` +
-        `The relational model needs ${dataModelCollections.length} collections; remove unused collections or use a licence with a higher limit, then run setup again.`,
+      `collection ${collection} not created: licence collection limit (LIMIT_EXCEEDED); model collections: ${String(dataModelCollections.length)}`,
     );
   }
 }

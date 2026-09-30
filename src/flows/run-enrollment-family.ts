@@ -11,6 +11,7 @@ import {
   type ReleaseBranch,
   releaseSteps,
 } from './release-steps.js';
+import { flowDescription } from './text-fragments.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -39,7 +40,8 @@ const release = (
 // claim itself with its own code, so the fail here finds the claim
 // released and keeps that code; it fails the claim itself only when the
 // runner could not, and a later family then refuses at its heartbeat
-// without running.
+// without running. A runner's own failure record is forwarded as it is
+// (its stage, code and message), so the dispatcher relays it once.
 const branches = {
   heartbeat: release({
     message: '{{ keep_alive.message }}',
@@ -49,9 +51,10 @@ const branches = {
     suffixes: ['71', '72'],
   }),
   refused: release({
-    message: '{{ run.stage }}: {{ run.code }} {{ run.message }}',
+    message: '{{ run.message }}',
     position: [73, 19],
     recordCode: '{{ run.code }}',
+    recordStage: '{{ run.stage }}',
     stage: 'family',
     suffixes: ['75', '76'],
   }),
@@ -64,7 +67,7 @@ const branches = {
   }),
   silent: release({
     message:
-      'The {{ $trigger.kind }} family answered nothing: its runner Flow {{ $trigger.runner }} is inactive or deleted; nothing was installed.',
+      'Runner Flow {{ $trigger.runner }}: no answer (inactive or deleted)',
     position: [55, 37],
     stage: 'runner',
     suffixes: ['77', '78'],
@@ -78,8 +81,13 @@ const branches = {
 // stays the same whichever modes are declared.
 export const familyRunnerFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Runs one family of an enrollments plan. Input {claim, kind, pages, revision, runner} (listed by "Data / Count enrollments" from plan_pages with source "enrollments"): refreshes the claim, then runs the family through the runner Flow the plan names for its rule mode (the Trigger Flow target is the template {{ $trigger.runner }}, so one step serves every declared mode; leave it as it is in Studio). Answers {kind, ok: true, summary} with the runner\'s own answer, or {ok: false, stage, code, message}: a runner fails the claim itself, and a claim this Flow finds lost, or a runner that is missing or answers no record, fails it with ENROLLMENTS_FAILED.',
+  description: flowDescription({
+    answers: ['kind', 'ok: true', 'summary'],
+    caller: 'Data / Count enrollments',
+    does: `Runs one family of an enrollments plan through the runner Flow the plan names (${familyRunnerTarget})`,
+    failure: { codes: [familyFailureCode] },
+    input: ['claim', 'kind', 'pages', 'revision', 'runner'],
+  }),
   entry: automationId('61'),
   icon: 'account_tree',
   id: familyRunnerFlowId,

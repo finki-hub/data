@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { publicFilenamePattern } from '../exports/types.js';
 import { historyRowProblem } from '../history-contract.js';
 import { pageTokenPattern } from '../page-state.js';
+import { invalidOptionsText } from '../text.js';
 import { claimTargets, coordinationDomains, fileOutcomes } from './domains.js';
 import { coordinationError } from './errors.js';
 import { filesSchema } from './outcomes.js';
@@ -120,7 +121,7 @@ const recordOptions = z
   })
   .refine(
     ({ code, outcome }) => outcome !== 'uploaded' || code === undefined,
-    'an uploaded file carries no code',
+    'Code not allowed for outcome uploaded',
   );
 
 const coordinatorInputSchema = z.discriminatedUnion('action', [
@@ -176,40 +177,19 @@ export const coordinatorActions = coordinatorInputSchema.options.map(
   (option) => option.shape.action.value,
 );
 
-// A refusal names at most this many issues, each cut to a bounded length,
-// however many rows or labels of a page are invalid.
-const shownIssues = 5;
-const issueLength = 240;
-
-const describeIssues = (issues: readonly z.core.$ZodIssue[]): string => {
-  const shown = issues
-    .slice(0, shownIssues)
-    .map((issue) =>
-      `${issue.path.join('.') || 'options'}: ${issue.message}`.slice(
-        0,
-        issueLength,
-      ),
-    );
-  const more = issues.length - shown.length;
-  if (more === 0) {
-    return shown.join('; ');
-  }
-  const noun = more === 1 ? 'issue' : 'issues';
-  return `${shown.join('; ')}; and ${more} more ${noun}`;
-};
-
 // Validates the template-resolved options of one operation run. Nothing
 // here names a collection or carries SQL: domains, sources and actions are
-// enumerations, tokens and pages are the coordinator's own identifiers.
+// enumerations, tokens and pages are the coordinator's own identifiers. A
+// refusal names at most five issues, each cut to a bounded length, however
+// many rows or labels of a page are invalid (invalidOptionsText).
 export const parseCoordinatorInput = (options: unknown): CoordinatorInput => {
   const parsed = coordinatorInputSchema.safeParse(options);
   if (parsed.success) {
     return parsed.data;
   }
-  const issues = describeIssues(parsed.error.issues);
   throw coordinationError(
     'INVALID_OPTIONS',
-    `Invalid coordination options (${issues}). Actions: ${coordinatorActions.join(', ')}.`,
+    invalidOptionsText(parsed.error.issues),
     { status: 400 },
   );
 };

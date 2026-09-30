@@ -1,12 +1,13 @@
 import { legacyPageFlow } from './count-legacy-rule-page.js';
 import { legacyZerosFlow } from './fill-legacy-zeros.js';
-import { coordinateOperation, type FlowTemplate } from './flow-template.js';
+import { type FlowTemplate } from './flow-template.js';
 import {
   legacyPagesCheckScript,
   legacyPagesScript,
   legacyPlanQuery,
   zeroPagesCheckScript,
 } from './legacy-scripts.js';
+import { failureSteps } from './legacy-steps.js';
 import {
   legacyEnrollmentFlowIds,
   legacyFailureCode,
@@ -14,6 +15,7 @@ import {
   legacyRuleMode,
   legacyStep as step,
 } from './shared.js';
+import { flowDescription } from './text-fragments.js';
 
 type Stage = {
   // The failure record's code: the step's own code or a fixed one.
@@ -67,32 +69,18 @@ const stages: readonly Stage[] = [
 // A rejected step fails the claim (the coordinator discards its staged
 // candidates, the installed counts stay, status shows the code) and then
 // answers a failure record carrying the step's own message.
-const failureSteps = stages.flatMap(({ code, key, stage, suffixes }, index) => [
-  step({
-    edges: { resolve: legacyId(suffixes[1]) },
-    key: `${stage}_fail`,
-    name: `Fail the claim (${stage})`,
-    options: {
-      action: 'fail',
-      code: legacyFailureCode,
-      message: `{{ ${key}.message }}`,
-      token: '{{ $trigger.claim }}',
-    },
-    position: [19 + 18 * index, 19],
-    suffix: suffixes[0],
-    type: coordinateOperation,
-  }),
-  step({
+const failures = failureSteps(
+  19,
+  stages.map(({ code, key, stage, suffixes }) => ({
+    code,
+    fail: suffixes[0],
     key: `${stage}_failed`,
-    name: `Record the ${stage} failure`,
-    options: {
-      json: { code, message: `{{ ${key}.message }}`, ok: false, stage },
-    },
-    position: [19 + 18 * index, 37],
-    suffix: suffixes[1],
-    type: 'transform',
-  }),
-]);
+    record: suffixes[1],
+    source: key,
+    stage,
+  })),
+  {},
+);
 
 const rejectOf = (key: string): string =>
   legacyId(stages.find((entry) => entry.key === key)?.suffixes[0] ?? '');
@@ -106,7 +94,21 @@ const rejectOf = (key: string): string =>
 // families' pages).
 export const legacyParentFlow: FlowTemplate = {
   accountability: 'activity',
-  description: `Counts the ${legacyRuleMode.mode} family of an enrollments claim. Input {claim, kind, pages, revision, runner} (the family as plan_pages with source "enrollments" planned it; only the claim is read, the pages come from the plan stored for the claim): runs "Data / Count legacy rules page" for every legacy page and then "Data / Fill legacy rule zeros" for every legacy rule page, serially, and checks every answer. Answers {ok: true, legacyPages, staged, zeroPages, pairs, counted, zeros}; the caller completes the claim. Any failure fails the claim (${legacyFailureCode}) so nothing partial is installed, and answers {ok: false, stage, code, message} naming the first failed page; a failing page fails the claim itself, so every later page refuses at once instead of running into the same failure again. Pattern text stays editable in Enrollment Rules; the coordinator never reads it. Called by "Data / Run enrollment family".`,
+  description: flowDescription({
+    answers: [
+      'ok: true',
+      'legacyPages',
+      'staged',
+      'zeroPages',
+      'pairs',
+      'counted',
+      'zeros',
+    ],
+    caller: 'Data / Run enrollment family',
+    does: `Counts the ${legacyRuleMode.mode} family of an enrollments claim: every legacy page through "${legacyPageFlow.name}", then every zero page through "${legacyZerosFlow.name}", serially`,
+    failure: { codes: [legacyFailureCode] },
+    input: ['claim', 'kind', 'pages', 'revision', 'runner'],
+  }),
   entry: legacyId('11'),
   icon: 'rule_settings',
   id: legacyEnrollmentFlowIds.parent,
@@ -197,7 +199,7 @@ export const legacyParentFlow: FlowTemplate = {
       suffix: '17',
       type: 'transform',
     }),
-    ...failureSteps,
+    ...failures,
   ],
   options: { return: '$last' },
   trigger: 'operation',

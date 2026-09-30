@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ExportDefinition } from './types.js';
 
 import { maxPublishedFiles } from '../coordination/state.js';
-import { exportActions } from './action-names.js';
+import { adminOnlyText, invalidOptionsText } from '../text.js';
 import { exportError } from './errors.js';
 import { exportDefinitions } from './index.js';
 import { type ExportDeps, prepareAction, readinessAction } from './prepare.js';
@@ -44,7 +44,7 @@ const requireAdmin = (accountability: unknown): void => {
   if (!adminAccountability.safeParse(accountability).success) {
     throw exportError(
       'FORBIDDEN',
-      'Only administrators may check, prepare or publish the public files.',
+      adminOnlyText('check, prepare or publish the public files'),
     );
   }
 };
@@ -56,7 +56,7 @@ const parseExportOptions = (
   if (!parsed.success) {
     throw exportError(
       'INVALID_OPTIONS',
-      `Invalid export options. Actions: ${exportActions.join(', ')}.`,
+      invalidOptionsText(parsed.error.issues),
     );
   }
   return parsed.data;

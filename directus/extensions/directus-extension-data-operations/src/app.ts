@@ -10,7 +10,7 @@ import {
   nextCalculation,
 } from './coordination/domains.js';
 import { operationId, planSources } from './coordination/state.js';
-import { ruleModes, rulesPlanMode } from './rule-modes.js';
+import { rulesPlanMode } from './rule-modes.js';
 
 const choices = (values: readonly string[]) =>
   values.map((value) => ({ text: value, value }));
@@ -24,11 +24,6 @@ const domainChoices = (values: readonly string[]) =>
 
 const text = (value: unknown): string =>
   typeof value === 'string' && value !== '' ? value : '--';
-
-// The page kinds of every declared rule mode, for the plan source note.
-const familyKinds = ruleModes
-  .map(({ mode, pageKinds }) => `${mode}: ${pageKinds.join(' and ')} pages`)
-  .join('; ');
 
 export default defineOperationApp({
   description:
@@ -94,7 +89,7 @@ export default defineOperationApp({
       field: 'source',
       meta: {
         interface: 'select-dropdown',
-        note: `plan_pages: history pages Moodle users (history_index claims), rules pages enrollment rules (enrollments claims while every rule is ${rulesPlanMode.mode}), enrollments plans one family of pages per rule mode of an enrollments claim (${familyKinds}); planning discards every candidate row staged under the claim.`,
+        note: `plan_pages: history (history_index claim), rules (enrollments claim, ${rulesPlanMode.mode} rules only), enrollments (enrollments claim, one family per rule mode).`,
         options: { allowNone: true, choices: choices(planSources) },
         width: 'half',
       },
@@ -177,7 +172,7 @@ export default defineOperationApp({
       field: 'files',
       meta: {
         interface: 'input-code',
-        note: 'complete and fail (publication): the outcome of each declared file keyed by its filename, for example { "courses.json": { "outcome": "uploaded", "bytes": 5439 }, "rooms.json": { "outcome": "failed", "code": "PUBLISH_UPLOAD_FAILED" } }; complete needs every declared file uploaded, fail records partial when some were.',
+        note: 'complete, fail (publication): outcome per declared file, keyed by filename, for example { "courses.json": { "outcome": "uploaded", "bytes": 5439 } }.',
         options: { language: 'json' },
         width: 'full',
       },
@@ -187,6 +182,7 @@ export default defineOperationApp({
   ],
   overview: (options: Record<string, unknown>) => [
     { label: 'Action', text: text(options['action']) },
-    { label: 'Domain', text: text(options['domain'] ?? options['source']) },
+    { label: 'Domain', text: text(options['domain']) },
+    { label: 'Source', text: text(options['source']) },
   ],
 });

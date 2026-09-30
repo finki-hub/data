@@ -51,7 +51,7 @@ export const editorPolicyDefinition = {
   admin_access: false,
   app_access: true,
   description:
-    'Edits the source collections, reads the derived ones and the data status. Derived by npm run setup from the collection roles, which keeps it equal to that derivation: change the code, not this policy.',
+    'Edits source collections; reads derived collections and data status. Code-owned: npm run setup resets it to the collection-role derivation.',
   enforce_tfa: false,
   icon: 'edit_note',
   id: editorPolicy.id,

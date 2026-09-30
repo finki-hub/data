@@ -214,7 +214,7 @@ export const findField = (collection: string, field: string): ModelField => {
 };
 
 const forbidden = (pathname: string): DirectusRequestError =>
-  new DirectusRequestError(`GET ${pathname} returned 403`, {
+  new DirectusRequestError(`GET ${pathname}: HTTP 403 FORBIDDEN`, {
     code: 'FORBIDDEN',
     reason: null,
     status: 403,

@@ -81,7 +81,7 @@ export const historyRanges = (
     (user) =>
       coordinationError(
         'PAGE_OVER_BUDGET',
-        `Moodle user ${user.id} holds ${user.bytes} bytes of Courses history, more than the ${limits.budget}-byte budget of one legacy rule page; nothing was planned.`,
+        `Moodle user ${String(user.id)}: Courses history ${String(user.bytes)} bytes, max ${String(limits.budget)} per page`,
         {
           details: { budget: limits.budget, bytes: user.bytes, user: user.id },
         },
@@ -100,7 +100,7 @@ export const legacyRuleRanges = (
     (rule) =>
       coordinationError(
         'PAGE_OVER_BUDGET',
-        `Rule ${rule.id} holds a pattern of ${rule.bytes} bytes, more than the ${limits.patternBudget}-byte pattern budget of one legacy rule page; nothing was planned.`,
+        `Rule ${String(rule.id)}: pattern ${String(rule.bytes)} bytes, max ${String(limits.patternBudget)} per page`,
         {
           details: {
             budget: limits.patternBudget,

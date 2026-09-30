@@ -5,6 +5,7 @@ import {
   operation,
   type OperationTemplate,
 } from './flow-template.js';
+import { stepName } from './text-fragments.js';
 
 // One failure branch of a claim-bound Flow: the step whose rejection it
 // takes fails the claim, then the branch answers a failure record.
@@ -20,6 +21,10 @@ export type ReleaseBranch = {
   // The code the record answers, for example the refused step's own code;
   // the stored code when absent.
   readonly recordCode?: string;
+  // The stage the record answers, for example a child's own stage when the
+  // branch forwards the child's failure record; the branch stage when
+  // absent.
+  readonly recordStage?: string;
   readonly stage: string;
   // Suffixes of the fail step and of the record after it.
   readonly suffixes: readonly [string, string];
@@ -43,7 +48,7 @@ export const releaseSteps = (branch: ReleaseBranch): OperationTemplate[] => [
     edges: { resolve: familyId(branch.family, branch.suffixes[1]) },
     family: branch.family,
     key: `${branch.stage}_fail`,
-    name: `Fail the claim (${branch.stage})`,
+    name: stepName.failClaim(branch.stage),
     options: {
       action: 'fail',
       code: branch.code,
@@ -57,13 +62,13 @@ export const releaseSteps = (branch: ReleaseBranch): OperationTemplate[] => [
   operation({
     family: branch.family,
     key: `${branch.stage}_failed`,
-    name: `Answer the ${branch.stage} failure`,
+    name: stepName.answerFailure(branch.stage),
     options: {
       json: {
         code: branch.recordCode ?? branch.code,
         message: branch.message,
         ok: false,
-        stage: branch.stage,
+        stage: branch.recordStage ?? branch.stage,
       },
     },
     position: [branch.position[0], branch.position[1] + 18],

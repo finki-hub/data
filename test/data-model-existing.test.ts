@@ -128,8 +128,8 @@ describe('installDataModel over a Studio edit', () => {
       failure instanceof SchemaRefusalError &&
         failure.refusals.map(({ reason }) => reason),
     ).toEqual([
-      'Field academic_years.label is a column Directus does not manage',
-      'Collection moodle_users exists as a table Directus does not manage',
+      'Field academic_years.label: column not managed by Directus',
+      'Collection moodle_users: table not managed by Directus',
     ]);
     expect(mutations(requests)).toEqual([]);
   });
@@ -194,7 +194,7 @@ describe('installDataModel relation alignment', () => {
       failure instanceof SchemaRefusalError &&
         failure.refusals.map(({ reason }) => reason),
     ).toEqual([
-      'Relation course_curricula.course has reverse alias other_links but the model declares curricula',
+      'Relation course_curricula.course: reverse alias other_links, expected curricula',
     ]);
     expect(mutations(requests)).toEqual([]);
   });
@@ -374,7 +374,7 @@ describe('installDataModel enum realignment', () => {
         collection: 'teaching_assignments',
         field: 'role',
         reason:
-          'Field teaching_assignments.role holds 1 value(s) its declared choices no longer accept ("lecturer"); change or clear them, then run setup again. Its choices were not realigned.',
+          'Field teaching_assignments.role: 1 value outside declared choices: "lecturer"',
       },
     ]);
     expect(failure.summary.fields).toMatchObject({ aligned: 0, refused: 1 });
@@ -433,8 +433,7 @@ describe('installDataModel over existing definitions', () => {
       {
         collection: 'students',
         field: 'index_number',
-        reason:
-          'Field students.index_number has type integer but the model declares string',
+        reason: 'Field students.index_number: type integer, expected string',
       },
     ]);
     expect(failure.summary.collections).toEqual({
@@ -490,14 +489,14 @@ describe('installDataModel over existing definitions', () => {
     }
 
     expect(failure.refusals.map(({ reason }) => reason)).toEqual([
-      'Field courses.curricula is not an O2M alias but the model declares one',
-      'Collection students exists as a folder without a table',
-      'Field curriculum_entries.name is nullable but the model declares it required',
-      'Field course_curricula.credits is NOT NULL without a default but the model declares it nullable',
-      'Relation course_curricula.entry targets rooms but the model targets curriculum_entries',
+      'Field courses.curricula: not an O2M alias, expected O2M alias',
+      'Collection students: folder without table',
+      'Field curriculum_entries.name: nullable, expected required',
+      'Field course_curricula.credits: NOT NULL without default, expected nullable',
+      'Relation course_curricula.entry: target rooms, expected curriculum_entries',
     ]);
     expect(failure.summary.fields.refused).toBe(3);
-    expect(failure.message).toContain('Collection students exists as a folder');
+    expect(failure.message).toBe('data model: 5 incompatible definitions');
     expect(mutations(requests)).toEqual([]);
   });
 });

@@ -15,6 +15,7 @@ import {
   type SqlDatabase,
   sqlPort,
 } from '../coordination/sql-port.js';
+import { missingRowMessage } from '../coordination/sql-run.js';
 import { snapshotFields, type SnapshotRow } from './contract.js';
 import { summarySql } from './fingerprint.js';
 import {
@@ -93,9 +94,7 @@ const firstRow = async (client: SqlClient, sql: string): Promise<unknown> => {
   const { rows } = await run(client, sql);
   const [row] = rows;
   if (row === undefined) {
-    throw new Error(
-      'The data_operations status row is missing; run npm run setup.',
-    );
+    throw new Error(missingRowMessage);
   }
   return row;
 };
@@ -130,7 +129,7 @@ const exported = (value: unknown): ExportedRow => {
   const values: SnapshotRow = snapshotFields.map((field) => {
     const cell = row[field];
     if (cell === undefined) {
-      throw new Error(`The active snapshot has no ${field} column.`);
+      throw new Error(`moodle_users column missing: ${field}`);
     }
     return cell;
   });

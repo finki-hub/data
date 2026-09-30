@@ -63,6 +63,54 @@ const parseDirectusError = (
   }
 };
 
+// How long one request may take.
+const requestTimeoutMs = 120_000;
+
+// How much of a response body that is no Directus error a message keeps.
+const bodyExcerptLength = 200;
+
+const causeCodeSchema = z.object({ code: z.string() });
+
+const whitespace = /\s+/u;
+
+// The start of a body that is no Directus error, on one line.
+const excerptOf = (body: string): null | string => {
+  const excerpt = body
+    .slice(0, bodyExcerptLength * 4)
+    .split(whitespace)
+    .join(' ')
+    .trim()
+    .slice(0, bodyExcerptLength);
+  return excerpt === '' ? null : excerpt;
+};
+
+// The fault of an answered request: `HTTP <status>[ <CODE>][: <reason>]`,
+// with the start of the body when it is no Directus error.
+const httpFault = (details: DirectusErrorDetails, body: string): string => {
+  const status = `HTTP ${String(details.status)}`;
+  const head = details.code === null ? status : `${status} ${details.code}`;
+  const reason =
+    details.reason ?? (details.code === null ? excerptOf(body) : null);
+  return reason === null ? head : `${head}: ${reason}`;
+};
+
+// A request no answer came back to: timed out, or refused by the network
+// with the cause's code (such as ECONNREFUSED).
+const unanswered = (place: string, error: unknown): Error => {
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return new Error(
+      `${place}: timed out after ${String(requestTimeoutMs / 1_000)} s`,
+      { cause: error },
+    );
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const cause = causeCodeSchema.safeParse(
+    error instanceof Error ? error.cause : undefined,
+  );
+  const code = cause.success ? cause.data.code : message;
+  return new Error(`${place}: no response (${code})`, { cause: error });
+};
+
 export const createDirectusRequest =
   (config: DirectusConfig) =>
   async (
@@ -75,17 +123,24 @@ export const createDirectusRequest =
     if (!(init?.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
     }
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      signal: AbortSignal.timeout(120_000),
-    });
+    const place = `${init?.method ?? 'GET'} ${url.pathname}`;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers,
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      });
+    } catch (error) {
+      throw unanswered(place, error);
+    }
 
     if (!response.ok) {
       const responseText = await response.text();
+      const details = parseDirectusError(response.status, responseText);
       throw new DirectusRequestError(
-        `${init?.method ?? 'GET'} ${url.pathname} returned ${response.status}: ${responseText}`,
-        parseDirectusError(response.status, responseText),
+        `${place}: ${httpFault(details, responseText)}`,
+        details,
       );
     }
 

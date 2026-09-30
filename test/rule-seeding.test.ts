@@ -229,7 +229,7 @@ describe('the scripts of Data / Add enrollment rules', () => {
     });
     expect(
       refusalOf(() => runScript(scopeScript, { $trigger: { body: {} } })),
-    ).toContain('Choose an academic year');
+    ).toBe('Scope missing: expected academic year, course or both');
     expect(
       refusalOf(() =>
         runScript(scopeScript, {
@@ -238,14 +238,14 @@ describe('the scripts of Data / Add enrollment rules', () => {
           },
         }),
       ),
-    ).toContain('not of academic_years');
+    ).toBe('Course: collection academic_years, expected courses');
     expect(
       refusalOf(() =>
         runScript(scopeScript, {
           $trigger: { body: { academic_year: '1 OR 1' } },
         }),
       ),
-    ).toContain('must be the id of one academic_years row');
+    ).toBe('Academic year: expected an id of academic_years');
   });
 
   test('creates only the missing pairs, in the declared mapped mode, in batches of at most 250', () => {
@@ -311,7 +311,7 @@ describe('the scripts of Data / Add enrollment rules', () => {
           years: [],
         }),
       ),
-    ).toContain('No academic year has id 99');
+    ).toBe('Academic year 99 not found');
     expect(
       refusalOf(() =>
         runScript(pairsScript, {
@@ -321,7 +321,7 @@ describe('the scripts of Data / Add enrollment rules', () => {
           years: ids(1),
         }),
       ),
-    ).toContain('No course has id 5');
+    ).toBe('Course 5 not found');
   });
 
   test('tallies the created rules and refuses a failed batch without pretending success', () => {
@@ -346,8 +346,21 @@ describe('the scripts of Data / Add enrollment rules', () => {
           pairs: { batches },
         }),
       ),
+    ).toBe('Batches failed: 2/2 (RECORD_NOT_UNIQUE, 1 rule); rules created: 2');
+    expect(
+      refusalOf(() =>
+        runScript(tallyScript, {
+          create_batches: [{ code: 'RECORD_NOT_UNIQUE', ok: false }, null],
+          pairs: {
+            batches: [
+              [{}, {}],
+              [{}, {}],
+            ],
+          },
+        }),
+      ),
     ).toBe(
-      'Created 2 rules, then batch 2 of 2 (1 rules): RECORD_NOT_UNIQUE. Run Data / Add enrollment rules again: existing pairs are skipped.',
+      'Batches failed: 1/2 (RECORD_NOT_UNIQUE, 2 rules), 2/2 (NO_ANSWER, 2 rules); rules created: 0',
     );
   });
 });

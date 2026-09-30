@@ -13,6 +13,24 @@ export type Refusal = {
   readonly reason: string;
 };
 
+// Why an installed definition cannot carry the declared one: its live
+// state and, when the model declares another, that declaration.
+export type Mismatch = { readonly expected?: string; readonly live: string };
+
+// A refusal whose reason reads `<Kind> <path>: <live>[, expected <declared>]`.
+export const refusalOf = (
+  kind: 'Collection' | 'Field' | 'Relation',
+  {
+    collection,
+    field,
+  }: { readonly collection: string; readonly field: null | string },
+  { expected, live }: Mismatch,
+): Refusal => {
+  const path = field === null ? collection : `${collection}.${field}`;
+  const fact = expected === undefined ? live : `${live}, expected ${expected}`;
+  return { collection, field, reason: `${kind} ${path}: ${fact}` };
+};
+
 export type CollectionAction = {
   readonly collection: ModelCollection;
   readonly kind: 'create-collection';

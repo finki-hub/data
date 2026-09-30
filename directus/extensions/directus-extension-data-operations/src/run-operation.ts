@@ -4,6 +4,7 @@ import { computed, reactive, ref, type Ref, watch } from 'vue';
 import { flowSettingsPage } from './managed-flows.js';
 import {
   answerSummary,
+  readFailureText,
   type Refusal,
   refusalOf,
   type SummaryLine,
@@ -37,13 +38,6 @@ type RunOutcome =
   | { readonly lines: readonly SummaryLine[]; readonly ok: true };
 
 const flowAnswer = envelope(manualFlowSchema);
-
-const loadMessage = (error: unknown): string => {
-  const refusal = refusalOf(error);
-  return refusal.status === 403
-    ? 'You may not read this Flow.'
-    : `The Flow could not be read (${refusal.code}).`;
-};
 
 export const useRunOperation = (
   flowKey: () => null | string,
@@ -105,7 +99,7 @@ export const useRunOperation = (
       });
       flow.value = flowAnswer.parse(answer.data).data;
     } catch (error) {
-      loadError.value = loadMessage(error);
+      loadError.value = readFailureText('Flow', refusalOf(error));
     }
     await refreshStatus();
     loading.value = false;

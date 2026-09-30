@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 
 const contentType = 'application/json';
 const reasonLength = 200;
+const nameLength = 80;
 // A failure names at most this many of the files published before it.
 const shownFiles = 5;
 
@@ -21,8 +22,20 @@ class DirectusError extends Error {
   }
 }
 
-const invalid = (message) =>
-  new DirectusError(message, { code: 'PUBLISH_INVALID_OPTIONS', status: 400 });
+// The options refusal `Invalid options: <path>: <reason>`, the form of the
+// data-operations extension's option refusals (this file is loaded as is,
+// so it keeps its own copy).
+const invalid = (path, reason) =>
+  new DirectusError(`Invalid options: ${path}: ${reason}`, {
+    code: 'PUBLISH_INVALID_OPTIONS',
+    status: 400,
+  });
+
+// At most shownFiles names, then " (+N more)".
+const listText = (names) =>
+  names.length <= shownFiles
+    ? names.join(', ')
+    : `${names.slice(0, shownFiles).join(', ')} (+${names.length - shownFiles} more)`;
 
 // Why a storage write failed, bounded: the error's name and message only.
 const reasonOf = (error) => {
@@ -39,22 +52,25 @@ const jsonFilenamePattern = /^[a-z0-9][a-z0-9._-]*\.json$/u;
 // checked before the first write.
 const bodiesOf = (objects, storage) => {
   if (typeof storage !== 'string' || storage.length === 0) {
-    throw invalid('Storage location is required');
+    throw invalid('storage', 'required');
   }
   if (!isObjectMap(objects)) {
-    throw invalid('Objects must be a filename map');
+    throw invalid('objects', 'expected a filename map');
   }
   const entries = Object.entries(objects);
   if (entries.length === 0) {
-    throw invalid('At least one object is required');
+    throw invalid('objects', 'empty');
   }
   return entries.map(([filename, value]) => {
     if (!jsonFilenamePattern.test(filename)) {
-      throw invalid(`Invalid root-level JSON filename: ${filename}`);
+      throw invalid(
+        'objects',
+        `invalid root-level JSON filename: ${filename.slice(0, nameLength)}`,
+      );
     }
     const body = JSON.stringify(value);
     if (body === undefined) {
-      throw invalid(`Value for ${filename} is not JSON serializable`);
+      throw invalid(`objects.${filename}`, 'not JSON serializable');
     }
     return { body, filename };
   });
@@ -85,14 +101,10 @@ const writeFile = async (files, { body, filename, storage }) => {
 };
 
 const uploadFailure = (error, { filename, published, storage }) => {
-  const shown = published.slice(-shownFiles).join(', ');
-  const earlier =
-    published.length > shownFiles
-      ? `${published.length - shownFiles} files and `
-      : '';
-  const after = published.length === 0 ? '' : ` after ${earlier}${shown}`;
+  const before =
+    published.length === 0 ? '' : ` (published before: ${listText(published)})`;
   return new DirectusError(
-    `Uploading ${filename} to storage ${storage} failed${after}: ${reasonOf(error)}`,
+    `Upload of ${filename} to ${storage} failed${before}: ${reasonOf(error)}`,
     {
       cause: error,
       code: 'PUBLISH_UPLOAD_FAILED',

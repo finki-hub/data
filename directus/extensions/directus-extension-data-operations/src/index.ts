@@ -2,9 +2,16 @@ import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
 import { coordinationStatus, sqlDatabase } from './coordinate.js';
-import { findMigration, type Migration, migrations } from './migrations.js';
+import { errorBody, forwardError } from './endpoint-errors.js';
+import {
+  findMigration,
+  isMigrationName,
+  type Migration,
+  migrations,
+} from './migrations.js';
 import { snapshotReport } from './snapshot/report.js';
 import { snapshotStore } from './snapshot/sql-port.js';
+import { adminOnlyText } from './text.js';
 
 type SqlRunner = {
   readonly raw: (sql: string) => PromiseLike<unknown>;
@@ -30,18 +37,12 @@ export const executeMigration = async (
   return executed;
 };
 
-const errorBody = (code: string, message: string) => ({
-  errors: [{ extensions: { code }, message }],
-});
-
-const unknownMigrationMessage = `Unknown migration. Bundled migrations: ${migrations
-  .map(({ name }) => name)
-  .join(', ')}.`;
-
-// Express 4 does not forward rejected async handlers, so failures reach the
-// Directus error handler through next(error) explicitly.
-const forwardError = (next: (error: unknown) => void, error: unknown): void => {
-  next(error);
+// The refusal of an unknown migration: its name when it is one a
+// migration could carry (never other request text), then the bundled ones.
+export const unknownMigrationText = (name: string): string => {
+  const named = isMigrationName(name) ? `: ${name}` : '';
+  const available = migrations.map((migration) => migration.name).join(', ');
+  return `Unknown migration${named}; available: ${available}`;
 };
 
 export default defineEndpoint((router, { database }) => {
@@ -50,12 +51,7 @@ export default defineEndpoint((router, { database }) => {
     if (!isAdminRequest(request)) {
       response
         .status(403)
-        .json(
-          errorBody(
-            'FORBIDDEN',
-            'Only administrators may run data operations.',
-          ),
-        );
+        .json(errorBody('FORBIDDEN', adminOnlyText('run data operations')));
       return;
     }
     next();
@@ -67,7 +63,12 @@ export default defineEndpoint((router, { database }) => {
       if (migration === undefined) {
         response
           .status(400)
-          .json(errorBody('INVALID_PAYLOAD', unknownMigrationMessage));
+          .json(
+            errorBody(
+              'INVALID_PAYLOAD',
+              unknownMigrationText(request.params.name),
+            ),
+          );
         return;
       }
       const statements = await database.transaction((trx) =>

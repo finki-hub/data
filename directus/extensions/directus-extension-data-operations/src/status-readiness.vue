@@ -5,7 +5,9 @@ import type { ReadinessView } from './status-contract.js';
 
 import CheckRow from './status-check.vue';
 import StatusBadge from './status-badge.vue';
+import { readinessText } from './status-facts.js';
 import { orderedChecks } from './status-labels.js';
+import { countText } from './text.js';
 
 // Every declared readiness check with its count and one link to the
 // records behind it; checks with a count first.
@@ -25,23 +27,20 @@ const clear = computed(() => checks.value.filter(({ count }) => count === 0));
 <template>
   <section class="block" aria-label="Readiness checks">
     <v-notice v-if="error" type="warning">{{ error }}</v-notice>
-    <p v-else-if="readiness === null" class="note">Counting the readiness checks…</p>
+    <p v-else-if="readiness === null" class="note">Loading readiness checks…</p>
     <template v-else>
       <p class="summary">
         <StatusBadge :state="readiness.ready ? 'ready' : 'blocked'" :label="readiness.ready ? 'Ready' : 'Blocked'" :tone="readiness.ready ? 'success' : 'danger'" />
-        <span class="note">
-          at source revision {{ readiness.revision }};
-          {{ readiness.blockedFiles.length > 0 ? `held back: ${readiness.blockedFiles.join(', ')}` : 'no declared file is held back' }}
-        </span>
+        <span class="note">· {{ readinessText(readiness) }}</span>
       </p>
-      <p v-if="open.length === 0" class="note">Every check counts zero.</p>
+      <p v-if="open.length === 0" class="note">No open checks</p>
       <table v-else class="rows">
         <tbody>
           <CheckRow v-for="check in open" :key="check.code" :check="check" :linkable="linkable" />
         </tbody>
       </table>
       <details v-if="clear.length > 0" class="clear">
-        <summary>{{ clear.length }} checks count zero</summary>
+        <summary>Zero count: {{ countText(clear.length, 'check', 'checks') }}</summary>
         <table class="rows">
           <tbody>
             <CheckRow v-for="check in clear" :key="check.code" :check="check" :linkable="linkable" />

@@ -15,7 +15,8 @@ const flowListing = z.array(
 
 // A template Flow whose entry operation is missing: an earlier install
 // stopped between creating it and wiring its entry. The installer never
-// repairs or overwrites an existing Flow, so it stops and names the remedy.
+// repairs or overwrites an existing Flow, so it stops and names the Flow
+// (README names the remedy).
 export class IncompleteFlowError extends Error {
   public override readonly name = 'IncompleteFlowError';
 
@@ -23,10 +24,7 @@ export class IncompleteFlowError extends Error {
     flow: { readonly id: string; readonly name: string },
     options?: ErrorOptions,
   ) {
-    super(
-      `The Flow "${flow.name}" (${flow.id}) exists without its entry operation: an earlier npm run setup or npm run import stopped while installing it. Delete that Flow in Studio (Settings > Flows), then run the command again.`,
-      options,
-    );
+    super(`Flow "${flow.name}" (${flow.id}): entry operation missing`, options);
   }
 }
 

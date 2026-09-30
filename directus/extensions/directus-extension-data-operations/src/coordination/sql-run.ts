@@ -12,8 +12,9 @@ const resultSchema = z.object({
   rows: z.array(z.unknown()),
 });
 
-const missingRowMessage =
-  'The data_operations status row is missing; run npm run setup.';
+// The one wording of a missing coordination singleton, for every reader
+// of it (the coordinator's and the snapshot's SQL port).
+export const missingRowMessage = 'data_operations: status row missing';
 
 export const run = async (
   client: SqlClient,

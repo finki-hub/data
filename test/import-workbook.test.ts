@@ -214,8 +214,8 @@ describe('the one-time workbook import', () => {
 
     expect(error).toBeInstanceOf(ExistingDataError);
     expect(error).toMatchObject({ counts: { courses: 2, staff: 1 } });
-    expect(String(error)).toContain(
-      '3 record(s) in 2 application collection(s): courses 2, staff 1.',
+    expect(String(error)).toBe(
+      'ExistingDataError: project not empty: 3 records in 2 collections (courses 2, staff 1)',
     );
     expect(String(error)).not.toContain('migrate');
     expect(fake.mutations()).toEqual([]);
@@ -235,7 +235,7 @@ describe('the one-time workbook import', () => {
 });
 
 describe('an import interrupted after it began writing', () => {
-  test('reports the rows Directus confirmed and the one remedy, a fresh project; a rerun is then refused', async () => {
+  test('reports the rows Directus confirmed; a rerun is then refused', async () => {
     const fake = fakeImportDirectus(emptyStore(), { batchSize: 2 });
     const failing = failingAt(fake, '/items/courses', 2);
     const collections = planned();
@@ -253,8 +253,8 @@ describe('an import interrupted after it began writing', () => {
     expect(error).toMatchObject({
       progress: { confirmed, total: plannedTotal(collections) },
     });
-    expect(String(error)).toContain(
-      `The import stopped while writing the relational rows: synthetic outage. Directus had confirmed ${String(confirmed)} of the ${String(plannedTotal(collections))} planned rows. Set up a fresh project and import again.`,
+    expect(String(error)).toBe(
+      `ImportInterruptedError: synthetic outage (rows confirmed: ${String(confirmed)}/${String(plannedTotal(collections))})`,
     );
     expect(String(error)).not.toContain('migrate');
     expect(rowsIn(fake.store, 'courses')).toHaveLength(2);
@@ -352,7 +352,9 @@ describe('the import over the real request', () => {
 
     await expect(
       importWorkbook(createDirectusRequest(config), [], {}),
-    ).rejects.toThrow('application collection(s): courses 2.');
+    ).rejects.toThrow(
+      'project not empty: 2 records in 1 collection (courses 2)',
+    );
     expect(methods.every((method) => method === 'GET')).toBeTruthy();
   });
 });

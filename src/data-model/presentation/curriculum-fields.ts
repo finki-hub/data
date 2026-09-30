@@ -41,7 +41,7 @@ const generationPicker = (
   field,
   meta: {
     conditions: [lockedWithoutGeneration],
-    note: 'Pick the generation first: the picker lists only entries of that generation.',
+    note: "Entries of the row's generation only; locked until a generation is set.",
     options: {
       ...baselineOptions(collection, field),
       filter: generationFilter,
@@ -71,7 +71,7 @@ export const curriculumFieldPresentations: readonly FieldPresentation[] = [
     field: 'program_states',
     meta: {
       conditions: [lockedWithoutGeneration],
-      note: 'Pick the generation first: the list offers only the study programs of that generation. Open a program to enter its state for this entry. The fields below State edit the study program itself, for every entry and course of its generation; a published program keeps its code.',
+      note: "Study programs of the entry's generation, each with its state for this entry; locked until a generation is set. Fields below State: the study program itself, for its whole generation; a published program keeps its code.",
       options: {
         ...baselineOptions('curriculum_entries', 'program_states'),
         filter: generationFilter,

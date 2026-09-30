@@ -104,7 +104,7 @@ export const editsRelationNatively = async (context) => {
     'the publication answer',
     async () => {
       const text = await textOf(admin, `[data-flow="${publishAssetsFlowId}"]`);
-      return text.includes('Finished.');
+      return text.includes('Succeeded');
     },
     300_000,
   );

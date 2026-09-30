@@ -12,7 +12,7 @@ const run = useRunOperation(() => flowKey.value, toRef(props, 'now'));
 
 <template>
   <div class="run-operation" :class="{ 'has-header': showHeader }" :data-flow="flowKey ?? ''">
-    <p v-if="flowKey === null" class="hint">Choose a data operation Flow in this panel's options.</p>
+    <p v-if="flowKey === null" class="hint">No Flow selected</p>
     <div v-else-if="run.loading" class="centered"><v-progress-circular indeterminate /></div>
     <v-notice v-else-if="run.loadError" type="warning">{{ run.loadError }}</v-notice>
     <template v-else-if="run.flow">
@@ -27,11 +27,11 @@ const run = useRunOperation(() => flowKey.value, toRef(props, 'now'));
       </div>
       <v-notice v-if="run.reason" type="warning">{{ run.reason }}</v-notice>
       <p v-else-if="run.statusProblem" class="state status-problem" role="status"><v-icon name="error_outline" x-small /> {{ run.statusProblem }}</p>
-      <p v-else-if="!run.isAdmin" class="state"><v-icon name="lock" x-small /> Administrators only; the results show in the data status.</p>
+      <p v-else-if="!run.isAdmin" class="state"><v-icon name="lock" x-small /> Administrators only</p>
       <p v-else-if="run.waitingFor" class="state"><v-icon name="hourglass_top" x-small /> Waiting: {{ run.waitingFor }}</p>
-      <p v-if="run.running" class="state" role="status"><v-icon name="sync" x-small /> Running… the answer appears here when the Flow finishes.</p>
+      <p v-if="run.running" class="state" role="status"><v-icon name="sync" x-small /> Running</p>
       <div v-if="run.lines" class="outcome" aria-live="polite">
-        <p class="finished"><v-icon name="check_circle" x-small /> Finished.</p>
+        <p class="finished"><v-icon name="check_circle" x-small /> Succeeded</p>
         <dl v-if="run.lines.length" class="answer">
           <template v-for="line in run.lines" :key="line.label">
             <dt>{{ line.label }}</dt>
@@ -41,8 +41,8 @@ const run = useRunOperation(() => flowKey.value, toRef(props, 'now'));
       </div>
       <v-notice v-if="run.failure" type="danger" class="failure" aria-live="polite">
         <div class="failure-text">
-          <strong class="failure-code"><template v-for="(part, index) in run.failure.code.split('_')" :key="index"><template v-if="index > 0">_<wbr /></template>{{ part }}</template></strong>
-          <span class="failure-message" :title="run.failure.message">{{ run.failure.message }}</span>
+          <strong class="failure-code">Failed: <template v-for="(part, index) in run.failure.code.split('_')" :key="index"><template v-if="index > 0">_<wbr /></template>{{ part }}</template></strong>
+          <span v-if="run.failure.message" class="failure-message" :title="run.failure.message">{{ run.failure.message }}</span>
         </div>
       </v-notice>
       <p class="flow-name"><v-icon :name="run.flow.icon ?? 'bolt'" x-small /> {{ run.flow.name }}</p>

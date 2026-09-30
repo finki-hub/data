@@ -33,7 +33,8 @@ type PathRules = {
 };
 
 // Where a path has got to: the collection, the fields it named, the
-// collections it passed, and why Search refuses it, if it does.
+// collections it passed, and why Search refuses it, if it does: a fact
+// the endpoint places after "Invalid criteria: filter: ".
 type Walk = {
   readonly collection: string;
   readonly depth: number;
@@ -77,13 +78,13 @@ const nextWalk = (key: string, walk: Walk, rules: PathRules): Walk => {
     return {
       ...walk,
       depth,
-      problem: `A filter path names at most ${String(rules.maxDepth)} fields`,
+      problem: `path exceeds ${String(rules.maxDepth)} fields`,
     };
   }
   const related = relatedCollection(rules.relations, walk.collection, key);
   if (related === undefined) return { ...walk, depth };
   if (walk.passed.has(related)) {
-    return { ...walk, depth, problem: `A filter path passes ${related} twice` };
+    return { ...walk, depth, problem: `path passes ${related} twice` };
   }
   return {
     collection: related,

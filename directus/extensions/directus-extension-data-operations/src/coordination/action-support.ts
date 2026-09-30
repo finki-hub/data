@@ -16,43 +16,55 @@ export type ActionContext = {
   readonly store: CoordinationStore;
 };
 
-// Why an abandoned claim was released: the status carries it, since no
-// caller is left to receive a refusal.
-const abandonedMessage =
-  'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded. Mark the domain pending (or retry) to run it again.';
+// Why a claim was released without a caller left to receive a refusal
+// (an abandoned claim), or when a change overtook its run: one template,
+// `<Claim kind> <state>: <fact>`, plus a short statement of any state the
+// outcome does not imply. An upload cannot be discarded, so a released
+// publication says that its revision is not published.
+const revisionUnpublished = 'Revision not published';
 
-const interruptedMessage =
-  'The claim stopped heartbeating for longer than the stale window (a Directus restart or a Flow that ended without fail); its output was discarded and the domain runs once more on its own. A second interruption at the same inputs waits for Mark pending.';
+const released = (head: string, ...states: readonly string[]): string =>
+  [head, ...states].join('. ');
 
-// An upload cannot be discarded: the status keeps the outcome each file
-// recorded, and says what it cannot know.
-export const abandonedPublicationMessage =
-  'The publication claim stopped heartbeating for longer than the stale window, after any upload lease (a Directus restart or a Flow that ended without fail). The files recorded uploaded at this revision hold it; an upload running at that moment may have finished without being recorded. The source revision is not recorded as published: publish again.';
+const silence = (staleAfterMs: number): string =>
+  `no heartbeat for ${String(Math.round(staleAfterMs / 1_000))} s`;
 
-const abandonmentMessage = (code: string, claim: Claim): string => {
+// The status of an abandoned publication keeps the outcome each file
+// recorded; an upload running at that moment may have finished unrecorded.
+export const abandonedPublicationMessage = (staleAfterMs: number): string =>
+  released(
+    `Publication claim abandoned: ${silence(staleAfterMs)}`,
+    revisionUnpublished,
+    'Last upload possibly unrecorded',
+  );
+
+const abandonmentMessage = (
+  code: string,
+  claim: Claim,
+  staleAfterMs: number,
+): string => {
   if (code === interruptedCode) {
-    return interruptedMessage;
+    return released(
+      `Claim interrupted: ${silence(staleAfterMs)}`,
+      'Automatic rerun: once',
+    );
   }
   return claim.domain === 'publication'
-    ? abandonedPublicationMessage
-    : abandonedMessage;
+    ? abandonedPublicationMessage(staleAfterMs)
+    : released(`Claim abandoned: ${silence(staleAfterMs)}`);
 };
 
-const overtakenMessages: Readonly<Record<Overtaking, string>> = {
-  fingerprint_changed:
-    'The managed Flow graph changed during the run; its output was discarded and the domain stays pending.',
-  source_changed:
-    'A source change committed during the run; its output was discarded and the domain stays pending.',
+const overtakings: Readonly<Record<Overtaking, string>> = {
+  fingerprint_changed: 'Flow graph changed',
+  source_changed: 'Source changed',
 };
 
-// An upload cannot be discarded: an overtaken publication keeps the
-// outcome of each file it uploaded, and the revision stays unpublished.
-const overtakenPublicationMessages: Readonly<Record<Overtaking, string>> = {
-  fingerprint_changed:
-    'The publication Flow graph changed during the publication; the uploaded files are recorded, the source revision is not recorded as published and publication stays pending. Publish again.',
-  source_changed:
-    'A source change committed during the publication; the uploaded files hold the prepared source revision, which is not recorded as published, and publication stays pending. Publish again.',
-};
+// A run overtaken by a source or graph change; an overtaken publication
+// keeps the outcome of each file it uploaded.
+const overtakenMessage = (reason: Overtaking, publication: boolean): string =>
+  publication
+    ? released(`${overtakings[reason]} during publication`, revisionUnpublished)
+    : `${overtakings[reason]} during run`;
 
 export type Outcome<T> =
   Overtaken | { readonly kind: 'done'; readonly value: T };
@@ -84,13 +96,10 @@ export const unreachable = (value: never): never => {
 
 export const mismatch = (verdict: Mismatch): CoordinationError =>
   verdict === 'claim_mismatch'
-    ? coordinationError(
-        'CLAIM_MISMATCH',
-        'The token does not name the current claim.',
-      )
+    ? coordinationError('CLAIM_MISMATCH', 'Claim token mismatch')
     : coordinationError(
         'OWNER_MISMATCH',
-        'The claim belongs to another Directus process.',
+        'Claim owner mismatch: another Directus process',
       );
 
 // Releases a claim whose run cannot be accepted any more. The failure
@@ -150,10 +159,7 @@ export const guarded = async <T>(
       ? 'SOURCE_CHANGED'
       : 'FINGERPRINT_CHANGED';
   const { files } = outcome;
-  const message =
-    files === undefined
-      ? overtakenMessages[outcome.reason]
-      : overtakenPublicationMessages[outcome.reason];
+  const message = overtakenMessage(outcome.reason, files !== undefined);
   await claimTransaction(context, token, (port) =>
     releaseClaim(
       port,
@@ -183,7 +189,7 @@ export const recoverInside = async (
   await releaseClaim(port, {
     code,
     failed: true,
-    message: abandonmentMessage(code, stale),
+    message: abandonmentMessage(code, stale, context.staleAfterMs),
     token: stale.token,
   });
   return { released: true, state: await port.readState(true) };

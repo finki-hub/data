@@ -5,6 +5,7 @@ import {
   maxLabelBytes,
   splitHistoryLines,
 } from '../history-contract.js';
+import { boundedText, countText, listMax, listText } from '../text.js';
 import {
   boundedFields,
   boundedLength,
@@ -26,10 +27,8 @@ const unexpectedPart = (names: readonly string[], count: number): string => {
   if (count === 0) {
     return '';
   }
-  const id = names.includes('id')
-    ? ', one of them the internal id, which a snapshot never carries'
-    : '';
-  return `${count} unexpected column(s)${id}`;
+  const id = names.includes('id') ? ' (includes id)' : '';
+  return `unexpected columns: ${String(count)}${id}`;
 };
 
 // Maps the header record onto the snapshot fields: the file must name each
@@ -49,13 +48,13 @@ export const headerPositions = (cells: readonly CsvCell[]): number[] => {
     return snapshotFields.map((field) => names.indexOf(field));
   }
   const parts = [
-    missing.length > 0 ? `missing ${missing.join(', ')}` : '',
-    repeated.length > 0 ? `repeated ${repeated.join(', ')}` : '',
+    missing.length > 0 ? `missing ${listText(missing)}` : '',
+    repeated.length > 0 ? `repeated ${listText(repeated)}` : '',
     unexpectedPart(names, unexpected),
   ].filter((part) => part !== '');
   throw snapshotError(
     'INVALID_HEADERS',
-    `The header row must name exactly the ${snapshotFields.length} Moodle snapshot fields, in any order: ${parts.join('; ')}. Nothing was staged.`,
+    `Invalid header: ${parts.join('; ')}`,
     { missing, repeated, unexpected },
   );
 };
@@ -91,7 +90,8 @@ const describeProblem = ({ field, line, reason, row }: RowProblem): string =>
     .filter((part) => part !== null)
     .join(' ');
 
-const shownProblems = 12;
+// The flagged rows the import answer names; the refusal and the warning
+// text name the first listMax of them (text.ts).
 const shownFlags = 20;
 
 export type SnapshotWarnings = {
@@ -138,12 +138,11 @@ export class SnapshotRows {
   }
 
   public describe(): string {
-    const more = this.problems - this.shown.length;
-    const listed = [
-      ...this.shown.map((problem) => describeProblem(problem)),
-      ...(more > 0 ? [`and ${more} more`] : []),
-    ].join('; ');
-    return `${this.problems} problem(s) in ${this.rows} data rows: ${listed}. Nothing was staged and the active snapshot is unchanged.`;
+    const listed = boundedText(
+      this.shown.map((problem) => describeProblem(problem)),
+      { separator: '; ', total: this.problems },
+    );
+    return `Invalid rows: ${countText(this.problems, 'problem', 'problems')} in ${countText(this.rows, 'row', 'rows')}: ${listed}`;
   }
 
   #integer(record: CsvRecord, field: SnapshotField, cell: CsvCell) {
@@ -165,7 +164,7 @@ export class SnapshotRows {
 
   #problem(record: CsvRecord, field: null | SnapshotField, reason: string) {
     this.problems += 1;
-    if (this.shown.length < shownProblems) {
+    if (this.shown.length < listMax) {
       this.shown.push({ field, line: record.line, reason, row: record.record });
     }
   }
@@ -237,5 +236,5 @@ export const warningsOf = (rows: SnapshotRows): null | SnapshotWarnings =>
 
 export const describeWarnings = (warnings: SnapshotWarnings): string => {
   const { count: flagged, rows } = warnings.historyLinesOverLimit;
-  return `HISTORY_LINE_TOO_LONG: ${flagged} row(s) carry a history line over ${maxLabelBytes} bytes (rows ${rows.join(', ')}); the history index will refuse those users until the line is shortened at the source.`;
+  return `HISTORY_LINE_TOO_LONG: ${countText(flagged, 'row', 'rows')} over ${String(maxLabelBytes)} bytes: ${boundedText(rows.map(String), { total: flagged })}`;
 };

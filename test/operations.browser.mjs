@@ -151,7 +151,7 @@ const runFromPanel = async (
 
 const finished = (session, flowId) => async () => {
   const text = await textOf(session, panel(flowId));
-  return text.includes('Finished.');
+  return text.includes('Succeeded');
 };
 
 // Picks an item in the dialog's item picker by the text of its row.
@@ -355,7 +355,7 @@ const servesEditor = async ({ cli, editor, profiles, shot, state, target }) => {
   });
   await startRecording(editor);
   await openDashboard(editor, target);
-  await editorFollowsReview({ editor, runButton, shot });
+  await editorFollowsReview({ editor, panel, runButton, shot });
 };
 
 // Closes the browser and removes the run's rows; answers the resume of

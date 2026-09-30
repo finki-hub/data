@@ -94,7 +94,7 @@ const runCheck = async (
   if (stray !== undefined) {
     throw exportError(
       'INVALID_DEFINITION',
-      `A readiness check answered ${stray}, which no registry entry gives it`,
+      `Readiness check: unregistered code ${stray.slice(0, 80)}`,
     );
   }
   return codes.map((code) => [code, whole(code, answered[code] ?? 0)]);

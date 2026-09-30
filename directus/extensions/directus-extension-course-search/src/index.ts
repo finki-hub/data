@@ -9,6 +9,8 @@ import {
 } from 'vue';
 import { z } from 'zod';
 
+import { failureText } from './failure-text.js';
+import { pageSize } from './limits.js';
 import CourseSearch from './search.vue';
 
 const personSchema = z.object({
@@ -43,7 +45,7 @@ export type SearchController = {
   readonly coursesError: string | null;
   readonly supported: boolean;
   readonly hasCriteria: boolean;
-  readonly hasNativeFilters: boolean;
+  readonly nativeCriteria: readonly string[];
   readonly reset: () => void;
   readonly loadCourses: () => Promise<void>;
   readonly search: () => Promise<void>;
@@ -89,10 +91,7 @@ const layout = defineLayout({
           courses.value = optionsSchema.parse(response.data).data;
       } catch (error_) {
         if (request.signal.aborted) return;
-        coursesError.value =
-          error_ instanceof Error
-            ? 'Could not load course choices. Check your access to Moodle Users and try again.'
-            : 'Course choices are unavailable. Try again.';
+        coursesError.value = failureText('Course list', error_);
       } finally {
         if (!request.signal.aborted) loadingCourses.value = false;
       }
@@ -126,10 +125,7 @@ const layout = defineLayout({
         if (request.signal.aborted) return;
         people.value = [];
         total.value = 0;
-        error.value =
-          error_ instanceof Error
-            ? 'Could not load matching people. Check your access to Moodle Users and try again.'
-            : 'Search is unavailable. Try again.';
+        error.value = failureText('Search', error_);
       } finally {
         if (!request.signal.aborted) loading.value = false;
       }
@@ -182,14 +178,15 @@ const layout = defineLayout({
         search,
         reset,
         refresh,
-        pages: computed(() => Math.max(1, Math.ceil(total.value / 50))),
+        pages: computed(() => Math.max(1, Math.ceil(total.value / pageSize))),
         hasCriteria: computed(
           () => include.value.length + exclude.value.length > 0,
         ),
-        hasNativeFilters: computed(
-          () =>
-            Boolean(props.search) || Object.keys(props.filter ?? {}).length > 0,
-        ),
+        // The page header's own criteria that narrow the search too.
+        nativeCriteria: computed(() => [
+          ...(props.search ? ['search'] : []),
+          ...(Object.keys(props.filter ?? {}).length > 0 ? ['filter'] : []),
+        ]),
       }),
     };
   },

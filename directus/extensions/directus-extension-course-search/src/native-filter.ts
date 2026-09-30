@@ -113,10 +113,10 @@ const nestingDepth = (value: unknown): number => {
 };
 
 // A field, relation or function key such as `count(history_memberships)`;
-// never an operator or an implicit `$FOLLOW(...)` relation.
-const fieldKey = z
-  .string()
-  .regex(/^[^$_][^$]*$/u, 'An operator or implicit relation is no field');
+// never an operator or an implicit `$FOLLOW(...)` relation. The endpoint
+// names a refused key itself (criteria.ts), so the pattern carries no
+// message of its own.
+const fieldKey = z.string().regex(/^[^$_][^$]*$/u);
 
 const fieldCondition: z.ZodType<FieldCondition> = z.lazy(() =>
   z.union([operators, z.record(fieldKey, fieldCondition)]),
@@ -221,7 +221,7 @@ export const nativeFilter = z
     if (nestingDepth(value) > maxNestingDepth) {
       context.addIssue({
         code: 'custom',
-        message: `Filters may nest at most ${String(maxNestingDepth)} levels`,
+        message: `nesting exceeds ${String(maxNestingDepth)} levels`,
       });
     }
   })

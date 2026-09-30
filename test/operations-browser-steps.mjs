@@ -102,7 +102,7 @@ export const publishStep = async ({
     'the publication answer',
     async () => {
       const text = await textOf(admin, `[data-flow="${publishAssetsFlowId}"]`);
-      return text.includes('Finished.');
+      return text.includes('Succeeded');
     },
     300_000,
   );
@@ -245,9 +245,9 @@ export const addsPanel = async ({
   await removeFlow(target, syntheticFlowId);
 };
 
-// While the status read fails, a Run panel waits and says so (never
-// "Administrators only" to an administrator), and reads the status again
-// on its own once it answers.
+// While the status read fails, a Run panel waits and names the failed
+// read (never "Administrators only" to an administrator), and reads the
+// status again on its own once it answers.
 export const waitsForStatus = async ({
   admin,
   openDashboard,
@@ -263,10 +263,17 @@ export const waitsForStatus = async ({
     await openDashboard(admin, target);
     await waitUntil('the Run panel to say why it waits', async () => {
       const shown = await textOf(admin, publish);
-      return shown.includes('The data status could not be read');
+      return shown.includes('Data status read failed: NO_ANSWER');
     });
+    // The Flow's own description names its rule ("Administrators only.");
+    // no state line of the panel may say it to an administrator.
     const said = await textOf(admin, publish);
-    assert.ok(!said.includes('Administrators only'), said);
+    const described = await textOf(admin, `${publish} .description`);
+    assert.ok(described.includes('Administrators only.'), described);
+    assert.ok(
+      !said.replace(described, '').includes('Administrators only'),
+      said,
+    );
     const enabled = await admin.attempt(
       'is',
       'enabled',
@@ -321,8 +328,19 @@ export const reopensEmpty = async ({
 };
 
 // The editor sees the status, runs nothing and follows a review link.
-export const editorFollowsReview = async ({ editor, runButton, shot }) => {
-  await editor.command('wait', '--text', 'Administrators only');
+// The state line is read itself: the Flow's description beside it names
+// the same rule.
+export const editorFollowsReview = async ({
+  editor,
+  panel,
+  runButton,
+  shot,
+}) => {
+  const state = `${panel(publishAssetsFlowId)} p.state`;
+  await waitUntil('the Administrators only state', async () => {
+    const shown = await textOf(editor, state);
+    return shown.trim() === 'Administrators only';
+  });
   const enabled = await editor.attempt(
     'is',
     'enabled',

@@ -14,6 +14,7 @@ import {
   ruleModeNames,
   ruleModes,
   type RuleModeSpec,
+  shownMode,
 } from './rule-modes.js';
 
 // The pages of one rule mode and the Flow that runs them all.
@@ -50,9 +51,6 @@ type EnrollmentPage =
     })
   | (PageRange & { readonly kind: string });
 
-const shownMode = (mode: null | string): string =>
-  mode === null ? 'none' : JSON.stringify(mode.slice(0, 40));
-
 // The rules of every declared mode. A rule of any other mode, or of none,
 // refuses the whole plan, naming its id and a bounded mode only.
 const rulesByMode = (
@@ -65,7 +63,7 @@ const rulesByMode = (
     if (family === undefined) {
       throw coordinationError(
         'UNKNOWN_RULE_MODE',
-        `Rule ${rule.id} has the mode ${shownMode(rule.mode)}; every enrollment rule must be ${alternatives(ruleModeNames(modes))}, so nothing was planned.`,
+        `Rule ${String(rule.id)}: mode ${shownMode(rule.mode, modes)}, expected ${alternatives(ruleModeNames(modes))}`,
         { details: { rule: rule.id } },
       );
     }

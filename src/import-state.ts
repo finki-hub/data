@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { DirectusRequest } from './directus-request.js';
 
 import { dataModelCollectionKeys } from './data-model/collections.js';
+import { countText } from './text.js';
 
 // The coordination singleton setup creates and every source transaction
 // updates: operational bookkeeping, not source data, so a
@@ -60,7 +61,9 @@ export const countApplicationRecords = async (
   return Object.fromEntries(counts);
 };
 
-// The workbook import refused a populated project before its first write.
+// The workbook import refused a populated project before its first write:
+// `project not empty: <n> records in <m> collections (<collection> <n>, ...)`,
+// every collection named (the model bounds them).
 export class ExistingDataError extends Error {
   public override readonly name = 'ExistingDataError';
 
@@ -71,7 +74,7 @@ export class ExistingDataError extends Error {
       .join(', ');
     const total = entries.reduce((sum, [, count]) => sum + count, 0);
     super(
-      `The project already holds ${String(total)} record(s) in ${String(entries.length)} application collection(s): ${listed}. The one-time workbook import only fills a project whose application collections are empty (the empty schema npm run setup creates is fine); nothing was written.`,
+      `project not empty: ${countText(total, 'record', 'records')} in ${countText(entries.length, 'collection', 'collections')} (${listed})`,
     );
   }
 }

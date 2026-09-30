@@ -52,8 +52,12 @@ const secondPage = 'p0002';
 const history: Domain = 'history_index';
 const graphA = 'graph-a';
 const noEntryIdPattern = /No entry id/u;
-const noRowListPattern = /read_histories/u;
-const noClaimTokenPattern = /claim token/u;
+const noRowListPattern = /^read_histories: no row list$/u;
+const noClaimTokenPattern = /^Invalid trigger payload: expected \{token\}$/u;
+const firstIssuePattern =
+  /^Invalid options: rows\.0\.entries: Moodle user 1: /u;
+const describedPagePattern =
+  /^Page p0002 failed \[index COORDINATION_INVALID_OPTIONS\]: Invalid options: rows\.3\.entries: Moodle user 42: history line x+; failed pages: 2$/u;
 
 // LF, CRLF, a trailing lone CR, empty lines, exact repeats, whitespace and
 // case variants, a lone CR inside a line, Cyrillic and LIKE metacharacters.
@@ -287,20 +291,20 @@ describe('history contract', () => {
     expect(labelBytes('Дизајн')).toBe(12);
     expect(historyRowProblem(['A', 'x'.repeat(maxLabelBytes)])).toBeNull();
     expect(historyRowProblem(['x'.repeat(maxLabelBytes + 1)])).toBe(
-      `a history line of ${maxLabelBytes + 1} bytes, one entry holds at most ${maxLabelBytes} bytes; shorten that line in the raw Courses history`,
+      `history line ${maxLabelBytes + 1} bytes, max ${maxLabelBytes}`,
     );
     // Bytes, not characters: fewer than 2 048 characters, over 2 048 bytes.
     expect(cyrillic.length).toBeLessThan(maxLabelBytes);
     expect(historyRowProblem([cyrillic])).toContain(
       `${maxLabelBytes + 2} bytes`,
     );
-    expect(historyRowProblem(['A\nB'])).toContain('line feed');
-    expect(historyRowProblem([''])).toContain('empty');
+    expect(historyRowProblem(['A\nB'])).toBe('empty or multi-line entry');
+    expect(historyRowProblem([''])).toBe('empty or multi-line entry');
     expect(
       historyRowProblem(
         Array.from({ length: maxRowsPerPage + 1 }, (_, index) => `L${index}`),
       ),
-    ).toContain(`${maxRowsPerPage + 1} distinct history lines`);
+    ).toBe(`history lines ${maxRowsPerPage + 1}, max ${maxRowsPerPage}`);
   });
 });
 
@@ -405,7 +409,7 @@ describe('option contract', () => {
         ]),
       ),
     ).toThrow(
-      `rows.1.entries: Moodle user 42: a history line of ${maxLabelBytes + 5} bytes`,
+      `Invalid options: rows.1.entries: Moodle user 42: history line ${maxLabelBytes + 5} bytes, max ${maxLabelBytes}`,
     );
   });
 
@@ -425,7 +429,8 @@ describe('option contract', () => {
     })();
 
     expect(failure?.message).toContain('Moodle user 1:');
-    expect(failure?.message).toContain(`and ${pageSize - 5} more issues`);
+    expect(failure?.message).toMatch(firstIssuePattern);
+    expect(failure?.message.endsWith(` (+${pageSize - 5} more)`)).toBeTruthy();
     expect(failure?.message.length).toBeLessThan(1_800);
   });
 });
@@ -881,7 +886,7 @@ describe('run scripts', () => {
   test('describe the first failure of a run in a bounded message', () => {
     const pageFailure = {
       code: 'COORDINATION_INVALID_OPTIONS',
-      message: `Invalid coordination options (rows.3.entries: Moodle user 42: a history line ${'x'.repeat(2_000)}`,
+      message: `Invalid options: rows.3.entries: Moodle user 42: history line ${'x'.repeat(2_000)}`,
       ok: false,
       page: secondPage,
       stage: 'index',
@@ -895,18 +900,15 @@ describe('run scripts', () => {
       }),
     );
 
-    expect(described).toContain(
-      `failed at page ${secondPage} (index): COORDINATION_INVALID_OPTIONS Invalid coordination options (rows.3.entries: Moodle user 42:`,
-    );
-    expect(described).toContain('1 more page(s) failed as well.');
+    expect(described).toMatch(describedPagePattern);
     expect(described.length).toBeLessThan(600);
     expect(
       runScript(describeFailureScript, {
         index: { code: 'X', message: 'plan refused', ok: false, stage: 'plan' },
       }),
-    ).toContain('failed at the run (plan): X plan refused.');
-    expect(runScript(describeFailureScript, { index: null })).toContain(
-      'failed at the run: NO_RESULT no result.',
+    ).toBe('Run failed [plan X]: plan refused');
+    expect(runScript(describeFailureScript, { index: null })).toBe(
+      'Run failed [NO_RESULT]: no result',
     );
   });
 

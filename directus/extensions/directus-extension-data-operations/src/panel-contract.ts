@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   humanize,
   isManagedFlowName,
+  managedFlowPrefixes,
   operationsCollection,
 } from './managed-flows.js';
 
@@ -91,7 +92,24 @@ type RunPlan =
     }
   | { readonly reason: string; readonly runnable: false };
 
-const refuse = (reason: string): RunPlan => ({ reason, runnable: false });
+// Why a panel cannot run a Flow: one rule each, shown as
+// `Not runnable: <rule>`. README ("A dashboard action") says what to change.
+const runRules = {
+  collections: `collections must be exactly ${operationsCollection}`,
+  family: `name without a ${managedFlowPrefixes
+    .map((prefix) => `"${prefix}"`)
+    .join(' or ')} prefix`,
+  inactive: 'Flow inactive',
+  noCollection: 'no collection',
+  reporting: 'requires Asynchronous off and Error on Reject on',
+  selection: 'requires item selection',
+  trigger: 'trigger not manual',
+} as const;
+
+const refuse = (rule: keyof typeof runRules): RunPlan => ({
+  reason: `Not runnable: ${runRules[rule]}`,
+  runnable: false,
+});
 
 // Whether a panel can run the Flow, and how: an active manual Flow of a
 // managed family on the Data Operations collection alone, without a
@@ -101,37 +119,27 @@ const refuse = (reason: string): RunPlan => ({ reason, runnable: false });
 // show either as finished.
 export const runPlan = (flow: ManualFlow): RunPlan => {
   if (flow.trigger !== 'manual') {
-    return refuse('This Flow has no manual trigger, so no panel runs it.');
+    return refuse('trigger');
   }
   if (!isManagedFlowName(flow.name)) {
-    return refuse(
-      'This Flow is not a data operation (its name starts with neither "Data / " nor "Publish / ").',
-    );
+    return refuse('family');
   }
   if (flow.status !== 'active') {
-    return refuse('This Flow is inactive; activate it in its settings.');
+    return refuse('inactive');
   }
   const options = flow.options ?? {};
   const collections = options.collections ?? [];
   if (collections.length === 0) {
-    return refuse(
-      'This Flow names no collection, so Directus refuses to run it.',
-    );
+    return refuse('noCollection');
   }
   if (collections.some((collection) => collection !== operationsCollection)) {
-    return refuse(
-      `A data operation runs on the collection ${operationsCollection} alone, which no editor reads; set it as the Flow's only collection.`,
-    );
+    return refuse('collections');
   }
   if (options.requireSelection !== false) {
-    return refuse(
-      'This Flow needs selected items; run it from its collection page.',
-    );
+    return refuse('selection');
   }
   if (options.async === true || options.error_on_reject !== true) {
-    return refuse(
-      'This Flow would not report a failure to the panel: in its trigger, turn Asynchronous off and Error on Reject on.',
-    );
+    return refuse('reporting');
   }
   return {
     collection: operationsCollection,

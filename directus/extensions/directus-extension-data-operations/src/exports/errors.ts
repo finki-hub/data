@@ -54,5 +54,5 @@ export const exportError = (
 
 // Refuses a value a resolver cannot determine unambiguously.
 export const unresolved = (message: string): never => {
-  throw exportError('UNRESOLVED', `${message}; nothing was prepared.`);
+  throw exportError('UNRESOLVED', message);
 };

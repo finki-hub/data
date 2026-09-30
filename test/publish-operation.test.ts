@@ -196,13 +196,20 @@ describe('Publish JSON operation', () => {
       services: { FilesService: filesService([], null) },
     };
 
-    for (const options of [
-      { objects: {}, storage },
-      { objects: { '../x.json': [] }, storage },
-      { objects: { 'a.json': [] }, storage: '' },
-    ]) {
+    for (const [options, message] of [
+      [{ objects: {}, storage }, 'Invalid options: objects: empty'],
+      [
+        { objects: { '../x.json': [] }, storage },
+        'Invalid options: objects: invalid root-level JSON filename: ../x.json',
+      ],
+      [
+        { objects: { 'a.json': [] }, storage: '' },
+        'Invalid options: storage: required',
+      ],
+    ] as const) {
       await expect(operation.handler(options, context)).rejects.toMatchObject({
         code: 'PUBLISH_INVALID_OPTIONS',
+        message,
         name: 'DirectusError',
         status: 400,
       });
@@ -233,9 +240,11 @@ describe('Publish JSON operation', () => {
       name: 'DirectusError',
       status: 502,
     });
-    expect(parsed.message).toContain(
-      'Uploading rooms.json to storage publish failed after courses.json: InternalError: We encountered an internal error.',
-    );
+    expect(
+      parsed.message.startsWith(
+        'Upload of rooms.json to publish failed (published before: courses.json): InternalError: We encountered an internal error.',
+      ),
+    ).toBeTruthy();
     expect(parsed.message.length).toBeLessThanOrEqual(400);
     // Nothing after the failure, and no second attempt of it.
     expect(uploaded).toEqual(['courses.json', 'failed:rooms.json']);

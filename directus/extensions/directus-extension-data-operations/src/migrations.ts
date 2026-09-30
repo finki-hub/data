@@ -13,6 +13,10 @@ export type Migration = {
 
 const migrationNamePattern = /^[a-z][a-z0-9-]{0,63}$/u;
 
+// A name a bundled migration could carry.
+export const isMigrationName = (name: string | undefined): name is string =>
+  name !== undefined && migrationNamePattern.test(name);
+
 // Composite domain keys, join indexes, the curriculum generation guards
 // (curriculum-guards.ts), the key guards of published key rows
 // (key-guards.ts) and the write guards of the derived, candidate and
@@ -63,6 +67,6 @@ export const migrations: readonly Migration[] = [
 export const findMigration = (
   name: string | undefined,
 ): Migration | undefined =>
-  name !== undefined && migrationNamePattern.test(name)
+  isMigrationName(name)
     ? migrations.find((migration) => migration.name === name)
     : undefined;

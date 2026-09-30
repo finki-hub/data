@@ -10,6 +10,7 @@ import {
   rulePairsScript,
   enrollmentStep as step,
 } from './shared.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const pageContext = { page: '{{ $trigger.token }}' };
 
@@ -21,8 +22,13 @@ const pageContext = { page: '{{ $trigger.token }}' };
 // before. A failure anywhere stages nothing and answers a failure record.
 export const mappedPageFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Stages the mapped enrollment counts of one planned rule page. Input {claim, token, from, to, rows, revision} (a mapped page of a plan_pages plan of source "enrollments", or a page of source "rules", which the coordinator plans only while every rule is mapped_entries, plus the claim and its revision): checks the page against the plan stored for the current enrollments claim (claim, revision, page kind, range and rule count), reads the mapped_entries rules of the range and refuses the page when they are fewer than planned, counts every course/year serially with "Data / Count mapped enrollments", and stages all of them, zeros included, with stage_page. Answers {page, replaced, staged}, or {ok: false, page, stage, code, message} with nothing staged. Only the claim\'s completion installs course enrollments.',
+  description: flowDescription({
+    answers: ['page', 'replaced', 'staged'],
+    caller: 'Data / Count mapped enrollment pages',
+    does: 'Stages the mapped enrollment counts of one planned rule page, zeros included; each course/year through "Data / Count mapped enrollments"',
+    failure: { context: ['page'] },
+    input: ['claim', 'token', 'from', 'to', 'rows', 'revision'],
+  }),
   entry: enrollmentId('21'),
   icon: 'functions',
   id: mappedEnrollmentFlowIds.page,
@@ -112,7 +118,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'plan_failed',
-      name: 'Record the plan read failure',
+      name: stepName.answerFailure('plan'),
       options: countFailure('plan', pageContext),
       position: [19, 19],
       suffix: '28',
@@ -120,7 +126,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'page_failed',
-      name: 'Record the unplanned page',
+      name: stepName.answerFailure('page'),
       options: countFailure('page', pageContext, 'PAGE_PLAN_MISMATCH'),
       position: [37, 19],
       suffix: '29',
@@ -128,7 +134,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'rules_failed',
-      name: 'Record the rule read failure',
+      name: stepName.answerFailure('rules'),
       options: countFailure('rules', pageContext),
       position: [55, 19],
       suffix: '2a',
@@ -136,7 +142,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'payloads_failed',
-      name: 'Record the refused rule page',
+      name: stepName.answerFailure('pairs'),
       options: countFailure('pairs', pageContext, 'INVALID_RULE_PAGE'),
       position: [73, 19],
       suffix: '2b',
@@ -144,7 +150,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'pairs_failed',
-      name: 'Record the pair run failure',
+      name: stepName.answerFailure('count'),
       options: countFailure('count', pageContext),
       position: [91, 19],
       suffix: '2c',
@@ -152,7 +158,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'candidates_failed',
-      name: 'Record the failed pair',
+      name: stepName.answerFailure('candidates'),
       options: countFailure('candidates', pageContext, 'COUNT_FAILED'),
       position: [109, 19],
       suffix: '2d',
@@ -160,7 +166,7 @@ export const mappedPageFlow: FlowTemplate = {
     }),
     step({
       key: 'stage_failed',
-      name: 'Record the staging failure',
+      name: stepName.answerFailure('stage'),
       options: countFailure('stage', pageContext),
       position: [127, 19],
       suffix: '2e',

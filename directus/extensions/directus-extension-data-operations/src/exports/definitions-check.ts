@@ -1,5 +1,6 @@
 import type { ReadinessEntry } from './readiness-types.js';
 
+import { boundedText } from '../text.js';
 import { exportError } from './errors.js';
 import {
   blockParts,
@@ -171,7 +172,7 @@ export const checkDefinitions = (
   if (problems.length > 0) {
     throw exportError(
       'INVALID_DEFINITION',
-      `The export definitions are malformed: ${problems.slice(0, 5).join('; ')}.`,
+      `Invalid export definitions: ${boundedText(problems, { separator: '; ' })}`,
     );
   }
 };

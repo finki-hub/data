@@ -147,6 +147,7 @@ const outsideAllowlist = ([collection, field]: readonly [string, string]) => {
 const moodleUserFields: ReadonlySet<string> = new Set(snapshotFields);
 
 const wildcardOrSome = /"_(?:none|some)"|"\*"/u;
+const overBound = /^room-capacity\.json: \d+ bytes, max 4096$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 
 const namesMoodleField = (path: string): boolean =>
@@ -342,7 +343,7 @@ describe('a new file is one definition', () => {
 
     expect(rowsOf(store, 'rooms')).toHaveLength(83);
     expect(refusal.code).toBe('EXPORT_INVALID_PAYLOAD');
-    expect(refusal.message).toContain('above its bound of 4096');
+    expect(refusal.message).toMatch(overBound);
   });
 });
 
@@ -351,17 +352,29 @@ describe('payload validation', () => {
     [
       'an undeclared key',
       [{ Mail: 'x', name: 'Room' }],
-      'rooms.json row 0 carries the undeclared key Mail',
+      'rooms.json row 0: undeclared key Mail',
     ],
     [
       'a key out of order',
       [{ floor: '0', name: 'Room' }],
-      'rooms.json row 0 lists name out of order',
+      'rooms.json row 0: key name out of order',
     ],
-    ['a number instead of text', [{ floor: 0 }], 'is not a list of rows'],
-    ['an empty text', [{ name: '' }], 'is not a list of rows'],
-    ['a dropped row', [], 'rooms.json holds 0 rows for 1 read'],
-    ['no list', { name: 'Room' }, 'is not a list of rows'],
+    [
+      'a number instead of text',
+      [{ floor: 0 }],
+      'rooms.json: not a list of rows of text values',
+    ],
+    [
+      'an empty text',
+      [{ name: '' }],
+      'rooms.json: not a list of rows of text values',
+    ],
+    ['a dropped row', [], 'rooms.json: rows 0, expected 1'],
+    [
+      'no list',
+      { name: 'Room' },
+      'rooms.json: not a list of rows of text values',
+    ],
   ])('refuses %s', (_label, value, message) => {
     expect(() => validateFile(rooms, value, 1)).toThrow(message);
   });

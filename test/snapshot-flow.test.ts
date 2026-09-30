@@ -20,6 +20,7 @@ import {
 } from '../src/flows/snapshot-folder.js';
 import {
   confirmationDescription,
+  replacementNote,
   snapshotFlowId,
   snapshotImportFlow,
 } from '../src/flows/snapshot-import.js';
@@ -86,10 +87,18 @@ describe('snapshot import Flow template', () => {
       requireConfirmation: true,
       requireSelection: false,
     });
-    expect(confirmationDescription).toContain('Directus-only edit');
-    expect(confirmationDescription).toContain('backup');
-    expect(confirmationDescription).toContain('never touched');
-    expect(confirmationDescription).toContain(snapshotFolder.name);
+    // The dialog title is one question; the facts are the note of the
+    // confirmation field.
+    expect(confirmationDescription).toBe(
+      'Replace the active Moodle snapshot (moodle_users) with the selected CSV?',
+    );
+    expect(replacementNote).toContain('Directus-only edit');
+    expect(replacementNote).toContain('Backup');
+    expect(replacementNote).toContain('Never touched');
+    expect(replacementNote).toContain(snapshotFolder.name);
+    expect(JSON.stringify(snapshotImportFlow.options)).toContain(
+      JSON.stringify(replacementNote),
+    );
   });
 
   test('is a tree of deterministic ids that installs in edge order', () => {

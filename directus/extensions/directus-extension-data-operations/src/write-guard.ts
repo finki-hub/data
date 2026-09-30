@@ -9,19 +9,16 @@ import { guardMessage } from './coordination/write-guards.js';
 
 export const guardedEvents = ['create', 'update', 'delete'] as const;
 
-// The refusal every Directus item write to a guarded table gets.
+// The refusal every Directus item write to a guarded table gets: the
+// message of the database guard.
 const writeGuardRefusal = (declaration: GuardedDeclaration) =>
-  coordinationError(
-    'WRITE_GUARDED',
-    `${guardMessage(declaration)}. ${declaration.guard.remedy}`,
-    {
-      details: {
-        collection: declaration.collection,
-        role: declaration.role,
-      },
-      status: 403,
+  coordinationError('WRITE_GUARDED', guardMessage(declaration), {
+    details: {
+      collection: declaration.collection,
+      role: declaration.role,
     },
-  );
+    status: 403,
+  });
 
 // Refuses every item write on the derived, candidate and staging tables of
 // the collection-role registry through Directus (Studio, REST, GraphQL,

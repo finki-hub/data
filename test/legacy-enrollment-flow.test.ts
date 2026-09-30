@@ -60,28 +60,30 @@ const coordinationFailure = z.object({
   message: z.string(),
 });
 
-const nothingCounted = /; nothing was counted\.$/u;
-const nothingStaged = /; nothing was staged\.$/u;
+// Every refusal of the two Run Script files is `<place>: <fault>`.
+const countRefusal =
+  /^(?:check_page|read_rules|read_users|Page p\d{4}|Rule \d+(?: \(course \d+ \/ academic year \d+\))?): [^:]+$/u;
+const zeroRefusal =
+  /^(?:check_zeros|read_rules|read_sums|Page p\d{4}|Rule \d+): [^:]+$/u;
 const compileRefusal =
-  /^Rule \d+ \(course 9 \/ academic year \d+\) has a pattern that does not compile as a unicode regular expression \(Nothing to repeat\); nothing was counted\.$/u;
+  /^Rule \d+ \(course 9 \/ academic year \d+\): pattern does not compile as a unicode regular expression \(Nothing to repeat\)$/u;
 const escapeRefusal =
-  /^Rule 1 \(course 1 \/ academic year 1\) has a pattern that does not compile as a unicode regular expression \(Invalid escape\); nothing was counted\.$/u;
-const budgetRefusal =
-  /^Page p0002 holds 800001 bytes of Courses history, more than the 800000-byte budget; nothing was counted\.$/u;
-const cyrillicBudgetRefusal =
-  /holds 800002 bytes of Courses history, more than the 800000-byte budget/u;
+  /^Rule 1 \(course 1 \/ academic year 1\): pattern does not compile as a unicode regular expression \(Invalid escape\)$/u;
+const budgetRefusal = /^Page p0002: Courses history 800001 bytes, max 800000$/u;
+const cyrillicBudgetRefusal = /Courses history 800002 bytes, max 800000/u;
 const plannedBytesRefusal =
-  /^Page p0002 holds 13 bytes of Courses history, planned 14; nothing was counted\.$/u;
+  /^Page p0002: Courses history 13 bytes, planned 14$/u;
 const patternBudgetRefusal =
-  /^Rule page of page p0002 holds 1000001 bytes of pattern, more than the 1000000-byte budget; nothing was counted\.$/u;
-const plannedPatternRefusal =
-  /^Rule page of page p0002 holds 4 bytes of pattern, planned 5; nothing was counted\.$/u;
+  /^Page p0002: patterns 1000001 bytes, max 1000000$/u;
+const plannedPatternRefusal = /^Page p0002: patterns 4 bytes, planned 5$/u;
 const overBudgetPlan =
-  /^Moodle user 17 holds 800001 bytes of Courses history, more than the 800000-byte budget of one legacy rule page; nothing was planned\.$/u;
+  /^Moodle user 17: Courses history 800001 bytes, max 800000 per page$/u;
 const overBudgetRule =
-  /^Rule 12 holds a pattern of 1000001 bytes, more than the 1000000-byte pattern budget of one legacy rule page; nothing was planned\.$/u;
+  /^Rule 12: pattern 1000001 bytes, max 1000000 per page$/u;
 const unknownMode =
-  /^Rule 4 has the mode "manual"; every enrollment rule must be mapped_entries or legacy_regex, so nothing was planned\.$/u;
+  /^Rule 4: mode "manual", expected mapped_entries or legacy_regex$/u;
+const tooManyUsers = /^Page p\d{4}: users 251, max 250$/u;
+const tooManyRules = /^Page p\d{4}: rules 501, max 500$/u;
 const flagsInScript = /new RegExp\([^)]*'[a-fh-z]*g[a-z]*'\)/u;
 const forbiddenInScript = /\bconsole\b|\brequire\(|\bimport\b|\bprocess\b/u;
 const nameOrHistory = /Alpha|C\+\+|Course-|Theta/u;
@@ -526,10 +528,10 @@ describe('legacy page count refusals', () => {
 
     expect(count(users.slice(0, 250), rules.slice(0, 500)).users).toBe(250);
     expect(refusalOf(() => count(users, rules.slice(0, 1)))).toMatch(
-      nothingCounted,
+      tooManyUsers,
     );
     expect(refusalOf(() => count(users.slice(0, 1), rules))).toMatch(
-      nothingCounted,
+      tooManyRules,
     );
   });
 
@@ -598,7 +600,7 @@ describe('legacy page count refusals', () => {
       }),
     );
 
-    expect(message).toMatch(nothingCounted);
+    expect(message).toMatch(countRefusal);
     expect(message).not.toMatch(nameOrHistory);
     expect(message.length).toBeLessThan(400);
   });
@@ -699,7 +701,7 @@ describe('zero fill script', () => {
       [{ academic_year: 6, course: 3, sum: { count: '1', revision: '7' } }],
     ],
   ])('refuses %s instead of staging zeros', (_name, readSums) => {
-    expect(refusalOf(() => fill(readSums))).toMatch(nothingStaged);
+    expect(refusalOf(() => fill(readSums))).toMatch(zeroRefusal);
   });
 
   test.each([
@@ -722,6 +724,6 @@ describe('zero fill script', () => {
       { ...zeroPage, cells: 'p0002' },
     ],
   ])('refuses %s before staging', (_name, readRules, page) => {
-    expect(refusalOf(() => fill([], readRules, page))).toMatch(nothingStaged);
+    expect(refusalOf(() => fill([], readRules, page))).toMatch(zeroRefusal);
   });
 });

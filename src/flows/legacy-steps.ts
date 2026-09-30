@@ -1,8 +1,9 @@
 import { coordinateOperation } from './flow-template.js';
 import { legacyFailureCode, legacyId, legacyStep as step } from './shared.js';
+import { stepName } from './text-fragments.js';
 
-// Helpers of the two legacy child Flows (count-legacy-rule-page.ts and
-// fill-legacy-zeros.ts).
+// Helpers of the legacy Flows: the two child Flows (count-legacy-rule-page.ts
+// and fill-legacy-zeros.ts) and their parent (count-legacy-enrollments.ts).
 
 export const readStep = (collection: string, query: object) => ({
   collection,
@@ -11,6 +12,7 @@ export const readStep = (collection: string, query: object) => ({
   query,
 });
 
+// The context a child's failure record names: its page.
 const pageContext = { page: '{{ $trigger.token }}' };
 
 // One failure branch: the step whose rejection it takes (`source`), the
@@ -25,8 +27,9 @@ type FailureBranch = {
   readonly stage: string;
 };
 
-// The failure branches of a child Flow, in canvas order below the steps
-// they serve. Each first fails the claim (LEGACY_COUNT_FAILED): the
+// The failure branches of a legacy Flow, in canvas order below the steps
+// they serve, each record naming `context` (a child's page, nothing for
+// the parent). Each first fails the claim (LEGACY_COUNT_FAILED): the
 // candidates are discarded, the installed counts stay, and every later
 // page of the parent's serial run refuses in check_page within
 // milliseconds, before it reads a history or compiles a pattern, instead
@@ -38,12 +41,13 @@ type FailureBranch = {
 export const failureSteps = (
   column: number,
   branches: readonly FailureBranch[],
+  context: Readonly<Record<string, string>> = pageContext,
 ) =>
   branches.flatMap(({ code, fail, key, record, source, stage }, index) => [
     step({
       edges: { resolve: legacyId(record) },
       key: `${stage}_fail`,
-      name: `Fail the claim (${stage})`,
+      name: stepName.failClaim(stage),
       options: {
         action: 'fail',
         code: legacyFailureCode,
@@ -56,12 +60,12 @@ export const failureSteps = (
     }),
     step({
       key,
-      name: `Record the ${stage} failure`,
+      name: stepName.answerFailure(stage),
       // The failure record of countFailure, naming the refused step: the
       // fail step ran in between, so $last is not that step any more.
       options: {
         json: {
-          ...pageContext,
+          ...context,
           code: code ?? `{{ ${source}.code }}`,
           message: `{{ ${source}.message }}`,
           ok: false,

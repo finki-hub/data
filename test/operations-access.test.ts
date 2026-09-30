@@ -263,7 +263,9 @@ describe('the fields that decide public keys', () => {
           filter: { terms: { _some: { open: { _eq: true } } } },
         },
       ]),
-    ).toThrow('terms is no M2O relation of the model');
+    ).toThrow(
+      'Key-source filter on academic_years tests terms.open: terms is no M2O relation of the model',
+    );
   });
 });
 

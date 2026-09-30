@@ -25,10 +25,28 @@ export const generationReference = (note: string) =>
     template: generationTemplate,
   });
 
-const published = (what: string) =>
+type Publication = {
+  // What publishing requires or implies.
+  readonly condition?: string;
+  // What publishing adds besides the subject's keys.
+  readonly detail?: string;
+};
+
+// The `published` flag of a row that reaches courses.json: one note shape
+// for every key source, `Adds <subject> to courses.json[ (<detail>)][;
+// <condition>].` An unpublished row stays out by the flag's default.
+export const published = (
+  subject: string,
+  { condition, detail }: Publication = {},
+) =>
   scalar('published', 'boolean', {
     defaultValue: false,
-    note: `Publishes ${what} in courses.json. A new row stays out until this is set.`,
+    note: [
+      `Adds ${subject} to courses.json`,
+      detail === undefined ? '' : ` (${detail})`,
+      condition === undefined ? '' : `; ${condition}`,
+      '.',
+    ].join(''),
     nullable: false,
   });
 
@@ -48,16 +66,16 @@ export const generationCollections: readonly ModelCollection[] = [
         note: 'Set for a generation with curriculum entries; a label-only generation (such as 2013) names equivalency members only.',
         nullable: false,
       }),
-      published(
-        'the generation (its availability key and its block of keys, when it has a curriculum)',
-      ),
+      published('the generation', {
+        detail: 'availability key; key block when it has a curriculum',
+      }),
       scalar('sort', 'integer', {
         note: 'Chronological order: a later generation sorts higher. courses.json lists the published generations newest first.',
       }),
     ],
     hidden: false,
     icon: 'timeline',
-    note: 'Curriculum generations. A new generation is a new row; it reaches courses.json only once published.',
+    note: 'Curriculum generations.',
     singleton: false,
     sort: 26,
   },
@@ -82,9 +100,9 @@ export const generationCollections: readonly ModelCollection[] = [
       }),
       scalar('name', 'string', { nullable: false }),
       scalar('description', 'text'),
-      published(
-        "the program's state key, once its generation is published too",
-      ),
+      published("the program's state key", {
+        condition: 'requires a published generation',
+      }),
       scalar('sort', 'integer', {
         note: 'Order of the state keys within the generation.',
       }),
@@ -110,7 +128,7 @@ export const generationCollections: readonly ModelCollection[] = [
         template: curriculumEntryTemplate,
       }),
       m2o('program', 'study_programs', {
-        note: 'A program of the entry’s generation; the database refuses another.',
+        note: "A program of the entry's generation; the database refuses another.",
         nullable: false,
         onDelete: 'NO ACTION',
         template: programTemplate,
@@ -146,7 +164,7 @@ export const generationCollections: readonly ModelCollection[] = [
         'One member per generation of an equivalency; a linked entry must be of this generation.',
       ),
       scalar('label', 'string', {
-        note: 'The literal label of the imported equivalency sheet; kept as imported.',
+        note: 'Literal label from the imported equivalency sheet.',
         readOnly: true,
       }),
       m2o('entry', 'curriculum_entries', {
@@ -162,7 +180,7 @@ export const generationCollections: readonly ModelCollection[] = [
     ],
     hidden: false,
     icon: 'join_inner',
-    note: 'The members of a course equivalency: one literal label per generation, linked to its curriculum entry when unambiguous. A new generation adds members, not columns.',
+    note: 'Members of a course equivalency: one literal label per generation, linked to its curriculum entry when unambiguous.',
     singleton: false,
     sort: 29,
   },

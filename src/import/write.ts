@@ -3,6 +3,7 @@ import type { Scalar } from '../schema.js';
 
 import { chunk, createRows } from './batches.js';
 import {
+  displayKey,
   isRef,
   type PlannedCollection,
   type PlannedRecord,
@@ -19,6 +20,7 @@ type CreatedIds = ReadonlyMap<string, ReadonlyMap<string, number>>;
 // The record with every reference replaced by the id Directus gave the
 // row it names.
 const resolved = (
+  collection: string,
   record: PlannedRecord,
   created: CreatedIds,
 ): Readonly<Record<string, Scalar>> =>
@@ -30,7 +32,7 @@ const resolved = (
       const id = created.get(value.collection)?.get(value.key);
       if (id === undefined) {
         throw new ImportPlanError(
-          `The planned ${field} refers to the ${value.collection} row ${JSON.stringify(value.key)}, which the import has not created.`,
+          `plan: ${collection}.${field} references ${value.collection} ${displayKey(value.key)} before it is created`,
         );
       }
       return [field, id];
@@ -59,19 +61,19 @@ export const writePlan = async (
       const answered = await createRows(
         request,
         collection,
-        batch.map(({ record }) => resolved(record, created)),
+        batch.map(({ record }) => resolved(collection, record, created)),
       );
       confirmed(answered.length);
       for (const [index, row] of batch.entries()) {
         const id = answered[index];
         if (id === undefined) {
           throw new TypeError(
-            `Directus answered no id for a ${collection} row.`,
+            `POST /items/${collection}: no id for row ${displayKey(row.key)}`,
           );
         }
         if (ids.has(row.key)) {
           throw new ImportPlanError(
-            `The plan holds the ${collection} row ${JSON.stringify(row.key)} twice.`,
+            `plan: duplicate ${collection} key ${displayKey(row.key)}`,
           );
         }
         ids.set(row.key, id);

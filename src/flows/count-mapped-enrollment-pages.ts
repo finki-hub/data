@@ -2,6 +2,7 @@ import {
   mappedCheckScript,
   mappedPagesScript,
 } from './count-enrollments-scripts.js';
+import { mappedPageFlow } from './count-mapped-enrollment-page.js';
 import { type FlowTemplate } from './flow-template.js';
 import {
   chainStep,
@@ -15,6 +16,7 @@ import {
   mappedRuleMode,
   enrollmentStep as step,
 } from './shared.js';
+import { flowDescription } from './text-fragments.js';
 
 // The code a failed mapped family fails its claim with.
 const mappedFailureCode = 'MAPPED_COUNT_FAILED';
@@ -63,7 +65,13 @@ const branches = {
 // completes the claim, this Flow never plans or completes.
 export const mappedPagesFlow: FlowTemplate = {
   accountability: 'activity',
-  description: `Counts the ${mappedRuleMode.mode} family of an enrollments claim. Input {claim, kind, pages, revision, runner} (the family as plan_pages with source "enrollments" planned it): runs "Data / Count mapped enrollment page" for every mapped page in turn and checks that each staged one row per planned rule, zeros included. Answers {ok: true, pages, staged}; the caller completes the claim. Any failure fails the claim (${mappedFailureCode}) so nothing partial is installed, and answers {ok: false, stage, code, message}. Called by "Data / Run enrollment family".`,
+  description: flowDescription({
+    answers: ['ok: true', 'pages', 'staged'],
+    caller: 'Data / Run enrollment family',
+    does: `Counts the ${mappedRuleMode.mode} family of an enrollments claim: every mapped page through "${mappedPageFlow.name}", serially`,
+    failure: { codes: [mappedFailureCode] },
+    input: ['claim', 'kind', 'pages', 'revision', 'runner'],
+  }),
   entry: enrollmentId('31'),
   icon: 'functions',
   id: mappedEnrollmentFlowIds.pages,

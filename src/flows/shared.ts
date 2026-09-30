@@ -10,6 +10,13 @@
 // read their own declaration.
 import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { familyIds, familyStep, flowFamilyCodes } from './flow-template.js';
+import { plannedPageScript, statusRowScript } from './plan-check-scripts.js';
+import {
+  countFragment,
+  payloadRefusal,
+  refuseFragment,
+  relayFragment,
+} from './text-fragments.js';
 
 // A declared mode or page kind as a string literal inside a Run Script
 // body. The registry test keeps every declared value to lowercase words
@@ -101,45 +108,23 @@ export const planQuery = {
 // sub-range, another page's range under this token or a claim of another
 // domain would otherwise be staged as the whole page.
 export const pagePlanScript = String.raw`module.exports = function (data) {
+  ${refuseFragment}
+  ${countFragment}
   const page = data.$trigger;
   const whole = function (value, least) { return Number.isSafeInteger(value) && value >= least; };
   if (page === null || typeof page !== 'object' || typeof page.claim !== 'string' || page.claim.length === 0 || typeof page.token !== 'string' || !/^p\d{4,9}$/u.test(page.token)) {
-    throw new Error('The page needs {claim, token, from, to, rows, revision} as its trigger payload.');
+    ${payloadRefusal(['claim', 'token', 'from', 'to', 'rows', 'revision'])}
   }
   if (!whole(page.from, 1) || !whole(page.to, page.from) || !whole(page.rows, 0) || !whole(page.revision, 0)) {
-    throw new Error('The range, row count and revision of page ' + page.token + ' must be integers.');
+    refuse('Invalid trigger payload', 'page ' + page.token + ': from, to, rows, revision must be integers');
+  }${statusRowScript}${plannedPageScript}
+  if (planned.kind !== undefined && planned.kind !== ${scriptText(mappedPageKind)}) {
+    refuse(place, 'kind ' + String(planned.kind) + ', expected ${mappedPageKind}');
   }
-  const found = data.read_plan;
-  if (!Array.isArray(found) || found.length !== 1 || found[0] === null || typeof found[0] !== 'object') {
-    throw new Error('read_plan must answer the one coordination status row.');
+  if (planned.from !== page.from || planned.to !== page.to || planned.rows !== page.rows) {
+    refuse(place, 'range ' + page.from + '-' + page.to + ' (' + counted(page.rows, 'row', 'rows') + '), planned ' + String(planned.from) + '-' + String(planned.to) + ' (' + counted(planned.rows, 'row', 'rows') + ')');
   }
-  const status = found[0];
-  const refuse = function (reason) {
-    throw new Error('Page ' + page.token + ' ' + reason + '; nothing was counted.');
-  };
-  if (status.claim_token !== page.claim) {
-    refuse('names a claim that is not the current claim');
-  }
-  if (status.claim_domain !== 'enrollments') {
-    refuse('needs an enrollments claim, and the current claim runs ' + String(status.claim_domain));
-  }
-  if (status.claim_revision !== page.revision) {
-    refuse('names revision ' + page.revision + ', and the claim runs at revision ' + String(status.claim_revision));
-  }
-  const planned = (Array.isArray(status.claim_pages) ? status.claim_pages : []).filter(function (entry) {
-    return entry !== null && typeof entry === 'object' && entry.token === page.token;
-  });
-  if (planned.length !== 1) {
-    refuse('is not planned with its range under this claim (plan_pages with source enrollments or rules)');
-  }
-  const range = planned[0];
-  if (range.kind !== undefined && range.kind !== ${scriptText(mappedPageKind)}) {
-    refuse('is planned as a ' + String(range.kind) + ' page, not a mapped rule page');
-  }
-  if (range.from !== page.from || range.to !== page.to || range.rows !== page.rows) {
-    refuse('was planned as ids ' + String(range.from) + ' to ' + String(range.to) + ' (' + String(range.rows) + ' rules), not ' + page.from + ' to ' + page.to + ' (' + page.rows + ')');
-  }
-  return { claim: page.claim, from: range.from, revision: page.revision, rows: range.rows, to: range.to, token: page.token };
+  return { claim: page.claim, from: planned.from, revision: page.revision, rows: planned.rows, to: planned.to, token: page.token };
 };`;
 
 // The mapped rules of the planned page (check_page), read whole: the check
@@ -167,30 +152,31 @@ export const rulePageQuery = {
 // of a page that also holds a legacy_regex rule would drop that pair's
 // count. Such a page is refused until one page step stages every mode.
 export const rulePairsScript = `module.exports = function (data) {
+  ${refuseFragment}
   const page = data.check_page;
   const whole = function (value, least) { return Number.isSafeInteger(value) && value >= least; };
   if (page === null || typeof page !== 'object' || !whole(page.from, 1) || !whole(page.to, page.from) || !whole(page.rows, 0) || !whole(page.revision, 0)) {
-    throw new Error('check_page answered no planned page; nothing was counted.');
+    refuse('check_page', 'no planned page');
   }
   const rules = data.read_rules;
   if (!Array.isArray(rules)) {
-    throw new Error('read_rules returned no rule list.');
+    refuse('read_rules', 'no rule list');
   }
   if (rules.length !== page.rows) {
-    throw new Error('Read ' + rules.length + ' rules of page ' + page.token + ', planned ' + page.rows + '; nothing was counted.');
+    refuse('Page ' + page.token, 'rules ' + rules.length + ', planned ' + page.rows);
   }
   const seen = new Set();
   const pairs = [];
   for (const rule of rules) {
     if (rule === null || typeof rule !== 'object' || !whole(rule.id, page.from) || rule.id > page.to || seen.has(rule.id)) {
-      throw new Error('read_rules answered a rule outside page ' + page.token + '.');
+      refuse('read_rules', 'rule outside page ' + page.token);
     }
     seen.add(rule.id);
     if (!whole(rule.course, 1) || !whole(rule.academic_year, 1)) {
-      throw new Error('Rule ' + rule.id + ' has no course or academic year id.');
+      refuse('Rule ' + rule.id, 'course or academic_year missing');
     }
     if (rule.mode !== ${scriptText(mappedRuleMode.mode)}) {
-      throw new Error('Rule ' + rule.id + ' of page ' + page.token + ' has the mode ' + String(rule.mode) + '; this Flow counts ${mappedRuleMode.mode} rules only and stages a page whole, so nothing was counted.');
+      refuse('Rule ' + rule.id + ' (page ' + page.token + ')', 'mode ' + (rule.mode === null || rule.mode === undefined ? 'none' : String(rule.mode)) + ', expected ${mappedRuleMode.mode}');
     }
     pairs.push({ academic_year: rule.academic_year, claim: page.claim, course: rule.course, revision: page.revision });
   }
@@ -204,24 +190,25 @@ export const rulePairsScript = `module.exports = function (data) {
 // zero is staged like any other count. The message names the pair by its
 // ids and cuts the cause to a bounded length.
 export const candidateRowsScript = `module.exports = function (data) {
+  ${refuseFragment}
+  ${relayFragment}
   const pairs = data.pair_payloads;
   const results = data.count_pairs;
   if (!Array.isArray(pairs) || !Array.isArray(results) || results.length !== pairs.length) {
-    throw new Error('count_pairs answered ' + (Array.isArray(results) ? results.length : 'no') + ' results for ' + (Array.isArray(pairs) ? pairs.length : 'no') + ' pairs; nothing was staged.');
+    refuse('count_pairs', 'results ' + (Array.isArray(results) ? results.length : 'none') + ', expected ' + (Array.isArray(pairs) ? pairs.length : 'none'));
   }
   return pairs.map(function (pair, index) {
     const result = results[index];
-    const label = 'course ' + pair.course + ' / academic year ' + pair.academic_year;
+    const place = 'Pair course ' + pair.course + ' / academic year ' + pair.academic_year;
     if (result === null || typeof result !== 'object') {
-      throw new Error('No count for ' + label + '; nothing was staged.');
+      refuse(place, 'no count');
     }
     if (result.ok === false) {
-      const cause = (String(result.stage) + ': ' + String(result.code) + ' ' + String(result.message)).slice(0, 320);
-      throw new Error('The count for ' + label + ' failed (' + cause + '); nothing was staged.');
+      throw new Error(relayed(place, result));
     }
     const valid = result.course === pair.course && result.academic_year === pair.academic_year && result.revision === pair.revision && Number.isSafeInteger(result.count) && result.count >= 0;
     if (!valid) {
-      throw new Error('The count for ' + label + ' is not a valid result; nothing was staged.');
+      refuse(place, 'invalid count');
     }
     return { academic_year: pair.academic_year, count: result.count, course: pair.course };
   });

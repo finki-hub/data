@@ -14,6 +14,7 @@ import {
   getWorksheet,
   isFormulaCell,
   readCellText,
+  sheetPlace,
   WorkbookDataError,
 } from './workbook-values.js';
 
@@ -21,6 +22,7 @@ type RowContext = {
   readonly fields: readonly FieldSpec[];
   readonly filledValues: Map<string, string>;
   readonly headerPositions: ReadonlyMap<string, number>;
+  readonly sheet: string;
 };
 
 const readHeaders = (row: ExcelJS.Row): ReadonlyMap<string, number> => {
@@ -45,7 +47,7 @@ const validateHeaders = (
       !headerPositions.has(fieldSpec.source)
     ) {
       throw new WorkbookDataError(
-        `Worksheet ${JSON.stringify(sheet)} is missing column ${JSON.stringify(fieldSpec.source)}`,
+        `${sheetPlace(sheet, 1)}: missing column ${JSON.stringify(fieldSpec.source)}`,
       );
     }
   }
@@ -64,7 +66,7 @@ const readRow = (
       fieldSpec.sourceColumn ?? context.headerPositions.get(fieldSpec.source);
     if (columnNumber === undefined) {
       throw new WorkbookDataError(
-        `Column position disappeared for ${fieldSpec.source}`,
+        `${context.sheet}: no column position for ${JSON.stringify(fieldSpec.source)} (internal)`,
       );
     }
 
@@ -86,7 +88,10 @@ const readRow = (
       context.filledValues.set(fieldSpec.target, cellText);
     }
 
-    item[fieldSpec.target] = convertCell(text, fieldSpec, rowNumber);
+    item[fieldSpec.target] = convertCell(text, fieldSpec, {
+      row: rowNumber,
+      sheet: context.sheet,
+    });
     hasContent ||= text.trim() !== '';
   }
 
@@ -108,6 +113,7 @@ export const readRows = (
     fields: spec.fields,
     filledValues: new Map(),
     headerPositions,
+    sheet: source.sheet,
   };
   for (
     let rowNumber = 2;

@@ -221,11 +221,11 @@ describe('plan_pages with source enrollments', () => {
 });
 
 const historyUnderEnrollments =
-  /^plan_pages with source history serves history_index claims only; the current claim runs enrollments, which plans with source enrollments\.$/u;
+  /^plan_pages source history: claim domain enrollments, expected history_index$/u;
 const rulesWithLegacy =
-  /^plan_pages with source rules plans mapped_entries rules only, and rule (?:2|4) has another mode; plan with source enrollments, which covers every rule mode\. Nothing was planned\.$/u;
+  /^plan_pages source rules: rule (?:2 mode legacy_regex|4 mode none), expected mapped_entries$/u;
 const rulesUnderHistory =
-  /^plan_pages with source rules serves enrollments claims only; the current claim runs history_index\.$/u;
+  /^plan_pages source rules: claim domain history_index, expected enrollments$/u;
 const domainMismatch = { code: 'COORDINATION_DOMAIN_MISMATCH' };
 
 const plan = (
@@ -338,9 +338,8 @@ describe('plan_pages sources by claim domain', () => {
 
 const word = /^[a-z][a-z_]*$/u;
 const unknownManual =
-  /^Rule 4 has the mode "manual"; every enrollment rule must be mapped_entries or legacy_regex, so nothing was planned\.$/u;
-const retiredLegacy =
-  /^Rule 2 has the mode "legacy_regex"; every enrollment rule must be mapped_entries, so nothing was planned\.$/u;
+  /^Rule 4: mode "manual", expected mapped_entries or legacy_regex$/u;
+const retiredLegacy = /^Rule 2: mode "legacy_regex", expected mapped_entries$/u;
 
 // A mode only a test registry declares: plain rule ranges, its own page
 // kind and runner Flow.
@@ -356,7 +355,7 @@ const tallyMode: RuleModeSpec = {
 
 const withoutLegacy = ruleModes.filter(({ mode }) => mode !== 'legacy_regex');
 
-const oversizedUser = /Moodle user 17 holds 800001 bytes/u;
+const oversizedUser = /^Moodle user 17: Courses history 800001 bytes, /u;
 
 // The registered Flow families holding a template of this id.
 const familiesHolding = (id: string) =>
@@ -392,7 +391,9 @@ describe('the rule-mode registry', () => {
       expect(ruleMode(spec.mode)).toBe(spec);
     }
 
-    expect(alternatives(['a', 'b', 'c'])).toBe('a, b, or c');
+    expect(alternatives(['a', 'b', 'c'])).toBe('a, b or c');
+    expect(alternatives(['a', 'b'])).toBe('a or b');
+    expect(alternatives(['a'])).toBe('a');
   });
 
   // A `rules` plan carries no page kind, and the one page Flow that counts

@@ -5,6 +5,7 @@ import type { ExportDefinition } from './types.js';
 
 import { fileOutcomes } from '../coordination/domains.js';
 import { boundedCode } from '../coordination/outcomes.js';
+import { listText } from '../text.js';
 import { exportError } from './errors.js';
 import { type ExportDeps, preparePublicFiles } from './prepare.js';
 import { readinessRegistry } from './readiness-registry.js';
@@ -34,7 +35,7 @@ export const stageAction = async ({
   if (prepared.revision !== claim.revision) {
     throw exportError(
       'UNSTABLE_PREPARATION',
-      `The source changed after the publication was claimed (claimed at source revision ${claim.revision}, prepared at ${prepared.revision}); nothing was uploaded. Publish again.`,
+      `Source changed after claim: claimed revision ${String(claim.revision)}, prepared revision ${String(prepared.revision)}`,
       { revision: prepared.revision, revisionBefore: claim.revision },
     );
   }
@@ -83,7 +84,6 @@ type FileOutcome =
 // a template the engine rendered as text): the upload still failed, and
 // boundedCode records it as PUBLISH_FAILED.
 const noAnswerCode = 'NO_ANSWER';
-const shownFailures = 5;
 const messageLength = 600;
 
 const outcomeOf = (answer: Answer | undefined): FileOutcome => {
@@ -101,8 +101,7 @@ const outcomeOf = (answer: Answer | undefined): FileOutcome => {
   };
 };
 
-const refuse = (message: string) =>
-  exportError('INVALID_OPTIONS', `${message}; nothing was recorded.`);
+const refuse = (message: string) => exportError('INVALID_OPTIONS', message);
 
 // The answers keyed by filename, refusing a filename no definition
 // declares or one answered twice (a publish Flow edited out of shape).
@@ -119,11 +118,11 @@ const answersOf = (
     const { filename } = parsed.data;
     if (!declared.includes(filename)) {
       throw refuse(
-        `The publish loop answered for ${filename.slice(0, 80)}, which no export definition declares`,
+        `Publish loop answer for undeclared file: ${filename.slice(0, 80)}`,
       );
     }
     if (answers.has(filename)) {
-      throw refuse(`The publish loop answered twice for ${filename}`);
+      throw refuse(`Publish loop answered twice: ${filename}`);
     }
     answers.set(filename, parsed.data);
   }
@@ -152,28 +151,27 @@ export const outcomesAction = (
       code: null,
       failed,
       files,
-      message: `Uploaded every declared file: ${uploaded.join(', ')}.`,
+      message: `Uploaded ${String(uploaded.length)} of ${String(declared.length)}: ${uploaded.join(', ')}`,
       ok: true,
       uploaded,
     };
   }
-  const failures = failed
-    .slice(0, shownFailures)
-    .map((filename) => {
+  const failures = listText(
+    failed.map((filename) => {
       const entry = files[filename];
       return `${filename} (${entry !== undefined && 'code' in entry ? entry.code : noAnswerCode})`;
-    })
-    .join(', ');
+    }),
+  );
   const cause = failed
     .map((filename) => answers.get(filename)?.message)
     .find((message) => message !== undefined && message !== '');
-  const detail = cause === undefined ? '' : ` First failure: ${cause}`;
+  const detail = cause === undefined ? '' : `. First failure: ${cause}`;
   return {
     code: uploaded.length > 0 ? 'PUBLICATION_PARTIAL' : 'PUBLICATION_FAILED',
     failed,
     files,
     message:
-      `Uploaded ${uploaded.length} of ${declared.length} files; not uploaded: ${failures}. The source revision is not recorded as published; publish again.${detail}`.slice(
+      `Uploaded ${String(uploaded.length)} of ${String(declared.length)}; failed: ${failures}${detail}`.slice(
         0,
         messageLength,
       ),

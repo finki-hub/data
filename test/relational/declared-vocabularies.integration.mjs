@@ -57,8 +57,10 @@ const laterYear = '2026/2027';
 const sixteenYears = [laterYear, ...academicYears];
 const entries = 'moodle_course_entries';
 const reviewState = 'review_state';
-const oneValuePattern = /review_state holds 1 value\(s\)/u;
+const oneValuePattern =
+  /^Field moodle_course_entries\.review_state: 1 value outside declared choices: /mu;
 const deferredPattern = /"deferred"/u;
+const refusalHeaderPattern = /^data model: \d+ incompatible definitions?$/u;
 const yearLabelPattern = /^\d{4}\/\d{4}$/u;
 
 const names = (templates) => templates.map(({ name }) => name);
@@ -172,8 +174,10 @@ const refusesOutOfSet = async ({ directus, target }) => {
   const recorder = recording(directus);
   await assert.rejects(runSetup(recorder.request), (error) => {
     assert.ok(error instanceof SchemaRefusalError);
-    assert.match(error.message, oneValuePattern);
-    assert.match(error.message, deferredPattern);
+    const reasons = error.refusals.map(({ reason }) => reason).join('\n');
+    assert.match(error.message, refusalHeaderPattern);
+    assert.match(reasons, oneValuePattern);
+    assert.match(reasons, deferredPattern);
     assert.equal(error.summary.fields.refused, 1);
     return true;
   });

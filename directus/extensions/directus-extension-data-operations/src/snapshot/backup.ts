@@ -4,6 +4,7 @@ import type { CsvCell } from './csv-types.js';
 import type { BackupRecord, SnapshotPort } from './port.js';
 import type { SnapshotDeps } from './stage.js';
 
+import { countText } from '../text.js';
 import {
   activeTable,
   backupBatchRows,
@@ -14,7 +15,7 @@ import {
   type SnapshotValue,
 } from './contract.js';
 import { readCsv } from './csv-parser.js';
-import { type SnapshotError, snapshotError } from './errors.js';
+import { claimLost, type SnapshotError, snapshotError } from './errors.js';
 import { SnapshotFingerprint } from './fingerprint.js';
 
 // The private pre-replacement backup: the active Moodle users as a CSV of
@@ -60,10 +61,7 @@ export class ClaimKeeper {
     }
     this.#last = performance.now();
     if (!(await this.#deps.heartbeat(this.#token))) {
-      this.lost = snapshotError(
-        'CLAIM_LOST',
-        'The snapshot claim was released while the backup was written; nothing was replaced.',
-      );
+      this.lost = claimLost('backup');
       throw this.lost;
     }
   }
@@ -114,17 +112,14 @@ const verifyBackup = async (
     if (header) {
       header = false;
       if (record.cells.join('\n') !== snapshotFields.join('\n')) {
-        throw snapshotError(
-          'BACKUP_FAILED',
-          'The stored backup has an unexpected header row.',
-        );
+        throw snapshotError('BACKUP_FAILED', 'Backup header mismatch');
       }
       continue;
     }
     if (record.cells.length !== snapshotFields.length) {
       throw snapshotError(
         'BACKUP_FAILED',
-        `The stored backup has a malformed row on line ${record.line}.`,
+        `Backup row malformed: line ${String(record.line)}`,
       );
     }
     const row: SnapshotRow = snapshotFields.map((_, index) =>
@@ -170,7 +165,7 @@ export const writeBackup = async (
     if (counter.rows !== summary.rows) {
       throw snapshotError(
         'BACKUP_FAILED',
-        `The backup wrote ${counter.rows} rows of ${summary.rows} active Moodle users.`,
+        `Backup row count mismatch: written ${String(counter.rows)}, active ${String(summary.rows)}`,
       );
     }
     return { file, ...summary };
@@ -182,7 +177,7 @@ export const writeBackup = async (
   ) {
     throw snapshotError(
       'BACKUP_FAILED',
-      `The stored backup ${written.file} holds ${stored.rows} rows that do not match the ${written.rows} active Moodle users it was written from; nothing was replaced.`,
+      `Backup verification failed: file ${written.file}, stored ${countText(stored.rows, 'row', 'rows')}, written ${countText(written.rows, 'row', 'rows')}`,
     );
   }
   return written;

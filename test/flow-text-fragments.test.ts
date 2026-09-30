@@ -1,0 +1,168 @@
+import { describe, expect, test } from 'vitest';
+
+import {
+  countFragment,
+  flowDescription,
+  payloadRefusal,
+  refuseFragment,
+  relayBound,
+  relayFragment,
+  stepName,
+} from '../src/flows/text-fragments.js';
+import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+
+// A Run Script body that holds the fragments and runs `body` over the
+// data chain.
+const script = (body: string): string => `module.exports = function (data) {
+  ${refuseFragment}
+  ${relayFragment}
+  ${countFragment}
+  ${body}
+};`;
+
+describe('Run Script fragments', () => {
+  test('count as countText does: one noun for 1, the plural otherwise', () => {
+    expect(
+      runScript(
+        script(
+          "return [0, 1, 2].map(function (n) { return counted(n, 'row', 'rows'); });",
+        ),
+        {},
+      ),
+    ).toEqual(['0 rows', '1 row', '2 rows']);
+  });
+
+  test('refuse with the leaf form, place first', () => {
+    expect(
+      refusalOf(() =>
+        runScript(
+          script(
+            "refuse('Page ' + data.token, 'revision ' + data.revision + ', expected 7');",
+          ),
+          { revision: 6, token: 'p0002' },
+        ),
+      ),
+    ).toBe('Page p0002: revision 6, expected 7');
+    expect(
+      refusalOf(() =>
+        runScript(script("refuse('read_plan', 'expected 1 status row');"), {}),
+      ),
+    ).toBe('read_plan: expected 1 status row');
+  });
+
+  test('relay a child failure record with its stage and code, cut to one bound', () => {
+    const relay = script("return relayed('Legacy page p0003', data.result);");
+
+    expect(
+      runScript(relay, {
+        result: {
+          code: 'LEGACY_COUNT_FAILED',
+          message: 'Rule 12: pattern missing',
+          ok: false,
+          stage: 'count',
+        },
+      }),
+    ).toBe(
+      'Legacy page p0003 failed [count LEGACY_COUNT_FAILED]: Rule 12: pattern missing',
+    );
+
+    const long = runScript(relay, {
+      result: { code: 'X', message: 'y'.repeat(900), stage: 'count' },
+    });
+
+    expect(long).toBe(
+      'Legacy page p0003 failed [count X]: '
+        .concat('y'.repeat(900))
+        .slice(0, relayBound),
+    );
+    expect(long).toHaveLength(relayBound);
+    expect(
+      runScript(relay, { result: { code: 'NO_RESULT', message: 'no result' } }),
+    ).toBe('Legacy page p0003 failed [NO_RESULT]: no result');
+    expect(runScript(relay, { result: null })).toBe(
+      'Legacy page p0003 failed [undefined]: undefined',
+    );
+  });
+
+  test('refuse a trigger payload by the keys it expects', () => {
+    expect(
+      refusalOf(() =>
+        runScript(
+          script(payloadRefusal(['claim', 'token', "it's"])),
+          undefined,
+        ),
+      ),
+    ).toBe("Invalid trigger payload: expected {claim, token, it's}");
+  });
+});
+
+describe('Flow descriptions', () => {
+  test('follow one layout: what, who, input, answers, failure, caller', () => {
+    expect(
+      flowDescription({
+        answers: ['ok: true', 'completed', 'domain'],
+        caller: 'Data / Process pending',
+        does: 'Counts every enrollment pair of an enrollments claim',
+        failure: { codes: ['ENROLLMENTS_FAILED'] },
+        input: ['claim', 'revision'],
+      }),
+    ).toBe(
+      'Counts every enrollment pair of an enrollments claim. Input {claim, revision}. Answers {ok: true, completed, domain} or {ok: false, stage, code, message}; failure code ENROLLMENTS_FAILED. Called by "Data / Process pending".',
+    );
+    expect(
+      flowDescription({
+        answers: ['page', 'users'],
+        does: 'Counts one planned legacy page',
+        failure: {
+          codes: ['LEGACY_COUNT_FAILED', 'INDEX_FAILED'],
+          context: ['page'],
+        },
+      }),
+    ).toBe(
+      'Counts one planned legacy page. Answers {page, users} or {ok: false, page, stage, code, message}; failure codes LEGACY_COUNT_FAILED, INDEX_FAILED.',
+    );
+  });
+
+  test('state administrator access and one more fact for a manual Flow', () => {
+    expect(
+      flowDescription({
+        adminOnly: true,
+        does: 'Creates missing enrollment rules for an academic year, a course or one pair',
+        note: 'Existing rules are skipped',
+      }),
+    ).toBe(
+      'Creates missing enrollment rules for an academic year, a course or one pair. Administrators only. Existing rules are skipped.',
+    );
+    expect(
+      flowDescription({
+        answers: ['ok', 'filename', 'outcome'],
+        does: 'Uploads one public file.',
+        failure: 'never rejects',
+        input: ['claim', 'filename'],
+      }),
+    ).toBe(
+      'Uploads one public file. Input {claim, filename}. Answers {ok, filename, outcome}; never rejects.',
+    );
+    expect(
+      flowDescription({
+        answers: ['ok', 'pages'],
+        does: 'Plans the pages',
+        failure: {},
+      }),
+    ).toBe(
+      'Plans the pages. Answers {ok, pages} or {ok: false, stage, code, message}.',
+    );
+  });
+});
+
+describe('Flow operation names', () => {
+  test('name the failure branch steps by stage and code', () => {
+    expect(stepName.failClaim('enrollments_run')).toBe(
+      'Fail claim: enrollments_run',
+    );
+    expect(stepName.answerFailure('pairs')).toBe('Answer failure: pairs');
+    expect(stepName.raise('PUBLICATION_NOT_PREPARED')).toBe(
+      'Throw PUBLICATION_NOT_PREPARED',
+    );
+  });
+});

@@ -68,9 +68,11 @@ type DomainList = readonly [Domain, ...Domain[]];
 
 // A table only its own writer changes. The database guard refuses every
 // other statement unless the writer opened it for its transaction with the
-// setting finki_hub.<writer>, or a foreign key cascade writes it.
+// setting finki_hub.<writer>, or a foreign key cascade writes it. The
+// refusal names the writer (`writtenBy`); its HINT states where the rows
+// come from (`hint`).
 type WriteGuard = {
-  readonly remedy: string;
+  readonly hint: string;
   readonly writer: string;
   readonly writtenBy: string;
 };
@@ -137,10 +139,9 @@ const collectionRoles = [
     collection: 'moodle_history_memberships',
     description: 'the derived Moodle history index',
     guard: {
-      remedy:
-        'Edit the raw Courses history of the Moodle user, or the entry and its mappings; the scheduled "Data / Process pending" Flow rebuilds the index.',
+      hint: 'Source: moodle_users.Courses, moodle_course_entries, moodle_course_mappings; rebuilt by: Data / Process pending',
       writer: 'history_writer',
-      writtenBy: 'the history index run',
+      writtenBy: 'history index run',
     },
     role: 'derived',
   },
@@ -148,10 +149,9 @@ const collectionRoles = [
     collection: 'course_enrollments',
     description: 'the derived enrollment counts',
     guard: {
-      remedy:
-        'Edit the mappings, the enrollment rules or the Moodle histories; the scheduled "Data / Process pending" Flow recounts.',
+      hint: 'Source: moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending',
       writer: 'enrollments_writer',
-      writtenBy: 'the completion of an enrollments claim',
+      writtenBy: 'enrollments claim completion',
     },
     role: 'derived',
   },
@@ -159,10 +159,9 @@ const collectionRoles = [
     collection: 'moodle_import_rows',
     description: 'the staging of the controlled Moodle snapshot import',
     guard: {
-      remedy:
-        'Upload the CSV to the File Library, then run the "Data / Import Moodle snapshot" Flow.',
+      hint: 'Written by: Data / Import Moodle snapshot',
       writer: 'snapshot_writer',
-      writtenBy: 'the snapshot import',
+      writtenBy: 'snapshot import',
     },
     role: 'staging',
   },
@@ -175,10 +174,9 @@ const collectionRoles = [
     collection: 'data_operation_results',
     description: 'the candidate counts of a running enrollments claim',
     guard: {
-      remedy:
-        'The enrollment count Flows stage, sum and discard them through the coordinator; nothing here is edited by hand.',
+      hint: 'Written by: coordinator',
       writer: 'candidate_writer',
-      writtenBy: 'the coordinator under that claim',
+      writtenBy: 'coordinator',
     },
     role: 'candidate',
   },

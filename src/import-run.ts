@@ -1,12 +1,16 @@
 import type { DirectusRequest } from './directus-request.js';
 
 import { type DirectusConfig, loadImportConfig } from './config.js';
-import { ImportInterruptedError } from './import-interruption.js';
 import { checkSummary, refusalCount, refusalLines } from './import-report.js';
 import { type ImportIo, importWorkbook } from './import-workbook.js';
 import { type ImportPlan, planImport } from './import/plan.js';
-import { exitCodes, isRefusal } from './lifecycle.js';
-import { WorkbookDataError } from './workbook-values.js';
+import {
+  type CommandName,
+  exitCodes,
+  outcomeLine,
+  reportFailure,
+} from './lifecycle.js';
+import { countText, printSummary } from './text.js';
 import { loadWorkbook, type WorkbookContent } from './workbook.js';
 
 type ImportCliIo = ImportIo & {
@@ -15,30 +19,23 @@ type ImportCliIo = ImportIo & {
   readonly stdout: (line: string) => void;
 };
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
-// The message as a sentence, so a remark can follow it.
-const sentence = (message: string): string =>
-  message.endsWith('.') ? message : `${message}.`;
-
-// Everything that refuses the import on stderr: the values no column can
-// hold, each named by sheet, row and column, and the blocking cases, one
-// line each, in plain words with its code, course and rows.
+// Everything that blocks the import, on stderr: the header with the number
+// of cases, then one line per value no column can hold and per blocking
+// case, each with its code and its sheet and row.
 const reportBlocked = (
+  command: CommandName,
   {
-    dryRun,
     plan,
     workbook,
-  }: {
-    readonly dryRun: boolean;
-    readonly plan: ImportPlan;
-    readonly workbook: WorkbookContent;
-  },
+  }: { readonly plan: ImportPlan; readonly workbook: WorkbookContent },
   stderr: (line: string) => void,
 ): void => {
   stderr(
-    `${dryRun ? 'Dry run: npm run import would refuse this workbook' : 'Import blocked'}: correct these ${String(refusalCount(plan))} case(s) in the workbook, then import again; nothing was sent to Directus.`,
+    outcomeLine(
+      command,
+      'blocked',
+      countText(refusalCount(plan), 'case', 'cases'),
+    ),
   );
   for (const line of refusalLines(plan, workbook)) {
     stderr(line);
@@ -50,8 +47,10 @@ const reportBlocked = (
 // the same check before Directus is contacted: a workbook that cannot be
 // read fails (exit 1); every value no column can hold and every case the
 // import cannot write as the workbook states it block (exit 3), all named
-// by sheet and row on stderr in one run, each case in plain words. Only
-// an unblocked import contacts Directus.
+// by code, sheet and row on stderr in one run. Only an unblocked import
+// contacts Directus. The dry run names itself in its blocked header
+// (`Import dry run blocked: <n> cases`); every other first line starts
+// with `Import <outcome>:` in both modes.
 export const runImportCli = async (
   arguments_: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
@@ -64,13 +63,17 @@ export const runImportCli = async (
     const summary = checkSummary(plan);
     const dryRun = config.directus === null;
     if (dryRun) {
-      io.stdout(JSON.stringify({ mode: 'dry-run', ...summary }, null, 2));
+      printSummary(io, { mode: 'dry-run', ...summary });
     }
     if (refusalCount(plan) > 0) {
       if (!dryRun) {
-        io.stdout(JSON.stringify({ mode: 'import', ...summary }));
+        printSummary(io, { mode: 'import', ...summary });
       }
-      reportBlocked({ dryRun, plan, workbook }, io.stderr);
+      reportBlocked(
+        dryRun ? 'Import dry run' : 'Import',
+        { plan, workbook },
+        io.stderr,
+      );
       return exitCodes.blocked;
     }
     if (config.directus === null) {
@@ -81,22 +84,9 @@ export const runImportCli = async (
       plan.collections,
       io,
     );
-    io.stdout(JSON.stringify({ mode: 'import', ...summary, ...imported }));
+    printSummary(io, { mode: 'import', ...summary, ...imported });
     return exitCodes.ok;
   } catch (error) {
-    if (isRefusal(error)) {
-      io.stderr(`Import refused: ${messageOf(error)}`);
-      return exitCodes.refused;
-    }
-    if (error instanceof ImportInterruptedError) {
-      io.stderr(`Import interrupted: ${error.message}`);
-      return exitCodes.interrupted;
-    }
-    io.stderr(
-      error instanceof WorkbookDataError
-        ? `Import failed: ${sentence(messageOf(error))} Nothing was sent to Directus.`
-        : `Import failed: ${messageOf(error)}`,
-    );
-    return exitCodes.failed;
+    return reportFailure('Import', error, io);
   }
 };

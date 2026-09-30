@@ -6,6 +6,7 @@ import {
   publishId,
   publishJsonOperation,
 } from './flow-template.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const family = flowFamilyCodes.publish;
 
@@ -17,7 +18,7 @@ const claim = '{{ $trigger.claim }}';
 // The storage location every file is written to: Directus's `publish` S3
 // location (STORAGE_LOCATIONS). It is an ordinary option of the upload
 // step, editable in Studio like the rest of the Flow.
-const publishStorage = 'publish';
+export const publishStorage = 'publish';
 
 // One published file, run by the publish loop of "Publish / Public
 // assets" once per upload the export operation staged, in definition
@@ -32,8 +33,13 @@ const publishStorage = 'publish';
 // hold publication now), with the heartbeat's code.
 export const publishFileFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Uploads one public file for "Publish / Public assets", which runs it once per declared file, one after another: keeps the publication claim alive, writes the file through the Publish JSON files operation into the publish storage location, and records its outcome in Data Operations right away. Answers {ok, filename, outcome, code} and never fails the loop: a refused upload answers its code and the next file is still uploaded. Not meant to be run on its own.',
+  description: flowDescription({
+    answers: ['ok', 'filename', 'outcome', 'bytes', 'code', 'message'],
+    caller: 'Publish / Public assets',
+    does: `Uploads one public file into storage location "${publishStorage}" and records its outcome`,
+    failure: 'never rejects',
+    input: ['claim', 'filename', 'objects'],
+  }),
   entry: publishId('51'),
   icon: 'upload_file',
   id: publishFileFlowId,
@@ -114,7 +120,7 @@ export const publishFileFlow: FlowTemplate = {
     operation({
       family,
       key: 'upload_failed',
-      name: 'Answer the refused upload',
+      name: stepName.answerFailure('upload'),
       options: {
         json: {
           bytes: null,
@@ -132,7 +138,7 @@ export const publishFileFlow: FlowTemplate = {
     operation({
       family,
       key: 'claim_lost',
-      name: 'Answer the lost claim',
+      name: stepName.answerFailure('claim'),
       options: {
         json: {
           bytes: null,

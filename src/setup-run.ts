@@ -2,9 +2,10 @@ import type { DirectusConfig } from './config.js';
 import type { DirectusRequest } from './directus-request.js';
 
 import { SchemaRefusalError } from './data-model/install.js';
-import { exitCodes, isRefusal } from './lifecycle.js';
+import { exitCodes, reportFailure } from './lifecycle.js';
 import { loadSetupConfig } from './setup-config.js';
 import { runSetup } from './setup.js';
+import { printSummary } from './text.js';
 
 type SetupCliIo = {
   readonly createRequest: (config: DirectusConfig) => DirectusRequest;
@@ -14,29 +15,24 @@ type SetupCliIo = {
   readonly stdout: (line: string) => void;
 };
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 // `npm run setup`: returns the exit code (see exitCodes). An incompatible
 // state (no explicit target, definitions the model cannot adopt, a
 // half-installed Flow, a Directus without the data-operations bundle) is
-// refused with 2 and "Setup refused:"; any other error fails with 1 and
-// "Setup failed:". A schema refusal also prints the plan's summary.
+// refused with 2 and a "Setup refused:" line; any other error fails with
+// 1 and a "Setup failed:" line. A schema refusal also prints the plan's
+// summary on stdout and one stderr line per refused definition.
 export const runSetupCli = async (
   environment: Readonly<Record<string, string | undefined>>,
   io: SetupCliIo,
 ): Promise<number> => {
   try {
     const request = io.createRequest(loadSetupConfig(environment));
-    const summary = await (io.setup ?? runSetup)(request);
-    io.stdout(JSON.stringify(summary, null, 2));
+    printSummary(io, await (io.setup ?? runSetup)(request));
     return exitCodes.ok;
   } catch (error) {
     if (error instanceof SchemaRefusalError) {
-      io.stdout(JSON.stringify(error.summary, null, 2));
+      printSummary(io, error.summary);
     }
-    const refused = isRefusal(error);
-    io.stderr(`Setup ${refused ? 'refused' : 'failed'}: ${messageOf(error)}`);
-    return refused ? exitCodes.refused : exitCodes.failed;
+    return reportFailure('Setup', error, io);
   }
 };

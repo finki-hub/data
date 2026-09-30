@@ -3,6 +3,7 @@ import type { UnstorableValue } from './import/storable.js';
 import type { WorkbookContent, WorkbookPlaces } from './workbook.js';
 
 import { countByCode, countKeys } from './import/findings.js';
+import { displayKey } from './import/planned.js';
 import { refusalText } from './import/refusal-text.js';
 import { workbookRows } from './import/workbook-rows.js';
 
@@ -37,14 +38,15 @@ const rowPlaceOf = (
   const place =
     origin === null ? undefined : places[origin.source][origin.id - 1];
   return place === undefined
-    ? `${collection} ${key}`
+    ? `${collection} ${displayKey(key)}`
     : `${place.sheet} row ${String(place.row)}`;
 };
 
-// What refuses the import, for stderr: one line per value no column can
-// hold, named by sheet, row and column (never the value), then one line
-// per blocking case, headed by its code and explained in plain words with
-// the course and the rows it concerns (src/import/refusal-text.ts).
+// What blocks the import, for stderr, one line per case in one layout,
+// `- [<code>] <place>: <fact>`: each value no column can hold, coded
+// `unstorable` (the stdout key) and placed by sheet, row and column, never
+// quoted; then each blocking case by its code, sheet, row and course
+// (src/import/refusal-text.ts).
 export const refusalLines = (
   { blockers, unstorable }: ImportPlan,
   { data, places }: Pick<WorkbookContent, 'data' | 'places'>,
@@ -53,7 +55,7 @@ export const refusalLines = (
   return [
     ...unstorable.map(
       (value) =>
-        `- ${rowPlaceOf(value, places)}: ${columnOf(value)} ${value.problem}`,
+        `- [unstorable] ${rowPlaceOf(value, places)}, ${columnOf(value)}: ${value.problem}`,
     ),
     ...blockers.map(
       (blocker) => `- [${blocker.code}] ${refusalText(blocker, context)}`,

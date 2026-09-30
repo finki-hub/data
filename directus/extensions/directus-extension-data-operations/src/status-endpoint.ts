@@ -4,6 +4,7 @@ import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
 import { coordinationStatus, sqlDatabase } from './coordinate.js';
+import { errorBody, forwardError } from './endpoint-errors.js';
 import { exportDeps, itemsReader } from './exports/directus.js';
 import { exportDefinitions } from './exports/index.js';
 import { readinessAction } from './exports/prepare.js';
@@ -54,14 +55,14 @@ const accountabilitySchema = z.looseObject({
 
 const unauthenticated: Access = {
   code: 'UNAUTHENTICATED',
-  message: 'Log in to read the data status.',
+  message: 'Authentication required',
   ok: false,
   status: 401,
 };
 
 const forbidden: Access = {
   code: 'FORBIDDEN',
-  message: `Only administrators and holders of the "${editorPolicy.name}" policy read the data status.`,
+  message: `Only administrators and "${editorPolicy.name}" policy holders may read the data status`,
   ok: false,
   status: 403,
 };
@@ -120,16 +121,6 @@ const readReadiness = async (
     reviewBookmarks(),
   );
   return readinessView({ answer, audience, bookmarks });
-};
-
-const errorBody = (code: string, message: string) => ({
-  errors: [{ extensions: { code }, message }],
-});
-
-// Express 4 does not forward rejected async handlers, so every failure
-// reaches the Directus error handler through next(error).
-const forwardError = (next: (error: unknown) => void, error: unknown): void => {
-  next(error);
 };
 
 export default defineEndpoint({

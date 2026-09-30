@@ -37,6 +37,7 @@ import {
   legacyEnrollmentFlowIds,
   legacyRuleMode,
 } from '../src/flows/shared.js';
+import { relayBound } from '../src/flows/text-fragments.js';
 import { claim, refusalOf, runScript } from './legacy-enrollment-helpers.js';
 
 const flowsDirectory = join(import.meta.dirname, '..', 'directus', 'flows');
@@ -49,8 +50,10 @@ const sumScript = await readFile(
   'utf8',
 );
 const otherClaim = 'another claim';
-const legacyAnswerRefusal = /Legacy page|count_pages/u;
-const zeroAnswerRefusal = /Zero page|fill_zeros/u;
+const legacyAnswerRefusal =
+  /^(?:Legacy page p\d{4}: invalid summary|count_pages: results \w+, expected \d+)$/u;
+const zeroAnswerRefusal =
+  /^(?:Zero page p\d{4}: invalid summary|fill_zeros: results \w+, expected \d+)$/u;
 
 // The stored plan of an enrollments claim with one mapped page and two
 // legacy rule pages (rules 10-14 and 15) crossed with two history pages.
@@ -121,20 +124,19 @@ const zeroTrigger = {
   to: 14,
   token: 'p0004',
 };
-const planRefusal = /^Page p\d{4} .+; nothing was counted\.$/u;
+const planRefusal = /^Page p\d{4}: .+$/u;
 const kindRefusal =
-  /is planned as a (?:legacy|legacy_zeros|mapped|rules) page, not a/u;
-const rangeRefusal = /was planned as /u;
-const foreignClaim = /names a claim that is not the current claim/u;
-const otherRevision = /names revision 6, and the claim runs at revision 7/u;
-const otherDomain = /the current claim runs history_index/u;
-const unplannedPage = /is not planned under this claim/u;
-const unstagedCells = /runs before 1 of its 2 legacy pages was staged/u;
-const noEnrollmentsPlan =
-  /^The claim has no enrollments plan \(plan_pages with source enrollments\); nothing was counted\.$/u;
+  /: kind (?:legacy|legacy_zeros|mapped|rules), expected (?:legacy|legacy_zeros)$/u;
+const rangeRefusal = /: range differs from plan: /u;
+const foreignClaim = /: claim is not the current claim$/u;
+const otherRevision = /: revision 6, expected 7$/u;
+const otherDomain = /: claim domain history_index, expected enrollments$/u;
+const unplannedPage = /: not planned under this claim$/u;
+const unstagedCells = /: legacy pages not staged: 1 of 2$/u;
+const noEnrollmentsPlan = /^Legacy count: no enrollments plan$/u;
 const pageFailed =
-  /^Legacy page p0003 failed \(count: LEGACY_COUNT_FAILED Rule 12 .+\)$/u;
-const zeroFailed = /^Zero page p0004 failed \(sums: /u;
+  /^Legacy page p0003 failed \[count LEGACY_COUNT_FAILED\]: Rule 12 .+$/u;
+const zeroFailed = /^Zero page p0004 failed \[sums INVALID_QUERY\]: bad$/u;
 
 describe('legacy plan checks', () => {
   const checkCell = (trigger: unknown, readPlan: unknown = [status]) =>
@@ -339,6 +341,33 @@ describe('legacy plan checks', () => {
 const listedPages = (trigger: unknown) =>
   runScript(legacyPagesScript, { $trigger: trigger, read_plan: [status] });
 
+// A one-rule page names its planned ranges with the singular noun.
+describe('legacy range refusals', () => {
+  test('count the planned ranges of a one-rule page in the singular', () => {
+    const rules = { bytes: 26, from: 15, rows: 1, to: 15 };
+    const zeros = { ...zeroTrigger, from: 15, rows: 2, to: 16 };
+
+    expect(
+      refusalOf(() =>
+        runScript(legacyPageCheckScript, {
+          $trigger: { ...cellTrigger, rules, token: 'p0005' },
+          read_plan: [status],
+        }),
+      ),
+    ).toBe(
+      'Page p0005: range differs from plan: users 1-9 (9 rows, 120 bytes), rules 15-15 (1 row, 25 bytes)',
+    );
+    expect(
+      refusalOf(() =>
+        runScript(zeroPageCheckScript, {
+          $trigger: { ...zeros, token: 'p0007' },
+          read_plan: [status],
+        }),
+      ),
+    ).toBe('Page p0007: range differs from plan: rules 15-15 (1 row)');
+  });
+});
+
 // "Data / Run enrollment family" hands the parent the whole family; the
 // stored plan stays the authority, whatever pages the payload lists.
 describe('legacy family payload', () => {
@@ -388,7 +417,7 @@ describe('legacy parent checks', () => {
   test('turn the first failed page into a bounded refusal naming its stage', () => {
     const failure = {
       code: 'LEGACY_COUNT_FAILED',
-      message: `Rule 12 (course 3 / academic year 6) has a pattern that does not compile ${'x'.repeat(2_000)}`,
+      message: `Rule 12 (course 3 / academic year 6): pattern does not compile ${'x'.repeat(2_000)}`,
       ok: false,
       page: 'p0003',
       stage: 'count',
@@ -396,7 +425,7 @@ describe('legacy parent checks', () => {
     const message = refusalOf(() => checkPages([pageAnswers[0], failure]));
 
     expect(message).toMatch(pageFailed);
-    expect(message.length).toBeLessThan(400);
+    expect(message).toHaveLength(relayBound);
     expect(
       refusalOf(() =>
         checkFills([
@@ -782,8 +811,8 @@ describe('legacy parent Flow template', () => {
     );
     expect(legacyPagesScript).toContain(`entry.kind === '${legacy}'`);
     expect(legacyPagesScript).toContain(`entry.kind === '${zeros}'`);
-    expect(legacyPageCheckScript).toContain(`entry.kind !== '${legacy}'`);
-    expect(zeroPageCheckScript).toContain(`entry.kind !== '${zeros}'`);
+    expect(legacyPageCheckScript).toContain(`planned.kind !== '${legacy}'`);
+    expect(zeroPageCheckScript).toContain(`planned.kind !== '${zeros}'`);
   });
 
   test('run the legacy and zero pages serially and fail the claim visibly on any failure', () => {
@@ -901,9 +930,9 @@ describe('coordinator operation form', () => {
       'rules',
       'enrollments',
     ]);
-    expect(JSON.stringify(source[0]?.meta)).toContain(
-      'while every rule is mapped_entries), enrollments plans one family of pages per rule mode of an enrollments claim (mapped_entries: mapped pages; legacy_regex: legacy and legacy_zeros pages)',
-    );
+    expect(source[0]?.meta).toMatchObject({
+      note: 'plan_pages: history (history_index claim), rules (enrollments claim, mapped_entries rules only), enrollments (enrollments claim, one family per rule mode).',
+    });
   });
 });
 

@@ -3,7 +3,7 @@ import { computed, toRef } from 'vue';
 
 import { useDataStatus } from './data-status.js';
 import { sectionsOf } from './managed-flows.js';
-import { ageText } from './status-labels.js';
+import { toolbarText } from './status-facts.js';
 import StatusKeys from './status-keys.vue';
 import StatusOperations from './status-operations.vue';
 import StatusReadiness from './status-readiness.vue';
@@ -17,12 +17,7 @@ const data = useDataStatus(() => sections.value, toRef(props, 'now'));
 <template>
   <div class="data-status" :class="{ 'has-header': showHeader }" :aria-busy="data.loading">
     <div class="toolbar">
-      <span v-if="data.status && data.shows('operations')" class="facts">
-        Source revision {{ data.status.revisions.source }} · completed {{ data.status.revisions.completed }}
-        <template v-for="run in data.status.schedule" :key="run.id">
-          · {{ run.name }} {{ run.lastRunAt ? `ran ${ageText(run.ageSeconds)} ago` : 'has not run in the last hour' }}{{ run.active ? '' : ' (inactive)' }}
-        </template>
-      </span>
+      <span v-if="data.status && data.shows('operations')" class="facts">{{ toolbarText(data.status) }}</span>
       <v-button x-small secondary icon :loading="data.loading" class="refresh" aria-label="Refresh the data status" @click="data.refresh">
         <v-icon name="refresh" x-small />
       </v-button>

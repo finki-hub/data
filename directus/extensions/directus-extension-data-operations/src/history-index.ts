@@ -1,5 +1,6 @@
 import type { CoordinatorInput } from './coordination/options.js';
 import type { CoordinationPort } from './coordination/port.js';
+import type { OperationsState } from './coordination/state.js';
 
 import {
   type ActionContext,
@@ -11,7 +12,7 @@ import {
 } from './coordination/action-support.js';
 import { decideStage } from './coordination/decisions.js';
 import { coordinationError } from './coordination/errors.js';
-import { type OperationsState, pageSize } from './coordination/state.js';
+import { domainMismatch, pageUnplanned } from './coordination/refusals.js';
 import {
   duplicateUserIds,
   missingLabels,
@@ -19,6 +20,7 @@ import {
   pageLabels,
   planMemberships,
 } from './history-contract.js';
+import { listText } from './text.js';
 
 // Counts only: the writer never returns a label, a user or an entry.
 type IndexPageResult = {
@@ -47,19 +49,17 @@ const verifyHistoryPage = (
     return overtaken(decision.kind);
   }
   if (decision.kind === 'page_unplanned') {
-    throw coordinationError(
-      'PAGE_UNPLANNED',
-      `Page ${input.page} is not part of the plan of this claim; call plan_pages first.`,
-    );
+    throw pageUnplanned(input.page);
   }
   if (decision.kind !== 'ok' || state.claim === null) {
     throw mismatch(decision.kind === 'ok' ? 'claim_mismatch' : decision.kind);
   }
   if (state.claim.domain !== 'history_index') {
-    throw coordinationError(
-      'DOMAIN_MISMATCH',
-      `index_page needs a history_index claim; the current claim runs ${state.claim.domain ?? 'no domain'}.`,
-    );
+    throw domainMismatch({
+      actual: state.claim.domain,
+      expected: 'history_index',
+      subject: 'index_page',
+    });
   }
   return null;
 };
@@ -78,7 +78,7 @@ const verifyCoverage = async (
   if (range === undefined) {
     throw coordinationError(
       'PAGE_INCOMPLETE',
-      `Page ${input.page} was planned without its user range; call plan_pages again.`,
+      `Page ${input.page} planned without user range`,
     );
   }
   const planned = await port.history.userIdsBetween(range.from, range.to);
@@ -89,7 +89,7 @@ const verifyCoverage = async (
   if (missing > 0 || unexpected > 0) {
     throw coordinationError(
       'PAGE_INCOMPLETE',
-      `Page ${input.page} covers ${planned.length} Moodle users (ids ${range.from} to ${range.to}); the page left out ${missing} of them and named ${unexpected} other ids, so nothing was written. A Read Data step capped below ${pageSize} rows (QUERY_LIMIT_MAX) truncates a page.`,
+      `Page ${input.page} incomplete: ids ${String(range.from)}-${String(range.to)}, planned ${String(planned.length)}, missing ${String(missing)}, unexpected ${String(unexpected)}`,
       { details: { missing, planned: planned.length, unexpected } },
     );
   }
@@ -142,7 +142,7 @@ export const indexPageAction = (
     if (duplicates.length > 0) {
       throw coordinationError(
         'DUPLICATE_ROWS',
-        `A page must name each Moodle user once; duplicated: ${duplicates.join(', ')}.`,
+        `Duplicate Moodle users: ${listText(duplicates.map(String))}`,
         { status: 400 },
       );
     }

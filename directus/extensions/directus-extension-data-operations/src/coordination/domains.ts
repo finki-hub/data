@@ -137,6 +137,23 @@ export const publicationStates = [
 
 export type PublicationState = (typeof publicationStates)[number];
 
+// The one label of each stored import and publication state: Studio's
+// choices (src/data-model/operations-vocabularies.ts) and the dashboard's
+// badges (status-labels.ts) both show it.
+export const stateLabels: Readonly<
+  Record<ImportState | PublicationState, string>
+> = {
+  completed: 'Completed',
+  failed: 'Failed',
+  idle: 'Idle',
+  importing: 'Importing',
+  partial: 'Partial',
+  promoting: 'Promoting',
+  ready: 'Staged',
+  running: 'Running',
+  validating: 'Validating',
+};
+
 // The outcome of one declared file in a publication: uploaded, failed (the
 // upload was attempted and refused, or never answered), or skipped (not
 // attempted because the claim could not be kept).

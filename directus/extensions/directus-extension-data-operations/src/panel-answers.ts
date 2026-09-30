@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { humanize } from './managed-flows.js';
+import { isRefusal } from './status-contract.js';
+import { countText } from './text.js';
 
 // How the dashboard panels read what Directus answered them: the refusal
 // of a request (Directus's own error or a Flow's Throw Error step), a
@@ -40,13 +42,15 @@ const bounded = (value: string): string =>
   value.length > maxText ? `${value.slice(0, maxText)}…` : value;
 
 // The code and message Directus (or the Flow's own Throw Error step)
-// answered, bounded; a network failure without an answer says so.
+// answered, bounded. A network failure without an answer is NO_ANSWER; an
+// answer without an error body is HTTP_<status> with an empty message
+// (the code says it all).
 export const refusalOf = (error: unknown): Refusal => {
   const parsed = errorAnswer.safeParse(error);
   if (!parsed.success) {
     return {
       code: 'NO_ANSWER',
-      message: 'Directus did not answer; check the connection and try again.',
+      message: 'No response from Directus',
       status: null,
     };
   }
@@ -54,11 +58,23 @@ export const refusalOf = (error: unknown): Refusal => {
   const [first] = data?.errors ?? [];
   return {
     code: first?.extensions?.code ?? `HTTP_${String(status)}`,
-    message: bounded(
-      first?.message ?? `Directus answered HTTP ${String(status)}.`,
-    ),
+    message: bounded(first?.message ?? ''),
     status,
   };
+};
+
+// A failed read of a dashboard panel, one wording for every subject:
+// `<Subject> read refused: <CODE>` when the caller is refused (401, 403),
+// else `<Subject> read failed: <CODE>`, with the server's own message
+// after it when Directus answered one.
+export const readFailureText = (subject: string, refusal: Refusal): string => {
+  if (isRefusal(refusal.status)) {
+    return `${subject} read refused: ${refusal.code}`;
+  }
+  const failed = `${subject} read failed: ${refusal.code}`;
+  return refusal.status === null || refusal.message === ''
+    ? failed
+    : `${failed}: ${refusal.message}`;
 };
 
 export type SummaryLine = { readonly label: string; readonly text: string };
@@ -73,10 +89,10 @@ const lineText = (value: unknown): null | string => {
     return String(value);
   }
   if (Array.isArray(value)) {
-    return `${String(value.length)} entries`;
+    return countText(value.length, 'entry', 'entries');
   }
   return value !== null && typeof value === 'object'
-    ? `${String(Object.keys(value).length)} entries`
+    ? countText(Object.keys(value).length, 'entry', 'entries')
     : null;
 };
 

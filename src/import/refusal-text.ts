@@ -1,3 +1,4 @@
+import { listText } from '../text.js';
 import {
   type BlockerCode,
   type Finding,
@@ -7,54 +8,44 @@ import {
 import { type EntrySource, generationOfSheet } from './generations.js';
 import { nonEmpty } from './labels.js';
 import {
-  courseNamed,
   courseRow,
   courseRowNamed,
-  joined,
   quoted,
   type RefusalContext,
   rowsAt,
-  rowsOf,
   sheetOf,
 } from './refusal-places.js';
 
-// Every case that refuses the import, explained in plain words for the
-// operator who corrects the workbook: what the rows say, which rows, and
-// what to change. One sentence per blocking code.
+// Every case that blocks the import, one line per code in one form:
+// `<sheet> row N[ «course»]: <fact>[; <fact>]`, naming the rows and the
+// course it concerns. What to change is in README, per code.
 
-type Sentence = (finding: Finding, context: RefusalContext) => string;
+type Line = (finding: Finding, context: RefusalContext) => string;
 
 const firstId = ({ ids }: Finding): number => ids[0] ?? 0;
 
-// The name a course is looked up by, when it differs from its name.
-const nameNote = (label: null | string, name: null | string): string =>
-  label === null || label === name ? '' : ` ${quoted(label)}`;
+// A place and its facts: `<place>: <fact>[; <fact>]`.
+const placed = (place: string, facts: readonly string[]): string =>
+  `${place}: ${facts.join('; ')}`;
 
-// Why several listings a name matches are not one subject, and what to do.
-// Codes are compared exactly as the cells hold them, so each is quoted:
-// codes that differ only by a space are then told apart.
-const codesClause = (
+// The codes of the listings a name matches, each quoted exactly as its
+// cell holds it (codes that differ only by a space are then told apart),
+// `none` for a listing without one.
+const codesFact = (
   sheet: EntrySource,
   ids: readonly number[],
   context: RefusalContext,
 ): string => {
-  const listings = ids.map((id) => ({
-    code: nonEmpty(context.rows[sheet][id - 1]?.code),
-    row: context.places[sheet][id - 1]?.row ?? id,
-  }));
-  const detail = listings
-    .map(
-      ({ code, row }) =>
-        `row ${String(row)}: ${code === null ? 'no code' : quoted(code)}`,
-    )
-    .join(', ');
-  return listings.some(({ code }) => code === null)
-    ? `which do not all carry a code (${detail}); fill in the missing code if they list one subject, or give each subject its own name`
-    : `which carry different codes (${detail}); give each subject its own name`;
+  const listings = ids.map((id) => {
+    const code = nonEmpty(context.rows[sheet][id - 1]?.code);
+    const row = context.places[sheet][id - 1]?.row ?? id;
+    return `row ${String(row)} ${code === null ? 'none' : quoted(code)}`;
+  });
+  return `codes: ${listText(listings)}`;
 };
 
-// The 2018 name of a course, and the equivalency row it was taken from
-// when the course has no 2018-name of its own.
+// The 2018 name of a course, and ` (from <rows>)` when it is taken from an
+// equivalency row because the course has no 2018-name of its own.
 const legacyName = (
   finding: Finding,
   context: RefusalContext,
@@ -67,98 +58,95 @@ const legacyName = (
     return { from: '', label: override };
   }
   return {
-    from: `, taken from ${rowsAt('course_equivalencies', [source], context)},`,
+    from: ` (from ${rowsAt('course_equivalencies', [source], context)})`,
     label: nonEmpty(context.rows.course_equivalencies[source - 1]?.course_2018),
   };
 };
 
 const ambiguousCurriculum =
-  (sheet: EntrySource): Sentence =>
+  (sheet: EntrySource): Line =>
   (finding, context) => {
     const id = firstId(finding);
-    const row = courseRow(id, context);
-    const name = nonEmpty(row?.name);
     const { from, label } =
       sheet === 'curriculum_2023'
-        ? { from: '', label: nonEmpty(row?.name_2023) }
+        ? { from: '', label: nonEmpty(courseRow(id, context)?.name_2023) }
         : legacyName(finding, context);
     const matches = relatedIds(finding, sheet);
-    return `${courseNamed(id, context)}: its ${generationOfSheet(sheet)} name${nameNote(label, name)}${from} matches ${rowsOf(sheet, matches, context)}, ${codesClause(sheet, matches, context)}.`;
+    return placed(courseRowNamed(id, context), [
+      `${generationOfSheet(sheet)} name ${quoted(label)}${from} matches ${rowsAt(sheet, matches, context)}`,
+      codesFact(sheet, matches, context),
+    ]);
   };
 
 // The cells a pattern row lacks.
-const missingPatternCells = (id: number, context: RefusalContext): string => {
+const missingPatternCells = (
+  id: number,
+  context: RefusalContext,
+): readonly string[] => {
   const row = context.rows.course_enrollment_patterns[id - 1];
-  return joined(
-    [
-      { label: 'course name', value: row?.course_name },
-      { label: 'academic year', value: row?.academic_year },
-      { label: 'pattern', value: row?.pattern },
-    ].flatMap(({ label, value }) => (nonEmpty(value) === null ? [label] : [])),
-  );
+  return [
+    { label: 'course name', value: row?.course_name },
+    { label: 'academic year', value: row?.academic_year },
+    { label: 'pattern', value: row?.pattern },
+  ].flatMap(({ label, value }) => (nonEmpty(value) === null ? [label] : []));
 };
 
 // What a row the model cannot hold lacks.
 const missingCells = (finding: Finding, context: RefusalContext): string => {
   if (finding.collection === 'course_enrollment_patterns') {
-    return missingPatternCells(firstId(finding), context);
+    return listText(missingPatternCells(firstId(finding), context));
   }
   if (finding.collection === 'courses') {
     return 'name';
   }
-  return finding.collection === 'student_council'
-    ? 'index'
-    : 'value in a cell the import requires';
+  return finding.collection === 'student_council' ? 'index' : 'required value';
 };
 
-const invalidRegex: Sentence = (finding, context) => {
+const invalidRegex: Line = (finding, context) => {
   const id = firstId(finding);
   const fallback = `${nonEmpty(courseRow(id, context)?.name) ?? ''}-<year>`;
   const patterns = relatedIds(finding, 'course_enrollment_patterns');
-  const one = patterns.length === 1;
-  const clauses = [
+  return placed(courseRowNamed(id, context), [
     ...(patterns.length === 0
       ? []
       : [
-          `the enrollment ${one ? 'pattern' : 'patterns'} on ${rowsAt('course_enrollment_patterns', patterns, context)} ${one ? 'is not a valid regular expression' : 'are not valid regular expressions'}; correct ${one ? 'it' : 'them'}`,
+          `pattern not a valid regular expression: ${rowsAt('course_enrollment_patterns', patterns, context)}`,
         ]),
     ...(relatedIds(finding, 'courses').length === 0
       ? []
       : [
-          `the default enrollment pattern ${quoted(fallback)}, which applies to every year without a pattern in ${sheetOf('course_enrollment_patterns')}, is not a valid regular expression; add a valid pattern for each such year there, or rename the course`,
+          `default pattern ${quoted(fallback)} not a valid regular expression (years without a pattern in ${sheetOf('course_enrollment_patterns')})`,
         ]),
-  ];
-  return `${courseNamed(id, context)}: ${clauses.join('. Also, ')}.`;
+  ]);
 };
 
-const unlinkedValues: Sentence = (finding, context) => {
+const unlinkedValues: Line = (finding, context) => {
   const id = firstId(finding);
   const row = courseRow(id, context);
   const { generation } = finding;
-  const subject = courseRowNamed(id, context);
+  const place = courseRowNamed(id, context);
   if (row === undefined || generation === undefined) {
-    return `${subject}: it holds credits or an availability of TRUE for a curriculum generation it has no name for; fill in that name, or clear the values.`;
+    return placed(place, [
+      'generation name empty',
+      'credits or available TRUE set',
+    ]);
   }
   const credits = row[`credits_${generation}`];
   const available = row[`available_${generation}`] === true;
-  const facts = [
-    ...(credits === null
-      ? []
-      : [`${generation} credits are ${String(credits)}`]),
-    ...(available ? [`${generation} available is TRUE`] : []),
+  const values = [
+    ...(credits === null ? [] : [`${generation} credits ${String(credits)}`]),
+    ...(available ? [`${generation} available TRUE`] : []),
   ];
-  const undo = [
-    ...(credits === null ? [] : ['clear the credits']),
-    ...(available ? ['set available to FALSE'] : []),
-  ];
-  return `${subject}: ${joined(facts)} but the ${generation} name is empty; fill in the ${generation} name or ${joined(undo)}.`;
+  return placed(place, [`${generation} name empty`, values.join(', ')]);
 };
 
-const sentences: Readonly<Record<BlockerCode, Sentence>> = {
+const lines: Readonly<Record<BlockerCode, Line>> = {
   ambiguous_course_name: (finding, context) => {
     const courses = relatedIds(finding, 'courses');
     const name = nonEmpty(courseRow(courses[0] ?? 0, context)?.name);
-    return `${rowsAt(finding.collection, finding.ids, context)} names ${quoted(name)}, which ${rowsOf('courses', courses, context)} carry; give each course its own name.`;
+    return placed(rowsAt(finding.collection, finding.ids, context), [
+      `${quoted(name)} matches ${rowsAt('courses', courses, context)}`,
+    ]);
   },
   ambiguous_curriculum_2018: ambiguousCurriculum('curriculum_2018'),
   ambiguous_curriculum_2023: ambiguousCurriculum('curriculum_2023'),
@@ -169,40 +157,55 @@ const sentences: Readonly<Record<BlockerCode, Sentence>> = {
         nonEmpty(context.rows.course_equivalencies[id - 1]?.course_2018),
       ),
     );
-    return `${courseNamed(firstId(finding), context)}: ${rowsAt('course_equivalencies', rows, context)} give it different 2018 names (${joined([...labels].map(quoted))}); make them agree, or fill in its 2018-name to choose one.`;
+    return placed(courseRowNamed(firstId(finding), context), [
+      `${rowsAt('course_equivalencies', rows, context)} give different 2018 names: ${listText([...labels].map(quoted))}`,
+    ]);
   },
   ambiguous_student_index: (finding, context) =>
-    `${rowsAt(finding.collection, finding.ids, context)}: several students carry its index (${rowsAt('students', relatedIds(finding, 'students'), context)}); correct the index, or keep one student row for it.`,
+    placed(rowsAt(finding.collection, finding.ids, context), [
+      `index matches several students: ${rowsAt('students', relatedIds(finding, 'students'), context)}`,
+    ]),
   duplicate_assignment: (finding, context) => {
     const [course = 0] = relatedIds(finding, 'courses');
-    return `${courseNamed(course, context)}: ${rowsAt(finding.collection, finding.ids, context)} ${finding.ids.length === 2 ? 'both' : 'all'} name it; keep one teaching row per course.`;
+    return placed(courseRowNamed(course, context), [
+      `named by ${rowsAt(finding.collection, finding.ids, context)}`,
+    ]);
   },
   duplicate_role_row: (finding, context) =>
-    `${rowsAt(finding.collection, finding.ids, context)} repeat the same year, person and position; delete the repeated ${finding.ids.length === 2 ? 'row' : 'rows'}.`,
+    placed(rowsAt(finding.collection, finding.ids, context), [
+      'same year, person and position',
+    ]),
   invalid_regex: invalidRegex,
   invalid_source_row: (finding, context) =>
-    `${rowsAt(finding.collection, finding.ids, context)} has no ${missingCells(finding, context)}; fill it in or delete the row.`,
+    placed(rowsAt(finding.collection, finding.ids, context), [
+      `missing ${missingCells(finding, context)}`,
+    ]),
   missing_override_target: (finding, context) => {
     const id = firstId(finding);
-    return `${courseNamed(id, context)}: its 2018-name ${quoted(nonEmpty(courseRow(id, context)?.name_2018_override))} matches no row of ${sheetOf('curriculum_2018')}; correct it to the name of a 2018 subject, or clear it.`;
+    return placed(courseRowNamed(id, context), [
+      `2018-name ${quoted(nonEmpty(courseRow(id, context)?.name_2018_override))} matches no row of ${sheetOf('curriculum_2018')}`,
+    ]);
   },
   unlinked_generation_values: unlinkedValues,
   unmatched_curriculum_2018_label: (finding, context) => {
     const { from, label } = legacyName(finding, context);
-    return `${courseNamed(firstId(finding), context)}: its 2018 name ${quoted(label)}${from} matches no row of ${sheetOf('curriculum_2018')}; correct it in ${sheetOf('course_equivalencies')}, or fill in the course's 2018-name.`;
+    return placed(courseRowNamed(firstId(finding), context), [
+      `2018 name ${quoted(label)}${from} matches no row of ${sheetOf('curriculum_2018')}`,
+    ]);
   },
   unmatched_curriculum_2023_label: (finding, context) => {
     const id = firstId(finding);
-    return `${courseNamed(id, context)}: its 2023 name ${quoted(nonEmpty(courseRow(id, context)?.name_2023))} matches no row of ${sheetOf('curriculum_2023')}; correct it to the name of a 2023 subject.`;
+    return placed(courseRowNamed(id, context), [
+      `2023 name ${quoted(nonEmpty(courseRow(id, context)?.name_2023))} matches no row of ${sheetOf('curriculum_2023')}`,
+    ]);
   },
 };
 
-// A refusing case in plain words, by its sheets and rows and the course
-// it concerns.
+// A blocking case by its sheets and rows and the course it concerns.
 export const refusalText = (
   finding: Finding,
   context: RefusalContext,
 ): string =>
   isBlockerCode(finding.code)
-    ? sentences[finding.code](finding, context)
+    ? lines[finding.code](finding, context)
     : rowsAt(finding.collection, finding.ids, context);

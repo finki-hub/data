@@ -23,35 +23,44 @@ const onlyKey = function (value, key) {
 // integer candidate column.
 const countPattern = /^(?:0|[1-9]\d{0,8})$/u;
 
+// The leaf form of every Flow refusal, `<place>: <fault>`: a sandboxed
+// copy of refuseFragment in src/flows/text-fragments.ts.
+const refuse = function (place, fault) {
+  throw new Error(`${place}: ${fault}`);
+};
+
 const countMappedEnrollments = (data) => {
   const request = data.$trigger;
   if (request === null || typeof request !== 'object') {
-    throw new Error(
-      'The count needs {course, academic_year, revision, claim} as its trigger payload.',
+    refuse(
+      'Invalid trigger payload',
+      'expected {course, academic_year, revision, claim}',
     );
   }
   if (!positive(request.course) || !positive(request.academic_year)) {
-    throw new Error('course and academic_year must be positive integer ids.');
+    refuse(
+      'Invalid trigger payload',
+      'course, academic_year must be positive integers',
+    );
   }
   if (!Number.isSafeInteger(request.revision) || request.revision < 0) {
-    throw new Error('revision must be a non-negative integer.');
+    refuse(
+      'Invalid trigger payload',
+      'revision must be a non-negative integer',
+    );
   }
   const rows = data.read_count;
   if (!Array.isArray(rows) || rows.length !== 1) {
-    throw new Error('read_count must answer exactly one aggregate row.');
+    refuse('read_count', 'expected 1 aggregate row');
   }
   const [row] = rows;
   if (!onlyKey(row, 'countDistinct') || !onlyKey(row.countDistinct, 'id')) {
-    throw new Error(
-      'read_count must answer countDistinct of id and nothing else.',
-    );
+    refuse('read_count', 'expected countDistinct(id) only');
   }
   const value = row.countDistinct.id;
   const text = typeof value === 'number' ? String(value) : value;
   if (typeof text !== 'string' || !countPattern.test(text)) {
-    throw new Error(
-      'read_count answered a count that is not a non-negative integer.',
-    );
+    refuse('read_count', 'count not a non-negative integer');
   }
   return {
     academic_year: request.academic_year,

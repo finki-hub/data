@@ -62,7 +62,8 @@ const templatedOptions = Object.fromEntries(
 const restartContainer = process.env.DIRECTUS_COORDINATION_RESTART_CONTAINER;
 const claimMismatch = 'COORDINATION_CLAIM_MISMATCH';
 const pageUnplanned = 'COORDINATION_PAGE_UNPLANNED';
-const unrecordedUpload = /without being recorded/u;
+const unrecordedUpload =
+  /^Publication claim abandoned: no heartbeat for \d+ s\. Revision not published\. Last upload possibly unrecorded$/u;
 // The answer of a complete that needed no retry.
 const completion = (domain, installed, more) => ({
   completed: true,

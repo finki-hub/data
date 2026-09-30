@@ -95,6 +95,24 @@ export const runnerFlowIds = (
   modes: readonly RuleModeSpec[] = ruleModes,
 ): string[] => modes.map(({ runnerFlowId }) => runnerFlowId);
 
-// "a or b", "a, b, or c": the modes named in a refusal or a note.
-export const alternatives = (values: readonly string[]): string =>
-  new Intl.ListFormat('en', { type: 'disjunction' }).format(values);
+// "a or b", "a, b or c": the modes a refusal expects.
+export const alternatives = (values: readonly string[]): string => {
+  const last = values.at(-1);
+  return last === undefined || values.length === 1
+    ? values.join('')
+    : `${values.slice(0, -1).join(', ')} or ${last}`;
+};
+
+// A stored rule mode in a refusal: a declared mode as it is, any other
+// value quoted and bounded, a missing one as none.
+export const shownMode = (
+  mode: null | string,
+  modes: readonly RuleModeSpec[] = ruleModes,
+): string => {
+  if (mode === null) {
+    return 'none';
+  }
+  return modes.some((entry) => entry.mode === mode)
+    ? mode
+    : JSON.stringify(mode.slice(0, 40));
+};

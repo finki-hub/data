@@ -95,7 +95,7 @@ const skipUnless = (value, name) =>
 const pagesMissing = 'COORDINATION_PAGES_MISSING';
 const collator = new Intl.Collator('en');
 const silentLegacy =
-  /\(runner: ENROLLMENTS_FAILED The legacy_regex family answered nothing: its runner Flow 6a1d9f0e-2b3c-4d5e-8f70-000000001201 is inactive or deleted; nothing was installed\.\)/u;
+  /^Family legacy_regex failed \[runner ENROLLMENTS_FAILED\]: Runner Flow 6a1d9f0e-2b3c-4d5e-8f70-000000001201: no answer \(inactive or deleted\)$/u;
 
 const claimEnrollments = async (target, retry = null) => {
   const claim = await act(target, {

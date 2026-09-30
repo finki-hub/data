@@ -1,16 +1,25 @@
 import type { Filter, Query } from '@directus/types';
 
 import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 
 import {
   type ItemsReader,
   pageSegments,
-  pageSize,
   readPage,
   type SearchSort,
 } from '../directus/extensions/directus-extension-course-search/src/count-order.js';
-import { countText } from '../directus/extensions/directus-extension-course-search/src/count-text.js';
+import {
+  countText,
+  rangeText,
+} from '../directus/extensions/directus-extension-course-search/src/count-text.js';
+import {
+  criteriaProblem,
+  criteriaSchema,
+  invalidCriteria,
+} from '../directus/extensions/directus-extension-course-search/src/criteria.js';
 import { buildSearchQuery } from '../directus/extensions/directus-extension-course-search/src/endpoint.js';
+import { failureText } from '../directus/extensions/directus-extension-course-search/src/failure-text.js';
 import {
   filterPathProblem,
   type PathRelation,
@@ -21,6 +30,10 @@ import {
   profileUrl,
   splitHistory,
 } from '../directus/extensions/directus-extension-course-search/src/history.js';
+import {
+  courseLimit,
+  pageSize,
+} from '../directus/extensions/directus-extension-course-search/src/limits.js';
 import { nativeFilter } from '../directus/extensions/directus-extension-course-search/src/native-filter.js';
 import {
   modelRelations,
@@ -322,7 +335,7 @@ describe('Search filter paths', () => {
     ],
   ])('refuse a path %s', (_label, filter, collection) => {
     expect(filterPathProblem(filter, searchRules)).toBe(
-      `A filter path passes ${collection} twice`,
+      `path passes ${collection} twice`,
     );
   });
 
@@ -330,12 +343,10 @@ describe('Search filter paths', () => {
     const rules = { maxDepth: 10, relations: chainRelations, root: 'c0' };
 
     expect(filterPathProblem(chain(10), rules)).toBeUndefined();
-    expect(filterPathProblem(chain(11), rules)).toBe(
-      'A filter path names at most 10 fields',
-    );
+    expect(filterPathProblem(chain(11), rules)).toBe('path exceeds 10 fields');
     expect(
       filterPathProblem({ _and: [{ value: { _eq: 1 } }, chain(11)] }, rules),
-    ).toBe('A filter path names at most 10 fields');
+    ).toBe('path exceeds 10 fields');
   });
 
   test('take Directus own limit, never below two fields', () => {
@@ -584,6 +595,156 @@ describe('Search count labels', () => {
     );
     expect(countText(1_234, 'course', 'courses')).toBe(
       `${(1_234).toLocaleString()} courses`,
+    );
+  });
+
+  test('localize every number of the page range', () => {
+    expect(pageSize).toBe(50);
+    expect(rangeText(1, 7)).toBe('1–7 of 7');
+    expect(rangeText(21, 1_234)).toBe(
+      `${(1_001).toLocaleString()}–${(1_050).toLocaleString()} of ${(1_234).toLocaleString()}`,
+    );
+  });
+});
+
+const refusal = (body: unknown): string => {
+  const parsed = criteriaSchema.safeParse(body);
+  if (parsed.success) throw new Error('the criteria were accepted');
+  return criteriaProblem(parsed.error);
+};
+
+const nested = (depth: number): unknown =>
+  JSON.parse(`${'{"a":'.repeat(depth)}{"_eq":1}${'}'.repeat(depth)}`);
+
+const answered = (status: number, errors?: unknown) => ({
+  response: { data: errors === undefined ? undefined : { errors }, status },
+});
+
+describe('Search refusals', () => {
+  const base = { exclude: [], include: [], page: 1 };
+
+  test.each([
+    [
+      'too many courses',
+      {
+        ...base,
+        include: Array.from(
+          { length: courseLimit + 1 },
+          (_, index) => `C${String(index)}`,
+        ),
+      },
+      'Invalid criteria: include: max 20 courses',
+    ],
+    [
+      'an empty course name',
+      { ...base, exclude: [''] },
+      'Invalid criteria: exclude.0: empty',
+    ],
+    [
+      'a missing course list',
+      { exclude: [], page: 1 },
+      'Invalid criteria: include: expected a list of course names',
+    ],
+    [
+      'page 0',
+      { ...base, page: 0 },
+      'Invalid criteria: page: expected an integer >= 1',
+    ],
+    [
+      'an unknown sort',
+      { ...base, sort: 'Mail' },
+      'Invalid criteria: sort: expected Name, Courses Count or -Courses Count',
+    ],
+    [
+      'a long search',
+      { ...base, search: 'x'.repeat(1_001) },
+      'Invalid criteria: search: max 1000 characters',
+    ],
+    [
+      'an unknown operator',
+      { ...base, filter: { Name: { _regex: '.*' } } },
+      'Invalid criteria: filter: unsupported key _regex',
+    ],
+    [
+      'an implicit relation',
+      {
+        ...base,
+        filter: {
+          '$FOLLOW(moodle_history_memberships, moodle_user)': {
+            entry: { label: { _eq: 'Hidden' } },
+          },
+        },
+      },
+      'Invalid criteria: filter: unsupported key $FOLLOW(moodle_history_memberships, moodle_user)',
+    ],
+    [
+      'a condition of another shape',
+      { ...base, filter: { Name: 5 } },
+      'Invalid criteria: filter: unsupported condition',
+    ],
+    [
+      'a deep filter',
+      { ...base, filter: nested(40) },
+      'Invalid criteria: filter: nesting exceeds 24 levels',
+    ],
+    ['a body that is no object', 'x', 'Invalid criteria: expected an object'],
+    [
+      'two faults',
+      { ...base, page: 0, sort: 'Mail' },
+      'Invalid criteria: page: expected an integer >= 1 (+1 more)',
+    ],
+  ])('name the field and the reason of %s', (_label, body, expected) => {
+    expect(refusal(body)).toBe(expected);
+  });
+
+  test('place a refused filter path after the filter', () => {
+    expect(invalidCriteria('filter', 'path passes moodle_users twice')).toBe(
+      'Invalid criteria: filter: path passes moodle_users twice',
+    );
+  });
+});
+
+describe('Search failure lines', () => {
+  test('name the status and code, and the server message unless refused', () => {
+    expect(
+      failureText(
+        'Search',
+        answered(403, [
+          {
+            extensions: { code: 'FORBIDDEN' },
+            message: "You don't have permission to access this.",
+          },
+        ]),
+      ),
+    ).toBe('Search failed: HTTP 403 FORBIDDEN');
+    expect(
+      failureText(
+        'Search',
+        answered(400, [
+          {
+            extensions: { code: 'INVALID_PAYLOAD' },
+            message: 'Invalid criteria: filter: path passes moodle_users twice',
+          },
+        ]),
+      ),
+    ).toBe(
+      'Search failed: HTTP 400 INVALID_PAYLOAD: Invalid criteria: filter: path passes moodle_users twice',
+    );
+    expect(failureText('Search', answered(502))).toBe(
+      'Search failed: HTTP 502',
+    );
+  });
+
+  test('say when nothing answered or the answer has another shape', () => {
+    expect(failureText('Course list', new Error('Network Error'))).toBe(
+      'Course list failed: no response',
+    );
+
+    const shape = z.object({ total: z.number() }).safeParse({});
+
+    expect(shape.success).toBeFalsy();
+    expect(failureText('Search', shape.error)).toBe(
+      'Search failed: invalid response',
     );
   });
 });

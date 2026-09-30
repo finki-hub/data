@@ -10,6 +10,7 @@ import {
   mappedEnrollmentFlowIds,
   enrollmentStep as step,
 } from './shared.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 // The Run Script body of the pair Flow, kept as a plain file so it can be
 // read and edited as JavaScript; the template installs its exact text.
@@ -60,8 +61,13 @@ const pairContext = {
 // retention (RETENTION_ENABLED, FLOW_LOGS_RETENTION) prunes (README).
 export const mappedPairFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Counts one course/year from explicit history mappings. Input {course, academic_year, revision, claim}: heartbeats the enrollment claim, reads COUNT(DISTINCT id) of the Moodle users with a history entry mapped to exactly that course and academic year on one mapping row, and answers {course, academic_year, count, revision}; a zero is a real count. Any failure answers {ok: false, stage, code, message} instead, never a zero. Writes nothing; called serially by "Data / Count mapped enrollment page".',
+  description: flowDescription({
+    answers: ['course', 'academic_year', 'count', 'revision'],
+    caller: 'Data / Count mapped enrollment page',
+    does: 'Counts one course/year: COUNT(DISTINCT id) of Moodle users with a history entry mapped to that course and academic year',
+    failure: { context: ['course', 'academic_year'] },
+    input: ['course', 'academic_year', 'revision', 'claim'],
+  }),
   entry: enrollmentId('11'),
   icon: 'functions',
   id: mappedEnrollmentFlowIds.pair,
@@ -101,7 +107,7 @@ export const mappedPairFlow: FlowTemplate = {
     }),
     step({
       key: 'claim_failed',
-      name: 'Record the claim failure',
+      name: stepName.answerFailure('claim'),
       options: countFailure('claim', pairContext),
       position: [19, 19],
       suffix: '14',
@@ -109,7 +115,7 @@ export const mappedPairFlow: FlowTemplate = {
     }),
     step({
       key: 'read_failed',
-      name: 'Record the read failure',
+      name: stepName.answerFailure('read'),
       options: countFailure('read', pairContext),
       position: [37, 19],
       suffix: '15',
@@ -117,7 +123,7 @@ export const mappedPairFlow: FlowTemplate = {
     }),
     step({
       key: 'shape_failed',
-      name: 'Record the invalid aggregate',
+      name: stepName.answerFailure('validate'),
       options: countFailure('validate', pairContext, 'INVALID_AGGREGATE'),
       position: [55, 19],
       suffix: '16',

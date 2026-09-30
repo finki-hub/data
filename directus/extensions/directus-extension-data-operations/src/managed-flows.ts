@@ -12,7 +12,7 @@
 // installed managed Flow starts with a Condition on the administrator flag
 // that rejects into a 403 Throw Error, and a Flow an administrator adds
 // needs the same first step (README, "Data operations dashboard").
-const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
+export const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
 
 // The one collection a panel runs a managed Flow on: the hidden Data
 // Operations singleton, which no editor reads, so the trigger endpoint
@@ -35,6 +35,11 @@ export const managedFlowFilter = {
     },
   ],
 } as const;
+
+// The note of the panel's Flow option: the Flows it offers.
+export const managedFlowNote = `Installed manual Flow named ${managedFlowPrefixes
+  .map((prefix) => `"${prefix}…"`)
+  .join(' or ')}.`;
 
 // The panel types of the bundle.
 export const runOperationPanelId = 'finki-hub-run-operation';
@@ -61,11 +66,16 @@ export const sectionsOf = (option: unknown): StatusSection[] => {
   return named.length > 0 ? named : [...statusSections];
 };
 
+// The section names are the names of the default panels that show them.
 export const statusSectionLabels: Readonly<Record<StatusSection, string>> = {
   keys: 'Published keys',
   operations: 'Calculations and published files',
-  readiness: 'Readiness checks',
+  readiness: 'Readiness',
 };
+
+// How far back the status looks for the last run of a scheduled Flow; the
+// dashboard names the window when a Flow has not run in it.
+export const scheduleLookBackMinutes = 60;
 
 // The editor policy npm run setup installs (src/editor-policy.ts derives
 // its permissions from the collection roles). Administrators and holders

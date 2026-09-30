@@ -1,7 +1,9 @@
 import {
   calculationDomains,
   domainDeclarations,
+  domainLabel,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   automationId,
   condition,
@@ -11,6 +13,7 @@ import {
   operation,
   raise,
 } from './flow-template.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -20,6 +23,9 @@ const quoted = (value: string): string => `'${value}'`;
 
 // The calculation domains as a script literal, in declaration order.
 const calculationList = `[${calculationDomains.map(quoted).join(', ')}]`;
+
+// The domains a request without a choice marks, by their labels.
+const defaultDomains = calculationDomains.map(domainLabel).join(', ');
 
 // The domains a request names in the confirmation dialog, or the declared
 // calculation domains when it names none (a REST call without a body).
@@ -40,8 +46,10 @@ export const chosenDomainsScript = `module.exports = function (data) {
 // own transaction whether or not anyone presses this.
 export const markPendingFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Asks for a recalculation (administrators only): marks the chosen domains pending (history index and enrollment counts by default), which also retries a failed run, and answers the status. It runs nothing itself: "Data / Process pending" claims the work at its next tick (every 15 seconds) and runs it; Data Operations shows pending, running, failed and current per domain.',
+  description: flowDescription({
+    adminOnly: true,
+    does: `Marks the selected domains pending (default: ${defaultDomains}); retries a failed run`,
+  }),
   entry: automationId('51'),
   icon: 'update',
   id: markPendingFlowId,
@@ -62,12 +70,12 @@ export const markPendingFlow: FlowTemplate = {
     raise({
       error: {
         code: 'FORBIDDEN',
-        message: 'Only administrators may ask for a recalculation.',
+        message: adminOnlyText('ask for a recalculation'),
         status: 403,
       },
       family,
       key: 'raise_forbidden',
-      name: 'Refuse a non-administrator',
+      name: stepName.raise('FORBIDDEN'),
       position: [19, 19],
       suffix: '55',
     }),
@@ -75,7 +83,7 @@ export const markPendingFlow: FlowTemplate = {
       edges: { resolve: automationId('53') },
       family,
       key: 'domains',
-      name: 'Chosen domains',
+      name: 'Resolve the domains',
       options: { code: chosenDomainsScript },
       position: [37, 1],
       suffix: '52',
@@ -99,7 +107,7 @@ export const markPendingFlow: FlowTemplate = {
       },
       family,
       key: 'raise_mark',
-      name: 'Report the refused request',
+      name: stepName.raise('MARK_REFUSED'),
       position: [55, 19],
       suffix: '56',
     }),
@@ -121,7 +129,6 @@ export const markPendingFlow: FlowTemplate = {
         json: {
           dirty: '{{ mark.domains }}',
           domains: '{{ status.domains }}',
-          next: 'Data / Process pending claims the work at its next tick (every 15 seconds) and runs it.',
           revision: '{{ mark.revision }}',
         },
       },
@@ -133,14 +140,14 @@ export const markPendingFlow: FlowTemplate = {
   options: {
     async: false,
     collections: ['data_operations'],
-    confirmationDescription:
-      'Mark these domains pending? The scheduled Flow recalculates them within about 15 seconds plus the run time. Marking also retries a run that failed at the current source revision.',
+    confirmationDescription: 'Mark the selected domains pending?',
     error_on_reject: true,
     fields: [
       {
         field: 'domains',
         meta: {
           interface: 'select-multiple-checkbox',
+          note: `Default: ${defaultDomains}.`,
           // One choice per declared domain, with its label.
           options: {
             choices: domainDeclarations.map(({ label, name }) => ({
@@ -150,7 +157,7 @@ export const markPendingFlow: FlowTemplate = {
           },
           width: 'full',
         },
-        name: 'Domains (history index and enrollment counts when none)',
+        name: 'Domains',
         type: 'json',
       },
     ],

@@ -226,8 +226,8 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
       ambiguous_curriculum_2023: 1,
     });
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2018] «Epsilon Course» (Предмети (Export) row 6): its 2018 name «Epsilon Legacy», taken from Еквиваленции row 6, matches rows 7 and 9 of Предмети - 2018, which carry different codes (row 7: «SYN18-005», row 9: «SYN18-009»); give each subject its own name.',
-      '- [ambiguous_curriculum_2023] «Beta Course» (Предмети (Export) row 3): its 2023 name matches rows 6 and 9 of Предмети - 2023, which carry different codes (row 6: «SYN23-002», row 9: «SYN23-009»); give each subject its own name.',
+      '- [ambiguous_curriculum_2018] Предмети (Export) row 6 «Epsilon Course»: 2018 name «Epsilon Legacy» (from Еквиваленции row 6) matches Предмети - 2018 rows 7, 9; codes: row 7 «SYN18-005», row 9 «SYN18-009»',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»',
     ]);
     expect(countByCode(plan.warnings)).toMatchObject({
       ambiguous_equivalency_entry: 2,
@@ -252,9 +252,9 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
     const { lines } = await readBack(dataset);
 
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2023] «Beta Course» (Предмети (Export) row 3): its 2023 name matches rows 6 and 9 of Предмети - 2023, which carry different codes (row 6: «SYN23-002», row 9: «SYN23-009»); give each subject its own name.',
-      '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
-      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 available is TRUE but the 2018 name is empty; fill in the 2018 name or set available to FALSE.',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»',
+      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
+      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 available TRUE',
     ]);
 
     for (const line of lines) {
@@ -268,7 +268,7 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
     );
 
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2023] «Beta Course» (Предмети (Export) row 3): its 2023 name matches rows 6 and 9 of Предмети - 2023, which do not all carry a code (row 6: «SYN23-002», row 9: no code); fill in the missing code if they list one subject, or give each subject its own name.',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 none',
     ]);
   });
 
@@ -278,7 +278,7 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
     );
 
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2023] «Beta Course» (Предмети (Export) row 3): its 2023 name matches rows 6 and 9 of Предмети - 2023, which carry different codes (row 6: «SYN23-002», row 9: «SYN23-002 »); give each subject its own name.',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-002 »',
     ]);
   });
 });
@@ -311,7 +311,7 @@ describe('curriculum values of a generation the course has no name for', () => {
     expect(
       linesOf(withCourse(base, courseNames.gamma, { available_2018: true })),
     ).toEqual([
-      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 available is TRUE but the 2018 name is empty; fill in the 2018 name or set available to FALSE.',
+      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 available TRUE',
     ]);
     expect(
       linesOf(
@@ -321,7 +321,7 @@ describe('curriculum values of a generation the course has no name for', () => {
         }),
       ),
     ).toEqual([
-      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 credits are 6 but the 2018 name is empty; fill in the 2018 name or clear the credits.',
+      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6',
     ]);
     expect(
       linesOf(
@@ -331,7 +331,7 @@ describe('curriculum values of a generation the course has no name for', () => {
         }),
       ),
     ).toEqual([
-      '- [unlinked_generation_values] Предмети (Export) row 5 «Delta Course»: 2023 credits are 6 and 2023 available is TRUE but the 2023 name is empty; fill in the 2023 name or clear the credits and set available to FALSE.',
+      '- [unlinked_generation_values] Предмети (Export) row 5 «Delta Course»: 2023 name empty; 2023 credits 6, 2023 available TRUE',
     ]);
   });
 });
@@ -345,30 +345,30 @@ const withPatterns = (
 });
 
 describe('the refusal lines', () => {
-  test('explain the ambiguities of the synthetic dataset in plain words, each with its code, course and rows', () => {
+  test('name the ambiguities of the synthetic dataset, each with its code, sheet, rows and course', () => {
     expect(linesOf(makeSyntheticDataset())).toEqual([
-      '- [ambiguous_curriculum_2018] «Alpha Course» (Предмети (Export) row 2): its 2018 name «Alpha Legacy», taken from Еквиваленции row 2, matches rows 2 and 10 of Предмети - 2018, which carry different codes (row 2: «SYN18-001», row 10: «SYN18-001-LATER»); give each subject its own name.',
-      '- [ambiguous_curriculum_2023] «Alpha Course» (Предмети (Export) row 2): its 2023 name «Alpha Course (2023)» matches rows 2 and 3 of Предмети - 2023, which carry different codes (row 2: «SYN23-001», row 3: «SYN23-001-DUP»); give each subject its own name.',
-      '- [ambiguous_legacy_equivalency] «Alpha Course» (Предмети (Export) row 2): Еквиваленции rows 2 and 3 give it different 2018 names («Alpha Legacy» and «Alpha Legacy Duplicate»); make them agree, or fill in its 2018-name to choose one.',
-      '- [ambiguous_student_index] ФСС row 2: several students carry its index (Индекси - Година, Индекси - Други rows 2 and 3); correct the index, or keep one student row for it.',
-      '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
+      '- [ambiguous_curriculum_2018] Предмети (Export) row 2 «Alpha Course»: 2018 name «Alpha Legacy» (from Еквиваленции row 2) matches Предмети - 2018 rows 2, 10; codes: row 2 «SYN18-001», row 10 «SYN18-001-LATER»',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 2 «Alpha Course»: 2023 name «Alpha Course (2023)» matches Предмети - 2023 rows 2, 3; codes: row 2 «SYN23-001», row 3 «SYN23-001-DUP»',
+      '- [ambiguous_legacy_equivalency] Предмети (Export) row 2 «Alpha Course»: Еквиваленции rows 2, 3 give different 2018 names: «Alpha Legacy», «Alpha Legacy Duplicate»',
+      '- [ambiguous_student_index] ФСС row 2: index matches several students: Индекси - Година, Индекси - Други rows 2, 3',
+      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
     ]);
   });
 
-  test('explain names that match no curriculum row', () => {
+  test('name names that match no curriculum row', () => {
     const base = parityDataset();
 
     expect(
       linesOf(withCourse(base, courseNames.alpha, { name_2023: 'Nowhere' })),
     ).toEqual([
-      '- [unmatched_curriculum_2023_label] «Alpha Course» (Предмети (Export) row 2): its 2023 name «Nowhere» matches no row of Предмети - 2023; correct it to the name of a 2023 subject.',
+      '- [unmatched_curriculum_2023_label] Предмети (Export) row 2 «Alpha Course»: 2023 name «Nowhere» matches no row of Предмети - 2023',
     ]);
     expect(
       linesOf(
         withCourse(base, courseNames.beta, { name_2018_override: 'Nowhere' }),
       ),
     ).toEqual([
-      '- [missing_override_target] «Beta Course» (Предмети (Export) row 3): its 2018-name «Nowhere» matches no row of Предмети - 2018; correct it to the name of a 2018 subject, or clear it.',
+      '- [missing_override_target] Предмети (Export) row 3 «Beta Course»: 2018-name «Nowhere» matches no row of Предмети - 2018',
     ]);
     expect(
       linesOf({
@@ -380,15 +380,15 @@ describe('the refusal lines', () => {
         ),
       }),
     ).toEqual([
-      "- [unmatched_curriculum_2018_label] «Zeta Course» (Предмети (Export) row 7): its 2018 name «Nowhere», taken from Еквиваленции row 7, matches no row of Предмети - 2018; correct it in Еквиваленции, or fill in the course's 2018-name.",
+      '- [unmatched_curriculum_2018_label] Предмети (Export) row 7 «Zeta Course»: 2018 name «Nowhere» (from Еквиваленции row 7) matches no row of Предмети - 2018',
     ]);
   });
 
-  test('explain patterns that are no regular expression, and rows the model cannot hold', () => {
+  test('name patterns that are no regular expression, and rows the model cannot hold', () => {
     const base = uniqueDataset();
 
     expect(linesOf(withMetacharacterCourse(base))).toEqual([
-      '- [invalid_regex] «C++ Course» (Предмети (Export) row 10): the default enrollment pattern «C++ Course-<year>», which applies to every year without a pattern in Слушатели, is not a valid regular expression; add a valid pattern for each such year there, or rename the course.',
+      '- [invalid_regex] Предмети (Export) row 10 «C++ Course»: default pattern «C++ Course-<year>» not a valid regular expression (years without a pattern in Слушатели)',
     ]);
     expect(
       linesOf(
@@ -408,15 +408,15 @@ describe('the refusal lines', () => {
         ]),
       ),
     ).toEqual([
-      '- [invalid_regex] «Beta Course» (Предмети (Export) row 3): the enrollment pattern on Слушатели row 5 is not a valid regular expression; correct it.',
-      '- [invalid_source_row] Слушатели row 6 has no pattern; fill it in or delete the row.',
+      '- [invalid_regex] Предмети (Export) row 3 «Beta Course»: pattern not a valid regular expression: Слушатели row 5',
+      '- [invalid_source_row] Слушатели row 6: missing pattern',
     ]);
     expect(linesOf(withCourse(base, courseNames.delta, { name: '' }))).toEqual([
-      '- [invalid_source_row] Предмети (Export) row 5 has no name; fill it in or delete the row.',
+      '- [invalid_source_row] Предмети (Export) row 5: missing name',
     ]);
   });
 
-  test('explain a course name several courses carry and repeated role rows', () => {
+  test('name a course name several courses carry and repeated role rows', () => {
     const base = uniqueDataset();
     const [alpha] = base.courses;
 
@@ -433,10 +433,10 @@ describe('the refusal lines', () => {
         ],
       }),
     ).toEqual([
-      '- [ambiguous_course_name] Слушатели row 2 names «Alpha Course», which rows 2 and 10 of Предмети (Export) carry; give each course its own name.',
-      '- [ambiguous_course_name] Еквиваленции row 2 names «Alpha Course», which rows 2 and 10 of Предмети (Export) carry; give each course its own name.',
-      '- [ambiguous_course_name] Наставен Кадар row 2 names «Alpha Course», which rows 2 and 10 of Предмети (Export) carry; give each course its own name.',
-      '- [duplicate_role_row] Деканат rows 2 and 4 repeat the same year, person and position; delete the repeated row.',
+      '- [ambiguous_course_name] Слушатели row 2: «Alpha Course» matches Предмети (Export) rows 2, 10',
+      '- [ambiguous_course_name] Еквиваленции row 2: «Alpha Course» matches Предмети (Export) rows 2, 10',
+      '- [ambiguous_course_name] Наставен Кадар row 2: «Alpha Course» matches Предмети (Export) rows 2, 10',
+      '- [duplicate_role_row] Деканат rows 2, 4: same year, person and position',
     ]);
   });
 

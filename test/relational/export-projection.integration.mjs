@@ -49,8 +49,10 @@ const nothingToResume = () => Promise.resolve();
 const collator = new Intl.Collator('en');
 const theta = 'Theta Course';
 const recordText = /Synthetic|Prof\.|Asst\.|Course|@/u;
-const pendingCounts = /history_index_pending 1, enrollments_pending 1/u;
-const movedRevision = /source revision \d+, now \d+/u;
+const pendingCounts =
+  /^Not ready: source revision \d+, blockers: (?:\w+ \d+, )*history_index_pending 1, enrollments_pending 1/u;
+const movedRevision =
+  /^Source changed during preparation: source revision \d+, now \d+; /u;
 
 const isReady = async (target) => {
   const answer = await readiness(target);

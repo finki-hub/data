@@ -55,7 +55,7 @@ const pathFields = (
   const relation = findModelRelation(collection, field);
   if (relation === undefined) {
     throw new Error(
-      `A key-source filter on ${collection} tests ${path.join('.')}, but ${field} is no M2O relation of the model, so the editor policy cannot withhold what it reads.`,
+      `Key-source filter on ${collection} tests ${path.join('.')}: ${field} is no M2O relation of the model`,
     );
   }
   return [{ collection, field }, ...pathFields(relation.related, rest)];

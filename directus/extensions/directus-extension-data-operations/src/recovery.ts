@@ -34,8 +34,8 @@ export default defineHook(({ init }, { database, logger }) => {
       log?.info(
         { moment, ...result },
         result.released
-          ? 'Released an abandoned data-operations claim'
-          : 'No abandoned data-operations claim',
+          ? 'Claim recovery: abandoned claim released'
+          : 'Claim recovery: no abandoned claim',
       );
     } catch (error) {
       log?.warn(
@@ -43,7 +43,7 @@ export default defineHook(({ init }, { database, logger }) => {
           error: error instanceof Error ? error.message : String(error),
           moment,
         },
-        'Data-operations recovery skipped (is the data model installed?)',
+        'Claim recovery skipped',
       );
     }
   };

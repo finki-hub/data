@@ -87,13 +87,14 @@ const fillerText = /Synthetic Legacy Filler/u;
 const privateText =
   /C\+\+|Course-20|Honors|Synthetic Legacy Filler|Theta Lab|a{8}/u;
 const invalidRule =
-  /Rule (?<rule>\d+) \(course (?<course>\d+) \/ academic year \d+\) has a pattern that does not compile as a unicode regular expression \(Nothing to repeat\); nothing was counted\./u;
+  /Rule (?<rule>\d+) \(course (?<course>\d+) \/ academic year \d+\): pattern does not compile as a unicode regular expression \(Nothing to repeat\)$/u;
 const timedOut = /Script execution timed out/u;
-const firstLegacyPage = /Legacy page p0002 failed/u;
+const firstLegacyPage =
+  /Legacy page p0002 failed \[count LEGACY_COUNT_FAILED\]: /u;
 const overBudget =
-  /^plan: Moodle user (?<user>\d+) holds 800001 bytes of Courses history, more than the 800000-byte budget of one legacy rule page; nothing was planned\.$/u;
+  /^plan: Moodle user (?<user>\d+): Courses history 800001 bytes, max 800000 per page$/u;
 const legacyFamilyFailed =
-  /^family: Enrollment family legacy_regex failed \(family: LEGACY_COUNT_FAILED legacy: LEGACY_COUNT_FAILED /u;
+  /^family: Family legacy_regex failed \[legacy LEGACY_COUNT_FAILED\]: Legacy page p\d{4} failed \[count LEGACY_COUNT_FAILED\]: /u;
 // The two mapped pairs, in the newest year row the suite created, with
 // their counts.
 const mappedPairs = (state, [ma, mb]) => ({

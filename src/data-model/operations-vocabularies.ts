@@ -5,15 +5,16 @@ import {
   domainLabel,
   importStates,
   publicationStates,
+  stateLabels,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import { ruleModes } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { labelledChoices } from './fields.js';
 
 // The vocabularies of the operations collections. The coordinator's own
-// (domains, claim domains, import and publication states) are declared
-// once in the data-operations extension and imported here; the labels
-// Studio shows are declared here once per value, and setup keeps
-// installed fields in step with them.
+// (domains, claim domains, import and publication states, and the one
+// label of each state, which the dashboard shows too) are declared once in
+// the data-operations extension and imported here; setup keeps installed
+// fields in step with them.
 
 // The enrollment rule modes carry their labels in their one declaration
 // (rule-modes.ts), with what each does and whether it reads `pattern`.
@@ -31,23 +32,15 @@ export const patternNote = `Literal regular expression, as the workbook import o
   .map(({ mode }) => mode)
   .join(', ')}.`;
 
-export const importChoices = labelledChoices(importStates, {
-  completed: 'Completed',
-  failed: 'Failed',
-  idle: 'Idle',
-  importing: 'Importing',
-  promoting: 'Promoting',
-  ready: 'Staged, ready to promote',
-  validating: 'Validating',
-});
+export const importChoices = labelledChoices(importStates, stateLabels);
 
-export const publicationChoices = labelledChoices(publicationStates, {
-  completed: 'Published (every file)',
-  failed: 'Failed (no file uploaded)',
-  idle: 'Idle',
-  partial: 'Partly published',
-  running: 'Running',
-});
+export const publicationChoices = labelledChoices(
+  publicationStates,
+  stateLabels,
+);
+
+// What each publication state means, in the labels Studio shows.
+export const publicationStateNote = `${stateLabels.completed}: every declared file uploaded; ${stateLabels.partial}: some; ${stateLabels.failed}: none. Per-file outcomes in publication_outcomes.`;
 
 // A claim domain shows the label its declaration gives it.
 export const claimChoices: readonly EnumChoice[] = claimDomains.map(

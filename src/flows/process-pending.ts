@@ -9,15 +9,17 @@ import {
   type FlowTemplate,
   operation,
 } from './flow-template.js';
-import { historyFlowIds } from './history-page-flows.js';
+import { refreshFlow } from './index-histories.js';
 import { markPendingFlow } from './mark-pending.js';
 import {
   branch,
   type CalculationRoute,
+  missingBranch,
   routeSteps,
   unknownDomainSteps,
 } from './process-routes.js';
 import { familyRunnerFlow } from './run-enrollment-family.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -45,10 +47,8 @@ const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
         stage: 'enrollments_run',
         suffixes: ['45', '46'],
       }),
-      missing: branch({
+      missing: missingBranch(dispatcherFlow.name, {
         code: 'ENROLLMENTS_FAILED',
-        message:
-          '"Data / Count enrollments" answered nothing (inactive or deleted); the claim was released without a run.',
         position: [91, 73],
         stage: 'enrollments_missing',
         suffixes: ['47', '48'],
@@ -64,7 +64,7 @@ const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
     },
     history_index: {
       answered: { key: 'refreshed', suffix: '35' },
-      child: historyFlowIds.refresh,
+      child: refreshFlow.id,
       crashed: branch({
         code: 'INDEX_FAILED',
         message: '{{ refresh.message }}',
@@ -72,10 +72,8 @@ const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
         stage: 'history_run',
         suffixes: ['41', '42'],
       }),
-      missing: branch({
+      missing: missingBranch(refreshFlow.name, {
         code: 'INDEX_FAILED',
-        message:
-          '"Data / Refresh history index" answered nothing (inactive or deleted); the claim was released without a run.',
         position: [91, 19],
         stage: 'history_missing',
         suffixes: ['43', '44'],
@@ -103,8 +101,10 @@ const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
 // children names its permissions ($full) explicitly.
 export const processPendingFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Runs pending derived work every 15 seconds: claims the first pending calculation domain (Moodle history index, then enrollment counts; never publication) through the coordinator and runs "Data / Refresh history index" or "Data / Count enrollments" under that claim, one domain per tick. An idle tick claims nothing and reads no collection. A failed run stays failed until a source edit, "Data / Mark pending" or a Flow graph change; no timed retry.',
+  description: flowDescription({
+    does: `Claims the first pending calculation domain every 15 seconds (history index, then enrollment counts) and runs "${refreshFlow.name}" or "${dispatcherFlow.name}"; one domain per tick`,
+    note: `A failed domain stays failed until a source edit, "${markPendingFlow.name}" or a Flow graph change`,
+  }),
   entry: automationId('31'),
   icon: 'schedule',
   id: processPendingFlowId,
@@ -123,7 +123,7 @@ export const processPendingFlow: FlowTemplate = {
     operation({
       family,
       key: 'claim_failed',
-      name: 'Answer the refused claim',
+      name: stepName.answerFailure('claim'),
       options: {
         json: {
           claimed: false,
@@ -148,7 +148,7 @@ export const processPendingFlow: FlowTemplate = {
     operation({
       family,
       key: 'idle',
-      name: 'Nothing to run',
+      name: 'Answer idle',
       options: { json: { claimed: false, reason: '{{ claim.reason }}' } },
       position: [37, 19],
       suffix: '37',

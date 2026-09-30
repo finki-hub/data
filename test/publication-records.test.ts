@@ -299,9 +299,12 @@ describe('a publication that stops before its end', () => {
     expect(fake.data.lastError).toMatchObject({
       code: 'CLAIM_ABANDONED',
       domain: publication,
-      message: abandonedPublicationMessage,
+      message: abandonedPublicationMessage(claimStaleAfterMs),
       revision,
     });
+    expect(abandonedPublicationMessage(claimStaleAfterMs)).toBe(
+      'Publication claim abandoned: no heartbeat for 60 s. Revision not published. Last upload possibly unrecorded',
+    );
     expect(fake.data.publicationOutcomes?.[first]).toMatchObject({
       outcome: 'uploaded',
       revision,

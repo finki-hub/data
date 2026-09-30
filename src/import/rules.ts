@@ -22,13 +22,15 @@ export const planAcademicYears = (
 // instead of seeding rules the enrollments planner refuses.
 const seededMode = ruleMode('legacy_regex').mode;
 
+// Where the rule's pattern came from, in one form: `Import[ fallback]:
+// <source>[, <detail>]`. The pattern itself is the rule's own field.
 const reviewNote = (rule: RuleCandidate): string => {
   if (rule.source === 'default') {
-    return `Import fallback: the default pattern "${rule.pattern}" is recorded literally from the course name and academic year; the workbook named no pattern. Renaming the course no longer changes this rule.`;
+    return 'Import fallback: default pattern (course name-academic year), stored literally; no workbook pattern';
   }
   return rule.overrides.length > 1
-    ? `Pattern of the workbook's enrollment sheet: the last of the ${String(rule.overrides.length)} patterns it names for this course and year; the others were not imported.`
-    : "Pattern of the workbook's enrollment sheet.";
+    ? `Import: workbook pattern, last of ${String(rule.overrides.length)} for this course and year`
+    : 'Import: workbook pattern';
 };
 
 // One legacy_regex rule per course and academic year of the workbook: the

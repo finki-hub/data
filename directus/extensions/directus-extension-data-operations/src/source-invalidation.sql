@@ -78,7 +78,7 @@ BEGIN
         )
     );
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'data_operations has no status row, so the change to % cannot be recorded; run npm run setup', TG_TABLE_NAME;
+    RAISE EXCEPTION 'Change to % refused: data_operations status row missing', TG_TABLE_NAME;
   END IF;
   RETURN NULL;
 END

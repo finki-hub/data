@@ -3,8 +3,8 @@ import type { WorkbookKey } from '../schema.js';
 // What the up-front check of the one-time import finds in the workbook,
 // declared once. Every finding names the part of the workbook and the rows
 // (ordinals of the rows read, 1 for the first) it concerns, never a value;
-// stdout counts them per code, and stderr explains each refusing case in
-// plain words (src/import/refusal-text.ts).
+// stdout counts them per code, and stderr names each blocking case by its
+// code, sheet, rows and course (src/import/refusal-text.ts).
 
 // Cases that refuse the import before its first write: a relationship
 // with more than one candidate, a row the model cannot hold, and a value

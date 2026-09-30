@@ -5,6 +5,7 @@ import {
   operation,
   publicationId,
 } from './flow-template.js';
+import { flowDescription } from './text-fragments.js';
 import {
   adminOnly,
   publicationButton,
@@ -23,17 +24,22 @@ export const prepareAssetsFlowId = publicationId('05');
 // data-operations extension, never by this Flow.
 export const prepareAssetsFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Dry preparation of the public files (administrators only); uploads nothing. Checks readiness, then for every file the export definitions of the data-operations extension declare, in their order: reads the relational data with explicit fields, serializes and validates the payload; then checks the source revision again. Answers the revision and the name, rows, bytes and sha256 of each file; refuses when not ready or when the source changed meanwhile.',
+  description: flowDescription({
+    adminOnly: true,
+    answers: [
+      'revision',
+      'files: [{filename, rows, bytes, sha256}]',
+      'warnings',
+      'durationMs',
+    ],
+    does: 'Prepares every declared public file without uploading: readiness, read, serialize, validate, revision check',
+  }),
   entry: publicationId('51'),
   icon: 'inventory',
   id: prepareAssetsFlowId,
   name: 'Publish / Prepare public assets',
   operations: [
-    ...adminOnly(
-      ['51', '52', '53'],
-      'Only administrators may prepare the public assets.',
-    ),
+    ...adminOnly(['51', '52', '53'], 'prepare the public assets'),
     operation({
       family,
       key: 'prepare',

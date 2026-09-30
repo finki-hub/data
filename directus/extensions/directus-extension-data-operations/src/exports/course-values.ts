@@ -47,7 +47,7 @@ const linkOf = (context: RowContext, generation: Row): Row | undefined => {
   const [link] = links;
   if (link !== undefined && idOf(pathValue(link, 'entry.generation')) !== id) {
     unresolved(
-      `Course ${courseId(context)} links a ${code} curriculum entry of another generation or none`,
+      `Course ${courseId(context)}: ${code} curriculum link names an entry of another generation or none`,
     );
   }
   return link;

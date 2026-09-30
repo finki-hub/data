@@ -91,11 +91,9 @@ const prepareFiles = async (
 const notReady = (answer: ReadinessAnswer) =>
   exportError(
     'NOT_READY',
-    `Not ready at source revision ${answer.revision}: ${answer.blockers
-      .map((code) => `${code} ${answer.issueCounts[code] ?? 0}`)
-      .join(
-        ', ',
-      )}. Nothing was prepared; "Data / Validate readiness" lists every issue with its Studio page.`,
+    `Not ready: source revision ${String(answer.revision)}, blockers: ${answer.blockers
+      .map((code) => `${code} ${String(answer.issueCounts[code] ?? 0)}`)
+      .join(', ')}`,
     {
       blockers: answer.blockers,
       issueCounts: answer.issueCounts,
@@ -121,7 +119,7 @@ const unstable = (before: CoordinationFacts, after: CoordinationFacts) => {
     .join(', ');
   return exportError(
     'UNSTABLE_PREPARATION',
-    `The source changed while the public files were prepared (source revision ${before.revision}, now ${after.revision}; calculations ${states}); nothing was prepared. Prepare again.`,
+    `Source changed during preparation: source revision ${String(before.revision)}, now ${String(after.revision)}; ${states}`,
     { revision: after.revision, revisionBefore: before.revision },
   );
 };

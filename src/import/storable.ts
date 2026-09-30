@@ -33,14 +33,15 @@ const characterCount = (value: string): number => {
 const tooLong = (value: string, limit: number): null | string => {
   const length = characterCount(value);
   return length > limit
-    ? `holds ${String(length)} characters, but the column stores at most ${String(limit)}`
+    ? `${String(length)} characters, max ${String(limit)}`
     : null;
 };
 
-// Why the column of the field cannot hold the value, or null when it can.
+// Why the column of the field cannot hold the value, as a fact about the
+// value, or null when it can.
 const unstorable = (field: ModelField, value: PlannedValue): null | string => {
   if (value === null) {
-    return field.nullable ? null : 'is empty, but the column requires a value';
+    return field.nullable ? null : 'empty (required)';
   }
   if (isRef(value) || field.kind === 'm2o') {
     return null;
@@ -56,7 +57,7 @@ const unstorable = (field: ModelField, value: PlannedValue): null | string => {
       value >= minInteger &&
       value <= maxInteger
       ? null
-      : 'holds an integer outside the range of the column';
+      : 'integer outside int4 range';
   }
   return null;
 };
@@ -79,17 +80,12 @@ const rowProblems = (
         (field.kind === 'm2o' || field.defaultValue === undefined) &&
         !Object.hasOwn(row.record, field.field),
     )
-    .map(({ field }) => ({
-      field,
-      problem: 'is missing, but the column requires a value',
-    }))
+    .map(({ field }) => ({ field, problem: 'missing (required)' }))
     .toArray();
   const held = Object.entries(row.record).flatMap(([name, value]) => {
     const field = fields.get(name);
     if (field === undefined) {
-      throw new TypeError(
-        `The import plans ${collection}.${name}, which the model does not declare.`,
-      );
+      throw new TypeError(`plan: ${collection}.${name} not in model`);
     }
     const problem = unstorable(field, value);
     return problem === null ? [] : [{ field: name, problem }];

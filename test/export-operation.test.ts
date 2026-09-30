@@ -214,7 +214,7 @@ describe('the preparation', () => {
     expect(refusal).toEqual({
       code: 'EXPORT_NOT_READY',
       message:
-        'Not ready at source revision 42: enrollments_pending 1, enrollment_count_missing 15. Nothing was prepared; "Data / Validate readiness" lists every issue with its Studio page.',
+        'Not ready: source revision 42, blockers: enrollments_pending 1, enrollment_count_missing 15',
     });
     expect(log.length).toBeGreaterThan(0);
     expect(log.filter((read) => exportReads.has(JSON.stringify(read)))).toEqual(

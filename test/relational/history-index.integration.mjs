@@ -81,7 +81,8 @@ import {
 // The Flows a family install created and skipped.
 const flowLists = ({ created, skipped }) => ({ created, skipped });
 
-const leftOutTwoPattern = /left out 2 of them/u;
+const missingTwoPattern =
+  /^Page p\d{4} incomplete: ids \d+-\d+, planned \d+, missing 2, unexpected 0$/u;
 const busyPattern = /not claimed \(busy\)/u;
 
 // The three template Flows are installed once; a second install changes
@@ -202,7 +203,7 @@ const indexesThroughCoordinator = async (target, state) => {
     indexPageBody(state, claim.token, { rows: rows.slice(0, 4) }),
     pageIncomplete,
   );
-  assert.match(truncated.errors[0].message, leftOutTwoPattern);
+  assert.match(truncated.errors[0].message, missingTwoPattern);
   await refused(
     target,
     indexPageBody(state, claim.token, {
@@ -631,7 +632,7 @@ const failsOversizedHistoryThroughFlows = async (target, state) => {
   const failed = refusedRun(await rebuild(target), 500, 'INDEX_FAILED');
   assert.ok(
     failed.includes(
-      `failed at page p0001 (index): ${invalidOptions} Invalid coordination options (rows.6.entries: Moodle user ${oversized}: ${maxRowsPerPage + 1} distinct history lines`,
+      `Page p0001 failed [index ${invalidOptions}]: Invalid options: rows.6.entries: Moodle user ${oversized}: history lines ${maxRowsPerPage + 1}, max ${maxRowsPerPage}`,
     ),
     failed,
   );
@@ -697,7 +698,7 @@ const refusesOverlongLine = async (target, state) => {
   const failed = refusedRun(await rebuild(target), 500, 'INDEX_FAILED');
   assert.ok(
     failed.includes(
-      `Moodle user ${user}: a history line of ${line.length} bytes, one entry holds at most ${maxLabelBytes} bytes`,
+      `Moodle user ${user}: history line ${line.length} bytes, max ${maxLabelBytes}`,
     ),
     failed,
   );

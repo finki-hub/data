@@ -1,17 +1,20 @@
 import { z } from 'zod';
 
 import type { DirectusRequest } from '../directus-request.js';
-import type { FieldAction, InstallPlan, Refusal } from './plan-types.js';
 
+import { countText, listText } from '../text.js';
 import { valuesOutside } from './plan-choices.js';
+import {
+  type FieldAction,
+  type InstallPlan,
+  type Refusal,
+  refusalOf,
+} from './plan-types.js';
 
 type Realignment = Extract<FieldAction, { readonly kind: 'realign-choices' }>;
 
 const rows = z.array(z.record(z.string(), z.unknown()));
 const row = z.record(z.string(), z.unknown());
-
-// How many refused values a refusal names.
-const namedValues = 5;
 
 // The distinct values the field holds now: one grouped count per value (a
 // bounded read however many rows the collection has), or the singleton's
@@ -37,11 +40,9 @@ const liveValues = async (
     .map((group) => group[field.field]);
 };
 
+// The refused values, quoted and cut to 64 characters, at most five.
 const quoted = (values: readonly string[]): string =>
-  values
-    .slice(0, namedValues)
-    .map((value) => JSON.stringify(value.slice(0, 64)))
-    .join(', ');
+  listText(values.map((value) => JSON.stringify(value.slice(0, 64))));
 
 // Every realignment whose field holds a value the declaration no longer
 // accepts becomes a refusal: Directus enforces the rule on every later
@@ -60,11 +61,15 @@ export const outOfSetRefusals = async (
       await liveValues(request, action),
     );
     if (outside.length > 0) {
-      refusals.push({
-        collection: action.collection,
-        field: action.field.field,
-        reason: `Field ${action.collection}.${action.field.field} holds ${String(outside.length)} value(s) its declared choices no longer accept (${quoted(outside)}); change or clear them, then run setup again. Its choices were not realigned.`,
-      });
+      refusals.push(
+        refusalOf(
+          'Field',
+          { collection: action.collection, field: action.field.field },
+          {
+            live: `${countText(outside.length, 'value', 'values')} outside declared choices: ${quoted(outside)}`,
+          },
+        ),
+      );
     }
   }
   return refusals;

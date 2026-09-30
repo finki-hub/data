@@ -2,7 +2,7 @@ import type { Filter, Query } from '@directus/types';
 
 import { z } from 'zod';
 
-export const pageSize = 50;
+import { pageSize } from './limits.js';
 
 export type ItemsReader = {
   readonly readByQuery: (query: Query) => Promise<readonly unknown[]>;

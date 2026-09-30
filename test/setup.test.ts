@@ -33,16 +33,16 @@ import { exitCodes } from '../src/lifecycle.js';
 import { loadSetupConfig, SetupConfigError } from '../src/setup-config.js';
 import { runSetupCli } from '../src/setup-run.js';
 
-const missingUrlPattern = /DIRECTUS_URL is not set/u;
-const missingTokenPattern = /DIRECTUS_TOKEN/u;
-const absoluteUrlPattern = /not an absolute URL/u;
-const protocolPattern = /http or https/u;
-const buildPattern = /npm run build:operations/u;
-const restartPattern = /restart the Directus container/u;
+const missingUrlPattern = /^DIRECTUS_URL not set \(\.env not read\)$/u;
+const missingTokenPattern =
+  /^DIRECTUS_TOKEN or DIRECTUS_ADMIN_TOKEN not set \(\.env not read\)$/u;
+const absoluteUrlPattern =
+  /^DIRECTUS_URL not an absolute URL: "directus\.example"$/u;
+const protocolPattern = /^DIRECTUS_URL protocol not http or https: "ftp:"$/u;
 const refusedTargetPattern =
-  /^Setup refused: DIRECTUS_URL is not set\. Setup never assumes a default project and does not read \.env/u;
+  /^Setup refused: DIRECTUS_URL not set \(\.env not read\)$/u;
 const refusedFlowPattern =
-  /^Setup refused: The Flow "Synthetic" \(synthetic-flow\) exists without its entry operation/u;
+  /^Setup refused: Flow "Synthetic" \(synthetic-flow\): entry operation missing$/u;
 
 const packageScripts = z.object({ scripts: z.record(z.string(), z.string()) });
 
@@ -57,7 +57,7 @@ const failureOf = async (work: Promise<unknown>): Promise<unknown> => {
 
 const endpointFailure = (status: number, code: string) =>
   new DirectusRequestError(
-    `POST ${dataOperationsEndpoint}/migrations/schema-constraints returned ${status}`,
+    `POST ${dataOperationsEndpoint}/migrations/schema-constraints: HTTP ${String(status)} ${code}`,
     { code, reason: null, status },
   );
 
@@ -68,12 +68,13 @@ describe('setup configuration', () => {
   };
 
   test('refuses to assume a default project', () => {
-    expect(() =>
-      loadSetupConfig({ DIRECTUS_TOKEN: 'synthetic-token' }),
-    ).toThrow(SetupConfigError);
-    expect(() =>
-      loadSetupConfig({ DIRECTUS_TOKEN: 'synthetic-token', DIRECTUS_URL: ' ' }),
-    ).toThrow(missingUrlPattern);
+    const withoutUrl = { DIRECTUS_TOKEN: environment.DIRECTUS_TOKEN };
+
+    expect(() => loadSetupConfig(withoutUrl)).toThrow(SetupConfigError);
+    expect(() => loadSetupConfig(withoutUrl)).toThrow(missingUrlPattern);
+    expect(() => loadSetupConfig({ ...withoutUrl, DIRECTUS_URL: ' ' })).toThrow(
+      missingUrlPattern,
+    );
     expect(() =>
       loadSetupConfig({ DIRECTUS_URL: environment.DIRECTUS_URL }),
     ).toThrow(missingTokenPattern);
@@ -149,7 +150,7 @@ describe('schema constraints', () => {
     ).rejects.toThrow();
   });
 
-  test('names the remedy when the data-operations bundle is not served', async () => {
+  test('names the unserved endpoint when the data-operations bundle is not loaded', async () => {
     const missing = endpointFailure(404, 'ROUTE_NOT_FOUND');
     const failure = await failureOf(
       applySchemaConstraints(async () => {
@@ -158,10 +159,8 @@ describe('schema constraints', () => {
     );
 
     expect(failure).toBeInstanceOf(DataOperationsUnavailableError);
-    expect(failure instanceof Error && failure.message).toMatch(buildPattern);
-    expect(failure instanceof Error && failure.message).toMatch(restartPattern);
-    expect(failure instanceof Error && failure.message).toContain(
-      `${dataOperationsEndpoint}/migrations/schema-constraints`,
+    expect(failure instanceof Error && failure.message).toBe(
+      `POST ${dataOperationsEndpoint}/migrations/schema-constraints: HTTP 404 (data-operations bundle not loaded)`,
     );
     expect(failure instanceof Error && failure.cause).toBe(missing);
   });
@@ -305,6 +304,7 @@ describe('setup command', () => {
     );
 
     await expect(run.run(target)).resolves.toBe(exitCodes.refused);
+    expect(run.stderr).toHaveLength(1);
     expect(run.stderr[0]).toMatch(refusedFlowPattern);
   });
 
@@ -329,9 +329,10 @@ describe('setup command', () => {
 
     await expect(run.run(target)).resolves.toBe(exitCodes.refused);
     expect(JSON.parse(run.stdout.join('\n'))).toEqual(refusedSummary);
-    expect(run.stderr[0]).toContain(
-      'Setup refused: Refusing to install the data model over incompatible existing definitions:\n- synthetic incompatible column',
-    );
+    expect(run.stderr).toEqual([
+      'Setup refused: data model: 1 incompatible definition',
+      '- synthetic incompatible column',
+    ]);
   });
 
   test('fails any other error with exit code 1', async () => {
@@ -340,5 +341,16 @@ describe('setup command', () => {
     await expect(run.run(target)).resolves.toBe(exitCodes.failed);
     expect(run.stderr).toEqual(['Setup failed: synthetic outage']);
     expect(run.stdout).toEqual([]);
+  });
+
+  test('fails a response a schema refuses on one line, naming the path', async () => {
+    const run = command(async () =>
+      z.array(z.object({ count: z.number() })).parse([{ count: 'many' }]),
+    );
+
+    await expect(run.run(target)).resolves.toBe(exitCodes.failed);
+    expect(run.stderr).toEqual([
+      'Setup failed: unexpected response: 0.count: Invalid input: expected number, received string',
+    ]);
   });
 });

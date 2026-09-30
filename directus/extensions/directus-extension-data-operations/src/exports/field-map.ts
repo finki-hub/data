@@ -120,7 +120,7 @@ const keyText = (
   if (key === null) {
     throw exportError(
       'INVALID_READ',
-      `${definition.filename}: a ${name} row answered no key text; nothing was prepared`,
+      `${definition.filename}: ${name} row ${String(idOf(row['id']) ?? 'none')} without key text`,
     );
   }
   return key;
@@ -221,8 +221,8 @@ export const resolveFields = (
       throw exportError(
         'UNRESOLVED',
         key === unkeyable
-          ? `${definition.filename} cannot publish the key ${unkeyable}, which a key-source row names; nothing was prepared.`
-          : `${definition.filename} would publish the key ${key.slice(0, 60)} twice: a key-source row names another key; nothing was prepared.`,
+          ? `${definition.filename}: key ${unkeyable} not publishable (key-source row)`
+          : `${definition.filename}: duplicate key ${key.slice(0, 60)} (key-source row)`,
       );
     }
     seen.add(key);

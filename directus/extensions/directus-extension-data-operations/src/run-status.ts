@@ -2,7 +2,7 @@ import { useApi } from '@directus/extensions-sdk';
 import { computed, onScopeDispose, ref } from 'vue';
 
 import { statusPath } from './managed-flows.js';
-import { type Refusal, refusalOf } from './panel-answers.js';
+import { readFailureText, type Refusal, refusalOf } from './panel-answers.js';
 import {
   envelope,
   isBusy,
@@ -16,19 +16,13 @@ import {
 // again every pollMs while a run of the page or the server's work is in
 // flight, and after a failed read that may pass later with a growing
 // pause. A failed read leaves no server state, so Run waits and the panel
-// says why instead of naming a reason that does not hold.
+// names the failed read instead of a reason that does not hold.
 
 const statusAnswer = envelope(statusViewSchema);
 
-// Why Run waits when the status read failed, or null when it did not.
-const statusProblemText = (refusal: null | Refusal): null | string => {
-  if (refusal === null) {
-    return null;
-  }
-  return isRefusal(refusal.status)
-    ? 'You may not read the data status; data operations are for administrators.'
-    : `The data status could not be read (${refusal.code}); Run waits for it and reads it again shortly.`;
-};
+// The failed status read Run waits for, or null when the read passed.
+const statusProblemText = (refusal: null | Refusal): null | string =>
+  refusal === null ? null : readFailureText('Data status', refusal);
 
 export const useRunStatus = (runInFlight: () => boolean) => {
   const api = useApi();

@@ -85,7 +85,7 @@ const changeGraphs = (
   fake.graphs = graphs;
 };
 
-const invalidOptions = /Invalid coordination options/u;
+const invalidOptions = /^Invalid options: /u;
 
 const refusal = z.object({
   code: z.string(),
@@ -475,7 +475,9 @@ describe('a publication superseded by a source change', () => {
     );
 
     expect(refused.code).toBe('COORDINATION_FINGERPRINT_CHANGED');
-    expect(refused.message).toContain('not recorded as published');
+    expect(refused.message).toBe(
+      'Flow graph changed during publication. Revision not published',
+    );
     expect(fake.data.claim).toBeNull();
     expect(fake.data.publicationState).toBe('idle');
     expect(fake.data.completedRevision).toBe(0);

@@ -28,7 +28,7 @@ const operationsDashboard = {
   icon: 'monitor_heart',
   id: operationsDashboardId,
   name: 'Data operations',
-  note: 'The calculations, published files, readiness checks and published keys, and the manual data operations. Add a Run operation panel for any other Data / or Publish / Flow.',
+  note: 'Calculations, published files, readiness checks, published keys and manual data operations.',
 } as const;
 
 type PanelDeclaration = {
@@ -114,7 +114,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       icon: 'monitor_heart',
       id: rulesId('d5'),
       name: 'Calculations and published files',
-      note: 'Per domain and per declared file, read from the status endpoint.',
+      note: 'Shows calculation domains and published files.',
       width: 26,
       x: 1,
       y: 13,
@@ -127,7 +127,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       icon: 'fact_check',
       id: rulesId('d6'),
       name: 'Readiness',
-      note: 'One row and one Studio link per declared readiness check.',
+      note: 'Shows readiness checks with one Studio link each.',
       width: 26,
       x: 27,
       y: 13,
@@ -140,7 +140,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       icon: 'key',
       id: rulesId('d7'),
       name: 'Published keys',
-      note: 'The academic years, curriculum generations and study programs whose flags decide the public keys.',
+      note: 'Shows the rows whose flags decide the public keys.',
       width: 52,
       x: 1,
       y: 45,

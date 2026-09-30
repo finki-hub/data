@@ -41,7 +41,8 @@ import {
 // in the database. Every row is invented and removed again.
 
 const guarded = 'COORDINATION_WRITE_GUARDED';
-const refusalPattern = /; only .+ writes it\. /u;
+const refusalPattern =
+  /^Write refused: \w+ \((?:candidate|derived|staging); writer: [a-z ]+\)$/u;
 const probeFlowId = '9e4d826c-5b1a-4c0e-8f2d-000000002401';
 const probeOperationId = '9e4d826c-5b1a-4c0e-8f2d-000000002402';
 const statusRow =

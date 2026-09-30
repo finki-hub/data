@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SearchController } from './index.js';
-import { countText } from './count-text.js';
+import { countText, rangeText } from './count-text.js';
 import CoursePicker from './course-picker.vue';
 import Results from './results.vue';
 
@@ -10,10 +10,10 @@ defineProps<{ controller: SearchController }>();
 
 <template>
   <div class="course-search">
-    <v-notice v-if="!controller.supported" type="info">This layout is for Moodle Users. Choose another layout for this collection.</v-notice>
+    <v-notice v-if="!controller.supported" type="info">Layout supports Moodle Users only</v-notice>
     <template v-else>
       <header class="search-heading">
-        <div><h2>Course history search</h2><p>Find users by the courses in their Moodle history.</p></div>
+        <h2>Course history search</h2>
         <v-button secondary small :disabled="controller.loadingCourses" @click="controller.refresh"><v-icon name="refresh" left small />Refresh data</v-button>
       </header>
 
@@ -30,17 +30,17 @@ defineProps<{ controller: SearchController }>();
       <section class="results-section" :aria-busy="controller.loading">
         <div class="results-heading">
           <div aria-live="polite">
-            <h3>{{ controller.loading ? 'Finding users…' : countText(controller.total, 'matching user', 'matching users') }}</h3>
+            <h3>{{ controller.loading ? 'Loading users…' : countText(controller.total, 'matching user', 'matching users') }}</h3>
           </div>
           <v-button v-if="controller.hasCriteria" secondary small @click="controller.reset">Clear course selections</v-button>
         </div>
-        <p v-if="controller.hasNativeFilters" class="matching-note">The collection's search or additional filters also apply. Clear them in the page header to search everyone.</p>
+        <p v-if="controller.nativeCriteria.length" class="matching-note">Filtered by page header: {{ controller.nativeCriteria.join(', ') }}</p>
         <v-notice v-if="controller.error" type="danger">{{ controller.error }} <button class="retry" type="button" @click="controller.search">Retry</button></v-notice>
-        <div v-else-if="controller.loading && !controller.people.length" class="empty-state" role="status"><v-progress-circular indeterminate />Loading matching users…</div>
-        <div v-else-if="!controller.people.length" class="empty-state"><v-icon name="person_search" large /><h3>No matching users</h3><p>Try removing a required course or an exclusion.</p></div>
+        <div v-else-if="controller.loading && !controller.people.length" class="empty-state"><v-progress-circular indeterminate /></div>
+        <div v-else-if="!controller.people.length" class="empty-state"><v-icon name="person_search" large /><h3>No matching users</h3></div>
         <Results v-else v-model:sort="controller.sort" :people="controller.people" :included="controller.include" :inert="controller.loading" :class="{ refreshing: controller.loading }" />
         <footer v-if="controller.total && !controller.error" class="pagination">
-          <span>{{ (controller.page - 1) * 50 + 1 }}–{{ Math.min(controller.page * 50, controller.total) }} of {{ controller.total.toLocaleString() }}</span>
+          <span>{{ rangeText(controller.page, controller.total) }}</span>
           <v-pagination v-if="controller.pages > 1" v-model="controller.page" :length="controller.pages" :total-visible="5" :disabled="controller.loading" />
         </footer>
       </section>

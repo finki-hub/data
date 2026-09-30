@@ -475,8 +475,7 @@ describe('year configuration', () => {
 
     await expect(refusalOf(() => projected(store))).resolves.toEqual({
       code: 'EXPORT_UNRESOLVED',
-      message:
-        'courses.json would publish the key tags twice: a key-source row names another key; nothing was prepared.',
+      message: 'courses.json: duplicate key tags (key-source row)',
     });
   });
 
@@ -488,8 +487,7 @@ describe('year configuration', () => {
 
     await expect(refusalOf(() => projected(store))).resolves.toEqual({
       code: 'EXPORT_UNRESOLVED',
-      message:
-        'courses.json cannot publish the key __proto__, which a key-source row names; nothing was prepared.',
+      message: 'courses.json: key __proto__ not publishable (key-source row)',
     });
   });
 
@@ -502,8 +500,7 @@ describe('year configuration', () => {
 
     await expect(refusalOf(() => projected(store))).resolves.toEqual({
       code: 'EXPORT_UNRESOLVED',
-      message:
-        'Course 2 has 0 enrollment counts for 2023/2024; nothing was prepared.',
+      message: 'Course 2 has 0 enrollment counts for 2023/2024',
     });
   });
 });
@@ -571,11 +568,11 @@ describe('relation values resolved on read', () => {
   test.each([
     [
       { display_override: null, staff: null },
-      'Assignment 500 of course 7 has no label; nothing was prepared.',
+      'Assignment 500 of course 7 has no label',
     ],
     [
       { display_override: 'Label', role: null },
-      'Assignment 500 of course 7 has no role; nothing was prepared.',
+      'Assignment 500 of course 7 has no role',
     ],
   ])('refuses the assignment %j', async (change, message) => {
     const store = edit(
@@ -618,12 +615,12 @@ describe('relation values resolved on read', () => {
     );
 
     await expect(refusalOf(() => projected(twice))).resolves.toMatchObject({
-      message: 'Course 1 has 2 2023 curriculum links; nothing was prepared.',
+      message: 'Course 1 has 2 2023 curriculum links',
     });
     await expect(refusalOf(() => projected(crossed))).resolves.toEqual({
       code: 'EXPORT_UNRESOLVED',
       message:
-        'Course 7 links a 2018 curriculum entry of another generation or none; nothing was prepared.',
+        'Course 7: 2018 curriculum link names an entry of another generation or none',
     });
   });
 });

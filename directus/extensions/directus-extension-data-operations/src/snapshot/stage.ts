@@ -1,6 +1,7 @@
 import type { ActionContext } from '../coordination/action-support.js';
 import type { SnapshotFiles, SnapshotPort, SnapshotStore } from './port.js';
 
+import { countText } from '../text.js';
 import {
   batchChars,
   batchRows,
@@ -12,7 +13,7 @@ import {
 } from './contract.js';
 import { readCsv } from './csv-parser.js';
 import { CsvFormatError } from './csv-types.js';
-import { fileRefusal } from './decisions.js';
+import { fileRefusal, fileTooLarge } from './decisions.js';
 import { snapshotError, type SnapshotLog } from './errors.js';
 import { SnapshotFingerprint } from './fingerprint.js';
 import {
@@ -66,7 +67,7 @@ const checkDeadline = (deadline: AbortSignal, limits: SnapshotLimits) => {
   if (deadline.aborted) {
     throw snapshotError(
       'IMPORT_TIMEOUT',
-      `The import did not finish within IMPORT_TIMEOUT (${limits.timeoutMs} ms); nothing was staged.`,
+      `Import timed out after ${String(limits.timeoutMs)} ms (IMPORT_TIMEOUT)`,
     );
   }
 };
@@ -91,10 +92,7 @@ const bounded = async function* (
     checkDeadline(deadline, limits);
     bytes += typeof chunk === 'string' ? chunk.length : chunk.byteLength;
     if (bytes > limits.maxBytes) {
-      throw snapshotError(
-        'FILE_INVALID',
-        `The file is larger than ${limits.maxBytes} bytes (FINKI_HUB_SNAPSHOT_MAX_BYTES); nothing was staged.`,
-      );
+      throw fileTooLarge(limits.maxBytes);
     }
     yield chunk;
   }
@@ -119,10 +117,7 @@ const stageRecords = async (
       continue;
     }
     if (checks.rows >= maxRows) {
-      throw snapshotError(
-        'INVALID_ROWS',
-        `A snapshot holds at most ${maxRows} rows; nothing was staged.`,
-      );
+      throw snapshotError('INVALID_ROWS', `Rows above max ${String(maxRows)}`);
     }
     const row = checks.accept(record);
     if (row === null || checks.problems > 0) {
@@ -138,10 +133,7 @@ const stageRecords = async (
     }
   }
   if (checks === null) {
-    throw snapshotError(
-      'INVALID_HEADERS',
-      'The file is empty: it has no header row. Nothing was staged.',
-    );
+    throw snapshotError('INVALID_HEADERS', 'File empty: no header row');
   }
   if (checks.problems === 0 && batch.length > 0) {
     await snapshot.insertStaging(batch);
@@ -164,11 +156,10 @@ const readRecords = async (
     if (!(error instanceof CsvFormatError)) {
       throw error;
     }
-    throw snapshotError(
-      'INVALID_CSV',
-      `The file is not a valid CSV: ${error.message}. Nothing was staged and the active snapshot is unchanged.`,
-      { line: error.line, problem: error.problem },
-    );
+    throw snapshotError('INVALID_CSV', `Invalid CSV: ${error.message}`, {
+      line: error.line,
+      problem: error.problem,
+    });
   }
 };
 
@@ -213,7 +204,7 @@ export const stageFile = async (
     ) {
       throw snapshotError(
         'COUNT_MISMATCH',
-        `The staging table holds ${stored.rows} rows whose fingerprint differs from the ${parsed.staged} rows read; nothing was staged.`,
+        `Staging mismatch: stored ${countText(stored.rows, 'row', 'rows')}, read ${countText(parsed.staged, 'row', 'rows')}`,
       );
     }
     const warnings = warningsOf(parsed.checks);
@@ -226,7 +217,7 @@ export const stageFile = async (
     if (!finished) {
       throw snapshotError(
         'IMPORT_RUNNING',
-        'Another import replaced this one while it ran; nothing was staged.',
+        'Import superseded by another import',
       );
     }
     return { fingerprint: stored.fingerprint, rows: stored.rows, warnings };

@@ -1,7 +1,7 @@
 import type { CoordinationPort } from './port.js';
 
 import { planEnrollmentFamilies } from '../enrollment-pages.js';
-import { rulesPlanMode } from '../rule-modes.js';
+import { rulesPlanMode, shownMode } from '../rule-modes.js';
 import {
   type ActionContext,
   done,
@@ -12,6 +12,7 @@ import {
 import { verifyClaim } from './decisions.js';
 import { type ClaimDomain } from './domains.js';
 import { coordinationError } from './errors.js';
+import { domainMismatch } from './refusals.js';
 import { type PageSource, pageSourceDomains } from './state.js';
 
 // A table source is planned only under its own claim domain, and `rules`
@@ -27,12 +28,10 @@ export const checkPlanSource = async (
   source: PageSource,
 ): Promise<void> => {
   const wanted = pageSourceDomains[source];
+  const subject = `plan_pages source ${source}`;
   if (domain !== wanted) {
-    const hint =
-      domain === 'enrollments' ? ', which plans with source enrollments' : '';
-    throw coordinationError(
-      'DOMAIN_MISMATCH',
-      `plan_pages with source ${source} serves ${wanted} claims only; the current claim runs ${domain ?? 'no domain'}${hint}.`,
+    throw domainMismatch(
+      { actual: domain, expected: wanted, subject },
       { details: { domain, source } },
     );
   }
@@ -42,7 +41,7 @@ export const checkPlanSource = async (
     if (other !== undefined) {
       throw coordinationError(
         'DOMAIN_MISMATCH',
-        `plan_pages with source rules plans ${rulesPlanMode.mode} rules only, and rule ${other.id} has another mode; plan with source enrollments, which covers every rule mode. Nothing was planned.`,
+        `${subject}: rule ${String(other.id)} mode ${shownMode(other.mode)}, expected ${rulesPlanMode.mode}`,
         { details: { rule: other.id, source } },
       );
     }
@@ -70,10 +69,11 @@ export const planEnrollmentsAction = (token: string, context: ActionContext) =>
       throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);
     }
     if (state.claim.domain !== 'enrollments') {
-      throw coordinationError(
-        'DOMAIN_MISMATCH',
-        `plan_pages with source enrollments needs an enrollments claim; the current claim runs ${state.claim.domain ?? 'no domain'}.`,
-      );
+      throw domainMismatch({
+        actual: state.claim.domain,
+        expected: 'enrollments',
+        subject: 'plan_pages source enrollments',
+      });
     }
     const families = planEnrollmentFamilies(await port.enrollmentSources());
     const pages = families.flatMap((family) => family.pages);

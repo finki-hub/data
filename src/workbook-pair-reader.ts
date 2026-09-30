@@ -5,6 +5,7 @@ import type { CollectionSource, PlacedItem } from './schema.js';
 import {
   getWorksheet,
   readCellText,
+  sheetPlace,
   WorkbookDataError,
 } from './workbook-values.js';
 
@@ -34,7 +35,7 @@ const readStudentColumn = (
     if (name !== '') {
       if (indexNumber === '') {
         throw new WorkbookDataError(
-          `Missing student index in ${context.sheet} at row ${rowNumber}`,
+          `${sheetPlace(context.sheet, rowNumber)}: missing student index`,
         );
       }
 
@@ -69,7 +70,7 @@ const readStudentSheet = (
     ).trim();
     if (sourceGroup === '') {
       throw new WorkbookDataError(
-        `Missing student source group in ${sheet} column ${columnNumber}`,
+        `${sheetPlace(sheet, 1, columnNumber)}: missing student source group`,
       );
     }
 
@@ -110,7 +111,7 @@ const readDiscordColumn = (
     if (channel !== '' || courseNames !== '') {
       if (channel === '' || courseNames === '') {
         throw new WorkbookDataError(
-          `Incomplete Discord channel pair in ${context.sheet} at row ${rowNumber}`,
+          `${sheetPlace(context.sheet, rowNumber)}: incomplete Discord channel pair`,
         );
       }
 

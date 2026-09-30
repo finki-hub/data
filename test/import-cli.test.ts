@@ -44,9 +44,11 @@ const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
 const commandPattern = /^ *(?:command|entrypoint):/mu;
 const dockerCommandPattern = /^(?:CMD|ENTRYPOINT)\b/mu;
 const malformedPattern =
-  /^Import failed: Invalid boolean "maybe" in active at row 3\. Nothing was sent to Directus\.$/u;
+  /^Import failed: Кадар \(Export\) row 3, column "active": invalid boolean "maybe"$/u;
+const unreadablePattern =
+  /^Import failed: workbook \/.+\/not-a-workbook\.xlsx: not readable as \.xlsx \(Can't find end of central directory : is this a zip file \? .+\)$/u;
 const interruptedPattern =
-  /^Import interrupted: The import stopped while writing the relational rows: synthetic outage\. Directus had confirmed \d+ of the \d+ planned rows\. Set up a fresh project and import again\.$/u;
+  /^Import interrupted: synthetic outage \(rows confirmed: \d+\/\d+\)$/u;
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 
 const scratch = { directory: '' };
@@ -155,13 +157,29 @@ describe('import command', () => {
         WORKBOOK_PATH: workbook,
       }),
     ).resolves.toBe(exitCodes.refused);
-    expect(run.stderr.join('\n')).toContain(
-      'Import refused: DIRECTUS_URL is not set. The import never assumes a default project and does not read .env',
-    );
+    expect(run.stderr).toEqual([
+      'Import refused: DIRECTUS_URL not set (.env not read)',
+    ]);
     await expect(
       run.run(['--apply'], { ...target, WORKBOOK_PATH: workbook }),
     ).resolves.toBe(exitCodes.refused);
-    expect(run.stderr.at(-1)).toContain('takes no argument except --dry-run');
+    expect(run.stderr.at(-1)).toBe(
+      'Import refused: unexpected argument: --apply (accepted: --dry-run)',
+    );
+    await expect(
+      run.run(['--dry-run', '--dry-run'], { WORKBOOK_PATH: workbook }),
+    ).resolves.toBe(exitCodes.refused);
+    expect(run.stderr.at(-1)).toBe(
+      'Import refused: duplicate argument: --dry-run',
+    );
+    await expect(
+      run.run(['--dry-run', '--x', '--dry-run', '--x'], {
+        WORKBOOK_PATH: workbook,
+      }),
+    ).resolves.toBe(exitCodes.refused);
+    expect(run.stderr.at(-1)).toBe(
+      'Import refused: unexpected argument: --x (accepted: --dry-run); duplicate argument: --dry-run',
+    );
     expect(run.requests.created).toBe(0);
   });
 
@@ -192,7 +210,12 @@ describe('import command', () => {
       run.run([], { ...target, WORKBOOK_PATH: garbage }),
     ).resolves.toBe(exitCodes.failed);
     expect(run.stderr).toHaveLength(1);
-    expect(run.stderr[0]).toContain('could not be read as an .xlsx file');
+    expect(run.stderr[0]).toMatch(unreadablePattern);
+    await expect(
+      run.run(['--dry-run'], { WORKBOOK_PATH: garbage }),
+    ).resolves.toBe(exitCodes.failed);
+    expect(run.stderr).toHaveLength(2);
+    expect(run.stderr[1]).toMatch(unreadablePattern);
     expect(run.requests.created).toBe(0);
   });
 
@@ -204,14 +227,14 @@ describe('import command', () => {
     await expect(
       run.run([], { ...target, WORKBOOK_PATH: await savedDataset() }),
     ).resolves.toBe(exitCodes.refused);
-    expect(run.stderr.join('\n')).toContain(
-      'Import refused: The project already holds 1 record(s) in 1 application collection(s): courses 1.',
-    );
+    expect(run.stderr).toEqual([
+      'Import refused: project not empty: 1 record in 1 collection (courses 1)',
+    ]);
     expect(run.fake.mutations()).toEqual([]);
     expect(run.stdout).toEqual([]);
   });
 
-  test('reports an import interrupted after its first write with exit code 4 and its remedy', async () => {
+  test('reports an import interrupted after its first write with exit code 4 and the rows confirmed', async () => {
     const fake = fakeImportDirectus(emptyStore());
     // The staff rows follow the academic years, generations and programs.
     const failing: ImportFake['request'] = (pathname, init) =>
@@ -253,7 +276,7 @@ describe('import command', () => {
 });
 
 describe('workbooks the import refuses', () => {
-  test('dry-run explains every case an import would refuse, by course, sheet and row, with exit code 3 and no request', async () => {
+  test('dry-run names every case an import would refuse, by code, sheet, row and course, with exit code 3 and no request', async () => {
     const run = cli();
 
     await expect(
@@ -265,8 +288,8 @@ describe('workbooks the import refuses', () => {
       checkSummary.parse(JSON.parse(run.stdout.join('\n'))).blockers,
     ).toEqual({ duplicate_assignment: 1 });
     expect(run.stderr).toEqual([
-      'Dry run: npm run import would refuse this workbook: correct these 1 case(s) in the workbook, then import again; nothing was sent to Directus.',
-      '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
+      'Import dry run blocked: 1 case',
+      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
     ]);
     expect(run.requests.created).toBe(0);
   });
@@ -280,8 +303,8 @@ describe('workbooks the import refuses', () => {
       ),
     });
     const refusals = [
-      '- Простории (Export) row 2: rooms.name holds 300 characters, but the column stores at most 255',
-      '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
+      '- [unstorable] Простории (Export) row 2, rooms.name: 300 characters, max 255',
+      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
     ];
     const dryRun = cli();
     const run = cli();
@@ -300,13 +323,10 @@ describe('workbooks the import refuses', () => {
       unstorable: { 'rooms.name': 1 },
     });
     expect(dryRun.stderr).toEqual([
-      'Dry run: npm run import would refuse this workbook: correct these 2 case(s) in the workbook, then import again; nothing was sent to Directus.',
+      'Import dry run blocked: 2 cases',
       ...refusals,
     ]);
-    expect(run.stderr).toEqual([
-      'Import blocked: correct these 2 case(s) in the workbook, then import again; nothing was sent to Directus.',
-      ...refusals,
-    ]);
+    expect(run.stderr).toEqual(['Import blocked: 2 cases', ...refusals]);
     expect(
       checkSummary.parse(JSON.parse(run.stdout.join('\n'))).unstorable,
     ).toEqual({ 'rooms.name': 1 });
@@ -326,8 +346,8 @@ describe('workbooks the import refuses', () => {
       }),
     ).resolves.toBe(exitCodes.blocked);
     expect(run.stderr).toEqual([
-      'Import blocked: correct these 1 case(s) in the workbook, then import again; nothing was sent to Directus.',
-      '- [ambiguous_student_index] ФСС row 2: several students carry its index (Индекси - Година row 3, Индекси - Други row 4); correct the index, or keep one student row for it.',
+      'Import blocked: 1 case',
+      '- [ambiguous_student_index] ФСС row 2: index matches several students: Индекси - Година row 3, Индекси - Други row 4',
     ]);
     expect(checkSummary.parse(JSON.parse(run.stdout.join('\n')))).toMatchObject(
       {

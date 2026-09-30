@@ -7,7 +7,12 @@ import type { KeySourceView } from './status-contract.js';
 import type { ScheduledRun } from './status-view.js';
 
 import { keySources, optInField } from './exports/key-sources.js';
-import { collectionPage, humanize, itemPage } from './managed-flows.js';
+import {
+  collectionPage,
+  humanize,
+  itemPage,
+  scheduleLookBackMinutes,
+} from './managed-flows.js';
 
 // The bounded reads of the status endpoint beside the coordinator status:
 // the rows of every key source, the last run of each scheduled Flow, the
@@ -15,11 +20,11 @@ import { collectionPage, humanize, itemPage } from './managed-flows.js';
 // policy. Every statement binds its values; none takes an identifier from
 // a caller.
 
-// How far back the last run of a scheduled Flow is looked up: the
-// activity table has an index on its timestamp, so the window keeps the
-// read to the rows of the last hour however large the table has grown.
-// Timestamps are ISO-8601 strings rendered by the database.
-const scheduleLookBackMinutes = 60;
+// The last run of a scheduled Flow is looked up within
+// scheduleLookBackMinutes (managed-flows.ts): the activity table has an
+// index on its timestamp, so the window keeps the read to the rows of the
+// last hour however large the table has grown. Timestamps are ISO-8601
+// strings rendered by the database.
 
 const scheduleSql = `SELECT f."id", f."name", f."status",
   to_char(runs."last" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "last_run",

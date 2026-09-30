@@ -13,7 +13,7 @@ const stateOf = (row: KeySourceView['rows'][number]): string => {
   if (row.placesKeys) {
     return 'public';
   }
-  return row.published ? 'published, places no key' : 'unpublished';
+  return row.published ? 'published (no key)' : 'unpublished';
 };
 </script>
 
@@ -25,7 +25,7 @@ const stateOf = (row: KeySourceView['rows'][number]): string => {
         <span v-else>{{ source.label }}</span>
         <span class="note">({{ source.rows.filter((row) => row.placesKeys).length }} of {{ source.rows.length }} public)</span>
       </h5>
-      <p v-if="source.rows.length === 0" class="note">No rows yet.</p>
+      <p v-if="source.rows.length === 0" class="note">No rows</p>
       <ul v-else class="chips">
         <li v-for="row in source.rows" :key="String(row.id)" :class="{ placed: row.placesKeys, unpublished: !row.published }">
           <router-link v-if="linkable(source.collection)" :to="row.link">{{ row.key ?? '--' }}</router-link>

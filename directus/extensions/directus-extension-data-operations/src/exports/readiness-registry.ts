@@ -7,6 +7,7 @@ import type {
 } from './readiness-types.js';
 import type { ReadinessCheck } from './types.js';
 
+import { domainLabel } from '../coordination/domains.js';
 import { assignmentCheck } from './assignment-checks.js';
 import { unlinkedMember } from './curriculum-checks.js';
 import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
@@ -25,7 +26,9 @@ import {
 // An entry with a `review` gets its Needs review bookmark from setup and
 // the dashboard links it there (review-views.ts, key-order.ts); an entry
 // whose records no plain filter can list (a missing row, a duplicate)
-// links its page.
+// links its page. A description is the dashboard tooltip of the code: a
+// short fact about the records it counts, without a trailing period; README
+// ("Readiness and Needs review views") says what to do about each.
 
 const status: ReadinessSource = { kind: 'status' };
 const snapshot: ReadinessSource = { kind: 'snapshot' };
@@ -65,42 +68,40 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   ...notCurrentCalculations.map(({ domain, state }) =>
     blocker({
       code: `${domain}_${state}`,
-      description: `The ${domain.replace('_', ' ')} calculation is ${state}: the derived rows are not those of the current source revision. Data / Process pending runs it; Data / Mark pending retries a failure.`,
+      description: `${domainLabel(domain)} ${state}: derived rows behind the source revision`,
       page: 'data_operations',
       source: status,
     }),
   ),
   blocker({
     code: 'snapshot_import_running',
-    description:
-      'A Moodle snapshot import is staging, validating or promoting.',
+    description: 'A Moodle snapshot import is staging, validating or promoting',
     page: 'data_operations',
     source: snapshot,
   }),
   blocker({
     code: 'snapshot_import_failed',
-    description:
-      'The last Moodle snapshot import or promotion failed; import again.',
+    description: 'Last Moodle snapshot import or promotion failed',
     page: 'data_operations',
     source: snapshot,
   }),
   warning({
     code: 'snapshot_staged',
-    description: 'A staged Moodle snapshot waits for its promotion.',
+    description: 'A staged Moodle snapshot waits for its promotion',
     page: 'data_operations',
     source: snapshot,
   }),
   warning({
     code: 'active_snapshot_edited',
     description:
-      'The active Moodle users were changed outside Data / Import Moodle snapshot; the next promotion replaces those changes.',
+      'Active Moodle users edited outside Data / Import Moodle snapshot; next promotion overwrites them',
     page: 'data_operations',
     source: snapshot,
   }),
   warning({
     code: 'snapshot_never_promoted',
     description:
-      'The Moodle users never came through a snapshot promotion, so edits to them cannot be detected.',
+      'Moodle users never promoted from a snapshot; edit detection unavailable',
     page: 'data_operations',
     source: snapshot,
   }),
@@ -110,21 +111,20 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   ...keyOrderEntries,
   blocker({
     code: 'enrollment_count_missing',
-    description:
-      'A course has no count row for a published academic year; the count is never published as 0.',
+    description: 'Course without a count row for a published academic year',
     page: 'course_enrollments',
     source: enrollments,
   }),
   blocker({
     code: 'enrollment_rule_missing',
     description:
-      'A course has no enrollment rule for a published academic year, so nothing counts it (Data / Add enrollment rules creates them).',
+      'Course without an enrollment rule for a published academic year',
     page: 'course_enrollment_rules',
     source: enrollments,
   }),
   warning({
     code: 'equivalency_without_course',
-    description: 'An equivalency names no course: unused historical metadata.',
+    description: 'Equivalency without a course',
     page: 'course_equivalencies',
     review: reviewViews.equivalencyWithoutCourse,
     source: counted(equivalencyWithoutCourse),
@@ -132,7 +132,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   warning({
     code: 'equivalency_entry_unresolved',
     description:
-      'An equivalency carries a member label of a generation with a curriculum that is linked to no curriculum entry of that generation (counted per equivalency).',
+      'Equivalency member label without a curriculum entry of its generation (counted per equivalency)',
     generationScoped: true,
     page: 'course_equivalency_members',
     review: reviewViews.unlinkedMembers,
@@ -141,21 +141,21 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   warning({
     code: 'assignment_order_ambiguous',
     description:
-      'Two published assignment rows share a position; their ids order them.',
+      'Two published assignment rows share a position; their ids order them',
     page: 'teaching_assignments',
     source: assignments,
   }),
   warning({
     code: 'assignment_review_label',
     description:
-      'A published assignment row shows a literal label without a staff member.',
+      'A published assignment row shows a literal label without a staff member',
     page: 'teaching_assignments',
     review: reviewViews.assignmentLabelOnly,
     source: assignments,
   }),
   blocker({
     code: 'assignment_role_missing',
-    description: 'An assignment row of a course has no known role.',
+    description: 'An assignment row of a course has no known role',
     page: 'teaching_assignments',
     review: reviewViews.assignmentRoleMissing,
     source: assignments,
@@ -163,22 +163,21 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   blocker({
     code: 'assignment_unresolved',
     description:
-      'A published assignment row has neither a staff member nor a label.',
+      'A published assignment row has neither a staff member nor a label',
     page: 'teaching_assignments',
     review: reviewViews.assignmentUnresolved,
     source: assignments,
   }),
   warning({
     code: 'council_member_unresolved',
-    description: 'A student council membership is linked to no student record.',
+    description: 'A student council membership is linked to no student record',
     page: 'student_council',
     review: reviewViews.councilWithoutStudent,
     source: counted(councilWithoutStudent),
   }),
   warning({
     code: 'entry_needs_mapping',
-    description:
-      'A Moodle history entry without a mapping still needs one (or to be ignored); administrative lines stay here too.',
+    description: 'Moodle history entry marked needs_mapping without a mapping',
     page: 'moodle_course_entries',
     review: reviewViews.needsMapping,
     source: mappings,
@@ -186,7 +185,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   warning({
     code: 'mapped_entry_awaiting_review',
     description:
-      'A Moodle history entry carries a mapping but is still marked needs_mapping.',
+      'A Moodle history entry carries a mapping but is marked needs_mapping',
     page: 'moodle_course_entries',
     review: reviewViews.mappedAwaitingReview,
     source: mappings,
@@ -194,7 +193,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   warning({
     code: 'mapping_without_rule',
     description:
-      'A mapping names a course and academic year without an enrollment rule, so it is never counted (follow-up 36).',
+      'Mapping without an enrollment rule for its course and academic year (not counted)',
     page: 'moodle_course_mappings',
     source: mappings,
   }),

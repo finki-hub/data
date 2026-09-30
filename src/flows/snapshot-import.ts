@@ -1,3 +1,4 @@
+import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   condition,
   familyStep,
@@ -7,6 +8,7 @@ import {
   snapshotId,
 } from './flow-template.js';
 import { snapshotFolder } from './snapshot-folder.js';
+import { flowDescription, stepName } from './text-fragments.js';
 
 const family = flowFamilyCodes.snapshot;
 const snapshotImportOperation = 'finki-hub-snapshot-import';
@@ -37,8 +39,21 @@ const relay = (
   });
 };
 
+// The dialog title is one question; what the replacement does is the note
+// of the confirmation field below it.
 export const confirmationDescription =
-  'Replace the WHOLE active Moodle snapshot (moodle_users) with the private CSV named below. Every Directus-only edit to Moodle users is replaced and the history memberships are cleared; course mappings, history entries, curricula, staff, students and every other maintained collection are never touched. Before anything is replaced, a verified private backup of the current Moodle users is written into the File Library folder "Moodle snapshots (private)" as "moodle-users-backup-<time>.csv"; restoring it is an explicit run of this Flow with that file. Upload the CSV into that folder first (local storage), then choose it below. History index, enrollment counts and publication become pending and are processed by their own runs.';
+  'Replace the active Moodle snapshot (moodle_users) with the selected CSV?';
+
+const confirmLabel = 'Replace the whole active Moodle snapshot';
+
+export const replacementNote = [
+  'Replaced: Directus-only edits to Moodle users; history memberships cleared',
+  'Never touched: course mappings, history entries, curricula, staff, students',
+  `Backup first: "${snapshotFolder.name}"/moodle-users-backup-<time>.csv`,
+  'Marked pending: history index, enrollment counts, publication',
+]
+  .map((fact) => `${fact}.`)
+  .join(' ');
 
 // The manual entry point on the data_operations singleton: an
 // administrator names the uploaded CSV, confirms the replacement (and,
@@ -48,8 +63,10 @@ export const confirmationDescription =
 // a throw-error whose status, code and message say why.
 export const snapshotImportFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Imports a private Moodle snapshot CSV and replaces the active Moodle users with it (administrators only): exact headers, raw values, one staging transaction, a verified backup, one replacement transaction.',
+  description: flowDescription({
+    adminOnly: true,
+    does: 'Replaces the active Moodle users with a private snapshot CSV, after a backup',
+  }),
   entry: snapshotId('11'),
   icon: 'upload_file',
   id: snapshotFlowId,
@@ -66,12 +83,12 @@ export const snapshotImportFlow: FlowTemplate = {
     raise({
       error: {
         code: 'FORBIDDEN',
-        message: 'Only administrators may import a Moodle snapshot.',
+        message: adminOnlyText('import a Moodle snapshot'),
         status: 403,
       },
       family,
       key: 'raise_forbidden',
-      name: 'Refuse a non-administrator',
+      name: stepName.raise('FORBIDDEN'),
       position: [19, 19],
       suffix: '21',
     }),
@@ -86,13 +103,12 @@ export const snapshotImportFlow: FlowTemplate = {
     raise({
       error: {
         code: 'CONFIRMATION_REQUIRED',
-        message:
-          'Switch on "Replace the whole active Moodle snapshot" to import; nothing was staged or replaced.',
+        message: `Confirmation required: "${confirmLabel}" is off`,
         status: 400,
       },
       family,
       key: 'raise_unconfirmed',
-      name: 'Ask for the confirmation',
+      name: stepName.raise('CONFIRMATION_REQUIRED'),
       position: [37, 19],
       suffix: '22',
     }),
@@ -108,7 +124,7 @@ export const snapshotImportFlow: FlowTemplate = {
     relay({
       from: 'import',
       key: 'import_failed',
-      name: 'Report the refused import',
+      name: stepName.raise('SNAPSHOT_*'),
       position: [55, 19],
       suffix: '23',
     }),
@@ -123,13 +139,12 @@ export const snapshotImportFlow: FlowTemplate = {
     raise({
       error: {
         code: 'IMPORT_NOT_READY',
-        message:
-          'The import answered without a ready staging; nothing was replaced.',
+        message: 'Import not staged: state {{ import.state }}',
         status: 500,
       },
       family,
       key: 'raise_not_staged',
-      name: 'Report a missing staging',
+      name: stepName.raise('IMPORT_NOT_READY'),
       position: [73, 19],
       suffix: '24',
     }),
@@ -149,7 +164,7 @@ export const snapshotImportFlow: FlowTemplate = {
     relay({
       from: 'promote',
       key: 'promote_failed',
-      name: 'Report the refused promotion',
+      name: stepName.raise('SNAPSHOT_*'),
       position: [91, 19],
       suffix: '25',
     }),
@@ -189,7 +204,7 @@ export const snapshotImportFlow: FlowTemplate = {
           // cannot keep a pick (Task 16 probe); the import accepts the
           // picked { key, collection } or a plain id.
           interface: 'collection-item-dropdown',
-          note: `The CSV in the File Library folder "${snapshotFolder.name}": upload it there first, then choose it here.`,
+          note: `CSV from File Library folder "${snapshotFolder.name}".`,
           options: {
             filter: { folder: { _eq: snapshotFolder.id } },
             selectedCollection: 'directus_files',
@@ -203,8 +218,8 @@ export const snapshotImportFlow: FlowTemplate = {
       },
       {
         field: 'confirm_replace',
-        meta: { interface: 'boolean', width: 'full' },
-        name: 'Replace the whole active Moodle snapshot',
+        meta: { interface: 'boolean', note: replacementNote, width: 'full' },
+        name: confirmLabel,
         type: 'boolean',
       },
       {

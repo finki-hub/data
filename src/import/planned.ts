@@ -29,9 +29,16 @@ export type PlannedCollection = {
   readonly rows: readonly PlannedRow[];
 };
 
+const keySeparator = '\u{0}';
+
 export const compositeKey = (
   ...parts: ReadonlyArray<number | string>
-): string => parts.map(String).join('\u{0}');
+): string => parts.map(String).join(keySeparator);
+
+// A plan key as a message shows it: the parts of a composite key joined by
+// "/", such as 2023/kn.
+export const displayKey = (key: string): string =>
+  key.split(keySeparator).join('/');
 
 export const ref = (
   collection: ModelCollectionKey,

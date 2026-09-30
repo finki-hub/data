@@ -39,7 +39,8 @@ import {
 const setupFlows = flowTemplates();
 const templateFlowIds = new Set(setupFlows.map(({ id }) => id));
 const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
-const nothingSentPattern = /Nothing was sent to Directus\.$/u;
+const malformedPattern =
+  /^Import failed: Кадар \(Export\) row 3, column "active": invalid boolean "maybe"$/u;
 const migrationEndpointPattern = /^\/finki-hub-data-operations\/migrations\//u;
 
 const get = async (target, pathname) => {
@@ -165,7 +166,7 @@ const badWorkbookAborts = async (target, context) => {
   const flowsBefore = await flowIds(target);
   const run = importCli(target, context.malformed);
   assert.equal(await run.run(), exitCodes.failed);
-  assert.match(run.stderr.join('\n'), nothingSentPattern);
+  assert.match(run.stderr.join('\n'), malformedPattern);
   assert.deepEqual(run.calls, [], 'Directus was never contacted');
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
   assert.deepEqual(await flowIds(target), flowsBefore, 'no Flow was created');
@@ -182,7 +183,7 @@ const blockedWorkbookRefused = async (target, context) => {
     duplicate_assignment: 1,
   });
   assert.deepEqual(run.stderr.slice(1), [
-    '- [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.',
+    '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
   ]);
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
 };
@@ -327,7 +328,7 @@ const secondImportRefused = async (target, context) => {
   const run = importCli(target, context.workbook);
   assert.equal(await run.run(), exitCodes.refused);
   const message = run.stderr.join('\n');
-  assert.ok(message.startsWith('Import refused: The project already holds'));
+  assert.ok(message.startsWith('Import refused: project not empty: '));
   assert.ok(message.includes(`courses ${String(counts.courses)}`));
   assert.ok(!message.includes('migrate'));
   assert.deepEqual(run.mutations(), [], 'no write reached Directus');

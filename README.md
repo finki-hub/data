@@ -60,8 +60,10 @@ filters, panel settings and Flow settings edited in Studio survive every
 rerun. Repository Flow definitions are templates with stable ids, not a
 source of truth. To take a newer template of a managed Flow, delete that
 Flow in Studio and run setup again. If an earlier run was interrupted after
-creating a Flow but before wiring it, the command stops and names the Flow
-to delete instead of repairing it.
+creating a Flow but before wiring it, the command refuses (exit code 2)
+with `Flow "<name>" (<id>): entry operation missing` instead of repairing
+it: delete that Flow in Studio (**Settings → Flows**) and run the command
+again.
 
 A few things are code-owned and kept in step on every rerun:
 
@@ -73,8 +75,10 @@ A few things are code-owned and kept in step on every rerun:
   any other option stays) and reports the field as `aligned`, while the keys
   Studio owns (note, width, group, sort, conditions) are never sent. Before
   that it reads the field's distinct stored values, and when one of them is
-  no longer a declared choice it refuses (exit code 2), names the values and
-  changes nothing.
+  no longer a declared choice it refuses (exit code 2) and changes nothing,
+  one line per field (`- Field teaching_assignments.role: 1 value outside
+  declared choices: "lecturer"`): change or clear those values in Studio,
+  then run setup again.
 - Every managed Flow family is registered once in `src/flows/registry.ts`;
   setup installs them in one loop and reports `created` and `skipped` per
   family under `flows.families`.
@@ -100,7 +104,10 @@ A few things are code-owned and kept in step on every rerun:
   collections and 5 active Flows and locks the instance above that; the
   data model alone has more collections than that, and setup installs more
   active Flows. Setup refuses with exit code 2 when Directus rejects a
-  collection for its licence limit. Directus reads the key from
+  collection for its licence limit (`collection <name> not created:
+  licence collection limit (LIMIT_EXCEEDED); model collections: <n>`):
+  remove unused collections or use a licence with a higher limit, then run
+  setup again. Directus reads the key from
   `LICENSE_KEY` in the container's environment, which the checked-in
   `compose.yaml` does not pass: add it through a Compose override file of
   your own, kept outside the repository with your other secrets, for
@@ -168,7 +175,8 @@ A few things are code-owned and kept in step on every rerun:
      npm run setup
    ```
 
-5. Apply the FINKI Hub appearance with `npm run brand`, then open
+5. Apply the FINKI Hub appearance with `npm run brand` (it prints
+   `Branding succeeded`), then open
    <http://localhost:8055> and sign in with `DIRECTUS_ADMIN_EMAIL` and
    `DIRECTUS_ADMIN_PASSWORD` from `.env`.
 6. Attach the **Data editor** policy to the roles of the people who edit
@@ -195,22 +203,42 @@ run the one-time import (below) in place of step 4.
    the cases that would refuse it (`blockers`), of the rows it would skip
    (`skipped`) and of the warnings (`warnings`), and the count per column
    of the values no column can hold (`unstorable`). When the import would
-   refuse the workbook it exits with code 3 and explains every refusing
-   case on stderr, one line each; it exits with code 1 when the workbook
-   cannot be read. Each value no column can hold is named by sheet, row
-   and column. Each blocking case is headed by its code and says in plain
-   words what the rows state, which course and rows it concerns, and what
-   to change. The lines quote course and curriculum names, curriculum
-   codes, 2018 labels, credits and availabilities only, never a staff or
-   student value; names, codes and labels stand between « and », so a
-   stray space in a cell shows. For example:
+   refuse the workbook it exits with code 3: the first stderr line counts
+   the cases, and every later line names one case as
+   `- [<code>] <place>: <fact>`. A value no column can hold has the code
+   `unstorable` and is placed by sheet, row and column, never quoted. A
+   blocking case is placed by the sheet and row it concerns, with the
+   course after its row; the table below says what to change for each
+   code. The dry run exits with code 1 when the workbook cannot be read.
+   The lines quote course and curriculum names, curriculum codes, 2018
+   labels, credits and availabilities only, never a staff or student
+   value; names, codes and labels stand between « and », so a stray space
+   in a cell shows. For example:
 
    ```text
-   Dry run: npm run import would refuse this workbook: correct these 3 case(s) in the workbook, then import again; nothing was sent to Directus.
-   - [ambiguous_curriculum_2023] «Beta Course» (Предмети (Export) row 3): its 2023 name matches rows 6 and 9 of Предмети - 2023, which carry different codes (row 6: «SYN23-002», row 9: «SYN23-009»); give each subject its own name.
-   - [duplicate_assignment] «Alpha Course» (Предмети (Export) row 2): Наставен Кадар rows 2 and 3 both name it; keep one teaching row per course.
-   - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 available is TRUE but the 2018 name is empty; fill in the 2018 name or set available to FALSE.
+   Import dry run blocked: 3 cases
+   - [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»
+   - [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3
+   - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 available TRUE
    ```
+
+   What to change in the workbook, per code:
+
+   | Code | Change |
+   | --- | --- |
+   | `unstorable` | Shorten the value, fill in the required cell, or bring the integer into range. |
+   | `ambiguous_course_name` | Give each course its own name. |
+   | `ambiguous_curriculum_2018`, `ambiguous_curriculum_2023` | Give each subject its own name; when the rows list one subject, give every row its code. |
+   | `ambiguous_legacy_equivalency` | Make the 2018 names of the equivalency rows agree, or fill in the course's 2018-name to choose one. |
+   | `ambiguous_student_index` | Correct the index, or keep one student row for it. |
+   | `duplicate_assignment` | Keep one teaching row per course. |
+   | `duplicate_role_row` | Delete the repeated rows. |
+   | `invalid_regex` | Correct the pattern. For the default pattern, add a valid pattern for each year without one, or rename the course. |
+   | `invalid_source_row` | Fill in the missing cell, or delete the row. |
+   | `missing_override_target` | Correct the 2018-name to the name of a 2018 subject, or clear it. |
+   | `unlinked_generation_values` | Fill in that generation's name, or clear the credits and set available to FALSE. |
+   | `unmatched_curriculum_2018_label` | Correct the 2018 name in the equivalency sheet, or fill in the course's 2018-name. |
+   | `unmatched_curriculum_2023_label` | Correct the 2023 name to the name of a 2023 subject. |
 
 2. Run the one-time import against the empty project (steps 1 to 3 of
    [Fresh setup](#fresh-setup) first; the import runs setup itself):
@@ -228,7 +256,9 @@ Directus untouched:
 
 - A missing or unreadable workbook, or a cell that is not of its
   column's kind (a boolean column holding other text), stops with exit
-  code 1, naming the file or the column and row.
+  code 1, naming the file, or the sheet, row and column
+  (`Import failed: Кадар (Export) row 3, column "active": invalid boolean
+  "maybe"`).
 - Everything the import could not write as the workbook states it stops
   with exit code 3, all of it reported in one run and never by a staff or
   student value: each value the column it is written to cannot hold (a
@@ -317,8 +347,9 @@ The codes both summaries print (declared in `src/import/findings.ts`):
 
 It then refuses, before its first write, a project in which any application
 collection (every collection the import fills, the relational collections,
-the Moodle staging and index collections) holds a record, and prints the
-record count of each; the empty schema `npm run setup` creates, including
+the Moodle staging and index collections) holds a record, and names the
+record count of each (`Import refused: project not empty: 1 record in 1
+collection (courses 1)`); the empty schema `npm run setup` creates, including
 its coordination status row, is accepted. On an accepted project it:
 
 1. runs exactly what `npm run setup` runs, so importing into an empty project
@@ -348,12 +379,12 @@ It runs no Flow and never publishes.
 The import is not one transaction, and its check for an empty project and
 its first write are not atomic against another writer: let nobody write to
 the project while it runs. If it stops after it started writing rows, it
-exits with code 4, and the message says how many planned rows Directus had
-confirmed. There is no resume: set up a fresh project (new Compose volumes,
-or the backup taken before the import) and import again. When Directus
-confirmed no row, the project may still be empty, and the import simply
-runs again (it refuses, listing them, if the failed request stored rows
-after all).
+exits with code 4, and the message ends with the planned rows Directus had
+confirmed (`Import interrupted: <cause> (rows confirmed: 1043/2310)`).
+There is no resume: set up a fresh project (new Compose volumes, or the
+backup taken before the import) and import again. When Directus confirmed
+no row, the project may be empty, and the import runs again (it refuses,
+listing them, if the failed request stored rows after all).
 
 Publish through **Publish / Public assets** once readiness passes (see
 [Publishing](#publishing)).
@@ -436,13 +467,21 @@ Directus log.
 
 ### Exit codes
 
-| Code | `npm run setup` / `npm run import` |
-| --- | --- |
-| 0 | Done. |
-| 1 | Failed before any row was written: a workbook that cannot be read (a missing file names its path; nothing sent to Directus), a target that answers an error (a wrong token answers `401` with `INVALID_CREDENTIALS`; name a static administrator token of that project), or an unexpected error. After an unexpected error the schema or Flows may be partly installed, and rerunning is safe. |
-| 2 | Refused: no explicit target, an unknown argument, a populated project offered to the import (with its record counts), existing definitions the model cannot carry (including a table or column Directus does not manage), a licence that caps the collections, a half-installed Flow, or a Directus without the data-operations bundle. No record was written. |
-| 3 | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them: each value named by sheet, row and column, each case explained in plain words with its code, course, sheets and rows. Nothing was sent to Directus (the dry run answers the same); correct the workbook and run again. |
-| 4 | Import only: the import stopped after it began writing rows. The message says how many planned rows Directus had confirmed; set up a fresh project and import again (see above). |
+`npm run setup`, `npm run import` (and its dry run) and `npm run brand`
+exit with one of these codes. A run that does not succeed writes one first
+line to stderr, `<Command> <outcome>: <reason>`, where the command is
+`Setup`, `Import` (the dry run included; its blocked header alone reads
+`Import dry run blocked`) or `Branding` and the outcome follows the exit
+code; every later line starts with `- ` and names one case. The lines
+state facts only; what to do is here.
+
+| Code | First stderr line | Meaning | What to do |
+| --- | --- | --- | --- |
+| 0 | none | Done. Setup and the import print their summary as JSON on stdout; branding prints `Branding succeeded`. | Nothing. |
+| 1 | `<Command> failed: <reason>` | Failed before any row was written: a workbook that cannot be read (`workbook <path>: not readable as .xlsx (…)`) or a cell that is not of its column's kind, a target that answers an error (`GET /collections: HTTP 401 INVALID_CREDENTIALS: …`), a target that does not answer (`… no response (ECONNREFUSED)`, `… timed out after 120 s`), or an unexpected error. After an unexpected error the schema or Flows may be partly installed. | Correct what the reason names: the file or cell, the URL, or the token (a static administrator token of that project for `INVALID_CREDENTIALS`), then run the command again; rerunning setup is safe. |
+| 2 | `<Command> refused: <reason>` | Refused before any record was written: no explicit target (`DIRECTUS_URL not set (.env not read)`), an unexpected or duplicate argument, a populated project offered to the import (`project not empty: …`), existing definitions the model cannot carry (`data model: <n> incompatible definitions`, then one `- <Kind> <path>: <live>, expected <declared>` line each, including a table or column Directus does not manage), a licence that caps the collections, a half-installed Flow (`Flow "<name>" (<id>): entry operation missing`), or a Directus without the data-operations bundle. Branding refuses an unexpected argument, a missing token or an invalid `DIRECTUS_URL`. | Pass the target on the invocation; drop the argument; import into an empty project (below); change or clear the definitions or values each `- ` line names in Studio; raise the licence limit ([Requirements](#requirements)); delete the named Flow in Studio; build and load the data-operations bundle. Then run the command again. |
+| 3 | `Import blocked: <n> cases` (`Import dry run blocked: …` for the dry run) | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them, one `- [<code>] <place>: <fact>` line each. Nothing was sent to Directus. | Correct the workbook as the table under [One-time workbook import](#one-time-workbook-import) says for each code, then run the dry run and the import again. |
+| 4 | `Import interrupted: <cause> (rows confirmed: <n>/<m>)` | Import only: the import stopped after it began writing rows; Directus had confirmed `<n>` of the `<m>` planned rows. | Set up a fresh project (new Compose volumes, or the backup taken before the import) and import again (see above). |
 
 A populated project is never imported into: import into a new, empty
 project instead (fresh Compose volumes and `npm run setup`, or the import
@@ -451,7 +490,7 @@ again.
 
 Messages name counts, codes, ids, paths, sheets, rows, columns and
 collections. A refused boolean, integer or year-header cell is quoted so it
-can be found, and the line explaining a case the import refuses quotes the
+can be found, and the line naming a case the import refuses quotes the
 course and curriculum names, curriculum codes, 2018 labels, credits and
 availabilities it concerns; no other workbook or snapshot value is
 printed, and never a staff or student value.
@@ -566,8 +605,9 @@ database guards the table and what the **Data editor** policy grants:
   replaces.
 - **Derived** (`moodle_history_memberships`, the history index;
   `course_enrollments`, the counts): written only by their own runs. The
-  database refuses every other write and names the remedy, so edit the
-  sources instead. The course form still shows edit and delete buttons on
+  database refuses every other write (`Write refused: course_enrollments
+  (derived; writer: enrollments claim completion)`), so edit the sources
+  instead. The course form still shows edit and delete buttons on
   its derived **Enrollments** rows; the guard refuses them.
 - **Candidate, staging and status** (`data_operation_results`,
   `moodle_import_rows`, `data_operations`): bookkeeping of the running
@@ -974,6 +1014,21 @@ Unmapped Moodle lines only warn: map an entry, mark it `ignored` with a
 reason, or leave it counted by a reviewed legacy rule; administrative lines
 need no course.
 
+A check's description, the tooltip of its code in the **Readiness** panel,
+states the fact only. What to do:
+
+| Check | What to do |
+| --- | --- |
+| `history_index_pending`, `enrollments_pending`, `history_index_running`, `enrollments_running` | Nothing: **Data / Process pending** runs the calculation at its next tick. |
+| `history_index_failed`, `enrollments_failed` | Correct what the last failure names ([Error codes](#error-codes)), then retry with **Recalculate** (**Data / Mark pending**); an edit of an input retries it too. |
+| `snapshot_import_failed` | Run **Data / Import Moodle snapshot** again. |
+| `enrollment_count_missing` | Add the course's rule for that year (`enrollment_rule_missing`), or let the pending count run; a missing count is never published as 0. |
+| `enrollment_rule_missing` | Run **Add enrollment rules** for the year or the course. |
+| `entry_needs_mapping` | Map the entry, or mark it `ignored` with a reason. |
+| `mapping_without_rule` | Add the enrollment rule of the mapped course and year. |
+| `academic_year_unsorted`, `curriculum_generation_unsorted`, `study_program_unsorted` | Give the published row a `sort`. |
+| `academic_year_sort_shared`, `curriculum_generation_sort_shared`, `study_program_sort_shared` | Give each published row its own `sort` (a program within its generation). |
+
 Every registry entry that declares a review view gets one shared Studio
 bookmark on the collection of its records, and the **Readiness** panel of
 the dashboard links the check to that bookmark. `npm run setup` creates the
@@ -1023,14 +1078,20 @@ overwrites an edited one):
   confirmation text and dialog fields (the snapshot's private CSV through
   an item picker of the private folder's files) and posts them to the native
   `POST /flows/trigger/:id`. Run is disabled while any data operation holds
-  the coordinator's claim and while a run started from a panel of the page
-  is in flight, and waits (saying why) while the data status cannot be
-  read. Every Run opens the dialog empty, so each replacement or
-  publication is confirmed again; a refusal shows its code and message
-  with a **Retry** that reopens the same Flow's dialog with the failed
-  run's inputs, less its checkboxes (acknowledgements such as "Replace the
-  whole active Moodle snapshot" are ticked again for every run). **Edit
-  Flow** opens the Flow's configuration.
+  the coordinator's claim (`Waiting: claim held by <domain>`, with
+  ` (stale)` once its process stopped heartbeating), while a run started
+  from a panel of the page is in flight (`Waiting: run in progress on this
+  page`) and while the data status cannot be read (`Data status read
+  failed: <CODE>`; it reads the status again on its own). For an editor it
+  stays disabled and reads `Administrators only`. Every Run opens the
+  dialog empty, so each replacement or publication is confirmed again. A
+  run that succeeded shows `Succeeded` and the keys of the Flow's answer;
+  a failed one shows `Failed: <CODE>` and the Flow's message, with a
+  **Retry** that reopens the same Flow's dialog with the failed run's
+  inputs, less its checkboxes (acknowledgements such as "Replace the whole
+  active Moodle snapshot" are ticked again for every run).
+  [Error codes](#error-codes) says what each code means. **Edit Flow**
+  opens the Flow's configuration.
 - **Data status** panels (**Calculations and published files**,
   **Readiness**, **Published keys**), read from `GET /finki-hub-data-status`
   and `GET /finki-hub-data-status/readiness`: every coordination domain
@@ -1043,10 +1104,16 @@ overwrites an edited one):
   one); and the academic years, curriculum generations and study programs
   whose `published` flags decide the public keys, each linked to its form.
   The lists come from the declarations and the status, never from a fixed
-  set. The panels poll only while work is in flight (a claim, a running
-  domain or a pending calculation) or a run of the page is running: a run
-  started in another tab shows at the next such poll or when the page is
-  refreshed.
+  set. Facts read `Label: value · Label: value`. A blocking last failure
+  shows its code with its domain, revision, time and retries (the
+  failing step's message under **Message**, for administrators): run the
+  operation again, or mark the domain pending with **Recalculate**
+  (**Data / Mark pending**). A read the endpoint refuses reads `Data status
+  read refused: <CODE>` (`Readiness checks …` for the readiness section);
+  a read that failed, `… read failed: <CODE>`. The panels poll only while
+  work is in flight (a claim, a running domain or a pending calculation) or
+  a run of the page is running: a run started in another tab shows at the
+  next such poll or when the page is refreshed.
 
 **Add enrollment rules** creates the missing `mapped_entries` rules of an
 academic year (every course), a course (every year) or one pair, in batches
@@ -1103,10 +1170,11 @@ them survives every later setup):
 - **Publish / Public assets** (the **Publish** panel), a manual Flow for
   administrators, with a confirmation. It claims `publication`
   (the button is an explicit request, so it also retries a failed
-  publication; it answers 409 `PUBLICATION_NOT_CLAIMED` when another run
-  holds the claim, when the calculations are still pending, or when nothing
-  is pending: mark publication pending with **Data / Mark pending** to
-  publish the current files again). The export operation's `stage` action
+  publication; it answers 409 `PUBLICATION_NOT_CLAIMED`, `Publication not
+  claimed: <reason>`, when another run holds the claim (`busy`), when the
+  calculations are pending (`upstream_dirty`), or when nothing is pending
+  (`nothing_pending`): mark publication pending with **Data / Mark
+  pending** to publish the current files again). The export operation's `stage` action
   then checks readiness (refusing with the blocker codes), reads, serializes
   and validates every declared file before the first upload, and refuses
   (`EXPORT_UNSTABLE_PREPARATION`) when the source moved since the claim. A
@@ -1135,9 +1203,10 @@ prepared (never a later edit) is recorded as published,
 `publication_state` becomes `completed` and the Flow answers the outcome
 map. Otherwise it fails the claim with `PUBLICATION_PARTIAL` (some files
 uploaded; state `partial`) or `PUBLICATION_FAILED` (none; state `failed`),
-records the map and answers 502 naming the files not uploaded with their
-codes; publication stays pending. Nothing is retried and nothing uploads in
-parallel: publish again. A source edit that commits while the files upload
+records the map and answers 502 with `Uploaded <n> of <m>; failed:
+<file> (<CODE>), …. First failure: <cause>`; publication stays pending.
+Nothing is retried and nothing uploads in parallel: publish again once the
+cause is fixed. A source edit that commits while the files upload
 does not change them, since every file was prepared and validated at the
 claimed revision before the first upload: when every file was uploaded,
 that prepared revision is recorded as published, the Flow answers
@@ -1157,8 +1226,10 @@ run that stops early (a Directus restart, a refused step) therefore still
 shows which files it uploaded, and its state is `partial` when a file was
 recorded uploaded at its own revision, `failed` when none was; the entries
 of files it never reached keep an earlier run's revision. An abandoned
-publication says in its message that an upload running at that moment may
-have finished without being recorded. The coordinator refuses a filename no
+publication reads `Publication claim abandoned: no heartbeat for <n> s.
+Revision not published. Last upload possibly unrecorded`: an upload running
+at that moment may have finished without being recorded, so publish
+again. The coordinator refuses a filename no
 export definition declares (`UNKNOWN_FILE`) and a completion without every
 declared file uploaded (`OUTCOMES_INCOMPLETE`), so a new definition adds an
 outcome, never a column or a Flow step. `GET
@@ -1239,6 +1310,54 @@ tick; the coordinator's claim lets one of them run.
 writer and the enrollment completion write through SQL and do not purge the
 Directus data cache, so a deployment that enables the cache must purge it
 after those runs or accept stale derived rows for the cache TTL.
+
+### Error codes
+
+An operation refuses with Directus's error body, `{errors: [{message,
+extensions: {code, …}}]}`; a Flow step records `{ok: false, stage, code,
+message}`, and a Flow that relays a child's failure writes `<Subject>
+failed [<stage> <CODE>]: <child message>`. The dashboard shows the code
+(`Failed: <CODE>`, the last failure) and the message. Messages state facts
+only (ids, counts, codes and places, never a value); this table says what
+the codes mean and what to do. The coordinator's codes carry the prefix
+`COORDINATION_`, the snapshot import's `SNAPSHOT_` and the export
+operation's `EXPORT_`; a released claim's last failure keeps the bare
+release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
+`CLAIM_INTERRUPTED`, `CLAIM_ABANDONED`).
+
+| Code | Meaning | What to do |
+| --- | --- | --- |
+| `FORBIDDEN`, `EXPORT_FORBIDDEN`, `SNAPSHOT_FORBIDDEN` | The caller is not an administrator (`Only administrators may …`). | Run it as an administrator. |
+| `COORDINATION_INVALID_OPTIONS`, `SNAPSHOT_INVALID_OPTIONS`, `EXPORT_INVALID_OPTIONS`, `PUBLISH_INVALID_OPTIONS` | A step's options were refused: `Invalid options: <path>: <reason>`. A history line over 2,048 bytes is refused here too (`Moodle user <id>: history line <n> bytes, max 2048`). | Shorten the line in the user's raw `Courses` history; otherwise take the Flow's template again (delete the Flow, run setup). |
+| `SOURCE_CHANGED`, `FINGERPRINT_CHANGED` | A source edit or a Flow-graph change overtook the run; its output was discarded, not failed. | Nothing: the next tick runs it again. |
+| `CLAIM_INTERRUPTED` | The claim stopped heartbeating (a restart) at these inputs for the first time. | Nothing: the next tick runs it again once. |
+| `CLAIM_ABANDONED` | The claim stopped heartbeating again at the same inputs, or a publication claim did. | Find why Directus stopped (its log), then **Recalculate** a calculation or publish again. |
+| `COORDINATION_CLAIM_MISMATCH`, `COORDINATION_OWNER_MISMATCH` | The claim token is not the current claim's (it was released or taken over), or the claim belongs to another Directus process. | Read the status: its last failure names the release. Otherwise wait for the other process's run. |
+| `COORDINATION_DOMAIN_MISMATCH`, `COORDINATION_PAGE_UNPLANNED`, `COORDINATION_PAGES_MISSING`, `COORDINATION_COMPLETION_RACED` | A step acted for another claim domain, on a page the claim did not plan, or completed before every planned page was staged. The installed rows stay. | Take the Flow's template again if it was edited, then **Recalculate**. |
+| `COORDINATION_PAGE_INCOMPLETE`, `COORDINATION_DUPLICATE_ROWS` | A page read left out planned Moodle users or named others, or held a row twice. | Take the page Flow's template again if its read step was edited, then **Recalculate**. |
+| `COORDINATION_PAGE_OVER_BUDGET` | One Moodle user's history, or one legacy rule's page, is larger than a page may hold (`Moodle user <id>: Courses history <n> bytes, max <m> per page`). | Shorten that user's raw history at the source. |
+| `COORDINATION_UNKNOWN_RULE_MODE` | A rule's mode is not a declared one (`Rule <id>: mode "…", expected …`). | Set the rule's mode to a declared mode. |
+| `COORDINATION_WRITE_GUARDED` | A write to a derived, candidate or bookkeeping collection outside its writer (`Write refused: <collection> (<role>; writer: <writer>)`). | Edit the source collections; the derived rows follow. |
+| `COORDINATION_OUTCOMES_INCOMPLETE`, `COORDINATION_UNKNOWN_FILE` | A publication completed without every declared file uploaded, or reported a file no export definition declares. | Publish again; take the publish Flows' templates again if they were edited. |
+| `INDEX_FAILED`, `ENROLLMENTS_FAILED`, `LEGACY_COUNT_FAILED`, `MAPPED_COUNT_FAILED`, `LEGACY_ZEROS_FAILED`, `ZERO_FILL_FAILED`, `PAGE_PLAN_MISMATCH`, `LEGACY_PLAN_MISMATCH`, `INVALID_RULE_PAGE`, `COUNT_FAILED`, `INVALID_AGGREGATE`, `PLAN_FAILED`, `COMPLETION_REFUSED`, `DOMAIN_UNKNOWN`, `NO_RESULT` | A calculation step failed; the relayed message names each stage and code down to the step that failed (for example `Rule 7 (course 9 / academic year 2): pattern does not compile as a unicode regular expression (…)`). The installed rows stay and the domain waits. | Correct what the innermost message names (here the rule's pattern), then **Recalculate**. |
+| `SNAPSHOT_FILE_INVALID` | The file is missing, outside the **Moodle snapshots (private)** folder or local storage, or larger than `FINKI_HUB_SNAPSHOT_MAX_BYTES`. | Upload the CSV into that folder, or raise the limit. |
+| `SNAPSHOT_INVALID_CSV`, `SNAPSHOT_INVALID_HEADERS`, `SNAPSHOT_INVALID_ROWS` | The file is no strict CSV, its header is not the 38 scraper fields, or its rows break the row rules (ids, `Name`, row count). | Correct the file and import again. |
+| `SNAPSHOT_EMPTY_NOT_CONFIRMED`, `CONFIRMATION_REQUIRED` | An empty snapshot without **Allow an empty snapshot**, or a run without **Replace the whole active Moodle snapshot**. | Switch the box on (the empty one only to remove every Moodle user). |
+| `SNAPSHOT_IMPORT_RUNNING`, `SNAPSHOT_PROMOTION_RUNNING`, `SNAPSHOT_CLAIM_BUSY` | Another import, promotion or claim holds the snapshot. | Wait until it ends; a dead import is taken over after `IMPORT_TIMEOUT` plus 60 seconds. |
+| `SNAPSHOT_IMPORT_TIMEOUT` | Staging took longer than `IMPORT_TIMEOUT`. | Raise `IMPORT_TIMEOUT` for Directus, then import again. |
+| `SNAPSHOT_NOT_READY`, `IMPORT_NOT_READY`, `SNAPSHOT_STAGING_CHANGED`, `SNAPSHOT_FINGERPRINT_MISMATCH`, `SNAPSHOT_COUNT_MISMATCH`, `SNAPSHOT_ACTIVE_CHANGED`, `SNAPSHOT_CLAIM_LOST` | The staged or active rows changed between two steps, or the claim was lost; nothing was replaced. | Import again. |
+| `SNAPSHOT_BACKUP_FAILED` | The backup of the active users could not be written or verified; nothing was replaced. | Check the local storage (space, permissions), then import again. |
+| `SNAPSHOT_IMPORT_FAILED`, `SNAPSHOT_PROMOTION_FAILED` | An unexpected fault; the Directus log names the database object. | Read the log, then import again. |
+| `EXPORT_NOT_READY` | Readiness has blockers (`Not ready: source revision <n>, blockers: <code> <count>, …`). | Clear the blockers (the **Readiness** panel links their records), then publish. |
+| `EXPORT_UNSTABLE_PREPARATION` | The source or the accepted calculation moved while the files were prepared, or since the claim. | Publish again once the edits and calculations have settled. |
+| `EXPORT_UNRESOLVED` | The projection cannot resolve a value: a missing count, two links of one generation, an assignment without a role or a label. | Correct the rows the ids name. |
+| `EXPORT_INVALID_READ`, `EXPORT_INVALID_PAYLOAD`, `EXPORT_INVALID_DEFINITION` | A read answered another shape, a file row breaks its definition, or the export definitions or readiness registry are inconsistent. | A code or schema fault: run `npm run setup`, and report the message if it stays. |
+| `PUBLICATION_NOT_CLAIMED` | `busy`: another run holds the claim; `upstream_dirty`: the calculations are pending; `nothing_pending`: publication is current. | Wait; wait for the calculations; mark publication pending (**Recalculate**) to publish the current files again. |
+| `PUBLICATION_PARTIAL`, `PUBLICATION_FAILED`, `PUBLISH_UPLOAD_FAILED`, `PUBLISH_FAILED` | Some or no declared files were uploaded (`Uploaded <n> of <m>; failed: …. First failure: …`); a file whose failure carries no code of its own is listed as `PUBLISH_FAILED`. | Correct the upload cause (bucket, credentials, network), then publish again. |
+| `PUBLICATION_CLAIM_FAILED`, `PUBLICATION_NOT_PREPARED`, `PREPARATION_REFUSED`, `PUBLICATION_LOOP_FAILED`, `PUBLISH_LOOP_FAILED`, `PUBLICATION_OUTCOMES_REFUSED`, `OUTCOMES_REFUSED`, `PUBLICATION_NOT_RECORDED` | A step of the publication failed; the relayed message names the child's code and message. `PREPARATION_REFUSED` is the publication's last failure when the preparation refused (its message is the `EXPORT_*` refusal, such as `Not ready: …`). | Correct what that message names, then publish again. |
+| `MARK_REFUSED` | The coordinator refused the mark (the message names why). | Correct the chosen domains, then run **Recalculate** again. |
+| `RULES_SCOPE_INVALID`, `RULES_SCOPE_UNKNOWN`, `RULES_READ_FAILED` | **Add enrollment rules** got no valid scope, a year or course that does not exist, or could not read the pairs. | Pick an existing academic year, course or pair. |
+| `RULES_BATCH_FAILED` | A batch failed (`Batches failed: <i>/<n> (<CODE>, <k> rules); rules created: <n>`); the batches before it stay. | Run it again: existing pairs are skipped. |
 
 ## Access
 
@@ -1336,7 +1455,8 @@ data management. Setup creates this shared bookmark once from
   People without a stored `Courses Count` (the list shows the number of lines
   of their raw history instead) come after everyone with one, in both
   directions, by name.
-- The page header's native search and filters still apply, including filters on
+- The page header's native search and filters apply too (the layout reads
+  `Filtered by page header: search, filter`), including filters on
   related fields such as **History Memberships → Entry → Label** or the course
   of an entry's mappings. They run as the signed-in user: a field that user may
   not read answers 403. A filter path passes each collection once, from a
@@ -1344,7 +1464,12 @@ data management. Setup creates this shared bookmark once from
   and names at most `MAX_RELATIONAL_DEPTH` fields (10 by default, as for the
   REST API). A path back to a membership or a person (such as **Entry →
   Memberships** or **History Memberships → Moodle User**), `_some`/`_none`
-  quantifiers and implicit `$FOLLOW(...)` relations are refused. Course
+  quantifiers and implicit `$FOLLOW(...)` relations are refused with
+  `400 INVALID_PAYLOAD` and the reason, which the layout shows as `Search
+  failed: HTTP 400 INVALID_PAYLOAD: Invalid criteria: filter: <reason>`
+  (for example `path passes moodle_users twice` or `unsupported key
+  _some`). A failed read of the choices reads `Course list failed: …`, a
+  caller the endpoint refuses `… HTTP 403 FORBIDDEN`. Course
   selections are temporary and reset when the layout is reopened; they are not
   saved bookmarks.
 
@@ -1660,7 +1785,10 @@ Add one entry to `exports/readiness-registry.ts`: its code, severity, the
 source of its count (a plain-filter aggregate over one collection, or a
 check counted in code), the files it gates (a blocker gates at least one,
 a warning none), whether its records carry a `generation` column, a
-description and, when a plain filter lists its records, a review view
+description (the tooltip of its code: a short fact without a trailing
+period, with no instruction; the table under
+[Readiness and Needs review views](#readiness-and-needs-review-views) says
+what to do) and, when a plain filter lists its records, a review view
 (bookmark name, fields, filter, sort). A registry with a code twice, a
 blocker gating no published file, a warning gating one, two reviews of one
 bookmark or a filter with `_some`/`_none` is refused before anything is
@@ -1673,16 +1801,21 @@ panel and its link follow from the entry.
 
 Create a manual Flow in Studio whose name starts with `Data / ` or `Publish
 / `, then on the dashboard **Edit Panels → Create Panel → Run operation** and
-pick it. No code changes and no rebuild. Its trigger must be set up like the
-installed ones, or the panel refuses to run it and says why:
+pick it. No code changes and no rebuild. It must be set up like the
+installed ones, or the panel does not run it and shows the first rule it
+breaks as `Not runnable: <rule>`:
 
-- **Collections**: `data_operations` only. No editor reads it, so the
-  trigger endpoint (which checks nothing but read access to the Flow's
-  collection) refuses every non-administrator before the Flow starts.
-- **Collection Page (Requires Selection)** off, **Asynchronous** off and
-  **Error on Reject** on. An asynchronous Flow answers before it runs and a
-  Flow without Error on Reject answers success after a failed step, so the
-  panel could not tell a failure from a finished run.
+| Panel line | Set in the Flow |
+| --- | --- |
+| `Not runnable: trigger not manual` | **Trigger**: Manual. |
+| `Not runnable: name without a "Data / " or "Publish / " prefix` | A name that starts with `Data / ` or `Publish / `. |
+| `Not runnable: Flow inactive` | **Status**: Active. |
+| `Not runnable: no collection`, `Not runnable: collections must be exactly data_operations` | **Collections**: `data_operations` only. No editor reads it, so the trigger endpoint (which checks nothing but read access to the Flow's collection) refuses every non-administrator before the Flow starts. |
+| `Not runnable: requires item selection` | **Collection Page (Requires Selection)** off. |
+| `Not runnable: requires Asynchronous off and Error on Reject on` | **Asynchronous** off and **Error on Reject** on. An asynchronous Flow answers before it runs and a Flow without Error on Reject answers success after a failed step, so the panel could not tell a failure from a finished run. |
+
+Two more rules are the Flow's own:
+
 - **First operation**: a Condition named `Administrator?` with the rule
   `{"$accountability":{"admin":{"_eq":true}}}`, whose reject path ends in
   a Throw Error with status `403` and code `FORBIDDEN`, as in every

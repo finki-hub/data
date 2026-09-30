@@ -177,7 +177,7 @@ describe('seeds', () => {
           'SEIS',
         ],
       }),
-    ).toThrow('headed "СИИС"');
+    ).toThrow('Предмети - 2023 row 1, column 8: header "СИИС", expected "КН"');
   });
 });
 
@@ -352,12 +352,16 @@ describe('enrollment rules', () => {
       mode: 'legacy_regex',
       pattern: 'Alpha Honors-2025/2026',
     });
-    expect(ruleOf(1, '2025/2026')?.['review_note']).toContain('last of the 2');
+    expect(ruleOf(1, '2025/2026')?.['review_note']).toBe(
+      'Import: workbook pattern, last of 2 for this course and year',
+    );
     expect(ruleOf(7, '2021/2022')?.['pattern']).toBe(thetaCrossNewlinePattern);
     expect(ruleOf(1, '2024/2025')).toMatchObject({
       pattern: 'Alpha Course-2024/2025',
     });
-    expect(ruleOf(1, '2024/2025')?.['review_note']).toContain('fallback');
+    expect(ruleOf(1, '2024/2025')?.['review_note']).toBe(
+      'Import fallback: default pattern (course name-academic year), stored literally; no workbook pattern',
+    );
     expect(ruleOf(8, '2025/2026')?.['pattern']).toBe(
       'Iota 2.0 Course-2025/2026',
     );

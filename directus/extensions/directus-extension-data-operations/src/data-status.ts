@@ -6,7 +6,11 @@ import {
   statusPath,
   type StatusSection,
 } from './managed-flows.js';
-import { readableCollections, refusalOf } from './panel-answers.js';
+import {
+  readableCollections,
+  readFailureText,
+  refusalOf,
+} from './panel-answers.js';
 import { runSignal, runsInFlight } from './run-signal.js';
 import {
   envelope,
@@ -30,14 +34,6 @@ import {
 
 const statusAnswer = envelope(statusViewSchema);
 const readinessAnswer = envelope(readinessViewSchema);
-
-const failureText = (what: string, error: unknown): string => {
-  const refusal = refusalOf(error);
-  if (refusal.status === 401 || refusal.status === 403) {
-    return `You may not read the ${what}: ${refusal.message}`;
-  }
-  return `The ${what} could not be read (${refusal.code}): ${refusal.message}`;
-};
 
 export const useDataStatus = (
   sections: () => readonly StatusSection[],
@@ -67,7 +63,10 @@ export const useDataStatus = (
       readiness.value = readinessAnswer.parse(answer.data).data;
       readinessError.value = null;
     } catch (error) {
-      readinessError.value = failureText('readiness checks', error);
+      readinessError.value = readFailureText(
+        'Readiness checks',
+        refusalOf(error),
+      );
     }
   };
 
@@ -108,9 +107,10 @@ export const useDataStatus = (
       failures = 0;
       refused = false;
     } catch (error) {
-      statusError.value = failureText('data status', error);
+      const refusal = refusalOf(error);
+      statusError.value = readFailureText('Data status', refusal);
       failures += 1;
-      refused = isRefusal(refusalOf(error).status);
+      refused = isRefusal(refusal.status);
     }
     const busy = isBusy(status.value);
     const settled = wasBusy && !busy;

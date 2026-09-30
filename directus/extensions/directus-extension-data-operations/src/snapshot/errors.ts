@@ -70,6 +70,19 @@ export const snapshotError = (
 const isSnapshotError = (value: unknown): value is SnapshotError =>
   value instanceof DirectusError;
 
+// A snapshot claim that is no longer this run's, worded once for every
+// stage that finds it lost.
+export const claimLost = (stage: 'backup' | 'promotion'): SnapshotError =>
+  snapshotError('CLAIM_LOST', `Snapshot claim lost during ${stage}`);
+
+// Another data operation holds the claim, named by its domain when the
+// refusal read it.
+export const claimBusy = (domain?: null | string): SnapshotError =>
+  snapshotError(
+    'CLAIM_BUSY',
+    domain === undefined ? 'Claim busy' : `Claim busy: ${domain ?? 'unknown'}`,
+  );
+
 const fact = z.string().max(200).optional().catch(undefined);
 
 // The value-free facts of a failure: its class and error code and, for a
@@ -102,8 +115,8 @@ const cancelledCode = '57014';
 // Any failure as a snapshot error: a refusal keeps its code, a cancelled
 // statement is the IMPORT_TIMEOUT bound, anything else (a database or
 // storage error, whose message may quote a value) is reported under the
-// fallback code with its class and error code only; the operation logs
-// its value-free facts (failureFacts).
+// fallback code with its error code only; the operation logs its
+// value-free facts, class included (failureFacts).
 export const asSnapshotError = (
   error: unknown,
   fallback: SnapshotErrorCode,
@@ -111,17 +124,17 @@ export const asSnapshotError = (
   if (isSnapshotError(error)) {
     return error;
   }
-  const { code = 'unknown', name = typeof error } = failureFacts(error);
+  const { code = 'unknown' } = failureFacts(error);
   if (code === cancelledCode) {
     return new DirectusError(
-      'A database statement ran longer than IMPORT_TIMEOUT allows (statement_timeout) or was cancelled; nothing was changed.',
+      'Statement cancelled: statement_timeout (IMPORT_TIMEOUT) or manual cancel',
       { cause: error, reason: 'IMPORT_TIMEOUT' },
     );
   }
-  return new DirectusError(
-    `The run stopped on an unexpected ${name.slice(0, 60)} (code ${code.slice(0, 40)}); nothing was changed. The Directus log holds its class, code and database object.`,
-    { cause: error, reason: fallback },
-  );
+  return new DirectusError(`Unexpected error (code: ${code.slice(0, 40)})`, {
+    cause: error,
+    reason: fallback,
+  });
 };
 
 // The bounded text kept in data_operations.import_error.
@@ -146,7 +159,7 @@ export const logFailure = (
       code: run.failure.code,
       operation: run.operation,
     },
-    `The Moodle snapshot ${run.operation} failed with ${run.failure.code}`,
+    `Snapshot ${run.operation} failed: ${run.failure.code}`,
   );
 };
 
@@ -161,7 +174,7 @@ export const recordQuietly = async (
   } catch (error) {
     log.warn(
       { cause: failureFacts(error) },
-      'The failure of a Moodle snapshot run could not be recorded',
+      'Snapshot run failure not recorded',
     );
   }
 };

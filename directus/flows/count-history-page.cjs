@@ -54,8 +54,10 @@ const utf8Bytes = function (text) {
   return bytes;
 };
 
-const refuse = function (message) {
-  throw new Error(`${message}; nothing was counted.`);
+// The leaf form of every Flow refusal, `<place>: <fault>`: a sandboxed
+// copy of refuseFragment in src/flows/text-fragments.ts.
+const refuse = function (place, fault) {
+  throw new Error(`${place}: ${fault}`);
 };
 
 const checkedPage = function (page) {
@@ -71,19 +73,21 @@ const checkedPage = function (page) {
     !isRange(page.rules) ||
     !whole(page.rules.bytes, 0)
   ) {
-    refuse('check_page answered no planned legacy page');
+    refuse('check_page', 'no planned legacy page');
   }
   return page;
 };
 
 const checkUsers = function (users, page) {
   if (!Array.isArray(users)) {
-    refuse('read_users returned no user list');
+    refuse('read_users', 'no user list');
   }
-  if (users.length !== page.users.rows || users.length > maxUsers) {
-    refuse(
-      `Read ${users.length} Moodle users of page ${page.token}, planned ${page.users.rows}`,
-    );
+  const place = `Page ${page.token}`;
+  if (users.length !== page.users.rows) {
+    refuse(place, `users ${users.length}, planned ${page.users.rows}`);
+  }
+  if (users.length > maxUsers) {
+    refuse(place, `users ${users.length}, max ${maxUsers}`);
   }
   const seen = new Set();
   let bytes = 0;
@@ -95,7 +99,7 @@ const checkUsers = function (users, page) {
       user.id > page.users.to ||
       seen.has(user.id)
     ) {
-      refuse(`read_users answered a user outside page ${page.token}`);
+      refuse('read_users', `user outside page ${page.token}`);
     }
     seen.add(user.id);
     if (typeof user.Courses === 'string') {
@@ -103,13 +107,12 @@ const checkUsers = function (users, page) {
     }
   }
   if (bytes > budget) {
-    refuse(
-      `Page ${page.token} holds ${bytes} bytes of Courses history, more than the ${budget}-byte budget`,
-    );
+    refuse(place, `Courses history ${bytes} bytes, max ${budget}`);
   }
   if (bytes !== page.users.bytes) {
     refuse(
-      `Page ${page.token} holds ${bytes} bytes of Courses history, planned ${page.users.bytes}`,
+      place,
+      `Courses history ${bytes} bytes, planned ${page.users.bytes}`,
     );
   }
 };
@@ -121,18 +124,19 @@ const checkRule = function (rule, page, pairs) {
     !whole(rule.id, page.rules.from) ||
     rule.id > page.rules.to
   ) {
-    refuse(`read_rules answered a rule outside page ${page.token}`);
+    refuse('read_rules', `rule outside page ${page.token}`);
   }
   if (!whole(rule.course, 1) || !whole(rule.academic_year, 1)) {
-    refuse(`Rule ${rule.id} has no course or academic year id`);
+    refuse(`Rule ${rule.id}`, 'course or academic_year missing');
   }
   if (typeof rule.pattern !== 'string' || rule.pattern.length === 0) {
-    refuse(`Rule ${rule.id} has no pattern, which a legacy_regex rule needs`);
+    refuse(`Rule ${rule.id}`, 'pattern missing');
   }
   const pair = `${rule.course}/${rule.academic_year}`;
   if (pairs.has(pair)) {
     refuse(
-      `Rule ${rule.id} repeats course ${rule.course} / academic year ${rule.academic_year}`,
+      `Rule ${rule.id}`,
+      `duplicate pair course ${rule.course} / academic year ${rule.academic_year}`,
     );
   }
   pairs.add(pair);
@@ -140,12 +144,14 @@ const checkRule = function (rule, page, pairs) {
 
 const checkRules = function (rules, page) {
   if (!Array.isArray(rules)) {
-    refuse('read_rules returned no rule list');
+    refuse('read_rules', 'no rule list');
   }
-  if (rules.length !== page.rules.rows || rules.length > maxRules) {
-    refuse(
-      `Read ${rules.length} legacy rules of page ${page.token}, planned ${page.rules.rows}`,
-    );
+  const place = `Page ${page.token}`;
+  if (rules.length !== page.rules.rows) {
+    refuse(place, `rules ${rules.length}, planned ${page.rules.rows}`);
+  }
+  if (rules.length > maxRules) {
+    refuse(place, `rules ${rules.length}, max ${maxRules}`);
   }
   const ids = new Set();
   const pairs = new Set();
@@ -153,20 +159,16 @@ const checkRules = function (rules, page) {
   for (const rule of rules) {
     checkRule(rule, page, pairs);
     if (ids.has(rule.id)) {
-      refuse(`read_rules answered a rule outside page ${page.token}`);
+      refuse('read_rules', `rule outside page ${page.token}`);
     }
     ids.add(rule.id);
     bytes += utf8Bytes(rule.pattern);
   }
   if (bytes > patternBudget) {
-    refuse(
-      `Rule page of page ${page.token} holds ${bytes} bytes of pattern, more than the ${patternBudget}-byte budget`,
-    );
+    refuse(place, `patterns ${bytes} bytes, max ${patternBudget}`);
   }
   if (bytes !== page.rules.bytes) {
-    refuse(
-      `Rule page of page ${page.token} holds ${bytes} bytes of pattern, planned ${page.rules.bytes}`,
-    );
+    refuse(place, `patterns ${bytes} bytes, planned ${page.rules.bytes}`);
   }
 };
 
@@ -181,7 +183,8 @@ const compile = function (rule) {
     return new RegExp(rule.pattern, 'u');
   } catch (error) {
     return refuse(
-      `Rule ${rule.id} (course ${rule.course} / academic year ${rule.academic_year}) has a pattern that does not compile as a unicode regular expression (${reasonOf(error)})`,
+      `Rule ${rule.id} (course ${rule.course} / academic year ${rule.academic_year})`,
+      `pattern does not compile as a unicode regular expression (${reasonOf(error)})`,
     );
   }
 };

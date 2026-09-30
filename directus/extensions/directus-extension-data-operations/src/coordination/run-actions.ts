@@ -1,6 +1,7 @@
 import type { CoordinatorInput } from './options.js';
 
 import { duplicatePairs, planPages } from '../page-state.js';
+import { listText } from '../text.js';
 import {
   type ActionContext,
   done,
@@ -17,6 +18,7 @@ import {
   mergedOutcomes,
 } from './outcomes.js';
 import { checkPlanSource } from './plan-enrollments.js';
+import { pageUnplanned } from './refusals.js';
 import { type PageSource, publicationUploadLeaseMs } from './state.js';
 
 type Input<Action extends CoordinatorInput['action']> = Extract<
@@ -76,7 +78,7 @@ export const stagePageAction = (
     if (duplicates.length > 0) {
       throw coordinationError(
         'DUPLICATE_ROWS',
-        `A page must carry each course/year pair once; duplicated: ${duplicates.join(', ')}.`,
+        `Duplicate course/year pairs: ${listText(duplicates)}`,
         { status: 400 },
       );
     }
@@ -90,10 +92,7 @@ export const stagePageAction = (
       return overtaken(decision.kind);
     }
     if (decision.kind === 'page_unplanned') {
-      throw coordinationError(
-        'PAGE_UNPLANNED',
-        `Page ${input.page} is not part of the plan of this claim; call plan_pages first.`,
-      );
+      throw pageUnplanned(input.page);
     }
     if (decision.kind !== 'ok' || state.claim === null) {
       throw mismatch(decision.kind === 'ok' ? 'claim_mismatch' : decision.kind);

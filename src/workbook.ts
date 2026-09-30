@@ -19,7 +19,7 @@ import {
 import { readDiscordPairs, readStudentPairs } from './workbook-pair-reader.js';
 import { readStudyPrograms } from './workbook-program-reader.js';
 import { readRows } from './workbook-row-reader.js';
-import { WorkbookDataError } from './workbook-values.js';
+import { sheetPlace, WorkbookDataError } from './workbook-values.js';
 
 const readSource = (
   workbook: ExcelJS.Workbook,
@@ -79,19 +79,21 @@ const isYearLabel = (label: string): boolean => {
 };
 
 // Refuses headers the import could not sort: the import sorts each year by
-// its column group, so the groups must run newest first.
-const assertChronological = (years: readonly string[]): void => {
-  const malformed = years.filter((year) => !isYearLabel(year));
-  if (malformed.length > 0) {
+// its column group, so the groups must run newest first. Names the first
+// such header of the sheet's header row.
+const assertChronological = (sheet: string, years: readonly string[]): void => {
+  const place = sheetPlace(sheet, 1);
+  const malformed = years.find((year) => !isYearLabel(year));
+  if (malformed !== undefined) {
     throw new WorkbookDataError(
-      `The enrollment sheet heads a column group with ${malformed.map((year) => JSON.stringify(year.slice(0, 40))).join(', ')}, which is not an academic year such as 2025/2026.`,
+      `${place}: column group header ${JSON.stringify(malformed.slice(0, 40))} not an academic year (YYYY/YYYY+1)`,
     );
   }
   for (const [index, year] of years.entries()) {
     const newer = years[index - 1];
     if (newer !== undefined && year >= newer) {
       throw new WorkbookDataError(
-        `The enrollment sheet lists the academic year ${year} after ${newer}; order its column groups newest first, since each year sorts by its position.`,
+        `${place}: academic year ${year} after ${newer} (column groups not newest first)`,
       );
     }
   }
@@ -99,15 +101,15 @@ const assertChronological = (years: readonly string[]): void => {
 
 // The academic years of the enrollment sheet, newest first: a later year
 // is one more column group, placed before the years it follows.
-const readAcademicYears = (workbook: ExcelJS.Workbook): readonly string[] => {
-  const years = workbookSpecs.flatMap((spec) =>
-    spec.source.kind === 'course-enrollment-patterns'
-      ? readEnrollmentYears(workbook, spec.source)
-      : [],
-  );
-  assertChronological(years);
-  return years;
-};
+const readAcademicYears = (workbook: ExcelJS.Workbook): readonly string[] =>
+  workbookSpecs.flatMap((spec) => {
+    if (spec.source.kind !== 'course-enrollment-patterns') {
+      return [];
+    }
+    const years = readEnrollmentYears(workbook, spec.source);
+    assertChronological(spec.source.sheet, years);
+    return years;
+  });
 
 export const readWorkbookContent = (
   workbook: ExcelJS.Workbook,
@@ -117,6 +119,14 @@ export const readWorkbookContent = (
   studyPrograms: readStudyPrograms(workbook),
 });
 
+// Why ExcelJS could not read the file, without the path it repeats.
+const readerCause = (workbookPath: string, error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replaceAll(`: ${workbookPath}`, '')
+    .replaceAll(workbookPath, '');
+};
+
 export const loadWorkbook = async (
   workbookPath: string,
 ): Promise<WorkbookContent> => {
@@ -125,7 +135,7 @@ export const loadWorkbook = async (
     await workbook.xlsx.readFile(workbookPath);
   } catch (error) {
     throw new WorkbookDataError(
-      `The workbook ${workbookPath} could not be read as an .xlsx file: ${error instanceof Error ? error.message : String(error)}`,
+      `workbook ${workbookPath}: not readable as .xlsx (${readerCause(workbookPath, error)})`,
       { cause: error },
     );
   }

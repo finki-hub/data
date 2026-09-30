@@ -1,3 +1,9 @@
+import {
+  payloadRefusal,
+  refuseFragment,
+  relayFragment,
+} from './text-fragments.js';
+
 // The Run Script bodies of the Moodle history index Flows. Each runs inside
 // the isolated Directus script sandbox (no imports, no services, the whole
 // data chain as `data`) and returns structured-clone-able values only. The
@@ -9,9 +15,10 @@
 // entries: complete LF/CRLF-separated lines, a trailing lone CR dropped,
 // empty lines ignored, first occurrence kept. Nothing is trimmed or folded.
 export const splitEntriesScript = String.raw`module.exports = function (data) {
+  ${refuseFragment}
   const rows = data.read_histories;
   if (!Array.isArray(rows)) {
-    throw new Error('read_histories returned no row list');
+    refuse('read_histories', 'no row list');
   }
   return rows.map(function (row) {
     const entries = [];
@@ -31,13 +38,14 @@ export const splitEntriesScript = String.raw`module.exports = function (data) {
 // Attaches the claim token to every planned page so the page Flow, whose
 // trigger data is the page element alone, can address the coordinator.
 export const pagesWithTokenScript = `module.exports = function (data) {
+  ${refuseFragment}
   const plan = data.plan_pages;
   if (!plan || !Array.isArray(plan.pages)) {
-    throw new Error('plan_pages returned no page list');
+    refuse('plan_pages', 'no page list');
   }
   const claim = data.$trigger ? data.$trigger.token : undefined;
   if (typeof claim !== 'string' || claim.length === 0) {
-    throw new Error('The run needs the claim token as $trigger.token');
+    ${payloadRefusal(['token'])}
   }
   return plan.pages.map(function (page) {
     return { claim: claim, from: page.from, rows: page.rows, to: page.to, token: page.token };
@@ -64,20 +72,23 @@ export const summaryScript = `module.exports = function (data) {
   return summary;
 };`;
 
-// The bounded message of a failed run: where the first failure happened
-// (a page, or the run itself), its code and message cut to a fixed length,
-// and how many further pages failed. The page records name the refused
-// Moodle user when the coordinator did, so the operator knows whose raw
-// history to fix without reading any log.
+// The bounded message of a failed run: the first failure relayed with its
+// place (a page, or the run itself), stage and code, cut to a fixed length,
+// then how many pages failed when more than one did. The page records name
+// the refused Moodle user when the coordinator did, so the operator knows
+// whose raw history to fix without reading any log.
 export const describeFailureScript = `module.exports = function (data) {
+  ${relayFragment}
   const index = data.index;
   const failed = index && Array.isArray(index.failed) ? index.failed : [];
   const first = failed.length > 0 ? failed[0] : index;
   const record = first !== null && typeof first === 'object' ? first : {};
-  const where = typeof record.page === 'string' ? 'page ' + record.page : 'the run';
-  const stage = typeof record.stage === 'string' ? ' (' + record.stage + ')' : '';
-  const code = record.code === undefined || record.code === null ? 'NO_RESULT' : String(record.code);
-  const message = record.message === undefined || record.message === null ? 'no result' : String(record.message);
-  const more = failed.length > 1 ? ' ' + (failed.length - 1) + ' more page(s) failed as well.' : '';
-  return 'The Moodle history index run failed at ' + where + stage + ': ' + (code + ' ' + message).slice(0, 320) + '.' + more + ' The previous index stays in place and the domain stays pending for an explicit retry.';
+  const subject = typeof record.page === 'string' ? 'Page ' + record.page : 'Run';
+  const cause = {
+    code: record.code === undefined || record.code === null ? 'NO_RESULT' : record.code,
+    message: record.message === undefined || record.message === null ? 'no result' : record.message,
+    stage: record.stage,
+  };
+  const more = failed.length > 1 ? '; failed pages: ' + failed.length : '';
+  return relayed(subject, cause) + more;
 };`;

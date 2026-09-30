@@ -8,8 +8,13 @@ import {
   publishId,
   raise,
 } from './flow-template.js';
-import { publishFileFlow, publishFileFlowId } from './publish-one-file.js';
+import {
+  publishFileFlow,
+  publishFileFlowId,
+  publishStorage,
+} from './publish-one-file.js';
 import { refusal, step, claimToken as token } from './publish-steps.js';
+import { flowDescription, stepName } from './text-fragments.js';
 import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.publish;
@@ -32,18 +37,19 @@ export const publishAssetsFlowId = publishId('01');
 // retried and nothing uploads in parallel.
 export const publishAssetsFlow: FlowTemplate = {
   accountability: 'activity',
-  description:
-    'Publishes every public file the export definitions of the data-operations extension declare (administrators only): claims publication, checks readiness and prepares and validates every file before the first upload, then uploads the files one after another through "Publish / One file", attempting every file even after a failure. Records one outcome per file in Data Operations as each finishes: completed when every file was uploaded (the prepared source revision is recorded as published; an edit made during the uploads stays pending), partial when some were, failed when none was. Nothing is retried; publish again after a failure.',
+  description: flowDescription({
+    adminOnly: true,
+    does: `Uploads every declared public file to storage location "${publishStorage}", serially`,
+    note: 'Outcome: completed, partial or failed',
+  }),
   entry: publishId('11'),
   icon: 'cloud_upload',
   id: publishAssetsFlowId,
   name: 'Publish / Public assets',
   operations: [
-    ...adminOnly(
-      ['11', '12', '13'],
-      'Only administrators may publish the public files.',
-      { code: family },
-    ),
+    ...adminOnly(['11', '12', '13'], 'publish the public files', {
+      code: family,
+    }),
     step({
       column: 37,
       key: 'claim',
@@ -62,7 +68,7 @@ export const publishAssetsFlow: FlowTemplate = {
       },
       family,
       key: 'raise_claim',
-      name: 'Report the refused claim',
+      name: stepName.raise('PUBLICATION_CLAIM_FAILED'),
       position: [37, 19],
       suffix: '1f',
     }),
@@ -78,13 +84,12 @@ export const publishAssetsFlow: FlowTemplate = {
     raise({
       error: {
         code: 'PUBLICATION_NOT_CLAIMED',
-        message:
-          'Nothing was published: the publication claim answered {{ claim.reason }} (busy: another run holds the claim; nothing_pending: the public files are current, mark publication pending to publish again; upstream_dirty: the history index or the enrollment counts are still pending).',
+        message: 'Publication not claimed: {{ claim.reason }}',
         status: 409,
       },
       family,
       key: 'raise_unclaimed',
-      name: 'Report the unclaimed publication',
+      name: stepName.raise('PUBLICATION_NOT_CLAIMED'),
       position: [55, 19],
       suffix: '1a',
     }),
@@ -159,7 +164,7 @@ export const publishAssetsFlow: FlowTemplate = {
       edges: { reject: publishId('24'), resolve: publishId('24') },
       family,
       key: 'record_failure',
-      name: 'Record the outcomes as a failure',
+      name: stepName.failClaim('uploads'),
       options: {
         action: 'fail',
         code: '{{ outcomes.code }}',
@@ -179,7 +184,7 @@ export const publishAssetsFlow: FlowTemplate = {
       },
       family,
       key: 'raise_partial',
-      name: 'Report the files not uploaded',
+      name: stepName.raise('PUBLICATION_PARTIAL or PUBLICATION_FAILED'),
       position: [127, 37],
       suffix: '24',
     }),
@@ -222,8 +227,7 @@ export const publishAssetsFlow: FlowTemplate = {
   options: {
     async: false,
     collections: ['data_operations'],
-    confirmationDescription:
-      'Publish every public file to the publish storage location, one after another? Each file is uploaded even when an earlier one fails, and Data Operations records one outcome per file; the source revision counts as published only when every file was uploaded.',
+    confirmationDescription: `Publish all public files to storage location "${publishStorage}", one after another?`,
     error_on_reject: true,
     location: 'both',
     requireConfirmation: true,

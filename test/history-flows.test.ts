@@ -370,7 +370,7 @@ describe('flow installer', () => {
     await expect(
       installFlowFamily(request, flowFamilyCodes.history),
     ).rejects.toThrow(
-      `The Flow "${first.name}" (${first.id}) exists without its entry operation`,
+      `Flow "${first.name}" (${first.id}): entry operation missing`,
     );
     expect(mutations).toEqual([]);
   });

@@ -1,6 +1,7 @@
 import type { FieldSpec } from '../schema.js';
 
 import { referenceWorkbookSpecs } from '../specs/reference.js';
+import { sheetPlace } from '../workbook-values.js';
 import { compositeKey, planned, type PlannedRow, ref } from './planned.js';
 
 // What the historical workbook knows about curriculum generations and
@@ -60,7 +61,7 @@ export const workbookGenerations: readonly WorkbookGeneration[] = [
 export const generationOfSheet = (sheet: EntrySource): string => {
   const generation = workbookGenerations.find((row) => row.sheet === sheet);
   if (generation === undefined) {
-    throw new TypeError(`No workbook generation reads the sheet ${sheet}.`);
+    throw new TypeError(`sheet ${sheet}: no workbook generation`);
   }
   return generation.code;
 };
@@ -89,6 +90,18 @@ const programCodes: Readonly<Record<string, string>> = {
 
 const statePrefix = 'state_';
 
+// The worksheet a curriculum sheet is read from, as its workbook spec
+// names it.
+export const curriculumWorksheet = (sheet: EntrySource): string => {
+  const source = referenceWorkbookSpecs.find(
+    ({ key }) => key === sheet,
+  )?.source;
+  if (source?.kind !== 'rows') {
+    throw new TypeError(`${sheet}: not a rows source`);
+  }
+  return source.sheet;
+};
+
 // The program columns of a curriculum sheet as its workbook spec reads
 // them: its state fields in sheet column order.
 export const stateColumns = (
@@ -108,6 +121,11 @@ export const stateColumns = (
 // The program code a state column holds the states of.
 export const programOfColumn = (target: string): string =>
   target.slice(statePrefix.length);
+
+// The header the closed mapping gives a program code.
+const headerOf = (code: string): string =>
+  Object.entries(programCodes).find(([, mapped]) => mapped === code)?.[0] ??
+  code;
 
 // The program headers of each curriculum sheet, in column order.
 export type ProgramHeaders = Readonly<Record<EntrySource, readonly string[]>>;
@@ -129,12 +147,12 @@ export const workbookPrograms = (
   headers: ProgramHeaders,
 ): readonly ProgramSeed[] =>
   sheets.flatMap((sheet) =>
-    stateColumns(sheet).map(({ target }, index) => {
+    stateColumns(sheet).map(({ column, target }, index) => {
       const header = headers[sheet][index] ?? '';
       const code = programCodes[header];
       if (code === undefined || code !== programOfColumn(target)) {
         throw new ProgramHeaderError(
-          `The program column ${String(index + 1)} of the ${sheet} sheet is headed ${JSON.stringify(header.slice(0, 40))}, but the import reads it as ${programOfColumn(target).toUpperCase()}; only the headers ${Object.keys(programCodes).join(', ')} are known, in the column order of the workbook.`,
+          `${sheetPlace(curriculumWorksheet(sheet), 1, column)}: header ${JSON.stringify(header.slice(0, 40))}, expected ${JSON.stringify(headerOf(programOfColumn(target)))}`,
         );
       }
       return {

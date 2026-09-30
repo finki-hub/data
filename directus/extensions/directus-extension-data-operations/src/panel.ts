@@ -1,6 +1,10 @@
 import { definePanel } from '@directus/extensions-sdk';
 
-import { managedFlowFilter, runOperationPanelId } from './managed-flows.js';
+import {
+  managedFlowFilter,
+  managedFlowNote,
+  runOperationPanelId,
+} from './managed-flows.js';
 import RunOperationPanel from './panel.vue';
 
 // The generic Run operation panel: its one option picks an installed
@@ -24,7 +28,7 @@ export default definePanel({
       field: 'flow',
       meta: {
         interface: 'collection-item-dropdown',
-        note: 'An installed manual Flow whose name starts with "Data / " or "Publish / ". The Flow decides who may run it and validates its own input.',
+        note: managedFlowNote,
         options: {
           filter: managedFlowFilter,
           selectedCollection: 'directus_flows',

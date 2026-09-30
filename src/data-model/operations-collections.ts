@@ -11,8 +11,13 @@ import {
   modeNote,
   patternNote,
   publicationChoices,
+  publicationStateNote,
 } from './operations-vocabularies.js';
 import { snapshotImportFields } from './snapshot-fields.js';
+
+// The note of a retry counter: whose transactions ran again.
+const retriesNote = (run: string): string =>
+  `Transaction retries of ${run} (deadlock or serialization failure).`;
 
 export const operationsCollections: readonly ModelCollection[] = [
   {
@@ -109,7 +114,7 @@ export const operationsCollections: readonly ModelCollection[] = [
       scalar('finished_at', 'timestamp'),
       scalar('last_run_retries', 'integer', {
         defaultValue: 0,
-        note: 'How often the transactions of the last completed run ran again after a database deadlock or serialization failure.',
+        note: retriesNote('the last completed run'),
         nullable: false,
         readOnly: true,
       }),
@@ -120,7 +125,7 @@ export const operationsCollections: readonly ModelCollection[] = [
       }),
       enumField('publication_state', publicationChoices, {
         defaultValue: 'idle',
-        note: 'Published only when every declared file was uploaded; partly published when some were; the per-file outcomes say which.',
+        note: publicationStateNote,
         nullable: false,
       }),
       scalar('publication_outcomes', 'json', {
@@ -140,7 +145,7 @@ export const operationsCollections: readonly ModelCollection[] = [
       scalar('claim_fingerprint', 'string', { readOnly: true }),
       scalar('claim_started_at', 'timestamp', { readOnly: true }),
       scalar('claim_heartbeat_at', 'timestamp', {
-        note: 'Refreshed by the running job; a claim silent for longer than the documented window is abandoned.',
+        note: 'Heartbeat of the running job; a stale claim is released as abandoned.',
         readOnly: true,
       }),
       scalar('claim_pages', 'json', {
@@ -153,7 +158,7 @@ export const operationsCollections: readonly ModelCollection[] = [
       }),
       scalar('claim_retries', 'integer', {
         defaultValue: 0,
-        note: 'How often the transactions of the current claim ran again after a database deadlock or serialization failure.',
+        note: retriesNote('the current claim'),
         nullable: false,
         readOnly: true,
       }),
@@ -163,7 +168,7 @@ export const operationsCollections: readonly ModelCollection[] = [
       scalar('last_failed_fingerprint', 'string', { readOnly: true }),
       scalar('last_error_retries', 'integer', {
         defaultValue: 0,
-        note: 'How often the transactions of the last failed or discarded run ran again after a database deadlock or serialization failure.',
+        note: retriesNote('the last failed or discarded run'),
         nullable: false,
         readOnly: true,
       }),
