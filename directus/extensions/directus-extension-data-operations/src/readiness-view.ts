@@ -1,6 +1,6 @@
 import type { ReadinessEntry } from './exports/readiness-types.js';
 import type { ReadinessAnswer } from './exports/readiness.js';
-import type { Audience, ReadinessView } from './status-contract.js';
+import type { ReadinessView } from './status-contract.js';
 
 import { readinessRegistry } from './exports/readiness-registry.js';
 import { bookmarkPage, collectionPage } from './managed-flows.js';
@@ -25,7 +25,6 @@ export const reviewBookmarks = (
 
 type ReadinessInputs = {
   readonly answer: ReadinessAnswer;
-  readonly audience: Audience;
   // The installed review bookmarks, by bookmarkKey(collection, name).
   readonly bookmarks: ReadonlyMap<string, number>;
   readonly registry?: readonly ReadinessEntry[];
@@ -33,11 +32,9 @@ type ReadinessInputs = {
 
 export const readinessView = ({
   answer,
-  audience,
   bookmarks,
   registry = readinessRegistry,
 }: ReadinessInputs): ReadinessView => ({
-  audience,
   blockedFiles: [...answer.blockedFiles],
   checks: registry.map(
     ({ code, description, gates, page, review, severity }) => {

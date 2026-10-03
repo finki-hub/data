@@ -4,10 +4,7 @@ import type { KeySourceView } from './status-contract.js';
 // The rows whose flags decide the public keys: per key source, every row
 // with its key text, whether it is published and whether it places keys
 // now, each linked to its Studio form.
-defineProps<{
-  linkable: (collection: string) => boolean;
-  sources: readonly KeySourceView[];
-}>();
+defineProps<{ sources: readonly KeySourceView[] }>();
 
 const stateOf = (row: KeySourceView['rows'][number]): string => {
   if (row.placesKeys) {
@@ -21,15 +18,13 @@ const stateOf = (row: KeySourceView['rows'][number]): string => {
   <section class="block" aria-label="Published keys">
     <div v-for="source in sources" :key="source.name" class="source" :data-key-source="source.name">
       <h5>
-        <router-link v-if="linkable(source.collection)" :to="source.link">{{ source.label }}</router-link>
-        <span v-else>{{ source.label }}</span>
+        <router-link :to="source.link">{{ source.label }}</router-link>
         <span class="note">({{ source.rows.filter((row) => row.placesKeys).length }} of {{ source.rows.length }} public)</span>
       </h5>
       <p v-if="source.rows.length === 0" class="note">No rows</p>
       <ul v-else class="chips">
         <li v-for="row in source.rows" :key="String(row.id)" :class="{ placed: row.placesKeys, unpublished: !row.published }">
-          <router-link v-if="linkable(source.collection)" :to="row.link">{{ row.key ?? '--' }}</router-link>
-          <span v-else>{{ row.key ?? '--' }}</span>
+          <router-link :to="row.link">{{ row.key ?? '--' }}</router-link>
           <small>{{ stateOf(row) }}</small>
         </li>
       </ul>

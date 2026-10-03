@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { ExportDefinition } from './types.js';
 
+import { isAdministrator } from '../administrator.js';
 import { maxPublishedFiles } from '../coordination/state.js';
 import { adminOnlyText, invalidOptionsText } from '../text.js';
 import { exportError } from './errors.js';
@@ -36,12 +37,10 @@ export const parsedActions = optionsSchema.options.map(
   (option) => option.shape.action.value,
 );
 
-const adminAccountability = z.object({ admin: z.literal(true) });
-
 // The operation serves administrators only, whatever the Flow around it
 // checks: it reads with system rights.
 const requireAdmin = (accountability: unknown): void => {
-  if (!adminAccountability.safeParse(accountability).success) {
+  if (!isAdministrator(accountability)) {
     throw exportError(
       'FORBIDDEN',
       adminOnlyText('check, prepare or publish the public files'),

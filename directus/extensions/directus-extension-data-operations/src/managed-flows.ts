@@ -15,9 +15,9 @@
 export const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
 
 // The one collection a panel runs a managed Flow on: the hidden Data
-// Operations singleton, which no editor reads, so the trigger endpoint
-// refuses every non-administrator before such a Flow starts. A Flow on a
-// collection editors read would rest on its own first step alone.
+// Operations singleton, which only administrators read, so the trigger
+// endpoint refuses every non-administrator before such a Flow starts. A
+// Flow on another collection would rest on its own first step alone.
 export const operationsCollection = 'data_operations';
 
 export const isManagedFlowName = (name: string): boolean =>
@@ -76,14 +76,6 @@ export const statusSectionLabels: Readonly<Record<StatusSection, string>> = {
 // How far back the status looks for the last run of a scheduled Flow; the
 // dashboard names the window when a Flow has not run in it.
 export const scheduleLookBackMinutes = 60;
-
-// The editor policy npm run setup installs (src/editor-policy.ts derives
-// its permissions from the collection roles). Administrators and holders
-// of this policy read the data status; nobody else does.
-export const editorPolicy = {
-  id: '6a1d9f0e-2b3c-4d5e-8f70-0000000016e1',
-  name: 'Data editor',
-} as const;
 
 // The Studio page of a collection, of one of its rows and of a bookmark,
 // as routes of the Studio app (it serves them under /admin).

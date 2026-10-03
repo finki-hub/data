@@ -16,9 +16,9 @@ const optedIn = { [optInField]: { _eq: true } };
 //
 // published_years: every academic year whose `published` flag is set,
 // newest first (`sort` descending, then the label descending), keyed by its
-// label. A new academic_years row adds no public key until an editor
-// publishes it. Readiness also blocks a published year until every course
-// has its count.
+// label. A new academic_years row adds no public key until an
+// administrator publishes it. Readiness also blocks a published year until
+// every course has its count.
 //
 // published_generations: every curriculum generation with a curriculum
 // whose `published` flag is set, newest first (`sort` descending, then the

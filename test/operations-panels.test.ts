@@ -27,7 +27,6 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import {
   answerSummary,
-  readableCollections,
   refusalOf,
 } from '../directus/extensions/directus-extension-data-operations/src/panel-answers.js';
 import {
@@ -174,7 +173,7 @@ describe('the Run operation panel contract', () => {
     );
   });
 
-  test('runs a Flow only on the collection no editor reads', () => {
+  test('runs a Flow only on the collection only administrators read', () => {
     expect(operationsCollection).toBe('data_operations');
     expect(on(['courses'])).toEqual({
       reason: `Not runnable: collections must be exactly ${operationsCollection}`,
@@ -280,19 +279,6 @@ describe('the Run operation panel contract', () => {
     ]);
     expect(answerSummary(null)).toEqual([]);
   });
-
-  test('reads which collections an editor may open', () => {
-    expect(
-      readableCollections({
-        data: {
-          courses: { read: { access: 'full' } },
-          data_operations: { read: { access: 'none' } },
-          moodle_course_entries: { read: { access: 'partial' } },
-        },
-      }),
-    ).toEqual(new Set(['courses', 'moodle_course_entries']));
-    expect(readableCollections({ nope: true })).toEqual(new Set());
-  });
 });
 
 const idle: DomainStatus = {
@@ -380,12 +366,11 @@ const report: StatusReport = {
 const read = (failures: number, refused = false, busy = false) =>
   nextReadMs({ busy, failures, refused });
 
-const viewFor = (audience: 'administrator' | 'editor') =>
-  statusView({ audience, keySources: [], report, schedule: [] });
+const viewOf = () => statusView({ keySources: [], report, schedule: [] });
 
 describe('the status view', () => {
   test('lists every declared domain and file, with the outcome it holds', () => {
-    const view = statusViewSchema.parse(viewFor('administrator'));
+    const view = statusViewSchema.parse(viewOf());
 
     expect(view.domains.map(({ name }) => name)).toEqual(coordinationDomains);
     expect(view.publication.files.map(({ filename }) => filename)).toEqual(
@@ -412,11 +397,8 @@ describe('the status view', () => {
     expect(view.lastError?.retries).toBe(0);
   });
 
-  test('gives an editor no failure text, token, owner or fingerprint', () => {
-    const view = viewFor('editor');
-    const text = JSON.stringify(view);
-
-    expect(view.lastError?.message).toBeNull();
+  test('carries no token, owner, fingerprint or process', () => {
+    const text = JSON.stringify(viewOf());
 
     for (const word of ['token', 'owner', 'fingerprint', 'process']) {
       expect(text).not.toContain(word);
@@ -428,7 +410,6 @@ describe('the status view', () => {
       declaredFilenames.map((filename) => [filename, uploadedAt(9)]),
     );
     const view = statusView({
-      audience: 'administrator',
       keySources: [],
       report: {
         ...report,
@@ -458,7 +439,6 @@ describe('the status view', () => {
     const states = (publication: typeof report.publication) =>
       Object.fromEntries(
         statusView({
-          audience: 'editor',
           keySources: [],
           report: { ...report, publication },
           schedule: [],
@@ -472,7 +452,7 @@ describe('the status view', () => {
     expect(
       states({ files: report.publication.files, state: 'failed' }),
     ).toMatchObject({ publication: 'failed' });
-    expect(statusViewSchema.parse(viewFor('editor')).domains).toHaveLength(
+    expect(statusViewSchema.parse(viewOf()).domains).toHaveLength(
       coordinationDomains.length,
     );
   });
@@ -491,12 +471,7 @@ describe('the status view', () => {
   });
 
   test('polls for pending calculations and running work, not for a publication that waits for an administrator', () => {
-    const view = statusView({
-      audience: 'administrator',
-      keySources: [],
-      report,
-      schedule: [],
-    });
+    const view = viewOf();
     const withStates = (states: Readonly<Record<string, string>>) => ({
       ...view,
       claim: null,
@@ -531,7 +506,7 @@ describe('the readiness view', () => {
 
   test('has one row per declared check, in registry order, with one link each', () => {
     const view = readinessViewSchema.parse(
-      readinessView({ answer, audience: 'editor', bookmarks: new Map() }),
+      readinessView({ answer, bookmarks: new Map() }),
     );
 
     expect(view.checks.map(({ code }) => code)).toEqual(
@@ -552,7 +527,6 @@ describe('the readiness view', () => {
     }
     const view = readinessView({
       answer,
-      audience: 'administrator',
       bookmarks: new Map([[bookmarkKey(entry.page, name), 41]]),
     });
 

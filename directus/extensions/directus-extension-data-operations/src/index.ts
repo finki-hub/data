@@ -1,6 +1,6 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
-import { z } from 'zod';
 
+import { isAdministrator } from './administrator.js';
 import { coordinationStatus, sqlDatabase } from './coordinate.js';
 import { errorBody, forwardError } from './endpoint-errors.js';
 import {
@@ -17,12 +17,9 @@ type SqlRunner = {
   readonly raw: (sql: string) => PromiseLike<unknown>;
 };
 
-const adminAccountability = z.object({ admin: z.literal(true) });
-
 // True only for a request whose resolved accountability is an administrator.
 export const isAdminRequest = (request: object): boolean =>
-  'accountability' in request &&
-  adminAccountability.safeParse(request.accountability).success;
+  'accountability' in request && isAdministrator(request.accountability);
 
 // Runs every statement of the migration in order and returns how many ran.
 export const executeMigration = async (

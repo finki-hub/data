@@ -3,10 +3,8 @@ import {
   domainDeclarations,
   domainLabel,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
-import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   automationId,
-  condition,
   coordinateOperation,
   flowFamilyCodes,
   type FlowTemplate,
@@ -14,6 +12,7 @@ import {
   raise,
 } from './flow-template.js';
 import { flowDescription, stepName } from './text-fragments.js';
+import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -55,29 +54,10 @@ export const markPendingFlow: FlowTemplate = {
   id: markPendingFlowId,
   name: 'Data / Mark pending',
   operations: [
-    // Any user who may read data_operations could trigger a manual Flow on
-    // it; marking moves the source revision, so it is gated on the
+    // Marking moves the source revision, so it is gated on the
     // administrator flag like every data operation.
-    condition({
-      edges: { reject: automationId('55'), resolve: automationId('52') },
-      family,
-      filter: { $accountability: { admin: { _eq: true } } },
-      key: 'admin_only',
-      name: 'Administrator?',
-      position: [19, 1],
-      suffix: '51',
-    }),
-    raise({
-      error: {
-        code: 'FORBIDDEN',
-        message: adminOnlyText('ask for a recalculation'),
-        status: 403,
-      },
-      family,
-      key: 'raise_forbidden',
-      name: stepName.raise('FORBIDDEN'),
-      position: [19, 19],
-      suffix: '55',
+    ...adminOnly(['51', '55', '52'], 'ask for a recalculation', {
+      code: family,
     }),
     operation({
       edges: { resolve: automationId('53') },

@@ -3,9 +3,8 @@ import type { Domain } from './domains.js';
 // The role of every collection of the relational model, declared once.
 // The source-invalidation migration is generated from the sources below;
 // the excluded tables, the write guards of the schema-constraints
-// migration, their Directus hooks and the editor deny-list are read from
-// the other roles. It stays in code: an editable row could drop a trigger
-// or open a guard.
+// migration and their Directus hooks are read from the other roles. It
+// stays in code: an editable row could drop a trigger or open a guard.
 export const collectionRoleNames = [
   'source',
   'derived',
@@ -14,16 +13,8 @@ export const collectionRoleNames = [
   'status',
 ] as const;
 
-export type BookkeepingDeclaration = {
-  readonly collection: string;
-  readonly description: string;
-  readonly role: 'status';
-};
-
 export type CollectionDeclaration =
   BookkeepingDeclaration | GuardedDeclaration | SourceDeclaration;
-
-export type CollectionRole = (typeof collectionRoleNames)[number];
 
 // An UPDATE that names the column marks these domains on top of the
 // table's own, through a statement trigger of this name on the column.
@@ -34,7 +25,6 @@ export type ColumnRefinement = {
 
 export type GuardedDeclaration = {
   readonly collection: string;
-  readonly description: string;
   readonly guard: WriteGuard;
   readonly role: 'candidate' | 'derived' | 'staging';
 };
@@ -42,10 +32,7 @@ export type GuardedDeclaration = {
 // An editable source table: every statement on it marks `invalidates`
 // inside its own transaction. `onDelete` adds domains for a DELETE or
 // TRUNCATE, `columns` for an UPDATE naming a column, and `why` explains
-// those refinements in the generated SQL. `editorWrites: false` marks a
-// source an editor must never write: Task 16 derives the editor grants
-// from it, and the literal deny-list of src/editor-policy.ts names the
-// source independently, as the check of those grants.
+// those refinements in the generated SQL.
 // The trigger function lists a table whose domains differ from the
 // default in registry order; `caseLast` lists it after the others. The
 // arms name one table each, so their order changes nothing but the text.
@@ -53,11 +40,15 @@ export type SourceDeclaration = {
   readonly caseLast?: true;
   readonly collection: string;
   readonly columns?: Readonly<Record<string, ColumnRefinement>>;
-  readonly editorWrites?: false;
   readonly invalidates: DomainList;
   readonly onDelete?: DomainList;
   readonly role: 'source';
   readonly why?: string;
+};
+
+type BookkeepingDeclaration = {
+  readonly collection: string;
+  readonly role: 'status';
 };
 
 // A list of domains a statement marks, never empty: an empty list would
@@ -108,7 +99,6 @@ const collectionRoles = [
   },
   {
     collection: 'moodle_users',
-    editorWrites: false,
     invalidates: ['history_index', 'enrollments', 'publication'],
     role: 'source',
   },
@@ -137,7 +127,6 @@ const collectionRoles = [
   },
   {
     collection: 'moodle_history_memberships',
-    description: 'the derived Moodle history index',
     guard: {
       hint: 'Source: moodle_users.Courses, moodle_course_entries, moodle_course_mappings; rebuilt by: Data / Process pending',
       writer: 'history_writer',
@@ -147,7 +136,6 @@ const collectionRoles = [
   },
   {
     collection: 'course_enrollments',
-    description: 'the derived enrollment counts',
     guard: {
       hint: 'Source: moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending',
       writer: 'enrollments_writer',
@@ -157,7 +145,6 @@ const collectionRoles = [
   },
   {
     collection: 'moodle_import_rows',
-    description: 'the staging of the controlled Moodle snapshot import',
     guard: {
       hint: 'Written by: Data / Import Moodle snapshot',
       writer: 'snapshot_writer',
@@ -167,12 +154,10 @@ const collectionRoles = [
   },
   {
     collection: 'data_operations',
-    description: 'the coordination singleton',
     role: 'status',
   },
   {
     collection: 'data_operation_results',
-    description: 'the candidate counts of a running enrollments claim',
     guard: {
       hint: 'Written by: coordinator',
       writer: 'candidate_writer',

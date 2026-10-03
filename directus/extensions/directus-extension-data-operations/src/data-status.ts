@@ -6,11 +6,7 @@ import {
   statusPath,
   type StatusSection,
 } from './managed-flows.js';
-import {
-  readableCollections,
-  readFailureText,
-  refusalOf,
-} from './panel-answers.js';
+import { readFailureText, refusalOf } from './panel-answers.js';
 import { runSignal, runsInFlight } from './run-signal.js';
 import {
   envelope,
@@ -28,9 +24,7 @@ import {
 // flight the status is polled, and a failed read that may pass later is
 // repeated with a growing pause; readiness (which counts every check) is
 // read again once the work settled, on a refresh and on the dashboard's
-// own refresh. For an editor the Studio links are shown only for the
-// collections GET /permissions/me says they may read; the pages enforce
-// the same permissions themselves.
+// own refresh.
 
 const statusAnswer = envelope(statusViewSchema);
 const readinessAnswer = envelope(readinessViewSchema);
@@ -42,7 +36,6 @@ export const useDataStatus = (
   const api = useApi();
   const status = ref<null | StatusView>(null);
   const readiness = ref<null | ReadinessView>(null);
-  const readable = ref<null | ReadonlySet<string>>(null);
   const statusError = ref<null | string>(null);
   const readinessError = ref<null | string>(null);
   const loading = ref(false);
@@ -67,19 +60,6 @@ export const useDataStatus = (
         'Readiness checks',
         refusalOf(error),
       );
-    }
-  };
-
-  // The collections an editor may read; administrators read all.
-  const readableOf = async (): Promise<null | ReadonlySet<string>> => {
-    if (status.value?.audience !== 'editor') {
-      return null;
-    }
-    try {
-      const answer = await api.get('/permissions/me');
-      return readableCollections(answer.data);
-    } catch {
-      return new Set();
     }
   };
 
@@ -125,16 +105,10 @@ export const useDataStatus = (
     loading.value = true;
     try {
       await Promise.all([poll(), readReadiness()]);
-      readable.value = await readableOf();
     } finally {
       loading.value = false;
     }
   };
-
-  // Administrators follow every link; an editor the collections they read.
-  const linkable = (collection: string): boolean =>
-    status.value?.audience === 'administrator' ||
-    (readable.value?.has(collection) ?? false);
 
   watch(
     [sections, now],
@@ -155,7 +129,6 @@ export const useDataStatus = (
 
   return reactive({
     busy: computed(() => isBusy(status.value)),
-    linkable,
     loading,
     readiness,
     readinessError,

@@ -1,4 +1,3 @@
-import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   condition,
   familyStep,
@@ -9,6 +8,7 @@ import {
 } from './flow-template.js';
 import { snapshotFolder } from './snapshot-folder.js';
 import { flowDescription, stepName } from './text-fragments.js';
+import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.snapshot;
 const snapshotImportOperation = 'finki-hub-snapshot-import';
@@ -72,25 +72,8 @@ export const snapshotImportFlow: FlowTemplate = {
   id: snapshotFlowId,
   name: 'Data / Import Moodle snapshot',
   operations: [
-    check({
-      edges: { reject: snapshotId('21'), resolve: snapshotId('12') },
-      filter: { $accountability: { admin: { _eq: true } } },
-      key: 'admin_only',
-      name: 'Administrator?',
-      position: [19, 1],
-      suffix: '11',
-    }),
-    raise({
-      error: {
-        code: 'FORBIDDEN',
-        message: adminOnlyText('import a Moodle snapshot'),
-        status: 403,
-      },
-      family,
-      key: 'raise_forbidden',
-      name: stepName.raise('FORBIDDEN'),
-      position: [19, 19],
-      suffix: '21',
+    ...adminOnly(['11', '21', '12'], 'import a Moodle snapshot', {
+      code: family,
     }),
     check({
       edges: { reject: snapshotId('22'), resolve: snapshotId('13') },

@@ -22,7 +22,6 @@ import { buildSearchQuery } from '../directus/extensions/directus-extension-cour
 import { failureText } from '../directus/extensions/directus-extension-course-search/src/failure-text.js';
 import {
   filterPathProblem,
-  type PathRelation,
   relationalDepthLimit,
 } from '../directus/extensions/directus-extension-course-search/src/filter-paths.js';
 import {
@@ -35,10 +34,6 @@ import {
   pageSize,
 } from '../directus/extensions/directus-extension-course-search/src/limits.js';
 import { nativeFilter } from '../directus/extensions/directus-extension-course-search/src/native-filter.js';
-import {
-  modelRelations,
-  toRelationPayload,
-} from '../src/data-model/relations.js';
 
 describe('Course history boundaries', () => {
   test('preserves nonempty raw LF and CRLF history entries', () => {
@@ -255,26 +250,7 @@ describe('Native course-search filters', () => {
   });
 });
 
-// The relations setup installs, as Directus reports them.
-const installed: readonly PathRelation[] =
-  modelRelations.map(toRelationPayload);
-const searchRules = {
-  maxDepth: 10,
-  relations: installed,
-  root: 'moodle_users',
-};
-
-// A synthetic chain c0.next -> c1 -> ... in which no collection repeats,
-// and a filter naming `fields` fields along it.
-const chainRelations: readonly PathRelation[] = Array.from(
-  { length: 16 },
-  (_, index) => ({
-    collection: `c${String(index)}`,
-    field: 'next',
-    meta: null,
-    related_collection: `c${String(index + 1)}`,
-  }),
-);
+// A filter naming `fields` fields along a chain next -> next -> ...
 const chain = (fields: number): unknown => {
   let filter: unknown = { value: { _eq: 1 } };
   for (let field = 1; field < fields; field += 1) filter = { next: filter };
@@ -282,7 +258,7 @@ const chain = (fields: number): unknown => {
 };
 
 describe('Search filter paths', () => {
-  test('accept the paths Studio writes through the caller own memberships', () => {
+  test('accept the paths Studio writes', () => {
     for (const filter of [
       { history_memberships: { entry: { label: { _contains: 'A' } } } },
       {
@@ -295,57 +271,18 @@ describe('Search filter paths', () => {
           { 'count(history_memberships)': { _gt: 2 } },
         ],
       },
+      { history_memberships: { moodle_user: { Mail: { _nnull: true } } } },
       { Name: { _eq: 'Ada' } },
     ]) {
-      expect(filterPathProblem(filter, searchRules)).toBeUndefined();
+      expect(filterPathProblem(filter, 10)).toBeUndefined();
     }
   });
 
-  test.each([
-    [
-      'from an entry back to every membership of it',
-      {
-        history_memberships: {
-          entry: {
-            memberships: { moodle_user: { Courses: { _nnull: true } } },
-          },
-        },
-      },
-      'moodle_history_memberships',
-    ],
-    [
-      'from a membership back to a Moodle user',
-      { history_memberships: { moodle_user: { Mail: { _nnull: true } } } },
-      'moodle_users',
-    ],
-    [
-      'through a count of an entry memberships',
-      { history_memberships: { entry: { 'count(memberships)': { _gt: 1 } } } },
-      'moodle_history_memberships',
-    ],
-    [
-      'inside an _or group',
-      {
-        _or: [
-          { Name: { _eq: 'Ada' } },
-          { history_memberships: { moodle_user: { Name: { _eq: 'Bo' } } } },
-        ],
-      },
-      'moodle_users',
-    ],
-  ])('refuse a path %s', (_label, filter, collection) => {
-    expect(filterPathProblem(filter, searchRules)).toBe(
-      `path passes ${collection} twice`,
-    );
-  });
-
   test('name at most as many fields as the REST depth limit allows', () => {
-    const rules = { maxDepth: 10, relations: chainRelations, root: 'c0' };
-
-    expect(filterPathProblem(chain(10), rules)).toBeUndefined();
-    expect(filterPathProblem(chain(11), rules)).toBe('path exceeds 10 fields');
+    expect(filterPathProblem(chain(10), 10)).toBeUndefined();
+    expect(filterPathProblem(chain(11), 10)).toBe('path exceeds 10 fields');
     expect(
-      filterPathProblem({ _and: [{ value: { _eq: 1 } }, chain(11)] }, rules),
+      filterPathProblem({ _and: [{ value: { _eq: 1 } }, chain(11)] }, 10),
     ).toBe('path exceeds 10 fields');
   });
 
@@ -698,8 +635,8 @@ describe('Search refusals', () => {
   });
 
   test('place a refused filter path after the filter', () => {
-    expect(invalidCriteria('filter', 'path passes moodle_users twice')).toBe(
-      'Invalid criteria: filter: path passes moodle_users twice',
+    expect(invalidCriteria('filter', 'path exceeds 10 fields')).toBe(
+      'Invalid criteria: filter: path exceeds 10 fields',
     );
   });
 });
@@ -723,12 +660,12 @@ describe('Search failure lines', () => {
         answered(400, [
           {
             extensions: { code: 'INVALID_PAYLOAD' },
-            message: 'Invalid criteria: filter: path passes moodle_users twice',
+            message: 'Invalid criteria: filter: path exceeds 10 fields',
           },
         ]),
       ),
     ).toBe(
-      'Search failed: HTTP 400 INVALID_PAYLOAD: Invalid criteria: filter: path passes moodle_users twice',
+      'Search failed: HTTP 400 INVALID_PAYLOAD: Invalid criteria: filter: path exceeds 10 fields',
     );
     expect(failureText('Search', answered(502))).toBe(
       'Search failed: HTTP 502',

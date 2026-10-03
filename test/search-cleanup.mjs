@@ -9,14 +9,8 @@ const deleteResource = async (target, path) => {
   assert.equal(result.status, 204, `${path} cleanup returned ${result.status}`);
 };
 
-const resourcePaths = (fixture) => [
-  ...(fixture.user ? [`/users/${fixture.user}`] : []),
-  ...(fixture.permission ? [`/permissions/${fixture.permission}`] : []),
-  ...(fixture.access ? [`/access/${fixture.access}`] : []),
-  ...(fixture.role ? [`/roles/${fixture.role}`] : []),
-  ...(fixture.policy ? [`/policies/${fixture.policy}`] : []),
-  ...(fixture.collection ? ['/collections/moodle_users'] : []),
-];
+const resourcePaths = (fixture) =>
+  fixture.collection ? ['/collections/moodle_users'] : [];
 
 export const destroySearchFixture = async (target, fixture) => {
   const failures = [];

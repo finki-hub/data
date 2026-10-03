@@ -63,9 +63,9 @@ export const readQuery = (read: SourceRead): Query => {
 };
 
 // Reads as the system (accountability null): the operation checks the
-// caller's administrator flag itself before anything else (the status
-// endpoint its administrator flag or editor policy), and every read names
-// its fields explicitly, so no private column is ever selected.
+// caller's administrator flag itself before anything else (so does the
+// status endpoint), and every read names its fields explicitly, so no
+// private column is ever selected.
 // Events are not emitted and the whole result is read at once.
 export const itemsReader = async (
   context: ApiExtensionContext,

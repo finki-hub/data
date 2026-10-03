@@ -2,13 +2,13 @@
 
 This repository sets up the private Directus project that holds the FINKI
 Hub data: courses and their curriculum, staff, rooms, students, the Moodle
-course-history snapshot and the enrollment counts derived from it. Editors
-change source records in Directus Studio with native forms; native Directus
-Flows keep the derived data current on their own; an administrator
-publishes the declared public JSON files to the R2 bucket by hand. The
-runtime is two services, Directus 12.3.1 (a local image with a UTF-8 fix)
-and PostgreSQL 18, with no other long-running service, queue or system
-cron.
+course-history snapshot and the enrollment counts derived from it. Its
+few users are all Directus administrators: they change source records in
+Directus Studio with native forms and publish the declared public JSON
+files to the R2 bucket by hand, while native Directus Flows keep the
+derived data current on their own. The runtime is two services, Directus
+12.3.1 (a local image with a UTF-8 fix) and PostgreSQL 18, with no other
+long-running service, queue or system cron.
 
 The TypeScript tooling follows the current FINKI Hub service conventions:
 npm, ESM, strict TypeScript, Zod, ESLint with `eslint-config-imperium`,
@@ -36,7 +36,7 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection editors browse, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing), the **Data operations** dashboard and the **Data editor** policy. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
@@ -82,9 +82,6 @@ A few things are code-owned and kept in step on every rerun:
 - Every managed Flow family is registered once in `src/flows/registry.ts`;
   setup installs them in one loop and reports `created` and `skipped` per
   family under `flows.families`.
-- The **Data editor** policy is kept equal to its derivation from the
-  collection roles (see [Access](#access)); a hand edit of its permissions is
-  undone by the next setup.
 - A Needs review bookmark, default view, dashboard panel or Flow template
   that the code declares and the project lacks is created, so a check or
   panel declared later appears on the next setup.
@@ -179,8 +176,6 @@ A few things are code-owned and kept in step on every rerun:
    `Branding succeeded`), then open
    <http://localhost:8055> and sign in with `DIRECTUS_ADMIN_EMAIL` and
    `DIRECTUS_ADMIN_PASSWORD` from `.env`.
-6. Attach the **Data editor** policy to the roles of the people who edit
-   the data (**Settings → Access Policies**); setup attaches it to no role.
 
 The project is empty: its academic years, curriculum generations, study
 programs, courses and the rest are rows you add in Studio (see
@@ -414,9 +409,7 @@ kept.
    of the scraper contract, in any order, and no `id` column.
 2. Upload `profiles.csv` into the **File Library** folder **Moodle snapshots
    (private)**, which `npm run setup` creates. It stays a private file in the
-   local storage location. The import refuses a CSV outside that folder, so
-   one permission filter on the folder keeps every snapshot file and backup
-   away from any role that may read files.
+   local storage location. The import refuses a CSV outside that folder.
 3. Run **Import Moodle snapshot** on the **Data operations** dashboard (or
    the Flow **Data / Import Moodle snapshot** from the sidebar of the
    hidden **Data Operations** singleton, `/admin/content/data_operations`).
@@ -579,8 +572,8 @@ them (see [One-time workbook import](#one-time-workbook-import)).
 
 Each collection has one role, declared once in
 `directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.ts`.
-The role decides which calculations an edit marks pending, whether the
-database guards the table and what the **Data editor** policy grants:
+The role decides which calculations an edit marks pending and whether the
+database guards the table:
 
 - **Editable sources** (for example `courses`, `curriculum_entries`,
   `course_curricula`, `teaching_assignments`, `staff`, `rooms`,
@@ -596,9 +589,8 @@ database guards the table and what the **Data editor** policy grants:
   derived from the key-source declarations in
   `directus/extensions/directus-extension-data-operations/src/exports/key-sources.ts`
   (see [A key or a new published file](#a-key-or-a-new-published-file)),
-  which decide both the fields the **Data editor** policy withholds, so
-  only administrators change them, and the database guard that keeps the
-  key text of a published row.
+  which also decide the database guard that keeps the key text of a
+  published row.
 - **`moodle_users`**: the active snapshot. Replaced as a whole by the
   snapshot import; an administrator may still correct a row in Studio, which
   readiness reports (`active_snapshot_edited`) and the next import
@@ -859,8 +851,7 @@ the path `history_memberships.entry.mappings` and puts the course and the
 year side by side in that path. Keep that shape when you edit the query in Studio:
 Directus ignores a `_some` block that holds two conditions, and two separate
 `_some` blocks can match the course of one mapping with the year of
-another. The same holds for every relational filter, including a role's
-permission filters.
+another. The same holds for every relational filter.
 
 A mapping whose course and year has no enrollment rule is not counted
 (readiness warns with `mapping_without_rule`); **Add enrollment rules**
@@ -1055,10 +1046,9 @@ their collection page instead: today `enrollment_count_missing`,
 Curriculum views show the generation and filter through the
 `curriculum_generations` relation, so a new generation's rows appear in
 the existing views. A view filters with plain field and relational paths
-(never `_some`/`_none`) and with `_empty`/`_nempty` for text (the REST API
-refuses an empty string as a filter value); Studio runs it as the viewer,
-so the viewer's permissions apply. Each view lists exactly the records its
-check counts.
+(never `_some`/`_none`) and with `_empty`/`_nempty` for text (Studio runs
+it through the REST API, which refuses an empty string as a filter
+value). Each view lists exactly the records its check counts.
 
 Keep a view's bookmark name when editing it. Setup recognises a view by
 its collection and name: after a rename, the next `npm run setup` creates
@@ -1082,9 +1072,8 @@ overwrites an edited one):
   ` (stale)` once its process stopped heartbeating), while a run started
   from a panel of the page is in flight (`Waiting: run in progress on this
   page`) and while the data status cannot be read (`Data status read
-  failed: <CODE>`; it reads the status again on its own). For an editor it
-  stays disabled and reads `Administrators only`. Every Run opens the
-  dialog empty, so each replacement or publication is confirmed again. A
+  failed: <CODE>`; it reads the status again on its own). Every Run opens
+  the dialog empty, so each replacement or publication is confirmed again. A
   run that succeeded shows `Succeeded` and the keys of the Flow's answer;
   a failed one shows `Failed: <CODE>` and the Flow's message, with a
   **Retry** that reopens the same Flow's dialog with the failed run's
@@ -1105,15 +1094,15 @@ overwrites an edited one):
   whose `published` flags decide the public keys, each linked to its form.
   The lists come from the declarations and the status, never from a fixed
   set. Facts read `Label: value · Label: value`. A blocking last failure
-  shows its code with its domain, revision, time and retries (the
-  failing step's message under **Message**, for administrators): run the
-  operation again, or mark the domain pending with **Recalculate**
-  (**Data / Mark pending**). A read the endpoint refuses reads `Data status
-  read refused: <CODE>` (`Readiness checks …` for the readiness section);
-  a read that failed, `… read failed: <CODE>`. The panels poll only while
-  work is in flight (a claim, a running domain or a pending calculation) or
-  a run of the page is running: a run started in another tab shows at the
-  next such poll or when the page is refreshed.
+  shows its code with its domain, revision, time and retries (the failing
+  step's message under **Message**): run the operation again, or mark the
+  domain pending with **Recalculate** (**Data / Mark pending**). A read the
+  endpoint refuses reads `Data status read refused: <CODE>` (`Readiness
+  checks …` for the readiness section); a read that failed, `… read
+  failed: <CODE>`. The panels poll only while work is in flight (a claim, a
+  running domain or a pending calculation) or a run of the page is running:
+  a run started in another tab shows at the next such poll or when the page
+  is refreshed.
 
 **Add enrollment rules** creates the missing `mapped_entries` rules of an
 academic year (every course), a course (every year) or one pair, in batches
@@ -1361,65 +1350,34 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 
 ## Access
 
-Directus has REST and GraphQL APIs, but this setup grants no anonymous
-access: no command creates a public permission, every collection is
-private, and the only public output is the declared files in the R2 bucket.
-The private endpoints of the extensions check the caller:
+The project has one user type: everyone who uses it is a Directus
+administrator. Directus has REST and GraphQL APIs, but this setup grants no
+anonymous access: no command creates a public permission, every collection
+is private, and the only public output is the declared files in the R2
+bucket. Every private endpoint refuses an anonymous caller. The data
+endpoints, the managed Flows and the snapshot and export operations also
+check the caller's administrator flag, so an account that is no
+administrator runs none of them; Search checks no administrator flag and
+reads with the signed-in user's own Directus permissions:
 
 - `/finki-hub-data-operations/*` (status, snapshot report, the setup
   migrations): administrators only.
 - `GET /finki-hub-data-status` and `/finki-hub-data-status/readiness`: an
-  anonymous caller gets 401, a caller who is neither an administrator nor a
-  holder of the **Data editor** policy 403. Editors read a bounded view
-  (states, codes, counts, names and links; no failure text, fingerprint,
-  claim owner or record).
+  anonymous caller gets 401, a caller who is no administrator 403. The
+  answer is a bounded view (states, codes, counts, names, links and the
+  last failure's message; no fingerprint, claim owner or record).
 - The Search endpoints (`/finki-hub-course-history/options`, `/search`)
-  run with the caller's own permissions.
+  refuse an anonymous caller and run as the signed-in user.
 - Every managed manual Flow is on the `data_operations` collection (which
-  no editor reads, so the trigger endpoint refuses them) and starts with an
-  `Administrator?` condition: import, promotion, publication,
-  recalculation and rule seeding are administrator-only, whoever can see a
-  button.
+  only administrators read, so the trigger endpoint refuses everyone else)
+  and starts with an `Administrator?` condition: import, promotion,
+  publication, recalculation and rule seeding are administrator-only,
+  whoever can see a button. The snapshot and export operations check the
+  flag again themselves.
 
-The **Data editor** policy that `npm run setup` installs is derived from
-the collection roles (`src/editor-policy.ts`) and kept equal to that
-derivation: full rights on every editable source; read and update of the
-key-source collections except the fields that decide public keys
-(`published`, the key text, the position, the parent and whatever the key
-source filters on); read only on `moodle_users` and the derived counts and
-index; nothing on staging, candidate and status rows; plus read of
-dashboards, panels and manual Flows. It never holds what
-`src/editor-policy.ts` forbids: create, update or delete on `moodle_users`
-(the native CSV import needs them; snapshots go through **Data / Import
-Moodle snapshot**), any write to the staging, index, count and coordination
-collections, and
-any write to Flows, operations, permissions, policies or their assignments
-(the managed Flows read and write with `$full`, the schedule without
-accountability, so editing one would lift every other rule). Setup attaches
-it to no role: attach it to your editing roles under **Settings → Access
-Policies**. Which roles get it, and whether editors may publish years,
-generations or programs, is an owner decision the setup does not make.
-
-Administrators cannot be restricted that way; readiness flags active Moodle
-users changed outside the snapshot workflow (`active_snapshot_edited`) and
-a failed import (`snapshot_import_failed`).
-
-**Search and row-restricted roles.** Directus 12.3.1 checks the signed-in
-user's field permissions on every segment of a filter path, but joins the
-related rows without that user's row permissions (only `_some`/`_none` apply
-them), and an implicit `$FOLLOW(collection, field)` segment skips even the
-field check; this holds for the REST API too. So a role that may read only
-some Moodle users may read, of `moodle_history_memberships`, only `id` and
-`entry` of those users' rows (for example with the condition
-`moodle_user.Name` starts with the same prefix), never the `moodle_user`
-field, and must not be granted the `memberships` alias of
-`moodle_course_entries`. With a global memberships read, that field or that
-alias, a REST filter through them answers questions about other users.
-Search needs none of them, and the raw `Courses` text shows a person's
-lines. The person's **History Memberships** list needs the memberships'
-`moodle_user` and `sort` fields and reads of the mappings, courses and years
-it shows, so it is for roles that read every Moodle user. A read of
-`moodle_course_entries` itself lists every line, without its holders.
+An administrator may edit any row; readiness flags active Moodle users
+changed outside the snapshot workflow (`active_snapshot_edited`) and a
+failed import (`snapshot_import_failed`).
 
 ## Course-history search
 
@@ -1458,34 +1416,28 @@ data management. Setup creates this shared bookmark once from
 - The page header's native search and filters apply too (the layout reads
   `Filtered by page header: search, filter`), including filters on
   related fields such as **History Memberships → Entry → Label** or the course
-  of an entry's mappings. They run as the signed-in user: a field that user may
-  not read answers 403. A filter path passes each collection once, from a
-  person through their own memberships to the entries, their mappings and on,
-  and names at most `MAX_RELATIONAL_DEPTH` fields (10 by default, as for the
-  REST API). A path back to a membership or a person (such as **Entry →
-  Memberships** or **History Memberships → Moodle User**), `_some`/`_none`
-  quantifiers and implicit `$FOLLOW(...)` relations are refused with
-  `400 INVALID_PAYLOAD` and the reason, which the layout shows as `Search
-  failed: HTTP 400 INVALID_PAYLOAD: Invalid criteria: filter: <reason>`
-  (for example `path passes moodle_users twice` or `unsupported key
+  of an entry's mappings. They run as the signed-in user. A filter path names
+  at most `MAX_RELATIONAL_DEPTH` fields (10 by default, as for the REST API).
+  A longer path, `_some`/`_none` quantifiers and implicit `$FOLLOW(...)`
+  relations are refused with `400 INVALID_PAYLOAD` and the reason, which the
+  layout shows as `Search failed: HTTP 400 INVALID_PAYLOAD: Invalid criteria:
+  filter: <reason>` (for example `path exceeds 10 fields` or `unsupported key
   _some`). A failed read of the choices reads `Course list failed: …`, a
   caller the endpoint refuses `… HTTP 403 FORBIDDEN`. Course
   selections are temporary and reset when the layout is reopened; they are not
   saved bookmarks.
 
 Search works on the raw histories. Choices come from the current imported
-Moodle histories of the users the signed-in user may read, never from the
-history-entry table, so Search never offers or matches another user's
-lines. Matching is case-sensitive against complete newline-separated entries
-of the raw `Courses` text, including year/semester, not substrings or regex;
-it does not go through the history index or the mappings, so a line that is
+Moodle histories, never from the history-entry table. Matching is
+case-sensitive against complete newline-separated entries of the raw
+`Courses` text, including year/semester, not substrings or regex; it does
+not go through the history index or the mappings, so a line that is
 unmapped, ignored or not indexed yet is found like any other. To reach the
 mappings of a person's lines, open the person: the **History Memberships**
 list shows each line with its review state and the course and academic year
 of its mappings. Up to 20 selections are supported per group. Use **Refresh
 data** after importing a new snapshot to reload choices and results. Both
-private endpoints use the caller's Directus permissions (see
-[Access](#access) for row-restricted roles); no collection data is
+private endpoints read as the signed-in user; no collection data is
 duplicated or published.
 
 The layout and its companion endpoint are one bundle in
@@ -1692,10 +1644,9 @@ tests, among others).
    created. The rules are counted at the next tick (zero where no entry is
    mapped yet).
 3. Map the year's Moodle history entries (**Needs mapping**).
-4. Set `published` (administrators). `courses.json` gains exactly one key
-   per course, the year's label, among the other year keys newest first;
-   readiness blocks until every course has a count for it and its `sort` is
-   unique.
+4. Set `published`. `courses.json` gains exactly one key per course, the
+   year's label, among the other year keys newest first; readiness blocks
+   until every course has a count for it and its `sort` is unique.
 
 No event Flow creates rules on its own; readiness warns about mappings
 without a rule (`mapping_without_rule`) and blocks a published pair without
@@ -1712,11 +1663,10 @@ one (`enrollment_rule_missing`).
    generation where they apply. Browse them with **Curriculum by
    generation** narrowed by the Generation filter; the Needs review views
    show the new rows too. No bookmark and no setup rerun is needed.
-3. Publish the generation (administrators): `courses.json` gains its
-   `<code>-available` key and its block, laid out like 2023 (states before
-   credits), newest first by `sort`. Publish each program: it adds its
-   `<code>-state-<program>` key in program `sort` order. Unpublishing
-   removes the keys again.
+3. Publish the generation: `courses.json` gains its `<code>-available` key
+   and its block, laid out like 2023 (states before credits), newest first
+   by `sort`. Publish each program: it adds its `<code>-state-<program>` key
+   in program `sort` order. Unpublishing removes the keys again.
 
 ### A key or a new published file
 
@@ -1810,7 +1760,7 @@ breaks as `Not runnable: <rule>`:
 | `Not runnable: trigger not manual` | **Trigger**: Manual. |
 | `Not runnable: name without a "Data / " or "Publish / " prefix` | A name that starts with `Data / ` or `Publish / `. |
 | `Not runnable: Flow inactive` | **Status**: Active. |
-| `Not runnable: no collection`, `Not runnable: collections must be exactly data_operations` | **Collections**: `data_operations` only. No editor reads it, so the trigger endpoint (which checks nothing but read access to the Flow's collection) refuses every non-administrator before the Flow starts. |
+| `Not runnable: no collection`, `Not runnable: collections must be exactly data_operations` | **Collections**: `data_operations` only. Only administrators read it, so the trigger endpoint (which checks nothing but read access to the Flow's collection) refuses every non-administrator before the Flow starts. |
 | `Not runnable: requires item selection` | **Collection Page (Requires Selection)** off. |
 | `Not runnable: requires Asynchronous off and Error on Reject on` | **Asynchronous** off and **Error on Reject** on. An asynchronous Flow answers before it runs and a Flow without Error on Reject answers success after a failed step, so the panel could not tell a failure from a finished run. |
 
@@ -1819,10 +1769,8 @@ Two more rules are the Flow's own:
 - **First operation**: a Condition named `Administrator?` with the rule
   `{"$accountability":{"admin":{"_eq":true}}}`, whose reject path ends in
   a Throw Error with status `403` and code `FORBIDDEN`, as in every
-  installed managed Flow. The Flow itself is the boundary: a user whom
-  another policy lets read `data_operations` passes the trigger endpoint,
-  and the panel's picker and its "Administrators only" state are
-  conveniences, never the check.
+  installed managed Flow. The Flow itself is the boundary; the panel's
+  picker is a convenience, never the check.
 - The dialog fields are yours, but the API ignores them: validate every
   input inside the Flow.
 
@@ -1840,9 +1788,8 @@ its fields in a `src/data-model/*-collections.ts` module, its relations in
 source, and which calculations its edits mark pending, is declared once, as
 its entry in `coordination/collection-roles.ts`; a test fails for a model
 collection without exactly one role. From that entry follow its
-statement-level invalidation trigger, the editor grants of the **Data
-editor** policy and, for a derived or candidate collection, its write
-guard. Then:
+statement-level invalidation trigger and, for a derived or candidate
+collection, its write guard. Then:
 
 1. `npm run generate:invalidation` rewrites the reviewed snapshot
    `source-invalidation.sql` beside `source-invalidation-sql.ts` (a golden
@@ -2002,7 +1949,7 @@ bucket name and any value naming `amazonaws.com` or
 | Command | Runs | Needs besides the four target variables |
 | --- | --- | --- |
 | `npm run test:csv` | `test/directus-csv-import.integration.mjs`: creates a uniquely named hidden collection, imports generated Cyrillic, CJK and emoji text across CSV read boundaries through the native importer, checks every value and deletes the collection. It reads and changes nothing else. | nothing |
-| `npm run test:search` | `test/search.integration.mjs` and `test/search-relational.integration.mjs`: Search and its permissions over generated users and the relational aliases. | nothing |
+| `npm run test:search` | `test/search.integration.mjs` and `test/search-relational.integration.mjs`: Search over generated users and the relational filters. | nothing |
 | `npm run test:relational` | Every `test/relational/*.integration.mjs` scenario in turn; `npm run test:relational -- --scenario <name>` runs one (an unknown name lists the known ones and exits 2). | optionally the containers, bound to the target before the first scenario (the database container only together with the Directus one): without them the restart and database-statistics subtests are reported as skipped |
 | `npm run test:relational -- --scenario stress` | The opt-in full-size run (`test/relational/stress.opt-in.mjs`, never part of the default run): the [Sizing](#sizing) figures, about 13 minutes. | both containers and the S3 variables |
 | `npm run test:operations` | The `operations` scenario, then `test/operations.browser.mjs`, which drives the dashboard in a real browser through the locally installed `agent-browser` CLI (it fails, never skips, without it). `OPERATIONS_BROWSER_SCREENSHOTS` names a directory for its screenshots (a temporary one otherwise). | the S3 variables |
@@ -2042,9 +1989,8 @@ suites refuse it:
    folder (the snapshot CSVs and their backups). The folder stays.
 2. Tear the model down with `destroyDataModel` of
    `test/relational/data-model-helpers.mjs`, which removes the **Data
-   operations** dashboard, the **Data editor** policy, the declared
-   presets, the model collections and the sidebar folders. With the four
-   target variables set:
+   operations** dashboard, the declared presets, the model collections and
+   the sidebar folders. With the four target variables set:
 
    ```sh
    node --import tsx --input-type=module -e "

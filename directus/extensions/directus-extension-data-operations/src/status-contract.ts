@@ -13,10 +13,6 @@ const maybeText = text.nullable();
 const count = z.number().int().nonnegative();
 const revision = z.number().int().nullable();
 
-const audiences = ['administrator', 'editor'] as const;
-
-export type Audience = (typeof audiences)[number];
-
 // A domain as the coordinator reports it; `current` is shown as idle.
 export const domainStates = [
   'current',
@@ -69,7 +65,6 @@ const keySourceView = z.object({
 });
 
 export const statusViewSchema = z.object({
-  audience: z.enum(audiences),
   // The running claim: which domain, since when, whether it went stale.
   claim: z
     .object({
@@ -91,7 +86,6 @@ export const statusViewSchema = z.object({
   }),
   importState: text,
   keySources: z.array(keySourceView),
-  // The message is kept for administrators only.
   lastError: z
     .object({
       at: maybeText,
@@ -150,7 +144,6 @@ const checkView = z.object({
 });
 
 export const readinessViewSchema = z.object({
-  audience: z.enum(audiences),
   blockedFiles: z.array(text),
   checks: z.array(checkView),
   ready: z.boolean(),

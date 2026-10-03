@@ -56,8 +56,8 @@ export const publicationId = familyIds(flowFamilyCodes.publication);
 export const publishId = familyIds(flowFamilyCodes.publish);
 
 // The enrollment-rules family (Data / Add enrollment rules and its batch
-// child); the Data operations dashboard and the editor policy setup
-// installs carry the same code in their ids.
+// child); the Data operations dashboard setup installs carries the same
+// code in its ids.
 export const rulesId = familyIds(flowFamilyCodes.rules);
 
 // The storage writer every published file goes through: the existing

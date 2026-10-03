@@ -24,8 +24,8 @@ const data = useDataStatus(() => sections.value, toRef(props, 'now'));
     </div>
     <v-notice v-if="data.statusError" type="danger">{{ data.statusError }}</v-notice>
     <StatusOperations v-if="data.status && data.shows('operations')" :status="data.status" />
-    <StatusReadiness v-if="data.shows('readiness')" :readiness="data.readiness" :error="data.readinessError" :linkable="data.linkable" />
-    <StatusKeys v-if="data.status && data.shows('keys')" :sources="data.status.keySources" :linkable="data.linkable" />
+    <StatusReadiness v-if="data.shows('readiness')" :readiness="data.readiness" :error="data.readinessError" />
+    <StatusKeys v-if="data.status && data.shows('keys')" :sources="data.status.keySources" />
   </div>
 </template>
 

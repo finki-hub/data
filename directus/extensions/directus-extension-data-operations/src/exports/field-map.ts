@@ -203,7 +203,7 @@ const unkeyable = '__proto__';
 // The keys of one preparation in output order, each once: a key-source
 // row whose key text makes a key equal to another key would make the file
 // ambiguous, and one that makes `__proto__` would lose it, so either is
-// refused for an editor to rename.
+// refused until the row's key text changes.
 export const resolveFields = (
   definition: ExportDefinition,
   keyRows: KeyRows = {},

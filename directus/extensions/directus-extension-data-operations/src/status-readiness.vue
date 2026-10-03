@@ -13,7 +13,6 @@ import { countText } from './text.js';
 // records behind it; checks with a count first.
 const props = defineProps<{
   error: null | string;
-  linkable: (collection: string) => boolean;
   readiness: null | ReadinessView;
 }>();
 
@@ -36,14 +35,14 @@ const clear = computed(() => checks.value.filter(({ count }) => count === 0));
       <p v-if="open.length === 0" class="note">No open checks</p>
       <table v-else class="rows">
         <tbody>
-          <CheckRow v-for="check in open" :key="check.code" :check="check" :linkable="linkable" />
+          <CheckRow v-for="check in open" :key="check.code" :check="check" />
         </tbody>
       </table>
       <details v-if="clear.length > 0" class="clear">
         <summary>Zero count: {{ countText(clear.length, 'check', 'checks') }}</summary>
         <table class="rows">
           <tbody>
-            <CheckRow v-for="check in clear" :key="check.code" :check="check" :linkable="linkable" />
+            <CheckRow v-for="check in clear" :key="check.code" :check="check" />
           </tbody>
         </table>
       </details>

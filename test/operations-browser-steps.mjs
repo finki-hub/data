@@ -40,8 +40,9 @@ import {
 } from './relational/snapshot-import-helpers.mjs';
 
 // The longer steps of test/operations.browser.mjs: the synthetic rows, the
-// publication, a panel added for a new manual Flow, the editor's visit,
-// the privacy check of the browser logs and the cleanup.
+// publication, a panel added for a new manual Flow, a review link followed
+// from the Readiness panel, the privacy check of the browser logs and the
+// cleanup.
 
 const yearLabel = '2095/2096';
 const syntheticFlowId = '9e4d826c-5b1a-4c0e-8f2d-000000001601';
@@ -246,8 +247,7 @@ export const addsPanel = async ({
 };
 
 // While the status read fails, a Run panel waits and names the failed
-// read (never "Administrators only" to an administrator), and reads the
-// status again on its own once it answers.
+// read, and reads the status again on its own once it answers.
 export const waitsForStatus = async ({
   admin,
   openDashboard,
@@ -265,15 +265,9 @@ export const waitsForStatus = async ({
       const shown = await textOf(admin, publish);
       return shown.includes('Data status read failed: NO_ANSWER');
     });
-    // The Flow's own description names its rule ("Administrators only.");
-    // no state line of the panel may say it to an administrator.
-    const said = await textOf(admin, publish);
+    // The Flow's own description names its rule ("Administrators only.").
     const described = await textOf(admin, `${publish} .description`);
     assert.ok(described.includes('Administrators only.'), described);
-    assert.ok(
-      !said.replace(described, '').includes('Administrators only'),
-      said,
-    );
     const enabled = await admin.attempt(
       'is',
       'enabled',
@@ -327,76 +321,51 @@ export const reopensEmpty = async ({
   });
 };
 
-// The editor sees the status, runs nothing and follows a review link.
-// The state line is read itself: the Flow's description beside it names
-// the same rule.
-export const editorFollowsReview = async ({
-  editor,
-  panel,
-  runButton,
-  shot,
-}) => {
-  const state = `${panel(publishAssetsFlowId)} p.state`;
-  await waitUntil('the Administrators only state', async () => {
-    const shown = await textOf(editor, state);
-    return shown.trim() === 'Administrators only';
-  });
-  const enabled = await editor.attempt(
-    'is',
-    'enabled',
-    runButton(publishAssetsFlowId),
-  );
-  assert.equal(enabled.stdout.trim(), 'false');
-  await editor.command('wait', '[data-check="entry_needs_mapping"] a');
-  await shot(editor, '12-editor-dashboard.png');
-  await editor.click('[data-check="entry_needs_mapping"] a');
-  await editor.command(
+// The review link of a positive check opens its Needs review bookmark.
+export const followsReview = async ({ admin, shot }) => {
+  await admin.command('wait', '[data-check="entry_needs_mapping"] a');
+  await shot(admin, '12-readiness-review-link.png');
+  await admin.click('[data-check="entry_needs_mapping"] a');
+  await admin.command(
     'wait',
     '--url',
     '**/admin/content/moodle_course_entries?bookmark=*',
   );
-  await editor.command('wait', '--load', 'networkidle');
-  const page = await textOf(editor, 'body');
+  await admin.command('wait', '--load', 'networkidle');
+  const page = await textOf(admin, 'body');
   assert.ok(!page.includes('Page Not Found'), 'the review link opens a page');
   assert.ok(page.includes('Needs mapping'), 'the review bookmark is open');
-  await shot(editor, '13-editor-needs-mapping.png');
+  await shot(admin, '13-needs-mapping.png');
 };
 
 // No Moodle user's name or address, and no password, in the page text of
-// the dashboard, in either browser's console and page errors, or in any
+// the dashboard, in the browser's console and page errors, or in any
 // request or answer body the browser exchanged since its login (the HAR
 // recorded from then on, which must hold the status answers it showed).
-export const checksPrivacy = async ({ admin, editor, state, t }) => {
-  const secrets = [
-    ...privateMarks,
-    state.users.admin.password,
-    state.users.editor.password,
-  ];
-  for (const session of [admin, editor]) {
-    const entries = await stopRecording(session);
-    const network = entries.map(entryText);
-    assert.ok(
-      network.some(
-        (text) =>
-          text.includes('/finki-hub-data-status') &&
-          text.includes('"audience"'),
-      ),
-      `${session.name}: the recording holds the status answers`,
-    );
-    const logs = [
-      await session.command('console'),
-      await session.command('errors'),
-      await textOf(session, 'body'),
-    ].join('\n');
-    const found = secrets.filter(
-      (secret) =>
-        logs.includes(secret) || network.some((text) => text.includes(secret)),
-    );
-    assert.deepEqual(found.length, 0, `${session.name} shows private text`);
-    t.diagnostic(
-      `${session.name}: ${entries.length} requests with their bodies and ${logs.split('\n').length} lines of page text and logs, no private text`,
-    );
-  }
+export const checksPrivacy = async ({ admin, state, t }) => {
+  const secrets = [...privateMarks, state.users.admin.password];
+  const entries = await stopRecording(admin);
+  const network = entries.map(entryText);
+  assert.ok(
+    network.some(
+      (text) =>
+        text.includes('/finki-hub-data-status') && text.includes('"revisions"'),
+    ),
+    `${admin.name}: the recording holds the status answers`,
+  );
+  const logs = [
+    await admin.command('console'),
+    await admin.command('errors'),
+    await textOf(admin, 'body'),
+  ].join('\n');
+  const found = secrets.filter(
+    (secret) =>
+      logs.includes(secret) || network.some((text) => text.includes(secret)),
+  );
+  assert.deepEqual(found.length, 0, `${admin.name} shows private text`);
+  t.diagnostic(
+    `${admin.name}: ${entries.length} requests with their bodies and ${logs.split('\n').length} lines of page text and logs, no private text`,
+  );
 };
 
 export const cleansUp = async ({ s3, state, target }) => {

@@ -29,7 +29,7 @@ import {
   addsPanel,
   checksPrivacy,
   cleansUp,
-  editorFollowsReview,
+  followsReview,
   publishStep,
   reopensEmpty,
   seedRows,
@@ -72,9 +72,9 @@ import { s3TargetFrom } from './s3-target.js';
 // the Flow's own dialog) and finds the next Run's dialog empty, publishes,
 // edits a relation in Studio's item form and publishes it, meets a failed
 // publication and retries it, sees a partial one file by file, adds a
-// panel for a new manual Flow without a rebuild, and imports a malformed
-// snapshot that leaves the active users and every object intact; an
-// editor reads the status, runs nothing and follows a review link.
+// panel for a new manual Flow without a rebuild, imports a malformed
+// snapshot that leaves the active users and every object intact, and
+// follows a review link from the Readiness panel.
 // Everything is synthetic; the run removes what it created. Without
 // agent-browser it fails, never skips.
 
@@ -345,26 +345,21 @@ const showsPartial = async ({ admin, s3, shot, state, target }) => {
   await shot(admin, '08-publish-partial.png');
 };
 
-const servesEditor = async ({ cli, editor, profiles, shot, state, target }) => {
-  await login({
-    ...state.users.editor,
-    base: target.base,
-    cli,
-    profile: profiles[1],
-    session: editor,
-  });
-  await startRecording(editor);
-  await openDashboard(editor, target);
-  await editorFollowsReview({ editor, panel, runButton, shot });
+// The administrator follows a review link, then comes back to the
+// dashboard, whose page text the privacy check reads.
+const followsReviewLink = async ({ admin, shot, target }) => {
+  await openDashboard(admin, target);
+  await followsReview({ admin, shot });
+  await openDashboard(admin, target);
 };
 
 // Closes the browser and removes the run's rows; answers the resume of
 // the schedule, which stays paused for the model teardown.
 const finishes = async (context) => {
-  const { admin, cli, editor, profiles, s3, state, t, target } = context;
+  const { admin, cli, profiles, s3, state, t, target } = context;
   try {
     try {
-      const closed = await closeBrowser(cli, [admin, editor], profiles);
+      const closed = await closeBrowser(cli, [admin], profiles);
       t.diagnostic(closed.join('; '));
     } finally {
       await cleansUp({ s3, state, target });
@@ -407,8 +402,8 @@ const steps = [
     keepsStateOnFailedImport,
   ],
   [
-    'lets an editor read the status and follow a review link, and run nothing',
-    servesEditor,
+    'follows a review link from the Readiness panel to its records',
+    followsReviewLink,
   ],
   [
     'keeps private payloads out of the page status and the browser logs',
@@ -431,18 +426,16 @@ test('operates the data from the Data operations dashboard in a real browser', a
   const shots = await screenshotsDir();
   t.diagnostic(`agent-browser ${cli.version}; screenshots in ${shots}`);
   const admin = browserSession(cli, `operations-admin-${process.pid}`);
-  const editor = browserSession(cli, `operations-editor-${process.pid}`);
   const context = {
     admin,
     cli,
     confirmButton,
     directus: adminRequest(target),
-    editor,
     openDashboard,
     openRunDialog,
     panel,
     pickItem,
-    profiles: [`${admin.name}-auth`, `${editor.name}-auth`],
+    profiles: [`${admin.name}-auth`],
     resumes: [],
     runButton,
     runFromPanel,

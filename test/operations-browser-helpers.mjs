@@ -7,7 +7,6 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { z } from 'zod';
 
-import { editorPolicy } from '../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { get, post, remove } from './relational/history-index-helpers.mjs';
 
 // The browser side of test/operations.browser.mjs: the locally installed
@@ -341,37 +340,18 @@ const administratorRole = async (target) => {
   return rows[0].role;
 };
 
-// A synthetic administrator and a synthetic editor (a role holding the
-// editor policy), with passwords, removed by `remove`.
+// A synthetic administrator with a password, removed by `remove`.
 export const browserUsers = async (target) => {
-  const created = { roles: [], users: [] };
-  const user = async (role) => {
-    const password = syntheticPassword();
-    const email = `${restrictedPrefix}${randomUUID()}@example.com`;
-    const answer = await post(target, '/users', {
-      email,
-      password,
-      role,
-      status: 'active',
-    });
-    created.users.push(answer.data.id);
-    return { email, password };
-  };
-  const editorRole = await post(target, '/roles', {
-    icon: 'edit_note',
-    name: `Relational restriction browser editor ${randomUUID()}`,
-  });
-  created.roles.push(editorRole.data.id);
-  await post(target, '/access', {
-    policy: editorPolicy.id,
-    role: editorRole.data.id,
+  const password = syntheticPassword();
+  const email = `${restrictedPrefix}${randomUUID()}@example.com`;
+  const answer = await post(target, '/users', {
+    email,
+    password,
+    role: await administratorRole(target),
+    status: 'active',
   });
   return {
-    admin: await user(await administratorRole(target)),
-    editor: await user(editorRole.data.id),
-    remove: async () => {
-      for (const id of created.users) await remove(target, `/users/${id}`);
-      for (const id of created.roles) await remove(target, `/roles/${id}`);
-    },
+    admin: { email, password },
+    remove: () => remove(target, `/users/${answer.data.id}`),
   };
 };

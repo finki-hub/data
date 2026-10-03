@@ -53,12 +53,11 @@ const narrowed = (
   filter: { _and: [query.filter, filter] },
 });
 
-// One page of matching users through the caller's own ItemsService, so
-// the caller's row and field permissions apply to every read. PostgreSQL
-// sorts NULL first in a descending order, and ItemsService has no NULLS
-// LAST, so a count order reads users whose Courses Count is stored first
-// (in the chosen direction) and users without one after them in both
-// directions, each segment tied by name and id.
+// One page of matching users through the caller's own ItemsService.
+// PostgreSQL sorts NULL first in a descending order, and ItemsService has
+// no NULLS LAST, so a count order reads users whose Courses Count is
+// stored first (in the chosen direction) and users without one after them
+// in both directions, each segment tied by name and id.
 export const readPage = async (
   items: ItemsReader,
   request: PageRequest,

@@ -642,7 +642,6 @@ describe('a registry that declares one more collection', () => {
     expect(
       withExtra({
         collection: 'synthetic_extra_status',
-        description: 'a synthetic status table',
         role: 'status',
       }),
     ).toHaveLength(statements.length);

@@ -40,18 +40,6 @@ export const moodleUsers = [
   { Courses: 'Under-score', 'Courses Count': 1, Name: 'Boundary Hyphen' },
   { Courses: 'UnderXscore', 'Courses Count': 1, Name: 'Boundary Wildcard' },
   { Courses: null, 'Courses Count': 0, Name: 'Boundary Null' },
-  {
-    Courses: 'Visible Entry',
-    'Courses Count': 1,
-    Mail: 'visible@example',
-    Name: 'Visible Searcher',
-  },
-  {
-    Courses: 'Hidden Entry',
-    'Courses Count': 1,
-    Mail: 'hidden@example',
-    Name: 'Hidden Searcher',
-  },
   ...Array.from({ length: 52 }, (_, index) => ({
     Courses: 'Page Entry',
     'Courses Count': index % 3,

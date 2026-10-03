@@ -27,7 +27,7 @@ const modeDoes = ({ description, mode }: (typeof ruleModes)[number]): string =>
 
 export const modeNote = `${ruleModes.map(modeDoes).join('; ')}.`;
 
-export const patternNote = `Literal regular expression, as the workbook import or an editor recorded it; only used by ${ruleModes
+export const patternNote = `Literal regular expression, as the workbook import or a hand edit recorded it; only used by ${ruleModes
   .filter(({ usesPattern }) => usesPattern)
   .map(({ mode }) => mode)
   .join(', ')}.`;

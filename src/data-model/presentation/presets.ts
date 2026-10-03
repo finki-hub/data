@@ -12,9 +12,9 @@ import {
 } from './preset-schema.js';
 
 // The one shared curriculum bookmark: every entry, generation first,
-// sorted by generation and catalog order. Editors narrow it to one
-// generation with Studio's native filter on `generation`, so a new
-// generation row needs no bookmark and no setup rerun.
+// sorted by generation and catalog order. Studio's native filter on
+// `generation` narrows it to one generation, so a new generation row
+// needs no bookmark and no setup rerun.
 export const curriculumBookmark: TabularPreset = tabularPresetSchema.parse({
   bookmark: 'Curriculum by generation',
   collection: 'curriculum_entries',
@@ -84,7 +84,7 @@ export const reviewPresets = (
 export const searchBookmark: PresetDefinition =
   presetSchema.parse(courseSearch);
 
-// A default table view for every collection editors browse.
+// A default table view for every collection Studio lists.
 const defaultViews: readonly TabularPreset[] = [
   // Each generation's entry, credits and availability are on the
   // curriculum links.

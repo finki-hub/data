@@ -1,8 +1,9 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 
 import type { OperationsState } from '../coordination/state.js';
 import type { FileFacts, SnapshotState } from './port.js';
 
+import { isAdministrator } from '../administrator.js';
 import { adminOnlyText, invalidOptionsText } from '../text.js';
 import {
   csvTypes,
@@ -12,13 +13,11 @@ import {
 } from './contract.js';
 import { claimBusy, type SnapshotError, snapshotError } from './errors.js';
 
-const adminAccountability = z.object({ admin: z.literal(true) });
-
 // Both operations serve administrators only, whatever the Flow around them
 // checks: an administrator can build a Flow of their own, nobody else can
 // run one that reaches these operations with another identity.
 export const requireAdmin = (accountability: unknown): void => {
-  if (!adminAccountability.safeParse(accountability).success) {
+  if (!isAdministrator(accountability)) {
     throw snapshotError(
       'FORBIDDEN',
       adminOnlyText('import or promote a Moodle snapshot'),

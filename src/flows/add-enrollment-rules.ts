@@ -1,4 +1,3 @@
-import { adminOnlyText } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import {
   pairsScript,
   ruleSeedingOptions,
@@ -13,7 +12,6 @@ import {
   scopeRead,
 } from './add-enrollment-rules-steps.js';
 import {
-  condition,
   familyStep,
   flowFamilyCodes,
   type FlowTemplate,
@@ -21,6 +19,7 @@ import {
 } from './flow-template.js';
 import { mappedRuleMode } from './shared.js';
 import { flowDescription } from './text-fragments.js';
+import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.rules;
 const step = familyStep(family);
@@ -49,23 +48,7 @@ export const ruleSeedingFlow: FlowTemplate = {
   id: ruleSeedingFlowId,
   name: 'Data / Add enrollment rules',
   operations: [
-    condition({
-      edges: { reject: rulesId('21'), resolve: rulesId('12') },
-      family,
-      filter: { $accountability: { admin: { _eq: true } } },
-      key: 'admin_only',
-      name: 'Administrator?',
-      position: [19, 1],
-      suffix: '11',
-    }),
-    refusal({
-      code: 'FORBIDDEN',
-      column: 19,
-      key: 'raise_forbidden',
-      message: adminOnlyText('add enrollment rules'),
-      status: 403,
-      suffix: '21',
-    }),
+    ...adminOnly(['11', '21', '12'], 'add enrollment rules', { code: family }),
     step({
       edges: { reject: rulesId('22'), resolve: rulesId('13') },
       key: 'scope',

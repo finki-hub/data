@@ -46,9 +46,6 @@ const lastError = {
   revision: 42,
 };
 
-// No policy holder: the access check reads no policy row.
-const never = () => Promise.resolve(false);
-
 // A trailing period, a Flow instruction or an internal task reference.
 const adviceOrPeriod = /\.$|Data \/ (?:Add|Mark|Process)|follow-up/u;
 
@@ -161,7 +158,6 @@ describe('the status fact lines', () => {
     ).toBe('Domain: unknown · Revision: -- · At: 2026-09-24 16:20:01 UTC');
 
     const readiness = {
-      audience: 'administrator',
       blockedFiles: [],
       checks: [],
       ready: true,
@@ -191,17 +187,14 @@ describe('the status fact lines', () => {
 });
 
 describe('the status endpoint and the migrations endpoint', () => {
-  test('refuse with the bare state or the rule, never a remedy', async () => {
+  test('refuse with the bare state or the rule, never a remedy', () => {
     const user = { admin: false, role: 'r1', roles: ['r1'], user: 'u1' };
 
-    await expect(decideAccess({}, never)).resolves.toMatchObject({
+    expect(decideAccess({})).toMatchObject({
       message: 'Authentication required',
     });
-    await expect(
-      decideAccess({ accountability: user }, never),
-    ).resolves.toMatchObject({
-      message:
-        'Only administrators and "Data editor" policy holders may read the data status',
+    expect(decideAccess({ accountability: user })).toMatchObject({
+      message: 'Only administrators may read the data status',
     });
     expect(unknownMigrationText('foo')).toBe(
       'Unknown migration: foo; available: schema-constraints, source-invalidation',

@@ -123,8 +123,7 @@ export const heartbeatEveryMs = 10_000;
 
 // The private File Library folder of the workflow, which npm run setup
 // creates with this id (src/flows/snapshot-folder.ts): the import reads a
-// CSV only from it and every backup is written into it, so one permission
-// filter on it keeps any files-reading role away from the snapshot files.
+// CSV only from it and every backup is written into it.
 export const snapshotFolderId = '6a1d9f0e-2b3c-4d5e-8f70-0000000010f0';
 export const snapshotFolderName = 'Moodle snapshots (private)';
 

@@ -144,7 +144,7 @@ test('denies anonymous options and malformed searches', async () => {
 
 test('matches exact LF and CRLF history entries through native filters', async () => {
   const target = targetFrom(process.env);
-  await withSearchFixture(target, false, async () => {
+  await withSearchFixture(target, async () => {
     const boundary = await search(target, target.token, {
       exclude: ['Exclude LF'],
       include: ['Exact LF'],
@@ -238,7 +238,7 @@ const blanks = [
 
 test('ranks users without a stored course count after every counted user in both directions', async () => {
   const target = targetFrom(process.env);
-  await withSearchFixture(target, false, async () => {
+  await withSearchFixture(target, async () => {
     for (const [sort, direction] of [
       ['-Courses Count', -1],
       ['Courses Count', 1],
@@ -260,9 +260,9 @@ test('ranks users without a stored course count after every counted user in both
   });
 });
 
-test('paginates, sorts by history size, and applies restricted row and field access', async () => {
+test('paginates and sorts by history size', async () => {
   const target = targetFrom(process.env);
-  await withSearchFixture(target, true, async (fixture) => {
+  await withSearchFixture(target, async () => {
     const pageEntry = { exclude: [], include: ['Page Entry'] };
     const firstPage = await search(target, target.token, {
       ...pageEntry,
@@ -298,58 +298,5 @@ test('paginates, sorts by history size, and applies restricted row and field acc
       sort: 'Courses Count',
     });
     assert.equal(fewestFirst.data[0].Name, 'Page 001');
-
-    const scopedOptions = await response(
-      await options(target, fixture.restrictedToken),
-      200,
-    );
-    assert.deepEqual(scopedOptions.data, ['Visible Entry']);
-    const scopedSearch = await search(target, fixture.restrictedToken, {
-      exclude: [],
-      include: ['Visible Entry'],
-      page: 1,
-      sort: 'Name',
-    });
-    assert.equal(scopedSearch.total, 1);
-    assert.deepEqual(names(scopedSearch), ['Visible Searcher']);
-    // A count order reads its segments as the caller too.
-    for (const sort of ['-Courses Count', 'Courses Count']) {
-      for (const [entry, visible] of [
-        ['Visible Entry', ['Visible Searcher']],
-        ['Unscored Entry', []],
-      ]) {
-        const scoped = await search(target, fixture.restrictedToken, {
-          exclude: [],
-          include: [entry],
-          page: 1,
-          sort,
-        });
-        assert.deepEqual(
-          [scoped.total, names(scoped)],
-          [visible.length, visible],
-          `${sort} ${entry}`,
-        );
-      }
-    }
-    await fixture.setRestrictedFields([
-      'id',
-      'Name',
-      'Courses',
-      'Courses Count',
-    ]);
-    const fieldsDenied = await searchResponse(target, fixture.restrictedToken, {
-      exclude: [],
-      include: ['Visible Entry'],
-      page: 1,
-      sort: 'Name',
-    });
-    const fieldsDeniedBody = await response(fieldsDenied, 403);
-    assert.equal(fieldsDeniedBody.data, undefined);
-    assert.equal(fieldsDeniedBody.errors[0].extensions.code, 'FORBIDDEN');
-    await fixture.setRestrictedFields(['id', 'Name']);
-    const coursesDenied = await options(target, fixture.restrictedToken);
-    const coursesDeniedBody = await response(coursesDenied, 403);
-    assert.equal(coursesDeniedBody.data, undefined);
-    assert.equal(coursesDeniedBody.errors[0].extensions.code, 'FORBIDDEN');
   });
 });

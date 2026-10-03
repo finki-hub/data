@@ -5,9 +5,8 @@ import { isRefusal } from './status-contract.js';
 import { countText } from './text.js';
 
 // How the dashboard panels read what Directus answered them: the refusal
-// of a request (Directus's own error or a Flow's Throw Error step), a
-// bounded summary of what a Flow answered, and the collections GET
-// /permissions/me says the caller may read. Nothing here keeps or logs a
+// of a request (Directus's own error or a Flow's Throw Error step) and a
+// bounded summary of what a Flow answered. Nothing here keeps or logs a
 // payload.
 
 const errorAnswer = z.object({
@@ -109,29 +108,4 @@ export const answerSummary = (answer: unknown): SummaryLine[] => {
       return text === null ? [] : [{ label: humanize(key), text }];
     })
     .slice(0, maxLines);
-};
-
-// GET /permissions/me: per collection, whether each action is allowed.
-const permissionsMe = z.object({
-  data: z.record(
-    z.string(),
-    z.looseObject({
-      read: z.looseObject({ access: z.string() }).optional(),
-    }),
-  ),
-});
-
-// The collections the caller may read, from the answer of GET
-// /permissions/me; none when the answer is not understood.
-export const readableCollections = (answer: unknown): ReadonlySet<string> => {
-  const parsed = permissionsMe.safeParse(answer);
-  return new Set(
-    parsed.success
-      ? Object.entries(parsed.data.data).flatMap(([collection, actions]) =>
-          actions.read !== undefined && actions.read.access !== 'none'
-            ? [collection]
-            : [],
-        )
-      : [],
-  );
 };

@@ -11,9 +11,7 @@ import { runSetup } from '../src/setup.js';
 import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
   adminRequest,
-  assertNoAccessResidue,
   createItem,
-  errorCode,
   userCollections,
   withDataModel,
 } from './relational/data-model-helpers.mjs';
@@ -27,9 +25,7 @@ import {
   installHistoryRunner,
   removeHistoryRunner,
 } from './relational/history-runner.mjs';
-import { callAs, withAccessUsers } from './relational/operations-helpers.mjs';
 import {
-  entryFields,
   fileIds,
   firstSnapshot,
   importSnapshot,
@@ -37,29 +33,24 @@ import {
   optionsAs,
   removeFiles,
   searchAs,
-  searchFields,
   secondSnapshot,
   tieName,
   tieRows,
-  visibleUsers,
-  withRestrictedSearcher,
 } from './search-relational-helpers.mjs';
 
 // Course-history Search on the installed relational model: the Moodle
 // users come through the supported snapshot import, the history index
 // and mappings exist beside them, and Search still matches the raw
-// Courses text exactly, reads its options from the caller's own rows,
-// and passes Studio's relational native filters to Directus as the
-// caller. The Needs review bookmarks setup installs are the registry's,
-// and the dashboard's readiness links resolve to them.
+// Courses text exactly, reads its options from the raw histories, and
+// passes Studio's relational native filters to Directus as the caller.
+// The Needs review bookmarks setup installs are the registry's, and the
+// dashboard's readiness links resolve to them.
 
 const bookmarkLink = /^\/content\/(?<page>[a-z_]+)\?bookmark=(?<id>\d+)$/u;
 const courseName = 'Synthetic Search Course';
 const yearLabel = '2094/2095';
 const exactLf = 'Exact LF';
 const profileEntry = 'Profile Entry';
-const sharedEntry = 'Shared Entry';
-const hiddenEntry = 'Hidden Entry';
 const mappedEntry = 'Mapped Entry';
 const usersPath = '/items/moodle_users?fields=id&limit=-1';
 
@@ -259,29 +250,14 @@ const importsAndMaps = async ({ state, target }) => {
 const viewPath = (page, review) =>
   `/items/${page}?fields=${review.fields.map((path) => encodeURIComponent(path)).join(',')}&sort=${review.sort.join(',')}&limit=50&filter=${encodeURIComponent(JSON.stringify(review.filter))}`;
 
-// Each review view is a valid REST query of its page, for an
-// administrator and for a holder of the Data editor policy (Studio sends
-// its filter, columns and order through the item API as the viewer,
-// whose query validation refuses what the services accept, such as an
-// empty string), and each view counts, through the same API, exactly
-// what readiness counts.
+// Each review view is a valid REST query of its page (Studio sends its
+// filter, columns and order through the item API, whose query validation
+// refuses what the services accept, such as an empty string), and each
+// view counts, through the same API, exactly what readiness counts.
 const listsWhatReadinessCounts = async ({ t, target }) => {
   const { checks } = await get(target, '/finki-hub-data-status/readiness');
   const counts = new Map(checks.map(({ code, count }) => [code, count]));
   const compared = [];
-  await withAccessUsers(target, async ({ editor }) => {
-    for (const { code, page, review } of readinessRegistry) {
-      if (review === undefined) continue;
-      const answer = await callAs(target, editor, {
-        path: viewPath(page, review),
-      });
-      assert.equal(
-        answer.status,
-        200,
-        `${code}: ${JSON.stringify(answer.body)}`,
-      );
-    }
-  });
   for (const { code, page, review, source } of readinessRegistry) {
     if (review === undefined) continue;
     const filter = encodeURIComponent(JSON.stringify(review.filter));
@@ -402,7 +378,8 @@ const keepsRawLabels = async ({ target }) => {
 
 // Studio's relational filters reach Directus as the caller: through the
 // index to the label and to the mapped course, one row per user however
-// many of their lines match, and together with raw-entry criteria.
+// many of their lines match, and together with raw-entry criteria. A
+// quantifier and an implicit $FOLLOW relation are refused.
 const filtersThroughRelations = async ({ target }) => {
   const token = target.token;
   const byLabel = await searchAs(target, token, {
@@ -444,150 +421,19 @@ const filtersThroughRelations = async ({ target }) => {
     },
   });
   assert.equal(quantified.status, 400);
-};
-
-// Another user's line, name and address, as filter paths that leave the
-// caller's own users: back from an entry to every membership of it, back
-// from a membership to its user, or counting an entry's memberships.
-const crossUserPaths = [
-  {
-    history_memberships: {
-      entry: {
-        memberships: {
-          moodle_user: { Courses: { _contains: hiddenEntry } },
+  const followed = await searchAs(target, token, {
+    filter: {
+      history_memberships: {
+        entry: {
+          '$FOLLOW(moodle_history_memberships, entry)': {
+            moodle_user: { Name: { _nnull: true } },
+          },
         },
       },
     },
-  },
-  {
-    history_memberships: {
-      entry: {
-        memberships: {
-          moodle_user: { Mail: { _eq: 'hidden@search.example' } },
-        },
-      },
-    },
-  },
-  { history_memberships: { moodle_user: { Name: { _starts_with: 'Hid' } } } },
-  { history_memberships: { entry: { 'count(memberships)': { _gt: 1 } } } },
-];
-
-// Directus joins the rows of a filter path without the caller's row
-// permissions on them, and an implicit $FOLLOW relation skips the field
-// check of its segment. The restricted searcher's policy (own memberships
-// without their user field, no `memberships` alias) keeps REST filters on
-// their own users. Search refuses an implicit $FOLLOW relation and every
-// path that passes a collection twice on its own: with the memberships'
-// user field and the alias granted too, where REST would answer.
-const refusesOtherUsers = async (target, { grant, token }) => {
-  const hiddenHolder = { Name: { _eq: 'Hidden Searcher' } };
-  const followed = {
-    history_memberships: {
-      entry: {
-        '$FOLLOW(moodle_history_memberships, entry)': {
-          moodle_user: { Courses: { _contains: hiddenEntry } },
-        },
-      },
-    },
-  };
-  for (const path of [
-    `/items/moodle_history_memberships?fields=entry.label&filter=${encodeURIComponent(JSON.stringify({ moodle_user: hiddenHolder }))}`,
-    `/items/moodle_users?fields=Name&filter=${encodeURIComponent(JSON.stringify(followed))}`,
-    `/items/moodle_course_entries?fields=label&filter=${encodeURIComponent(JSON.stringify({ '$FOLLOW(moodle_history_memberships, entry)': { moodle_user: hiddenHolder } }))}`,
-  ]) {
-    const probe = await callAs(target, token, { path });
-    assert.equal(probe.status, 403, path);
-    assert.equal(probe.body.data, undefined);
-  }
-  const own = await callAs(target, token, {
-    path: '/items/moodle_history_memberships?fields=entry.label&limit=-1',
   });
-  assert.deepEqual(own.body.data.map(({ entry }) => entry.label).toSorted(), [
-    sharedEntry,
-    'Visible Entry',
-  ]);
-  await grant('moodle_history_memberships', ['id', 'entry', 'moodle_user'], {
-    moodle_user: visibleUsers,
-  });
-  await grant('moodle_course_entries', [...entryFields, 'memberships']);
-  for (const filter of [followed, ...crossUserPaths]) {
-    const answer = await searchAs(target, token, { filter });
-    assert.equal(answer.status, 400, JSON.stringify(filter));
-    assert.equal(answer.body.data, undefined);
-  }
-  await grant('moodle_course_entries', entryFields);
-  await grant('moodle_history_memberships', ['id', 'entry'], {
-    moodle_user: visibleUsers,
-  });
-  const administrator = await searchAs(target, target.token, {
-    filter: crossUserPaths[0],
-  });
-  assert.equal(administrator.status, 400);
-};
-
-// A caller who reads only some users gets options from those users alone,
-// although the entry table and the index they may read hold every label;
-// denied fields stay denied through both endpoints and through a path.
-const scopesToTheCaller = async ({ target }) => {
-  await withRestrictedSearcher(target, async ({ grant, token }) => {
-    const readable = await get(
-      target,
-      '/items/moodle_course_entries?fields=label&filter[label][_eq]=Hidden%20Entry',
-    );
-    assert.equal(readable.length, 1);
-    const listed = await fetch(
-      new URL(
-        '/items/moodle_course_entries?fields=label&limit=-1',
-        target.base,
-      ),
-      { headers: { authorization: `Bearer ${token}` } },
-    );
-    const readableEntries = await listed.json();
-    const labels = readableEntries.data.map(({ label }) => label);
-    assert.ok(labels.includes(hiddenEntry), 'the entry table is readable');
-    const options = await optionsAs(target, token);
-    assert.equal(options.status, 200);
-    assert.deepEqual(options.body.data.toSorted(), [
-      sharedEntry,
-      'Visible Entry',
-    ]);
-    const hidden = await searchAs(target, token, { include: [hiddenEntry] });
-    assert.equal(hidden.body.total, 0);
-    const shared = await searchAs(target, token, { include: [sharedEntry] });
-    assert.deepEqual(names(shared), ['Visible Searcher']);
-    const throughIndex = await searchAs(target, token, {
-      filter: labelFilter(hiddenEntry),
-    });
-    assert.equal(throughIndex.status, 200);
-    assert.equal(throughIndex.body.total, 0);
-    const sharedIndex = await searchAs(target, token, {
-      filter: labelFilter(sharedEntry),
-    });
-    assert.deepEqual(names(sharedIndex), ['Visible Searcher']);
-    await refusesOtherUsers(target, { grant, token });
-    await grant('moodle_history_memberships', null);
-    const withoutIndex = await searchAs(target, token, {
-      filter: labelFilter(sharedEntry),
-    });
-    assert.equal(withoutIndex.status, 403);
-    assert.equal(errorCode(withoutIndex.body), 'FORBIDDEN');
-    assert.equal(withoutIndex.body.data, undefined);
-    const plain = await searchAs(target, token, {});
-    assert.equal(plain.status, 200);
-    await grant(
-      'moodle_users',
-      searchFields.filter((field) => field !== 'Mail'),
-      visibleUsers,
-    );
-    const noMail = await searchAs(target, token, { include: [sharedEntry] });
-    assert.equal(noMail.status, 403);
-    assert.equal(noMail.body.data, undefined);
-    await grant('moodle_users', ['id', 'Name'], visibleUsers);
-    const noCourses = await optionsAs(target, token);
-    assert.equal(noCourses.status, 403);
-    assert.equal(noCourses.body.data, undefined);
-  });
-  await assertNoAccessResidue(target);
+  assert.equal(followed.status, 400, JSON.stringify(followed.body));
+  assert.equal(followed.body.data, undefined);
 };
 
 // A replacement snapshot: new ids only, the new profile links and counts,
@@ -700,10 +546,6 @@ test('keeps raw-history Search and installs the Needs review views of the regist
       await t.test(
         'passes relational native filters as the caller, one row per user',
         () => filtersThroughRelations(context),
-      );
-      await t.test(
-        'scopes options, matches and filter paths to the caller and keeps denied fields denied',
-        () => scopesToTheCaller(context),
       );
       await t.test(
         'shows only the new snapshot after a replacement, with its links and counts',

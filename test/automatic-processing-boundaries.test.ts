@@ -18,11 +18,6 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import { statusAction } from '../directus/extensions/directus-extension-data-operations/src/coordination/status.js';
 import { dataModelCollectionKeys } from '../src/data-model/collections.js';
-import {
-  editorForbiddenGrants,
-  forbiddenByRole,
-  forbiddenGrantsIn,
-} from '../src/editor-policy.js';
 import { flowFamilyCodes } from '../src/flows/flow-template.js';
 import {
   chosenDomainsScript,
@@ -140,70 +135,6 @@ describe('source invalidation of the completed source model', () => {
         'review_reason',
       ]),
     ).toEqual([enrollments, publication]);
-  });
-});
-
-describe('the editor policy template', () => {
-  test('forbids the native snapshot shortcut and every derived write, and nothing an editor needs', () => {
-    const withheld = collectionDeclarations.flatMap((declaration) =>
-      isSource(declaration) ? [] : [declaration],
-    );
-
-    // Every collection that is no source is withheld by its role; the
-    // snapshot-owned Moodle users, the Flows and the access tables stay
-    // literal rows of the deny-list.
-    expect(editorForbiddenGrants.map(({ collection }) => collection)).toEqual([
-      'moodle_users',
-      ...withheld.map(({ collection }) => collection),
-      'directus_flows',
-      'directus_operations',
-      'directus_permissions',
-      'directus_policies',
-      'directus_access',
-    ]);
-
-    for (const { collection, role } of withheld) {
-      expect(
-        editorForbiddenGrants.find((grant) => grant.collection === collection)
-          ?.actions,
-      ).toEqual(forbiddenByRole[role]);
-    }
-    for (const { collection, editorWrites } of sourceDeclarations) {
-      expect(
-        forbiddenGrantsIn([{ action: 'update', collection }]).length > 0,
-      ).toBe(editorWrites === false);
-    }
-
-    expect(
-      forbiddenGrantsIn([
-        { action: 'read', collection: 'moodle_users' },
-        { action: 'create', collection: 'moodle_users' },
-        { action: 'update', collection: 'moodle_users' },
-        { action: 'read', collection: 'course_enrollments' },
-        { action: 'update', collection: 'course_enrollments' },
-        { action: 'update', collection: 'moodle_course_mappings' },
-        { action: 'create', collection: 'courses' },
-        { action: 'read', collection: 'data_operations' },
-        // A Flow operation edited to write with $full on the schedule, or
-        // a permission granted to oneself, would each bypass the rules
-        // above; reading Flows (the manual buttons need it) stays
-        // allowed.
-        { action: 'read', collection: 'directus_flows' },
-        { action: 'update', collection: 'directus_operations' },
-        { action: 'create', collection: 'directus_flows' },
-        { action: 'create', collection: 'directus_permissions' },
-        { action: 'update', collection: 'directus_access' },
-      ]),
-    ).toEqual([
-      { action: 'create', collection: 'moodle_users' },
-      { action: 'update', collection: 'moodle_users' },
-      { action: 'update', collection: 'course_enrollments' },
-      { action: 'read', collection: 'data_operations' },
-      { action: 'update', collection: 'directus_operations' },
-      { action: 'create', collection: 'directus_flows' },
-      { action: 'create', collection: 'directus_permissions' },
-      { action: 'update', collection: 'directus_access' },
-    ]);
   });
 });
 

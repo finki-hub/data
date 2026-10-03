@@ -33,14 +33,14 @@ type AdminGatePlacement = {
   readonly code?: FlowFamilyCode;
 };
 
-// Any user who may read one of a manual Flow's collections could trigger
-// it (the trigger endpoint checks read access only); the export operation
-// reads with system rights, so the Flow is gated on the administrator flag
-// (the operation checks it again). The suffixes are those of the gate, its
-// refusal and the step it lets through; `action` completes the refusal
-// `Only administrators may <action>`. The gate takes the first column and
-// its refusal the row below. A Flow answers the refusal (403) only with
-// error_on_reject.
+// The administrator gate every managed manual Flow starts with: any user
+// who may read one of a manual Flow's collections could trigger it (the
+// trigger endpoint checks read access only), so the Flow tests the
+// administrator flag first (the export and snapshot operations check it
+// again). The suffixes are those of the gate, its refusal and the step it
+// lets through; `action` completes the refusal `Only administrators may
+// <action>`. The gate takes the first column and its refusal the row
+// below. A Flow answers the refusal (403) only with error_on_reject.
 export const adminOnly = (
   suffixes: readonly [string, string, string],
   action: string,

@@ -15,10 +15,9 @@ import {
 } from './managed-flows.js';
 
 // The bounded reads of the status endpoint beside the coordinator status:
-// the rows of every key source, the last run of each scheduled Flow, the
-// ids of the review bookmarks and whether a caller holds the editor
-// policy. Every statement binds its values; none takes an identifier from
-// a caller.
+// the rows of every key source, the last run of each scheduled Flow and
+// the ids of the review bookmarks. Every statement binds its values; none
+// takes an identifier from a caller.
 
 // The last run of a scheduled Flow is looked up within
 // scheduleLookBackMinutes (managed-flows.ts): the activity table has an
@@ -42,11 +41,6 @@ WHERE "user" IS NULL AND "role" IS NULL
   AND "bookmark" IN (SELECT "value" FROM json_array_elements_text(?::json))
 ORDER BY "id"`;
 
-// Bindings: policy id, user id (or null), role ids JSON.
-const holdsPolicySql = `SELECT COUNT(*)::integer AS "count" FROM "directus_access"
-WHERE "policy" = ?::uuid
-  AND ("user" = ?::uuid OR "role" IN (SELECT "value"::uuid FROM json_array_elements_text(?::json)))`;
-
 const resultRows = <Row extends z.ZodType>(row: Row) =>
   z.object({ rows: z.array(row) });
 
@@ -63,8 +57,6 @@ const bookmarkRow = z.object({
   collection: z.string(),
   id: z.coerce.number().int(),
 });
-
-const countRow = z.object({ count: z.coerce.number().int().nonnegative() });
 
 export const readSchedule = async (sql: SqlClient): Promise<ScheduledRun[]> => {
   const { rows } = resultRows(scheduleRow).parse(
@@ -103,22 +95,6 @@ export const readBookmarks = async (
     }
   }
   return found;
-};
-
-// Whether the user, or a role of the caller's role tree, holds the policy.
-export const holdsPolicy = async (
-  sql: SqlClient,
-  policy: string,
-  caller: { readonly roles: readonly string[]; readonly user: null | string },
-): Promise<boolean> => {
-  const { rows } = resultRows(countRow).parse(
-    await sql.raw(holdsPolicySql, [
-      policy,
-      caller.user,
-      JSON.stringify(caller.roles),
-    ]),
-  );
-  return (rows[0]?.count ?? 0) > 0;
 };
 
 const keyRows = z.array(

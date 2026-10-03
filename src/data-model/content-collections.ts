@@ -2,8 +2,8 @@ import type { ModelCollection, ModelScalarKind } from '../schema.js';
 
 import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
-// The content the one-time workbook import fills and editors maintain in
-// Studio: the published courses, staff, rooms and students, and the
+// The content the one-time workbook import fills and administrators
+// maintain in Studio: the published courses, staff, rooms and students, and the
 // equivalencies, assignments, council and dean's office rows beside them.
 // The Moodle users are declared with the Moodle collections.
 

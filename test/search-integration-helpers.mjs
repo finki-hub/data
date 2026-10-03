@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 
 import { destroySearchFixture, withCleanup } from './search-cleanup.mjs';
 import { collectionDefinition, moodleUsers } from './search-fixture.mjs';
-import { setRestrictedFields } from './search-permission.mjs';
 
 const endpoint = '/finki-hub-course-history';
 
@@ -45,15 +43,8 @@ export const search = async (target, token, criteria) =>
 export const anonymousSearch = (target, body) =>
   request(target, `${endpoint}/search`, json(body));
 
-const setupSearchFixture = async (target, withRestrictedAccess = false) => {
-  let fixture = {
-    access: undefined,
-    collection: false,
-    permission: undefined,
-    policy: undefined,
-    role: undefined,
-    user: undefined,
-  };
+const setupSearchFixture = async (target) => {
+  let fixture = { collection: false };
   try {
     const marker = await read(
       await request(
@@ -81,86 +72,7 @@ const setupSearchFixture = async (target, withRestrictedAccess = false) => {
       ),
       200,
     );
-    fixture = { ...fixture, collection: true };
-    if (!withRestrictedAccess) {
-      await read(
-        await request(
-          target,
-          '/items/moodle_users',
-          json(moodleUsers, target.token),
-        ),
-        200,
-      );
-      return { teardown: () => destroySearchFixture(target, fixture) };
-    }
-    const policy = await read(
-      await request(
-        target,
-        '/policies',
-        json(
-          {
-            admin_access: false,
-            app_access: false,
-            name: `Search restriction ${randomUUID()}`,
-          },
-          target.token,
-        ),
-      ),
-      200,
-    );
-    fixture = { ...fixture, policy: policy.data.id };
-    const role = await read(
-      await request(
-        target,
-        '/roles',
-        json(
-          {
-            icon: 'lock',
-            name: `Search restriction ${randomUUID()}`,
-          },
-          target.token,
-        ),
-      ),
-      200,
-    );
-    fixture = { ...fixture, role: role.data.id };
-    const access = await read(
-      await request(
-        target,
-        '/access',
-        json({ policy: fixture.policy, role: fixture.role }, target.token),
-      ),
-      200,
-    );
-    fixture = { ...fixture, access: access.data.id };
-    const permission = await read(
-      await request(
-        target,
-        '/permissions',
-        json(
-          {
-            action: 'read',
-            collection: 'moodle_users',
-            fields: [
-              'id',
-              'Name',
-              'Mail',
-              'Profile_new',
-              'Profile_old',
-              'Courses',
-              'Courses Count',
-            ],
-            permissions: { Name: { _eq: 'Visible Searcher' } },
-            policy: fixture.policy,
-            presets: {},
-            validation: {},
-          },
-          target.token,
-        ),
-      ),
-      200,
-    );
-    fixture = { ...fixture, permission: permission.data.id };
+    fixture = { collection: true };
     await read(
       await request(
         target,
@@ -169,37 +81,7 @@ const setupSearchFixture = async (target, withRestrictedAccess = false) => {
       ),
       200,
     );
-    const login = {
-      email: `search-restricted-${randomUUID()}@example.com`,
-      password: randomUUID(),
-    };
-    const user = await read(
-      await request(
-        target,
-        '/users',
-        json(
-          {
-            email: login.email,
-            password: login.password,
-            role: fixture.role,
-            status: 'active',
-          },
-          target.token,
-        ),
-      ),
-      200,
-    );
-    fixture = { ...fixture, user: user.data.id };
-    const session = await read(
-      await request(target, '/auth/login', json(login)),
-      200,
-    );
-    return {
-      restrictedToken: session.data.access_token,
-      setRestrictedFields: (fields) =>
-        setRestrictedFields(target, fixture.permission, fields),
-      teardown: () => destroySearchFixture(target, fixture),
-    };
+    return { teardown: () => destroySearchFixture(target, fixture) };
   } catch (error) {
     try {
       await destroySearchFixture(target, fixture);
@@ -214,9 +96,9 @@ const setupSearchFixture = async (target, withRestrictedAccess = false) => {
   }
 };
 
-export const withSearchFixture = async (target, withRestrictedAccess, body) => {
-  const fixture = await setupSearchFixture(target, withRestrictedAccess);
-  return withCleanup(() => body(fixture), fixture.teardown);
+export const withSearchFixture = async (target, body) => {
+  const fixture = await setupSearchFixture(target);
+  return withCleanup(body, fixture.teardown);
 };
 
 export const options = (target, token) =>

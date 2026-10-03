@@ -115,15 +115,9 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
           .json(errorBody('INVALID_PAYLOAD', criteriaProblem(parsed.error)));
         return;
       }
-      const schema = await getSchema();
-      // A filter path that passes a collection twice or names more fields
-      // than REST allows is refused like an unsupported filter, with its
-      // own reason.
-      const pathProblem = filterPathProblem(parsed.data.filter, {
-        maxDepth,
-        relations: schema.relations,
-        root: 'moodle_users',
-      });
+      // A filter path that names more fields than REST allows is refused
+      // like an unsupported filter, with its own reason.
+      const pathProblem = filterPathProblem(parsed.data.filter, maxDepth);
       if (pathProblem !== undefined) {
         response
           .status(400)
@@ -138,7 +132,7 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
       const criteria = parsed.data;
       const items = new services.ItemsService('moodle_users', {
         accountability: request.accountability,
-        schema,
+        schema: await getSchema(),
       });
       const query = buildSearchQuery(criteria);
       const [data, counts] = await Promise.all([

@@ -1,16 +1,6 @@
-import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-
-import { editorPolicy } from '../../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
-import { editorPolicyPermissions } from '../../src/editor-policy-install.js';
-import { get, post, remove } from './history-index-helpers.mjs';
-
-// The helpers of the operations scenario (operations.integration.mjs):
-// requests as a given caller, the synthetic editor and plain users, and
-// the installed editor policy in a comparable form. Every user is
-// synthetic, uses an example.com address and is removed by the scenario.
-
-const restrictedPrefix = 'relational-restricted-';
+// The helpers of the operations scenario (operations.integration.mjs) and
+// the publish and restore suites: requests as a given caller, a Flow run
+// the way the Run operation panel posts it, and the keys of an answer.
 
 // One request as a caller (a static token, or none for anonymous): the
 // status and the parsed body, never an assertion.
@@ -40,79 +30,6 @@ export const runFlow = (target, token, { id, values = {} }) =>
     method: 'POST',
     path: `/flows/trigger/${id}`,
   });
-
-const syntheticUser = async (target, role) => {
-  const token = `synthetic-${randomUUID()}`;
-  const user = await post(target, '/users', {
-    email: `${restrictedPrefix}${randomUUID()}@example.com`,
-    role,
-    status: 'active',
-    token,
-  });
-  return { id: user.data.id, token };
-};
-
-// An editor (a role holding the editor policy) and a plain user (a role
-// without any policy), both with static tokens; removed afterwards.
-export const withAccessUsers = async (target, body) => {
-  const created = { roles: [], users: [] };
-  try {
-    const editorRole = await post(target, '/roles', {
-      icon: 'edit_note',
-      name: `Relational restriction editor ${randomUUID()}`,
-    });
-    created.roles.push(editorRole.data.id);
-    await post(target, '/access', {
-      policy: editorPolicy.id,
-      role: editorRole.data.id,
-    });
-    const plainRole = await post(target, '/roles', {
-      icon: 'lock',
-      name: `Relational restriction plain ${randomUUID()}`,
-    });
-    created.roles.push(plainRole.data.id);
-    const editor = await syntheticUser(target, editorRole.data.id);
-    created.users.push(editor.id);
-    const plain = await syntheticUser(target, plainRole.data.id);
-    created.users.push(plain.id);
-    await body({ editor: editor.token, plain: plain.token });
-  } finally {
-    for (const id of created.users) await remove(target, `/users/${id}`);
-    for (const id of created.roles) await remove(target, `/roles/${id}`);
-  }
-};
-
-const byText = (left, right) => left.localeCompare(right, 'en');
-
-// A permission as collection, action, sorted fields and filter text.
-const comparable = ({ action, collection, fields, permissions }) =>
-  JSON.stringify([
-    collection,
-    action,
-    [...(fields ?? [])].toSorted(byText),
-    permissions ?? {},
-  ]);
-
-const installedPermissions = (target) =>
-  get(
-    target,
-    `/permissions?fields=collection,action,fields,permissions,validation,presets&limit=-1&filter[policy][_eq]=${editorPolicy.id}`,
-  );
-
-// The installed editor policy equals the derivation, grant for grant.
-export const assertPolicyDerived = async (target) => {
-  const installed = await installedPermissions(target);
-  assert.deepEqual(
-    installed.map(comparable).toSorted(byText),
-    editorPolicyPermissions().map(comparable).toSorted(byText),
-  );
-  assert.ok(
-    installed.every(
-      ({ presets, validation }) => presets === null && validation === null,
-    ),
-  );
-  return installed;
-};
 
 // The keys of an object tree, at any depth.
 export const keysDeep = (value) => {

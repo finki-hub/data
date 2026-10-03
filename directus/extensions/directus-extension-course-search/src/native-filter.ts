@@ -7,17 +7,13 @@ import { z } from 'zod';
 // condition is its operators, or, through a relation of the field, the
 // conditions on the related collection's fields: the plain nested path
 // Studio's filter builder writes for a relational field, such as
-// { history_memberships: { entry: { label: { _eq: ... } } } }. The search
-// runs the filter through the item API as the caller, so Directus checks
-// the caller's field permission on every segment of the path, and a
-// denied one answers 403; filter-paths.ts keeps a path from joining
-// other users' rows, whose row permissions Directus does not apply. A key
-// that starts with `_` is an operator, never a field: `_some`/`_none`
-// quantifiers and groups inside a relational path are refused (Directus
-// 12.3.1 silently drops a quantifier holding two conditions, follow-up
-// 35). A key holding `$` is refused too: Studio never writes one, and an
-// implicit `$FOLLOW(collection, field)` relation skips even the field
-// permission check of its segment.
+// { history_memberships: { entry: { label: { _eq: ... } } } }. Search
+// accepts exactly the shape that filter builder writes. A key that starts
+// with `_` is an operator, never a field: `_some`/`_none` quantifiers and
+// groups inside a relational path are refused (Directus 12.3.1 silently
+// drops a quantifier holding two conditions, follow-up 35). A key holding
+// `$` is refused too: Studio never writes one, such as an implicit
+// `$FOLLOW(collection, field)` relation.
 
 type Comparable = number | string;
 type CourseSearchFieldFilterOperator = FieldFilterOperator & {

@@ -10,7 +10,6 @@ import {
   type StoredOutcomes,
 } from './coordination/outcomes.js';
 import {
-  type Audience,
   type DomainView,
   type FileView,
   type KeySourceView,
@@ -21,9 +20,9 @@ import {
 // coordinator status: every declared domain in dependency order, every
 // declared file with its last outcome, the key-source rows and the last
 // run of each scheduled Flow. Lists come from the declarations and the
-// reports, never from a fixed set. Administrators also get the text of
-// the last failure; nobody gets a token, a claim owner, a fingerprint or
-// a record.
+// reports, never from a fixed set. The last failure carries its stored
+// text; the view never carries a token, a claim owner, a fingerprint or a
+// record.
 
 export type ScheduledRun = {
   readonly active: boolean;
@@ -35,7 +34,6 @@ export type ScheduledRun = {
 };
 
 type StatusInputs = {
-  readonly audience: Audience;
   // The published files the export definitions declare, in order.
   readonly declared?: readonly string[];
   readonly keySources: readonly KeySourceView[];
@@ -133,10 +131,7 @@ const claimOf = (report: StatusReport): StatusView['claim'] => {
   };
 };
 
-const lastErrorOf = (
-  report: StatusReport,
-  audience: Audience,
-): StatusView['lastError'] => {
+const lastErrorOf = (report: StatusReport): StatusView['lastError'] => {
   const error = report.lastError;
   return error === null
     ? null
@@ -145,14 +140,13 @@ const lastErrorOf = (
         blocking: error.blocking,
         code: error.code,
         domain: error.domain,
-        message: audience === 'administrator' ? error.message : null,
+        message: error.message,
         retries: error.retries,
         revision: error.revision,
       };
 };
 
 export const statusView = ({
-  audience,
   declared = declaredFilenames,
   keySources,
   report,
@@ -160,13 +154,12 @@ export const statusView = ({
 }: StatusInputs): StatusView => {
   const files = filesOf(report.publication.files, declared);
   return {
-    audience,
     claim: claimOf(report),
     domains: domainsOf(report),
     historyIndex: { ...report.historyIndex },
     importState: report.importState,
     keySources: [...keySources],
-    lastError: lastErrorOf(report, audience),
+    lastError: lastErrorOf(report),
     lastRun: { ...report.lastRun },
     publication: {
       ...lastPublication(files, declared),

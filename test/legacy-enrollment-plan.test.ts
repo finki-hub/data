@@ -441,7 +441,7 @@ describe('the rule-mode registry', () => {
       note: 'mapped_entries counts explicit mappings; legacy_regex applies the retained pattern.',
     });
     expect(field('pattern')).toMatchObject({
-      note: 'Literal regular expression, as the workbook import or an editor recorded it; only used by legacy_regex.',
+      note: 'Literal regular expression, as the workbook import or a hand edit recorded it; only used by legacy_regex.',
     });
   });
 });

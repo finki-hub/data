@@ -6,13 +6,11 @@ import { declaredFilenames } from '../../directus/extensions/directus-extension-
 import { exportDefinitions } from '../../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { keySources } from '../../directus/extensions/directus-extension-data-operations/src/exports/key-sources.js';
 import { readinessRegistry } from '../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { editorPolicy } from '../../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import {
   defaultPanels,
   operationsDashboardId,
 } from '../../src/data-model/operations-dashboard.js';
-import { forbiddenGrantsIn } from '../../src/editor-policy.js';
 import { ruleSeedingFlowId } from '../../src/flows/add-enrollment-rules.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
@@ -30,27 +28,21 @@ import {
   assertNoAccessResidue,
   userCollections,
   withDataModel,
+  withRestrictedUser,
 } from './data-model-helpers.mjs';
 import { engineFiles, restReader } from './export-projection-helpers.mjs';
 import { count, get, patch, post, remove } from './history-index-helpers.mjs';
-import {
-  assertPolicyDerived,
-  callAs,
-  codeOf,
-  keysDeep,
-  runFlow,
-  withAccessUsers,
-} from './operations-helpers.mjs';
+import { callAs, codeOf, keysDeep, runFlow } from './operations-helpers.mjs';
 
 // The Data operations dashboard on a live project (Task 16): setup
-// installs the dashboard, its default panels and the derived editor policy
-// once; the status read is the access boundary (anonymous 401, no policy
-// 403, editors a bounded view, administrators everything); no editor runs
-// an operation or an administrator's schema task, and a caller the trigger
-// endpoint lets through is refused by each Flow's own first step; and "Data / Add
-// enrollment rules" seeds the mapped rules of a new year or course
-// idempotently, counted at the next tick, public only once published. The
-// schedule stays active. Every row, user and role is synthetic and removed.
+// installs the dashboard and its default panels once; the status read is
+// an access boundary (anonymous 401, a non-administrator 403, the
+// administrator a bounded view); no non-administrator runs an operation or
+// a migration, and a caller the trigger endpoint lets through is refused
+// by each Flow's own first step; and "Data / Add enrollment rules" seeds
+// the mapped rules of a new year or course idempotently, counted at the
+// next tick, public only once published. The schedule stays active. Every
+// row, user and role is synthetic and removed.
 
 const mapped = ruleMode('mapped_entries').mode;
 const legacy = ruleMode('legacy_regex').mode;
@@ -85,7 +77,6 @@ const installsOnce = async ({ directus, t, target }) => {
     'Data operations',
     ...defaultPanels.map(({ name }) => name),
   ]);
-  assert.equal(summary.editorPolicy.policy, 'created');
   const panels = await get(
     target,
     `/panels?fields=id,type,options,name&limit=-1&filter[dashboard][_eq]=${operationsDashboardId}`,
@@ -94,51 +85,24 @@ const installsOnce = async ({ directus, t, target }) => {
     panels.map(({ id, type }) => `${id} ${type}`).toSorted(),
     defaultPanels.map(({ id, type }) => `${id} ${type}`).toSorted(),
   );
-  const installed = await assertPolicyDerived(target);
-  assert.deepEqual(forbiddenGrantsIn(installed), []);
   const again = await runSetup(directus);
   assert.deepEqual(again.dashboard.created, []);
-  assert.deepEqual(again.editorPolicy, {
-    created: 0,
-    deleted: 0,
-    policy: 'unchanged',
-    unchanged: installed.length,
-    updated: 0,
-  });
-  t.diagnostic(
-    `dashboard: ${panels.length} panels; editor policy: ${installed.length} permissions`,
-  );
+  t.diagnostic(`dashboard: ${panels.length} panels`);
 };
 
 // A Studio edit of a default panel survives a rerun, a deleted one comes
-// back; a hand edit of the code-owned policy is aligned back.
-const keepsEditsAndAlignsPolicy = async ({ directus, target }) => {
+// back.
+const keepsEdits = async ({ directus, target }) => {
   const [first, second] = defaultPanels;
   await patch(target, `/panels/${first.id}`, { name: 'Publish (edited)' });
   await remove(target, `/panels/${second.id}`);
-  await post(target, '/permissions', {
-    action: 'update',
-    collection: 'moodle_users',
-    fields: ['*'],
-    permissions: {},
-    policy: editorPolicy.id,
-  });
-  await patch(target, `/policies/${editorPolicy.id}`, { app_access: false });
   const rerun = await runSetup(directus);
   assert.deepEqual(rerun.dashboard.created, [second.name]);
-  assert.equal(rerun.editorPolicy.policy, 'aligned');
-  assert.equal(rerun.editorPolicy.deleted, 1);
   const [edited] = await get(
     target,
     `/panels?fields=name&filter[id][_eq]=${first.id}`,
   );
   assert.equal(edited.name, 'Publish (edited)');
-  const [policy] = await get(
-    target,
-    `/policies?fields=app_access,admin_access&filter[id][_eq]=${editorPolicy.id}`,
-  );
-  assert.deepEqual(policy, { admin_access: false, app_access: true });
-  assert.deepEqual(forbiddenGrantsIn(await assertPolicyDerived(target)), []);
 };
 
 // 260 courses (two batches of the rule seeding), an older published year
@@ -186,63 +150,10 @@ const seedRows = async (target) => {
   };
 };
 
-// No schema, Flow, permission or migration task for an editor.
-const refusesAdminTasks = async (request) => {
-  const attempts = [
-    ['POST', '/fields/courses', { field: 'synthetic', type: 'string' }],
-    ['POST', '/collections', { collection: 'synthetic_editor_table' }],
-    ['PATCH', `/flows/${publishAssetsFlowId}`, { status: 'inactive' }],
-    [
-      'POST',
-      '/permissions',
-      { action: 'update', collection: 'moodle_users', policy: editorPolicy.id },
-    ],
-    ['POST', '/policies', { admin_access: true, name: 'Synthetic escalation' }],
-    ['POST', '/finki-hub-data-operations/migrations/schema-constraints'],
-    ['GET', '/finki-hub-data-operations/status'],
-    ['GET', '/items/data_operations'],
-  ];
-  for (const [method, path, body] of attempts) {
-    const answer = await request(method, path, body);
-    assert.equal(answer.status, 403, `${method} ${path}: ${answer.status}`);
-  }
-};
-
-// Sources yes (a course); Moodle users, derived counts, the published flag
-// and the key text of a key source no.
-const editsSourcesOnly = async (request, state) => {
-  const created = await request('POST', '/items/courses', {
-    name: 'Synthetic Editor Course',
-  });
-  assert.equal(created.status, 200);
-  const deleted = await request(
-    'DELETE',
-    `/items/courses/${created.body.data.id}`,
-  );
-  assert.equal(deleted.status, 204);
-  const refused = [
-    ['POST', '/items/moodle_users', { Name: 'Synthetic Editor User' }],
-    [
-      'POST',
-      '/items/course_enrollments',
-      { academic_year: state.newYear, count: 1, course: state.courses[0] },
-    ],
-    ['PATCH', `/items/academic_years/${state.newYear}`, { published: true }],
-    ['PATCH', `/items/academic_years/${state.newYear}`, { label: '2099/2100' }],
-  ];
-  for (const [method, path, body] of refused) {
-    const answer = await request(method, path, body);
-    assert.equal(
-      answer.status,
-      403,
-      `${method} ${path}: ${JSON.stringify(answer.body)}`,
-    );
-  }
-};
-
-// The review link of a positive check opens its bookmark, and the editor
-// reads the records behind it.
-const navigatesToIssues = async (request, t) => {
+// The review link of a positive check opens its bookmark, and the
+// administrator reads the records behind it.
+const navigatesToIssues = async ({ t, target }) => {
+  const request = as(target, target.token);
   const readiness = await request('GET', '/finki-hub-data-status/readiness');
   assert.equal(readiness.status, 200);
   const needsMapping = readiness.body.data.checks.find(
@@ -262,12 +173,13 @@ const navigatesToIssues = async (request, t) => {
   assert.equal(rows.status, 200);
   assert.ok(rows.body.data.length >= needsMapping.count);
   t.diagnostic(
-    `editor followed ${needsMapping.link} to ${rows.body.data.length} record(s)`,
+    `followed ${needsMapping.link} to ${rows.body.data.length} record(s)`,
   );
 };
 
-// Anonymous 401 and a user without the policy 403 on the status read; the
-// trigger endpoint refuses both.
+// Anonymous 401 and a non-administrator 403 on the status read; the
+// migrations endpoint and the trigger endpoint refuse both, and the plain
+// user reads no data_operations row.
 const refusesStrangers = async (target, plain) => {
   for (const token of [null, plain]) {
     const request = as(target, token);
@@ -276,37 +188,21 @@ const refusesStrangers = async (target, plain) => {
     assert.equal(status.status, expected, JSON.stringify(status.body));
     const readiness = await request('GET', '/finki-hub-data-status/readiness');
     assert.equal(readiness.status, expected);
+    for (const [method, path] of [
+      ['POST', '/finki-hub-data-operations/migrations/schema-constraints'],
+      ['GET', '/finki-hub-data-operations/status'],
+    ]) {
+      const answer = await request(method, path);
+      assert.equal(answer.status, 403, `${method} ${path}: ${answer.status}`);
+      assert.equal(codeOf(answer), 'FORBIDDEN');
+    }
     for (const id of runFlows) {
       const run = await flowAs(target, token)(id);
       assert.equal(run.status, 403, JSON.stringify(run.body));
     }
   }
-};
-
-const servesEditor = async ({ editor, state, t, target }) => {
-  const request = as(target, editor);
-  const view = await request('GET', '/finki-hub-data-status');
-  assert.equal(view.status, 200, JSON.stringify(view.body));
-  assert.equal(view.body.data.audience, 'editor');
-  const keys = keysDeep(view.body.data).map((key) => key.toLowerCase());
-  for (const word of forbiddenPayload) {
-    assert.ok(
-      keys.every((key) => !key.includes(word)),
-      word,
-    );
-  }
-  assert.ok(!JSON.stringify(view.body).includes('Synthetic Operations User'));
-  const rules = await count(target, 'course_enrollment_rules');
-  for (const id of runFlows) {
-    const run = await flowAs(target, editor)(id, {
-      academic_year: state.newYear,
-    });
-    assert.equal(run.status, 403, `${id}: ${JSON.stringify(run.body)}`);
-  }
-  assert.equal(await count(target, 'course_enrollment_rules'), rules);
-  await refusesAdminTasks(request);
-  await editsSourcesOnly(request, state);
-  await navigatesToIssues(request, t);
+  const operations = await as(target, plain)('GET', '/items/data_operations');
+  assert.equal(operations.status, 403, JSON.stringify(operations.body));
 };
 
 const sourceRevision = async (target) => {
@@ -348,11 +244,8 @@ const refusesReader = async ({ state, t, target }) => {
 };
 
 const guardsAccess = async (context) => {
-  const { state, t, target } = context;
-  await withAccessUsers(target, async ({ editor, plain }) => {
-    await refusesStrangers(target, plain);
-    await servesEditor({ editor, state, t, target });
-  });
+  const { target } = context;
+  await withRestrictedUser(target, (plain) => refusesStrangers(target, plain));
   await refusesReader(context);
   await assertNoAccessResidue(target);
 };
@@ -466,13 +359,21 @@ const countsAndPublishes = async ({ state, t, target }) => {
   );
 };
 
-// The administrator's status view: lists from the declarations.
+// The administrator's status view: lists from the declarations, and no
+// token, owner, fingerprint, process or Moodle user record.
 const showsLists = async ({ state, target }) => {
   const request = as(target, target.token);
   const view = await request('GET', '/finki-hub-data-status');
   assert.equal(view.status, 200);
   const { data } = view.body;
-  assert.equal(data.audience, 'administrator');
+  const keys = keysDeep(data).map((key) => key.toLowerCase());
+  for (const word of forbiddenPayload) {
+    assert.ok(
+      keys.every((key) => !key.includes(word)),
+      word,
+    );
+  }
+  assert.ok(!JSON.stringify(view.body).includes('Synthetic Operations User'));
   assert.deepEqual(
     data.domains.map(({ name }) => name),
     coordinationDomains,
@@ -523,20 +424,22 @@ test('installs the Data operations dashboard and guards every data operation', a
     target,
     async () => {
       const context = { directus, state, t, target };
-      await t.test(
-        'installs the dashboard, its panels and the derived editor policy once',
-        () => installsOnce(context),
+      await t.test('installs the dashboard and its panels once', () =>
+        installsOnce(context),
       );
-      await t.test(
-        'keeps Studio edits of the dashboard and aligns the code-owned policy',
-        () => keepsEditsAndAlignsPolicy(context),
+      await t.test('keeps Studio edits of the dashboard', () =>
+        keepsEdits(context),
       );
       await t.test(
         'seeds courses, years, rules and one mapped history line',
         () => seeds(context),
       );
       await t.test(
-        'answers the status read by audience and refuses every operation to a non-administrator',
+        'follows the review link of a positive check to its bookmark and records',
+        () => navigatesToIssues(context),
+      );
+      await t.test(
+        'refuses the status read and every operation to anonymous and non-administrator callers',
         () => guardsAccess(context),
       );
       await t.test(
@@ -563,10 +466,6 @@ test('installs the Data operations dashboard and guards every data operation', a
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
   assert.deepEqual(
     await get(target, `/dashboards?filter[id][_eq]=${operationsDashboardId}`),
-    [],
-  );
-  assert.deepEqual(
-    await get(target, `/policies?filter[id][_eq]=${editorPolicy.id}`),
     [],
   );
 });

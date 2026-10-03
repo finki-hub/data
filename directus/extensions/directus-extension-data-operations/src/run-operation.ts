@@ -66,7 +66,6 @@ export const useRunOperation = (
   const runnable = computed(() =>
     plan.value?.runnable === true ? plan.value : null,
   );
-  const isAdmin = computed(() => status.value?.audience === 'administrator');
   // Another panel of this page has a run in flight: it takes the claim,
   // so Run waits for it without waiting for the next status read.
   const otherRun = computed(() => runsInFlight.value > (running.value ? 1 : 0));
@@ -76,7 +75,6 @@ export const useRunOperation = (
   const canRun = computed(
     () =>
       runnable.value !== null &&
-      isAdmin.value &&
       !running.value &&
       !otherRun.value &&
       status.value?.claim === null,
@@ -91,7 +89,8 @@ export const useRunOperation = (
     if (key === null) {
       return;
     }
-    // The panel shows the Flow once the status says who may run it.
+    // The panel shows the Flow once the status is read: Run needs its
+    // claim.
     loading.value = true;
     try {
       const answer = await api.get(`/flows/${encodeURIComponent(key)}`, {
@@ -205,7 +204,6 @@ export const useRunOperation = (
     ),
     fields,
     flow,
-    isAdmin,
     // What the last successful run answered, or null.
     lines: computed(() =>
       outcome.value?.ok === true ? outcome.value.lines : null,

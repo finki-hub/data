@@ -64,7 +64,6 @@ const flow: ManualFlow = {
 };
 
 const idle: StatusView = {
-  audience: 'administrator',
   claim: null,
   domains: [],
   historyIndex: {
@@ -238,7 +237,6 @@ describe('the Run operation status read', () => {
     await vi.advanceTimersByTimeAsync(pollMs);
 
     expect(run.statusProblem).toBeNull();
-    expect(run.isAdmin).toBeTruthy();
     expect(run.canRun).toBeTruthy();
   });
 

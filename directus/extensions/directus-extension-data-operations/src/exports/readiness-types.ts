@@ -26,7 +26,7 @@ export type CountSource = {
 
 export type ReadinessEntry = {
   readonly code: string;
-  // What the count means and how an editor resolves it.
+  // What the count means and how it is resolved.
   readonly description: string;
   // The public files a positive blocker holds back; a warning holds none.
   readonly gates: readonly string[];
@@ -53,8 +53,7 @@ export type ReadinessSource =
 // The Studio view that lists the records behind an issue: a shared
 // bookmark on the entry's page collection, created by setup when missing
 // (one per entry, never one per generation row). Its filter uses plain
-// field and relational paths only; Studio runs it as the viewer, so the
-// viewer's permissions apply.
+// field and relational paths only.
 export type ReviewView = {
   readonly bookmark: string;
   readonly fields: readonly string[];
