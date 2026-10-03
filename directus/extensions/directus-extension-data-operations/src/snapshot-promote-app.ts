@@ -7,7 +7,7 @@ const text = (value: unknown): string =>
 // snapshot-promote.ts.
 export default defineOperationApp({
   description:
-    'Replaces moodle_users with the staged snapshot (administrators only): exclusive claim, verified backup, one transaction; marks history_index, enrollments and publication pending.',
+    'Replaces moodle_users with the staged snapshot: exclusive claim, verified backup, one transaction; marks history_index, enrollments and publication pending.',
   icon: 'published_with_changes',
   id: 'finki-hub-snapshot-promote',
   name: 'FINKI Hub snapshot promotion',

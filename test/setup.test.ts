@@ -4,10 +4,7 @@ import { z } from 'zod';
 import { guardedDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import { writeGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/coordination/write-guards.js';
 import { curriculumGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/curriculum-guards.js';
-import {
-  executeMigration,
-  isAdminRequest,
-} from '../directus/extensions/directus-extension-data-operations/src/index.js';
+import { executeMigration } from '../directus/extensions/directus-extension-data-operations/src/index.js';
 import { keyGuardStatements } from '../directus/extensions/directus-extension-data-operations/src/key-guards.js';
 import {
   findMigration,
@@ -175,7 +172,7 @@ describe('schema constraints', () => {
     ).rejects.toBe(forbidden);
   });
 
-  test('runs only allowlisted migrations for administrators, one statement per call', async () => {
+  test('runs only allowlisted migrations, one statement per call', async () => {
     expect(migrations.map(({ name }) => name)).toEqual([
       schemaConstraintsMigration,
       sourceInvalidationMigration,
@@ -184,12 +181,6 @@ describe('schema constraints', () => {
     expect(findMigration('../schema-constraints')).toBeUndefined();
     expect(findMigration('Schema-Constraints')).toBeUndefined();
     expect(findMigration(undefined)).toBeUndefined();
-    expect(isAdminRequest({ accountability: { admin: true } })).toBeTruthy();
-    expect(
-      isAdminRequest({ accountability: { admin: false, user: 'x' } }),
-    ).toBe(false);
-    expect(isAdminRequest({ accountability: null })).toBe(false);
-    expect(isAdminRequest({})).toBe(false);
 
     const executed: string[] = [];
     const count = await executeMigration(

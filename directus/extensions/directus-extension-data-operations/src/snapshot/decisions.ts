@@ -3,8 +3,8 @@ import type { z } from 'zod';
 import type { OperationsState } from '../coordination/state.js';
 import type { FileFacts, SnapshotState } from './port.js';
 
-import { isAdministrator } from '../administrator.js';
-import { adminOnlyText, invalidOptionsText } from '../text.js';
+import { callerRefusal } from '../access.js';
+import { invalidOptionsText } from '../text.js';
 import {
   csvTypes,
   type PromoteOptions,
@@ -13,15 +13,12 @@ import {
 } from './contract.js';
 import { claimBusy, type SnapshotError, snapshotError } from './errors.js';
 
-// Both operations serve administrators only, whatever the Flow around them
-// checks: an administrator can build a Flow of their own, nobody else can
-// run one that reaches these operations with another identity.
-export const requireAdmin = (accountability: unknown): void => {
-  if (!isAdministrator(accountability)) {
-    throw snapshotError(
-      'FORBIDDEN',
-      adminOnlyText('import or promote a Moodle snapshot'),
-    );
+// Both operations write with system rights, so they refuse a caller the
+// caller check refuses (access.ts) before anything is read or written.
+export const requireCaller = (accountability: unknown): void => {
+  const refusal = callerRefusal(accountability);
+  if (refusal !== null) {
+    throw snapshotError(refusal.reason, refusal.message);
   }
 };
 

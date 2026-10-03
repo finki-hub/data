@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 import type { ExportDefinition } from './types.js';
 
-import { isAdministrator } from '../administrator.js';
+import { callerRefusal } from '../access.js';
 import { maxPublishedFiles } from '../coordination/state.js';
-import { adminOnlyText, invalidOptionsText } from '../text.js';
+import { invalidOptionsText } from '../text.js';
 import { exportError } from './errors.js';
 import { exportDefinitions } from './index.js';
 import { type ExportDeps, prepareAction, readinessAction } from './prepare.js';
@@ -37,14 +37,12 @@ export const parsedActions = optionsSchema.options.map(
   (option) => option.shape.action.value,
 );
 
-// The operation serves administrators only, whatever the Flow around it
-// checks: it reads with system rights.
-const requireAdmin = (accountability: unknown): void => {
-  if (!isAdministrator(accountability)) {
-    throw exportError(
-      'FORBIDDEN',
-      adminOnlyText('check, prepare or publish the public files'),
-    );
+// The operation reads with system rights, so it refuses a caller the
+// caller check refuses (access.ts) before it builds a reader.
+const requireCaller = (accountability: unknown): void => {
+  const refusal = callerRefusal(accountability);
+  if (refusal !== null) {
+    throw exportError(refusal.reason, refusal.message);
   }
 };
 
@@ -73,7 +71,7 @@ export const runExportAction = async (
   options: unknown,
   { accountability, definitions = exportDefinitions, deps }: ExportCaller,
 ) => {
-  requireAdmin(accountability);
+  requireCaller(accountability);
   const parsed = parseExportOptions(options);
   if (parsed.action === 'outcomes') {
     return outcomesAction(definitions, parsed.results);

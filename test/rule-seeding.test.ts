@@ -117,20 +117,13 @@ describe('Data / Add enrollment rules', () => {
     });
   });
 
-  test('refuses a non-administrator before anything is read or written', () => {
-    const gate = stepOf(ruleSeedingFlow, 'admin_only');
+  test('resolves the scope before anything is read or written', () => {
+    const resolve = stepOf(ruleSeedingFlow, 'scope');
 
-    expect(ruleSeedingFlow.entry).toBe(gate.id);
-    expect(gate.options).toEqual({
-      filter: { $accountability: { admin: { _eq: true } } },
-    });
-    expect(keyOf(ruleSeedingFlow, gate.reject)).toBe('raise_forbidden');
-    expect(stepOf(ruleSeedingFlow, 'raise_forbidden').options).toMatchObject({
-      code: 'FORBIDDEN',
-      status: 403,
-    });
+    expect(ruleSeedingFlow.entry).toBe(resolve.id);
+    expect(resolve.type).toBe('exec');
+    expect(keyOf(ruleSeedingFlow, resolve.reject)).toBe('raise_scope');
     expect(mainRow(ruleSeedingFlow)).toEqual([
-      'admin_only',
       'scope',
       'years',
       'courses',

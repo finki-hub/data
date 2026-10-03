@@ -59,9 +59,7 @@ import {
   patch,
   post,
   probeFlowId,
-  readerPolicyPrefix,
   rebuild,
-  rebuildAs,
   refused,
   refusedRun,
   remove,
@@ -71,7 +69,6 @@ import {
   seedUsers,
   status,
   trigger,
-  withReader,
 } from './history-index-helpers.mjs';
 import {
   installHistoryRunner,
@@ -749,31 +746,6 @@ const refusesOverlongLine = async (target, state) => {
   assert.equal(report.historyIndex.entries, 9);
 };
 
-// Directus lets anyone who may read moodle_users trigger a manual Flow on
-// it; the synthetic runner, like every data-operations Flow, refuses a
-// non-administrator in its first operation.
-const gatesNonAdministrators = async (target) => {
-  const before = await status(target);
-  await withReader(target, async (token) => {
-    const run = await rebuildAs(target, token);
-    assert.equal(
-      refusedRun(run, 403, 'FORBIDDEN'),
-      'Only administrators may rebuild the Moodle history index.',
-    );
-  });
-  const after = await status(target);
-  assert.equal(after.claim, null);
-  assert.deepEqual(after.revisions, before.revisions);
-  assert.deepEqual(after.lastError, before.lastError);
-  assert.deepEqual(
-    await get(
-      target,
-      `/policies?fields=id&filter[name][_starts_with]=${encodeURIComponent(readerPolicyPrefix)}&limit=-1`,
-    ),
-    [],
-  );
-};
-
 // The writer serves the history domain only; an enrollment claim is
 // refused and released cleanly. Since Task 12 the coordinator refuses to
 // plan the Moodle users under it at all, so no history page is planned
@@ -968,9 +940,6 @@ test('indexes raw Moodle histories into durable entries and replaceable membersh
       await t.test(
         'fails the run on an over-long history line naming its user until the raw history is fixed',
         () => refusesOverlongLine(target, state),
-      );
-      await t.test('refuses the runner to a non-administrator', () =>
-        gatesNonAdministrators(target),
       );
       await t.test('refuses index pages under an enrollment claim', () =>
         refusesForeignDomain(target, state),

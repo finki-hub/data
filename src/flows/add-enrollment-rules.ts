@@ -19,7 +19,6 @@ import {
 } from './flow-template.js';
 import { mappedRuleMode } from './shared.js';
 import { flowDescription } from './text-fragments.js';
-import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.rules;
 const step = familyStep(family);
@@ -28,39 +27,36 @@ export const ruleSeedingFlowId = rulesId('01');
 
 // The explicit, idempotent seeding of enrollment rules for a new academic
 // year or course (owner decision 2026-09-23): no event Flow runs it. It
-// refuses a non-administrator before any read (the trigger endpoint only
-// checks read access to data_operations), reads the year and course ids in
-// scope and their existing rules with native Reads, computes the missing
-// pairs in a small Script and creates them in serial batches of native
-// Creates with the declared mapped mode. Existing pairs (of any mode) are
-// skipped, so a rerun creates nothing; it never changes a rule and never
-// creates a mapping. The new rules mark the enrollment counts pending
-// through the source triggers, and Data / Process pending counts them.
+// reads the year and course ids in scope and their existing rules with
+// native Reads, computes the missing pairs in a small Script and creates
+// them in serial batches of native Creates with the declared mapped mode.
+// Existing pairs (of any mode) are skipped, so a rerun creates nothing; it
+// never changes a rule and never creates a mapping. The new rules mark the
+// enrollment counts pending through the source triggers, and Data /
+// Process pending counts them.
 export const ruleSeedingFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
-    adminOnly: true,
     does: `Creates missing enrollment rules (mode ${mappedRuleMode.mode}) for an academic year, a course or one pair`,
     note: 'Existing rules are skipped',
   }),
-  entry: rulesId('11'),
+  entry: rulesId('12'),
   icon: 'playlist_add',
   id: ruleSeedingFlowId,
   name: 'Data / Add enrollment rules',
   operations: [
-    ...adminOnly(['11', '21', '12'], 'add enrollment rules', { code: family }),
     step({
       edges: { reject: rulesId('22'), resolve: rulesId('13') },
       key: 'scope',
       name: 'Resolve the scope',
       options: { code: scopeScript },
-      position: [37, 1],
+      position: [19, 1],
       suffix: '12',
       type: 'exec',
     }),
     refusal({
       code: 'RULES_SCOPE_INVALID',
-      column: 37,
+      column: 19,
       key: 'raise_scope',
       message: '{{ scope.message }}',
       status: 400,
@@ -68,7 +64,7 @@ export const ruleSeedingFlow: FlowTemplate = {
     }),
     ...scopeRead({
       collection: 'academic_years',
-      column: 55,
+      column: 37,
       fields: ['id'],
       filter: '{{ scope.years }}',
       key: 'years',
@@ -79,7 +75,7 @@ export const ruleSeedingFlow: FlowTemplate = {
     }),
     ...scopeRead({
       collection: 'courses',
-      column: 73,
+      column: 55,
       fields: ['id'],
       filter: '{{ scope.courses }}',
       key: 'courses',
@@ -90,7 +86,7 @@ export const ruleSeedingFlow: FlowTemplate = {
     }),
     ...scopeRead({
       collection: rulesCollection,
-      column: 91,
+      column: 73,
       fields: ['course', 'academic_year'],
       filter: '{{ scope.rules }}',
       key: 'rules',
@@ -104,13 +100,13 @@ export const ruleSeedingFlow: FlowTemplate = {
       key: 'pairs',
       name: 'List the missing pairs',
       options: { code: pairsScript },
-      position: [109, 1],
+      position: [91, 1],
       suffix: '16',
       type: 'exec',
     }),
     refusal({
       code: 'RULES_SCOPE_UNKNOWN',
-      column: 109,
+      column: 91,
       key: 'raise_pairs',
       message: '{{ pairs.message }}',
       status: 404,
@@ -125,13 +121,13 @@ export const ruleSeedingFlow: FlowTemplate = {
         iterationMode: 'serial',
         payload: '{{ pairs.batches }}',
       },
-      position: [127, 1],
+      position: [109, 1],
       suffix: '17',
       type: 'trigger',
     }),
     refusal({
       code: 'RULES_BATCH_FAILED',
-      column: 127,
+      column: 109,
       key: 'raise_loop',
       message: '{{ create_batches.message }}',
       status: 500,
@@ -142,13 +138,13 @@ export const ruleSeedingFlow: FlowTemplate = {
       key: 'tally',
       name: 'Count the created rules',
       options: { code: tallyScript },
-      position: [145, 1],
+      position: [127, 1],
       suffix: '18',
       type: 'exec',
     }),
     refusal({
       code: 'RULES_BATCH_FAILED',
-      column: 145,
+      column: 127,
       key: 'raise_batches',
       message: '{{ tally.message }}',
       status: 409,
@@ -167,7 +163,7 @@ export const ruleSeedingFlow: FlowTemplate = {
           years: '{{ pairs.years }}',
         },
       },
-      position: [163, 1],
+      position: [145, 1],
       suffix: '19',
       type: 'transform',
     }),

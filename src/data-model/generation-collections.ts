@@ -6,9 +6,9 @@ import {
 } from './content-collections.js';
 import { m2o, scalar } from './fields.js';
 
-// Curriculum generations and their study programs are rows administrators
-// add in Studio, never a code list: a new generation or program is a new
-// row, and it reaches courses.json only once its `published` flag is set.
+// Curriculum generations and their study programs are rows added in
+// Studio, never a code list: a new generation or program is a new row,
+// and it reaches courses.json only once its `published` flag is set.
 // Program states and equivalency members are rows too, so a new program or
 // generation adds rows, not columns.
 

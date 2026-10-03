@@ -7,8 +7,8 @@ import { compositeKey, planned, type PlannedRow, ref } from './planned.js';
 // What the historical workbook knows about curriculum generations and
 // study programs, closed and in the import only: its three generations
 // and the Cyrillic headers of its curriculum sheets' program columns. The
-// one-time import seeds rows from it; afterwards the rows are
-// administrator data and nothing here grows with them.
+// one-time import seeds rows from it; afterwards the rows are Studio data
+// and nothing here grows with them.
 
 export type EntrySource = 'curriculum_2018' | 'curriculum_2023';
 

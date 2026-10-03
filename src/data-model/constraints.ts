@@ -30,8 +30,8 @@ export class DataOperationsUnavailableError extends Error {
   }
 }
 
-// Runs one bundled migration through the admin-only endpoint of the
-// data-operations extension bundle; only bundled names are accepted there.
+// Runs one bundled migration through the endpoint of the data-operations
+// extension bundle; only bundled names are accepted there.
 const applyMigration = async (
   request: DirectusRequest,
   name: string,

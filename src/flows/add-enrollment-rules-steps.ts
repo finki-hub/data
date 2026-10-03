@@ -89,9 +89,9 @@ export const refusal = (
     suffix: spec.suffix,
   });
 
-// A read of the scope, as the administrator who runs the Flow, and the
-// refusal it rejects to (Directus keeps every resolve and reject target
-// unique, so each step has its own).
+// A read of the scope with the permissions of whoever runs the Flow
+// ($trigger), and the refusal it rejects to (Directus keeps every resolve
+// and reject target unique, so each step has its own).
 export const scopeRead = (spec: {
   readonly collection: string;
   readonly column: number;

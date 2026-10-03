@@ -8,7 +8,10 @@ import {
   defaultPanels,
   operationsDashboardId,
 } from '../src/data-model/operations-dashboard.js';
-import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
+import {
+  publishAssetsFlow,
+  publishAssetsFlowId,
+} from '../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../src/flows/snapshot-import.js';
 import {
   clickMatching,
@@ -154,8 +157,8 @@ const syntheticFlow = {
   trigger: 'manual',
 };
 
-// An administrator puts a Run operation panel for a Flow created after the
-// build on the dashboard in Studio; it renders the Flow's own fields.
+// A Run operation panel for a Flow created after the build goes on the
+// dashboard in Studio; it renders the Flow's own fields.
 export const addsPanel = async ({
   admin,
   openDashboard,
@@ -214,8 +217,8 @@ export const addsPanel = async ({
     );
     return saved !== undefined;
   });
-  // Studio places a new panel at 1,1, over the first default panel; the
-  // administrator would drag it to a free place, done here over REST.
+  // Studio places a new panel at 1,1, over the first default panel; a
+  // person would drag it to a free place, done here over REST.
   await patch(target, `/panels/${saved.id}`, {
     position_x: 1,
     position_y: freeRow,
@@ -265,9 +268,9 @@ export const waitsForStatus = async ({
       const shown = await textOf(admin, publish);
       return shown.includes('Data status read failed: NO_ANSWER');
     });
-    // The Flow's own description names its rule ("Administrators only.").
+    // The panel shows the Flow's own description, as installed.
     const described = await textOf(admin, `${publish} .description`);
-    assert.ok(described.includes('Administrators only.'), described);
+    assert.ok(described.includes(publishAssetsFlow.description), described);
     const enabled = await admin.attempt(
       'is',
       'enabled',

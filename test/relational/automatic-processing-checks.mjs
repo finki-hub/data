@@ -31,9 +31,8 @@ import {
   waitForStatus,
   waitLimitMs,
   wallClock,
-  withOperationsReader,
 } from './automatic-processing-helpers.mjs';
-import { errorCode, json, request } from './data-model-helpers.mjs';
+import { json, request } from './data-model-helpers.mjs';
 import {
   partitionsFingerprints,
   storesClaimOptions,
@@ -178,23 +177,6 @@ const blocksFailedWork = async (t, target, state) => {
     'gamma/y2': 2,
   });
   assert.equal(fixed.report.lastError.blocking, false);
-};
-
-// Only administrators may ask for a recalculation.
-const gatesMarkPending = async (target) => {
-  const before = await status(target);
-  await withOperationsReader(target, async (token) => {
-    const response = await request(
-      target,
-      markPendingPath,
-      json('POST', { collection: 'data_operations' }, token),
-    );
-    const body = await response.json();
-    assert.equal(response.status, 403, JSON.stringify(body));
-    assert.equal(errorCode(body), 'FORBIDDEN');
-  });
-  const after = await status(target);
-  assert.deepEqual(after.revisions, before.revisions);
 };
 
 // A name alone is no graph change; an option of a child Flow is, and the
@@ -693,9 +675,6 @@ export const checksAfterSeeding = async (t, target, state) => {
   await t.test(
     'records a failed child and retries it only on request or edit',
     () => blocksFailedWork(t, target, state),
-  );
-  await t.test('lets only administrators mark work pending', () =>
-    gatesMarkPending(target),
   );
   await t.test(
     'recalculates after a Flow option change and never for a name',

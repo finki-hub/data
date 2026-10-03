@@ -32,13 +32,13 @@ import {
   removeFlow,
   settle,
   wallClock,
-  withOperationsReader,
 } from './relational/automatic-processing-helpers.mjs';
 import {
   adminRequest,
   pauseAutomaticProcessing,
   userCollections,
   withDataModel,
+  withRestrictedUser,
 } from './relational/data-model-helpers.mjs';
 import { seedDataset } from './relational/export-projection-helpers.mjs';
 import {
@@ -225,14 +225,14 @@ const refusesStrangers = async ({ s3, t, target }) => {
   );
   await anonymous.text();
   assert.equal(anonymous.status, 403);
-  await withOperationsReader(target, async (token) => {
+  // A signed-in user who cannot read data_operations: Directus refuses
+  // the trigger itself.
+  await withRestrictedUser(target, async (token) => {
     const run = await trigger(target, publishAssetsFlowId, token);
     assert.equal(run.status, 403, JSON.stringify(run.body));
-    assert.equal(errorOf(run.body).code, 'FORBIDDEN');
+    assert.equal(errorOf(run.body).code, 'FORBIDDEN', JSON.stringify(run.body));
   });
-  t.diagnostic(
-    `anonymous ${anonymous.status}; non-administrator 403 FORBIDDEN`,
-  );
+  t.diagnostic(`anonymous ${anonymous.status}; restricted user 403 FORBIDDEN`);
   const keys = await listKeys(s3);
   assert.deepEqual(
     declaredFilenames.filter((key) => keys.includes(key)),
@@ -601,7 +601,7 @@ test('publishes every declared file to the S3 target with one outcome per file',
         await t.test('seeds and settles the synthetic parity dataset', () =>
           seeds(context),
         );
-        await t.test('refuses anonymous and non-administrator callers', () =>
+        await t.test('refuses anonymous and restricted callers', () =>
           refusesStrangers(context),
         );
         await t.test(

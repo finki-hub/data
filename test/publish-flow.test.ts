@@ -61,7 +61,7 @@ const reachable = (flow: FlowTemplate, from: string): Set<string> => {
 describe('Publish / Public assets', () => {
   const flow = publishAssetsFlow;
 
-  test('is an administrators-only manual button with a confirmation, answering synchronously', () => {
+  test('is a manual button with a confirmation, answering synchronously', () => {
     expect(flow).toMatchObject({
       accountability: 'activity',
       id: publishAssetsFlowId,
@@ -80,17 +80,12 @@ describe('Publish / Public assets', () => {
       'one after another',
     );
     expect(byId(flow, flow.entry)).toMatchObject({
-      key: 'admin_only',
-      options: { filter: { $accountability: { admin: { _eq: true } } } },
-      type: 'condition',
+      key: 'claim',
+      type: coordinateOperation,
     });
     expect(keyOf(flow, byId(flow, flow.entry)?.reject ?? null)).toBe(
-      'raise_forbidden',
+      'raise_claim',
     );
-    expect(stepOf(flow, 'raise_forbidden').options).toMatchObject({
-      code: 'FORBIDDEN',
-      status: 403,
-    });
   });
 
   test('claims publication, stages every declared file, loops serially, then records the outcome map', () => {
@@ -141,7 +136,6 @@ describe('Publish / Public assets', () => {
     });
 
     const main = [
-      'admin_only',
       'claim',
       'claimed',
       'stage',

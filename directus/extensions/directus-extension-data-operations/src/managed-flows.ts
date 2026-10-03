@@ -4,20 +4,13 @@
 // read it.
 
 // The name prefix of every manual Flow a dashboard panel may run: the data
-// operations (`Data / ...`) and the publication (`Publish / ...`). An
-// administrator who adds a manual Flow with such a name in Studio can put
-// it on the dashboard with no code change. The prefix is a convenience of
-// the panel's Flow picker, never the access boundary. The trigger endpoint
-// lets anyone run a manual Flow who may read its collection, so every
-// installed managed Flow starts with a Condition on the administrator flag
-// that rejects into a 403 Throw Error, and a Flow an administrator adds
-// needs the same first step (README, "Data operations dashboard").
+// operations (`Data / ...`) and the publication (`Publish / ...`). A manual
+// Flow added in Studio with such a name goes on the dashboard with no code
+// change (README, "Data operations dashboard").
 export const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
 
-// The one collection a panel runs a managed Flow on: the hidden Data
-// Operations singleton, which only administrators read, so the trigger
-// endpoint refuses every non-administrator before such a Flow starts. A
-// Flow on another collection would rest on its own first step alone.
+// The one collection a panel runs a managed Flow on and names in its
+// trigger request: the hidden Data Operations singleton.
 export const operationsCollection = 'data_operations';
 
 export const isManagedFlowName = (name: string): boolean =>

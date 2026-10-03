@@ -12,7 +12,6 @@ import {
   raise,
 } from './flow-template.js';
 import { flowDescription, stepName } from './text-fragments.js';
-import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.automation;
 
@@ -46,26 +45,20 @@ export const chosenDomainsScript = `module.exports = function (data) {
 export const markPendingFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
-    adminOnly: true,
     does: `Marks the selected domains pending (default: ${defaultDomains}); retries a failed run`,
   }),
-  entry: automationId('51'),
+  entry: automationId('52'),
   icon: 'update',
   id: markPendingFlowId,
   name: 'Data / Mark pending',
   operations: [
-    // Marking moves the source revision, so it is gated on the
-    // administrator flag like every data operation.
-    ...adminOnly(['51', '55', '52'], 'ask for a recalculation', {
-      code: family,
-    }),
     operation({
       edges: { resolve: automationId('53') },
       family,
       key: 'domains',
       name: 'Resolve the domains',
       options: { code: chosenDomainsScript },
-      position: [37, 1],
+      position: [19, 1],
       suffix: '52',
       type: 'exec',
     }),
@@ -75,7 +68,7 @@ export const markPendingFlow: FlowTemplate = {
       key: 'mark',
       name: 'Mark the domains pending',
       options: { action: 'mark', domains: '{{ domains }}' },
-      position: [55, 1],
+      position: [37, 1],
       suffix: '53',
       type: coordinateOperation,
     }),
@@ -88,7 +81,7 @@ export const markPendingFlow: FlowTemplate = {
       family,
       key: 'raise_mark',
       name: stepName.raise('MARK_REFUSED'),
-      position: [55, 19],
+      position: [37, 19],
       suffix: '56',
     }),
     operation({
@@ -97,7 +90,7 @@ export const markPendingFlow: FlowTemplate = {
       key: 'status',
       name: 'Read the status',
       options: { action: 'status' },
-      position: [73, 1],
+      position: [55, 1],
       suffix: '54',
       type: coordinateOperation,
     }),
@@ -112,7 +105,7 @@ export const markPendingFlow: FlowTemplate = {
           revision: '{{ mark.revision }}',
         },
       },
-      position: [91, 1],
+      position: [73, 1],
       suffix: '57',
       type: 'transform',
     }),

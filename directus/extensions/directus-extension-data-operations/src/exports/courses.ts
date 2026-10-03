@@ -18,7 +18,7 @@ import {
 // courses.json: one row per course in id order, with the keys, order and
 // value forms of the committed file (under
 // test/fixtures/expected-exports), projected from the relational rows on
-// read. Its curriculum keys come from rows an administrator publishes:
+// read. Its curriculum keys come from published rows:
 // every published generation with a curriculum adds its availability key
 // and a block of keys, and every published program of it a state key. A
 // new generation or program needs no change here.

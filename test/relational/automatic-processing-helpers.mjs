@@ -280,8 +280,8 @@ export const operationOf = ({ edges = {}, id, key, options, type }) => ({
   type,
 });
 
-// A user without administrator rights who may read the coordination
-// singleton, so Directus lets it trigger a manual Flow on it.
+// A synthetic user without admin access whose one permission reads the
+// coordination singleton, enough for Directus to start a manual Flow on it.
 export const withOperationsReader = async (target, body) => {
   const policy = await post(target, '/policies', {
     admin_access: false,

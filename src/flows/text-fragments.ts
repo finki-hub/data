@@ -46,7 +46,6 @@ type FlowFailure =
     };
 
 export type FlowDescriptionParts = {
-  readonly adminOnly?: boolean;
   // The answer keys, such as 'ok: true', 'pages'.
   readonly answers?: readonly string[];
   // The Flow that runs this one.
@@ -56,7 +55,7 @@ export type FlowDescriptionParts = {
   readonly failure?: FlowFailure;
   // The trigger payload keys.
   readonly input?: readonly string[];
-  // One more fact, after "Administrators only.".
+  // One more fact, after what the Flow does.
   readonly note?: string;
 };
 
@@ -83,11 +82,10 @@ const failureText = (failure: FlowFailure | undefined): string => {
     : ` or ${record}; failure ${pluralText(codes.length, 'code', 'codes')} ${codes.join(', ')}`;
 };
 
-// A Flow description: `<Verb> <object>. [Administrators only.] Input {...}.
-// Answers {...} or {ok: false, stage, code, message}[; failure code X].
-// Called by "<Flow>".`
+// A Flow description: `<Verb> <object>.[ <Fact>.] Input {...}. Answers
+// {...} or {ok: false, stage, code, message}[; failure code X]. Called by
+// "<Flow>".`
 export const flowDescription = ({
-  adminOnly = false,
   answers,
   caller,
   does,
@@ -97,7 +95,6 @@ export const flowDescription = ({
 }: FlowDescriptionParts): string =>
   [
     sentence(does),
-    ...(adminOnly ? ['Administrators only.'] : []),
     ...(note === undefined ? [] : [sentence(note)]),
     ...(input === undefined ? [] : [`Input ${keysText(input)}.`]),
     ...(answers === undefined

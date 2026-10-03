@@ -34,9 +34,11 @@ import { clearStagingSql } from '../directus/extensions/directus-extension-data-
 import {
   csvFileId,
   FakeSnapshot,
+  forbiddenCaller,
   otherFileId,
   owner,
   readAll,
+  refusedCallers,
   rowsOf,
   snapshotCsv,
   snapshotRow,
@@ -400,16 +402,13 @@ describe('snapshot fingerprint', () => {
 });
 
 describe('snapshot import operation', () => {
-  test('refuses a non-administrator before anything is read or written', async () => {
+  test('refuses a refused caller before anything is read or written', async () => {
     const world = new FakeSnapshot();
     world.addFile(csvFileId, snapshotCsv([syntheticRow(1)]));
-    for (const accountability of [null, { admin: false }, { admin: 'true' }]) {
-      const refusal = await errorOf(
+    for (const [accountability, refusal] of refusedCallers) {
+      await expect(
         runSnapshotImport({ file: csvFileId }, world.deps({ accountability })),
-      );
-
-      expect(refusal.code).toBe('SNAPSHOT_FORBIDDEN');
-      expect(refusal.status).toBe(403);
+      ).rejects.toMatchObject(refusal);
     }
 
     expect(world.coordination.transactions).toBe(0);
@@ -778,7 +777,7 @@ describe('snapshot promotion operation', () => {
     expect(world.data.active).toEqual([]);
   });
 
-  test('refuses while another data operation holds the claim, and a non-administrator', async () => {
+  test('refuses while another data operation holds the claim, and a refused caller', async () => {
     const { previous, world } = await prepared();
     await world.store.transaction(({ coordination }) =>
       coordination.takeClaim({
@@ -801,11 +800,11 @@ describe('snapshot promotion operation', () => {
           confirm_replace: true,
           staging_fingerprint: world.data.state.fingerprint,
         },
-        world.deps({ accountability: { admin: false } }),
+        world.deps({ accountability: { admin: false, user: 'u' } }),
       ),
     );
 
-    expect(forbidden.code).toBe('SNAPSHOT_FORBIDDEN');
+    expect(forbidden).toMatchObject(forbiddenCaller);
     expect(rowsOf(world.data.active)).toEqual(previous);
     expect(world.data.state.state).toBe('ready');
   });

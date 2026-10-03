@@ -32,7 +32,6 @@ import {
 import {
   settle,
   waitForStatus,
-  withOperationsReader,
 } from './relational/automatic-processing-helpers.mjs';
 import { withRestrictedUser } from './relational/data-model-helpers.mjs';
 import {
@@ -186,8 +185,8 @@ export const failsInvalidPattern = async (context) => {
   t.diagnostic(`invalid pattern: ${failed.report.lastError.code}`);
 };
 
-// A user without a policy, anonymous callers and a reader of the
-// coordination singleton run no operation and write no derived row.
+// A user without a policy and anonymous callers run no operation and
+// write no derived row.
 export const refusesWithoutPermission = async (context) => {
   const { t, target } = context;
   const { revisions } = await status(target);
@@ -209,18 +208,11 @@ export const refusesWithoutPermission = async (context) => {
       assert.equal(answer.status, 403, `${method} ${path}`);
     }
   });
-  await withOperationsReader(target, async (reader) => {
-    for (const id of operationFlows) {
-      const run = await runFlow(target, reader, { id });
-      assert.equal(run.status, 403, `${id}: ${JSON.stringify(run.body)}`);
-      assert.equal(codeOf(run.body), 'FORBIDDEN');
-    }
-  });
   const after = await status(target);
   assert.equal(after.revisions.source, revisions.source);
   await assertIntact(context, 'refused callers');
   t.diagnostic(
-    `${operationFlows.length} operations refused to a user without a policy, anonymous callers and a singleton reader`,
+    `${operationFlows.length} operations refused to a user without a policy and anonymous callers`,
   );
 };
 

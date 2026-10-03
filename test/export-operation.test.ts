@@ -126,18 +126,33 @@ describe('the export operation', () => {
     expect(parsedActions).toEqual([...exportActions]);
   });
 
-  test('serves administrators only, before it builds a reader', async () => {
+  test('refuses a refused caller before it builds a reader', async () => {
     let built = 0;
     const deps = () => {
       built += 1;
       return depsOf();
     };
 
-    for (const accountability of [null, { admin: false, user: 'u' }, {}]) {
+    for (const accountability of [null, {}, { admin: true }]) {
       await expect(
         runExportAction({ action: 'prepare' }, { accountability, deps }),
-      ).rejects.toMatchObject({ code: 'EXPORT_FORBIDDEN', status: 403 });
+      ).rejects.toMatchObject({
+        code: 'EXPORT_UNAUTHENTICATED',
+        message: 'Authentication required',
+        status: 401,
+      });
     }
+
+    await expect(
+      runExportAction(
+        { action: 'prepare' },
+        { accountability: { admin: false, user: 'u' }, deps },
+      ),
+    ).rejects.toMatchObject({
+      code: 'EXPORT_FORBIDDEN',
+      message: 'Forbidden',
+      status: 403,
+    });
 
     await expect(
       runExportAction({ action: 'publish' }, { accountability: admin, deps }),

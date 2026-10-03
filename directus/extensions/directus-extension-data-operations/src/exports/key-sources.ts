@@ -16,20 +16,19 @@ const optedIn = { [optInField]: { _eq: true } };
 //
 // published_years: every academic year whose `published` flag is set,
 // newest first (`sort` descending, then the label descending), keyed by its
-// label. A new academic_years row adds no public key until an
-// administrator publishes it. Readiness also blocks a published year until
-// every course has its count.
+// label. A new academic_years row adds no public key until its `published`
+// flag is set. Readiness also blocks a published year until every course
+// has its count.
 //
 // published_generations: every curriculum generation with a curriculum
 // whose `published` flag is set, newest first (`sort` descending, then the
 // code descending), keyed by its code. A new generation row adds no
-// public key until an administrator publishes it.
+// public key until its `published` flag is set.
 //
 // published_programs: every published study program of a published
 // generation with a curriculum, keyed by its code and nested under its
 // generation's block (`parent`), in `sort` order, then code. A new program
-// row adds no public key until an administrator publishes it and its
-// generation.
+// row adds no public key until it and its generation are published.
 export const keySources: Readonly<Record<KeySourceName, KeySource>> = {
   published_generations: {
     collection: 'curriculum_generations',

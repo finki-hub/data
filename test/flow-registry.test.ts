@@ -73,19 +73,41 @@ const addedOperationIds = new Set([
   ),
 ]);
 
-// The dispatcher steps Task 26 replaced by its family loop (its other
-// steps keep their ids): part of the pinned ids above, never reused.
+// The two steps each manual Flow of families 10, 13 and 14 started with
+// until 2026-10-03, part of the pinned ids above.
+const pinnedGateIds = [
+  familyId('10', '11'),
+  familyId('10', '21'),
+  familyId('13', '51'),
+  familyId('13', '55'),
+  familyId('14', '41'),
+  familyId('14', '42'),
+  familyId('14', '51'),
+  familyId('14', '52'),
+];
+
+// The steps removed later, part of the pinned ids above: the dispatcher
+// steps Task 26 replaced by its family loop (its other steps keep their
+// ids), and the gate steps above.
 const removedOperationIds = [
-  '17',
-  '18',
-  '19',
-  '2b',
-  '2c',
-  '2d',
-  '2e',
-  '2f',
-  '30',
-].map((suffix) => familyId('13', suffix));
+  ...['17', '18', '19', '2b', '2c', '2d', '2e', '2f', '30'].map((suffix) =>
+    familyId('13', suffix),
+  ),
+  ...pinnedGateIds,
+];
+
+// Every removed step, never reused: the ones above and the two steps each
+// manual Flow of families 15 and 16 started with until 2026-10-03 (added
+// after Task 15, so not pinned). A project installed earlier keeps them,
+// and setup creates operations under these fixed ids, so a template that
+// reused one would fail there with RECORD_NOT_UNIQUE.
+const retiredOperationIds = [
+  ...removedOperationIds,
+  familyId('15', '11'),
+  familyId('15', '12'),
+  familyId('16', '11'),
+  familyId('16', '21'),
+];
 
 // A Trigger Flow target that names no Flow but a template of its payload.
 const templated = (target: string): boolean => target.includes('{{');
@@ -121,6 +143,16 @@ const resolveOf = ({ resolve }: OperationTemplate): string[] =>
 
 const operationIds = ({ operations }: FlowTemplate): string[] =>
   operations.map(({ id }) => id);
+
+// A step that tests the caller: the former first two steps of the manual
+// Flows, or any option that names $accountability.
+const readsCaller = ({ key, options }: OperationTemplate): boolean =>
+  ['admin_only', 'raise_forbidden'].includes(key) ||
+  JSON.stringify(options).includes('$accountability');
+
+// The steps of a template that test the caller, by Flow name and key.
+const callerChecksOf = ({ name, operations }: FlowTemplate): string[] =>
+  operations.filter(readsCaller).map(({ key }) => `${name}: ${key}`);
 
 // A filter for the children installed at or after their parent.
 const installedAfter =
@@ -181,6 +213,21 @@ describe('the Flow family registry', () => {
     );
     expect(templates.map(({ id }) => id)).toContain(familyId('14', '04'));
     expect(templates.map(({ id }) => id)).toContain(familyId('14', '05'));
+  });
+
+  // No template tests its caller: the operations that need a caller check
+  // run it themselves (access.ts).
+  test('holds no step that reads the caller accountability', () => {
+    expect(flowTemplates().flatMap(callerChecksOf)).toEqual([]);
+  });
+
+  test('reuses no removed step id', () => {
+    const reused = flowTemplates()
+      .flatMap(idsOf)
+      .filter((id) => retiredOperationIds.includes(id));
+
+    expect(new Set(retiredOperationIds).size).toBe(21);
+    expect(reused).toEqual([]);
   });
 
   test('uses every id once across all templates', () => {

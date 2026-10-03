@@ -48,8 +48,6 @@ const resolvePath = (flow: FlowTemplate): string[] => {
   return keys;
 };
 
-const adminGate = { $accountability: { admin: { _eq: true } } };
-
 const byText = (left: string, right: string): number =>
   left.localeCompare(right);
 
@@ -71,22 +69,18 @@ describe.each([
   [validateReadinessFlow, 'readiness', 'Data / Validate readiness'],
   [prepareAssetsFlow, 'prepare', 'Publish / Prepare public assets'],
 ] as const)('%#: the thin publication Flow', (flow, action, name) => {
-  test(`${name} is an administrators-only button on Data Operations`, () => {
+  test(`${name} is a button on Data Operations`, () => {
     expect(flow).toMatchObject({
       accountability: 'activity',
       name,
       options: button,
       trigger: 'manual',
     });
-    expect(keyed(flow, 'admin_only').options).toEqual({ filter: adminGate });
-    expect(stepOf(flow, keyed(flow, 'admin_only').reject)).toMatchObject({
-      options: { code: 'FORBIDDEN', status: 403 },
-      type: 'throw-error',
-    });
+    expect(flow.entry).toBe(keyed(flow, action).id);
   });
 
   test(`${name} calls the export operation's ${action} action and nothing else`, () => {
-    expect(resolvePath(flow)).toEqual(['admin_only', action]);
+    expect(resolvePath(flow)).toEqual([action]);
     expect(keyed(flow, action)).toMatchObject({
       options: { action },
       reject: null,
@@ -96,9 +90,7 @@ describe.each([
     // No read, script, upload or coordinator step: the definitions in the
     // extension decide what is read and published.
     expect(flow.operations.map(({ type }) => type).toSorted(byText)).toEqual([
-      'condition',
       exportsOperation,
-      'throw-error',
     ]);
   });
 });

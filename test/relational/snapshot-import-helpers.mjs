@@ -155,7 +155,7 @@ export const writeSnapshot = async (file, rows, raw = new Map()) => {
 const longTimeout = 900_000;
 
 // A request with a long timeout (a full snapshot run answers only once
-// it committed); `init.token` overrides the administrator token.
+// it committed); `init.token` overrides the fixture token.
 export const call = async (target, path, init = {}) => {
   const { token = target.token, ...rest } = init;
   const headers = new Headers(rest.headers);
@@ -258,8 +258,8 @@ export const fieldsQuery = snapshotFields
   .join(',');
 
 // A manual probe Flow on data_operations that runs one operation with the
-// options taken from the request body, without the template's
-// administrator gate, so the operations' own checks can be reached.
+// options taken from the request body, so each operation's own caller
+// check can be reached directly.
 export const installProbe = async (target, { id, operation, options }) => {
   await post(target, '/flows', {
     accountability: 'activity',
@@ -313,9 +313,9 @@ export const setRequired = async (target, field, required) => {
 export const triggerProbe = (target, id, { body, token = target.token }) =>
   trigger(target, `/flows/trigger/${id}`, { body, token });
 
-// A non-administrator who may read data_operations (enough to trigger a
-// manual Flow on it): a policy with that one permission and a user
-// without an address, both removed afterwards.
+// A synthetic user without admin access whose one permission reads
+// data_operations (enough to trigger a manual Flow on it): a policy with
+// that permission and a user without an address, both removed afterwards.
 export const withReader = async (target, body) => {
   const policy = await post(target, '/policies', {
     admin_access: false,

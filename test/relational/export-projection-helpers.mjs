@@ -74,7 +74,7 @@ export const seedDataset = async (directus, dataset) => {
 
 export const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
-// A read of the engine through the REST API as the administrator: the
+// A read of the engine through the REST API with the fixture token: the
 // same collection, explicit fields, filter and sort the operation's
 // ItemsService read uses, every row at once.
 export const restReader = (target) => (read) => {

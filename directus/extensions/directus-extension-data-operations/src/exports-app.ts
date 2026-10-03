@@ -8,7 +8,7 @@ const text = (value: unknown): string =>
 // Studio definition of the export operation; the API side is
 // exports-operation.ts, the published files are exports/index.ts.
 export default defineOperationApp({
-  description: `Public JSON files of the export definitions (administrators only). Actions: ${exportActions.join(', ')}. No upload.`,
+  description: `Public JSON files of the export definitions. Actions: ${exportActions.join(', ')}. No upload.`,
   icon: 'inventory',
   id: 'finki-hub-exports',
   name: 'FINKI Hub public files',

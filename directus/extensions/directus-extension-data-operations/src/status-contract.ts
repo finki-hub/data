@@ -189,8 +189,8 @@ export const nextReadMs = ({
 };
 
 // Work in flight: a claim, a running domain, or a pending calculation the
-// schedule picks up on its own. A pending publication waits for an
-// administrator, so it is not in flight (a panel would otherwise poll for
+// schedule picks up on its own. A pending publication waits for the
+// Publish button, so it is not in flight (a panel would otherwise poll for
 // as long as nothing is published).
 export const isBusy = (status: null | StatusView): boolean =>
   status !== null &&

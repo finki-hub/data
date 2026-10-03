@@ -139,7 +139,7 @@ describe('source invalidation of the completed source model', () => {
 });
 
 describe('Mark pending', () => {
-  test('is an administrator-only manual Flow on data_operations that marks and never runs', () => {
+  test('is a manual Flow on data_operations that marks and never runs', () => {
     expect(markPendingFlow).toMatchObject({
       accountability: 'activity',
       id: '6a1d9f0e-2b3c-4d5e-8f70-000000001303',
@@ -158,9 +158,9 @@ describe('Mark pending', () => {
     );
 
     expect(entry).toMatchObject({
-      key: 'admin_only',
-      options: { filter: { $accountability: { admin: { _eq: true } } } },
-      type: 'condition',
+      key: 'domains',
+      options: { code: chosenDomainsScript },
+      type: 'exec',
     });
     expect(
       markPendingFlow.operations

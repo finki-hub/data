@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
 import {
-  adminOnlyText,
   boundedText,
   countText,
   factsText,
@@ -13,12 +12,6 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/text.js';
 
 describe('data-operations text forms', () => {
-  test('refuse a non-administrator in one form, without a trailing period', () => {
-    expect(adminOnlyText('run data operations')).toBe(
-      'Only administrators may run data operations',
-    );
-  });
-
   test('count and list as the root package does', () => {
     expect(countText(1, 'entry', 'entries')).toBe('1 entry');
     expect(countText(3, 'entry', 'entries')).toBe('3 entries');

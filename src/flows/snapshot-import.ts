@@ -8,7 +8,6 @@ import {
 } from './flow-template.js';
 import { snapshotFolder } from './snapshot-folder.js';
 import { flowDescription, stepName } from './text-fragments.js';
-import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.snapshot;
 const snapshotImportOperation = 'finki-hub-snapshot-import';
@@ -55,32 +54,28 @@ export const replacementNote = [
   .map((fact) => `${fact}.`)
   .join(' ');
 
-// The manual entry point on the data_operations singleton: an
-// administrator names the uploaded CSV, confirms the replacement (and,
-// separately, an empty snapshot), the import stages it and answers only
-// once staging committed, and the promotion replaces the active snapshot
+// The manual entry point on the data_operations singleton: the dialog
+// names the uploaded CSV and confirms the replacement (and, separately,
+// an empty snapshot), the import stages it and answers only once staging
+// committed, and the promotion replaces the active snapshot
 // under the coordinator's exclusive snapshot claim. Every refusal ends in
 // a throw-error whose status, code and message say why.
 export const snapshotImportFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
-    adminOnly: true,
     does: 'Replaces the active Moodle users with a private snapshot CSV, after a backup',
   }),
-  entry: snapshotId('11'),
+  entry: snapshotId('12'),
   icon: 'upload_file',
   id: snapshotFlowId,
   name: 'Data / Import Moodle snapshot',
   operations: [
-    ...adminOnly(['11', '21', '12'], 'import a Moodle snapshot', {
-      code: family,
-    }),
     check({
       edges: { reject: snapshotId('22'), resolve: snapshotId('13') },
       filter: { $trigger: { body: { confirm_replace: { _eq: true } } } },
       key: 'confirmed',
       name: 'Replacement confirmed?',
-      position: [37, 1],
+      position: [19, 1],
       suffix: '12',
     }),
     raise({
@@ -92,7 +87,7 @@ export const snapshotImportFlow: FlowTemplate = {
       family,
       key: 'raise_unconfirmed',
       name: stepName.raise('CONFIRMATION_REQUIRED'),
-      position: [37, 19],
+      position: [19, 19],
       suffix: '22',
     }),
     step({
@@ -100,7 +95,7 @@ export const snapshotImportFlow: FlowTemplate = {
       key: 'import',
       name: 'Stage the private CSV',
       options: { file: '{{ $trigger.body.file }}' },
-      position: [55, 1],
+      position: [37, 1],
       suffix: '13',
       type: snapshotImportOperation,
     }),
@@ -108,7 +103,7 @@ export const snapshotImportFlow: FlowTemplate = {
       from: 'import',
       key: 'import_failed',
       name: stepName.raise('SNAPSHOT_*'),
-      position: [55, 19],
+      position: [37, 19],
       suffix: '23',
     }),
     check({
@@ -116,7 +111,7 @@ export const snapshotImportFlow: FlowTemplate = {
       filter: { import: { state: { _eq: 'ready' } } },
       key: 'staged',
       name: 'Staged and committed?',
-      position: [73, 1],
+      position: [55, 1],
       suffix: '14',
     }),
     raise({
@@ -128,7 +123,7 @@ export const snapshotImportFlow: FlowTemplate = {
       family,
       key: 'raise_not_staged',
       name: stepName.raise('IMPORT_NOT_READY'),
-      position: [73, 19],
+      position: [55, 19],
       suffix: '24',
     }),
     step({
@@ -140,7 +135,7 @@ export const snapshotImportFlow: FlowTemplate = {
         confirm_replace: '{{ $trigger.body.confirm_replace }}',
         staging_fingerprint: '{{ import.fingerprint }}',
       },
-      position: [91, 1],
+      position: [73, 1],
       suffix: '15',
       type: snapshotPromoteOperation,
     }),
@@ -148,7 +143,7 @@ export const snapshotImportFlow: FlowTemplate = {
       from: 'promote',
       key: 'promote_failed',
       name: stepName.raise('SNAPSHOT_*'),
-      position: [91, 19],
+      position: [73, 19],
       suffix: '25',
     }),
     step({
@@ -168,7 +163,7 @@ export const snapshotImportFlow: FlowTemplate = {
           warnings: '{{ import.warnings }}',
         },
       },
-      position: [109, 1],
+      position: [91, 1],
       suffix: '16',
       type: 'transform',
     }),

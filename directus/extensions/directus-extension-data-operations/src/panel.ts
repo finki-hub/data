@@ -10,10 +10,8 @@ import RunOperationPanel from './panel.vue';
 // The generic Run operation panel: its one option picks an installed
 // manual Flow of a managed family; the panel renders that Flow's own
 // confirmation text and fields and posts them to the native
-// POST /flows/trigger/:id. An administrator puts any later Data / or
-// Publish / Flow on a dashboard with this panel and no code change. The
-// option list is a convenience: the Flow and the trigger endpoint decide
-// who may run it.
+// POST /flows/trigger/:id. Any later Data / or Publish / Flow goes on a
+// dashboard with this panel and no code change.
 export default definePanel({
   component: RunOperationPanel,
   description:

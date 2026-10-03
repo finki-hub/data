@@ -1,6 +1,6 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
 
-import { isAdministrator } from './administrator.js';
+import { requestRefusal } from './access.js';
 import { coordinationStatus, sqlDatabase } from './coordinate.js';
 import { errorBody, forwardError } from './endpoint-errors.js';
 import {
@@ -11,15 +11,10 @@ import {
 } from './migrations.js';
 import { snapshotReport } from './snapshot/report.js';
 import { snapshotStore } from './snapshot/sql-port.js';
-import { adminOnlyText } from './text.js';
 
 type SqlRunner = {
   readonly raw: (sql: string) => PromiseLike<unknown>;
 };
-
-// True only for a request whose resolved accountability is an administrator.
-export const isAdminRequest = (request: object): boolean =>
-  'accountability' in request && isAdministrator(request.accountability);
 
 // Runs every statement of the migration in order and returns how many ran.
 export const executeMigration = async (
@@ -45,10 +40,11 @@ export const unknownMigrationText = (name: string): string => {
 export default defineEndpoint((router, { database }) => {
   router.use((request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
-    if (!isAdminRequest(request)) {
+    const refusal = requestRefusal(request);
+    if (refusal !== null) {
       response
-        .status(403)
-        .json(errorBody('FORBIDDEN', adminOnlyText('run data operations')));
+        .status(refusal.status)
+        .json(errorBody(refusal.reason, refusal.message));
       return;
     }
     next();

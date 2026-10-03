@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import type { StatusView } from '../directus/extensions/directus-extension-data-operations/src/status-contract.js';
 
+import { requestRefusal } from '../directus/extensions/directus-extension-data-operations/src/access.js';
 import {
   importStates,
   publicationStates,
@@ -10,7 +11,6 @@ import { readinessRegistry } from '../directus/extensions/directus-extension-dat
 import { unknownMigrationText } from '../directus/extensions/directus-extension-data-operations/src/index.js';
 import { managedFlowNote } from '../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { readFailureText } from '../directus/extensions/directus-extension-data-operations/src/panel-answers.js';
-import { decideAccess } from '../directus/extensions/directus-extension-data-operations/src/status-endpoint.js';
 import {
   claimText,
   lastErrorText,
@@ -190,11 +190,11 @@ describe('the status endpoint and the migrations endpoint', () => {
   test('refuse with the bare state or the rule, never a remedy', () => {
     const user = { admin: false, role: 'r1', roles: ['r1'], user: 'u1' };
 
-    expect(decideAccess({})).toMatchObject({
+    expect(requestRefusal({})).toMatchObject({
       message: 'Authentication required',
     });
-    expect(decideAccess({ accountability: user })).toMatchObject({
-      message: 'Only administrators may read the data status',
+    expect(requestRefusal({ accountability: user })).toMatchObject({
+      message: 'Forbidden',
     });
     expect(unknownMigrationText('foo')).toBe(
       'Unknown migration: foo; available: schema-constraints, source-invalidation',

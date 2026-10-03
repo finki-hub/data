@@ -39,10 +39,10 @@ import { get, patch } from './history-index-helpers.mjs';
 
 // Task 25 on the fixture: curriculum generations and study programs are
 // rows. A generated workbook import seeds them; the public files stay the
-// committed parity files until an administrator publishes a new generation
-// and its programs, whose sorts readiness keeps unique; the database
-// guards refuse every row that names the wrong generation and a new code
-// of a published row.
+// committed parity files until a new generation and its programs are
+// published, whose sorts readiness keeps unique; the database guards
+// refuse every row that names the wrong generation and a new code of a
+// published row.
 
 const nothingToResume = () => Promise.resolve();
 const coursesFile = 'courses.json';

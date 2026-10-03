@@ -17,10 +17,10 @@ const matchesPromotion = (
     : active.rows === state.promoted.rows &&
       active.fingerprint === state.promoted.fingerprint;
 
-// The bounded snapshot status for administrators: the import state, the
-// staged and the active row counts with their fingerprints, the backup,
-// the promoted snapshot and whether the active rows still equal it.
-// Counts and hashes only, never a row and never the run token.
+// The bounded snapshot status: the import state, the staged and the
+// active row counts with their fingerprints, the backup, the promoted
+// snapshot and whether the active rows still equal it. Counts and hashes
+// only, never a row and never the run token.
 export const snapshotReport = (store: SnapshotStore) =>
   store.transaction(async ({ snapshot }) => {
     await snapshot.consistentRead();

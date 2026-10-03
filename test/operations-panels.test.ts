@@ -80,7 +80,7 @@ import { flowTemplates } from './registry-test-helpers.js';
 // Data operations dashboard. The panels themselves render in Studio
 // (test/operations.browser.mjs); here their decisions run as plain code.
 
-// A fixture Flow as an administrator might add it in Studio.
+// A fixture Flow as added in Studio.
 const fixtureFlow: ManualFlow = {
   description: 'Synthetic operation.',
   icon: 'bolt',
@@ -173,7 +173,7 @@ describe('the Run operation panel contract', () => {
     );
   });
 
-  test('runs a Flow only on the collection only administrators read', () => {
+  test('runs a Flow only on data_operations', () => {
     expect(operationsCollection).toBe('data_operations');
     expect(on(['courses'])).toEqual({
       reason: `Not runnable: collections must be exactly ${operationsCollection}`,
@@ -247,13 +247,13 @@ describe('the Run operation panel contract', () => {
         response: {
           data: {
             errors: [
-              { extensions: { code: 'FORBIDDEN' }, message: 'Only admins.' },
+              { extensions: { code: 'FORBIDDEN' }, message: 'Forbidden' },
             ],
           },
           status: 403,
         },
       }),
-    ).toEqual({ code: 'FORBIDDEN', message: 'Only admins.', status: 403 });
+    ).toEqual({ code: 'FORBIDDEN', message: 'Forbidden', status: 403 });
     expect(refusalOf(new Error('socket hang up'))).toEqual({
       code: 'NO_ANSWER',
       message: 'No response from Directus',
@@ -470,7 +470,7 @@ describe('the status view', () => {
     expect(read(0, false, true)).toBe(pollMs);
   });
 
-  test('polls for pending calculations and running work, not for a publication that waits for an administrator', () => {
+  test('polls for pending calculations and running work, not for a publication that waits for the Publish button', () => {
     const view = viewOf();
     const withStates = (states: Readonly<Record<string, string>>) => ({
       ...view,

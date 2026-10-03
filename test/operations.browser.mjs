@@ -66,8 +66,8 @@ import { s3TargetFrom } from './s3-target.js';
 
 // `npm run test:operations` (second half): the Data operations dashboard
 // in a real browser through the locally installed agent-browser CLI, on
-// the synthetic fixture and its local S3 bucket only. An administrator
-// sees Run wait (and say why) while the status cannot be read, seeds the
+// the synthetic fixture and its local S3 bucket only. The session sees
+// Run wait (and say why) while the status cannot be read, seeds the
 // rules of a new year, imports a generated snapshot (the file chosen in
 // the Flow's own dialog) and finds the next Run's dialog empty, publishes,
 // edits a relation in Studio's item form and publishes it, meets a failed
@@ -345,7 +345,7 @@ const showsPartial = async ({ admin, s3, shot, state, target }) => {
   await shot(admin, '08-publish-partial.png');
 };
 
-// The administrator follows a review link, then comes back to the
+// The session follows a review link, then comes back to the
 // dashboard, whose page text the privacy check reads.
 const followsReviewLink = async ({ admin, shot, target }) => {
   await openDashboard(admin, target);
@@ -372,7 +372,7 @@ const finishes = async (context) => {
 
 const steps = [
   ['sets up the project, the synthetic rows and users', setsUp],
-  ['shows the dashboard to an administrator', showsDashboard],
+  ['shows the dashboard', showsDashboard],
   [
     'lets Run wait and say why while the status cannot be read, then follow it again',
     waitsForStatus,
@@ -394,7 +394,7 @@ const steps = [
     showsPartial,
   ],
   [
-    'lets an administrator add a Run operation panel for a new manual Flow without a rebuild',
+    'adds a Run operation panel for a new manual Flow without a rebuild',
     addsPanel,
   ],
   [

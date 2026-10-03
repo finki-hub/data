@@ -18,11 +18,7 @@ import { publishAssetsFlowId } from '../../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../../src/flows/snapshot-import.js';
 import { runSetup } from '../../src/setup.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
-import {
-  createMany,
-  settle,
-  withOperationsReader,
-} from './automatic-processing-helpers.mjs';
+import { createMany, settle } from './automatic-processing-helpers.mjs';
 import {
   adminRequest,
   assertNoAccessResidue,
@@ -35,11 +31,11 @@ import { count, get, patch, post, remove } from './history-index-helpers.mjs';
 import { callAs, codeOf, keysDeep, runFlow } from './operations-helpers.mjs';
 
 // The Data operations dashboard on a live project (Task 16): setup
-// installs the dashboard and its default panels once; the status read is
-// an access boundary (anonymous 401, a non-administrator 403, the
-// administrator a bounded view); no non-administrator runs an operation or
-// a migration, and a caller the trigger endpoint lets through is refused
-// by each Flow's own first step; and "Data / Add enrollment rules" seeds
+// installs the dashboard and its default panels once; the status read
+// answers a bounded view, and the caller check refuses it and the
+// migrations endpoint without a signed-in user (401) or the admin flag
+// (403); the trigger endpoint refuses a run to a caller who cannot read
+// data_operations; and "Data / Add enrollment rules" seeds
 // the mapped rules of a new year or course idempotently, counted at the
 // next tick, public only once published. The schedule stays active. Every
 // row, user and role is synthetic and removed.
@@ -60,8 +56,6 @@ const runFlows = [
 const forbiddenPayload = ['token', 'owner', 'fingerprint', 'process'];
 
 const bookmarkPattern = /bookmark=(?<id>\d+)$/u;
-// The one administrator refusal: a one-line message, no trailing period.
-const adminRefusal = /^Only administrators may .+[^.]$/u;
 
 // A request of the given caller, as { status, body }.
 const as = (target, token) => (method, path, body) =>
@@ -151,7 +145,7 @@ const seedRows = async (target) => {
 };
 
 // The review link of a positive check opens its bookmark, and the
-// administrator reads the records behind it.
+// fixture token reads the records behind it.
 const navigatesToIssues = async ({ t, target }) => {
   const request = as(target, target.token);
   const readiness = await request('GET', '/finki-hub-data-status/readiness');
@@ -177,24 +171,31 @@ const navigatesToIssues = async ({ t, target }) => {
   );
 };
 
-// Anonymous 401 and a non-administrator 403 on the status read; the
-// migrations endpoint and the trigger endpoint refuse both, and the plain
-// user reads no data_operations row.
+// The caller check: 401 UNAUTHENTICATED without a signed-in user and
+// 403 FORBIDDEN without the admin flag, on the status read and the
+// migrations endpoint alike; the trigger endpoint refuses both a run, and
+// the plain user reads no data_operations row.
 const refusesStrangers = async (target, plain) => {
   for (const token of [null, plain]) {
     const request = as(target, token);
-    const expected = token === null ? 401 : 403;
-    const status = await request('GET', '/finki-hub-data-status');
-    assert.equal(status.status, expected, JSON.stringify(status.body));
-    const readiness = await request('GET', '/finki-hub-data-status/readiness');
-    assert.equal(readiness.status, expected);
+    const [expected, code, message] =
+      token === null
+        ? [401, 'UNAUTHENTICATED', 'Authentication required']
+        : [403, 'FORBIDDEN', 'Forbidden'];
     for (const [method, path] of [
+      ['GET', '/finki-hub-data-status'],
+      ['GET', '/finki-hub-data-status/readiness'],
       ['POST', '/finki-hub-data-operations/migrations/schema-constraints'],
       ['GET', '/finki-hub-data-operations/status'],
     ]) {
       const answer = await request(method, path);
-      assert.equal(answer.status, 403, `${method} ${path}: ${answer.status}`);
-      assert.equal(codeOf(answer), 'FORBIDDEN');
+      assert.equal(
+        answer.status,
+        expected,
+        `${method} ${path}: ${JSON.stringify(answer.body)}`,
+      );
+      assert.equal(codeOf(answer), code);
+      assert.equal(answer.body.errors[0].message, message);
     }
     for (const id of runFlows) {
       const run = await flowAs(target, token)(id);
@@ -205,48 +206,8 @@ const refusesStrangers = async (target, plain) => {
   assert.equal(operations.status, 403, JSON.stringify(operations.body));
 };
 
-const sourceRevision = async (target) => {
-  const status = await as(target, target.token)(
-    'GET',
-    '/finki-hub-data-status',
-  );
-  return status.body.data.revisions.source;
-};
-
-// A non-administrator who reads data_operations passes the trigger
-// endpoint (it checks read access only), so each Flow's own
-// "Administrator?" step is the boundary: every run Flow answers its own
-// 403 before any write, and no rule is added.
-const refusesReader = async ({ state, t, target }) => {
-  const rules = await count(target, 'course_enrollment_rules');
-  const revision = await sourceRevision(target);
-  const messages = new Map();
-  await withOperationsReader(target, async (reader) => {
-    for (const id of runFlows) {
-      const run = await flowAs(target, reader)(id, {
-        academic_year: state.newYear,
-      });
-      assert.equal(run.status, 403, `${id}: ${JSON.stringify(run.body)}`);
-      assert.equal(codeOf(run), 'FORBIDDEN');
-      messages.set(id, run.body.errors[0].message);
-    }
-  });
-  assert.equal(
-    messages.get(ruleSeedingFlowId),
-    'Only administrators may add enrollment rules',
-  );
-  for (const [id, message] of messages) {
-    assert.match(message, adminRefusal, id);
-  }
-  assert.equal(await count(target, 'course_enrollment_rules'), rules);
-  assert.equal(await sourceRevision(target), revision);
-  t.diagnostic(`a data_operations reader: ${messages.size} Flows refused it`);
-};
-
-const guardsAccess = async (context) => {
-  const { target } = context;
+const guardsAccess = async ({ target }) => {
   await withRestrictedUser(target, (plain) => refusesStrangers(target, plain));
-  await refusesReader(context);
   await assertNoAccessResidue(target);
 };
 
@@ -359,8 +320,8 @@ const countsAndPublishes = async ({ state, t, target }) => {
   );
 };
 
-// The administrator's status view: lists from the declarations, and no
-// token, owner, fingerprint, process or Moodle user record.
+// The status view: lists from the declarations, and no token, owner,
+// fingerprint, process or Moodle user record.
 const showsLists = async ({ state, target }) => {
   const request = as(target, target.token);
   const view = await request('GET', '/finki-hub-data-status');
@@ -439,7 +400,7 @@ test('installs the Data operations dashboard and guards every data operation', a
         () => navigatesToIssues(context),
       );
       await t.test(
-        'refuses the status read and every operation to anonymous and non-administrator callers',
+        'refuses the status read, the migrations endpoint and every run to a refused caller',
         () => guardsAccess(context),
       );
       await t.test(

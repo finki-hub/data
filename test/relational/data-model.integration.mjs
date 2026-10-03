@@ -378,8 +378,8 @@ const guardsTheEndpoint = async (target) => {
     `${migrationsPath}/schema-constraints`,
     { method: 'POST' },
   );
-  assert.equal(anonymous.status, 403);
-  assert.equal(errorCode(await anonymous.json()), 'FORBIDDEN');
+  assert.equal(anonymous.status, 401);
+  assert.equal(errorCode(await anonymous.json()), 'UNAUTHENTICATED');
   await withRestrictedUser(target, async (token) => {
     const restricted = await request(
       target,
@@ -470,7 +470,7 @@ test('installs the relational model idempotently and enforces its domain keys', 
     await t.test('keeps history entry labels exact, unbounded and unique', () =>
       keepsExactHistoryLabels(target),
     );
-    await t.test('rejects non-administrators and unknown migrations', () =>
+    await t.test('rejects refused callers and unknown migrations', () =>
       guardsTheEndpoint(target),
     );
   });

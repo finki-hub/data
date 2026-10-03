@@ -175,13 +175,17 @@ const preparesCommittedFiles = async ({ state, t, target }) => {
   state.local = local;
 };
 
-// A reader of data_operations may press the buttons; both answer 403.
-const refusesNonAdministrators = async ({ target }) => {
+// A signed-in user without admin access who reads data_operations may
+// press the buttons; the export operation's own caller check answers 403.
+const refusesReader = async ({ target }) => {
   await withOperationsReader(target, async (token) => {
     for (const flow of publicationFlows) {
       const run = await runManual(target, flow.id, { token });
       assert.equal(run.status, 403, JSON.stringify(run.body));
-      assert.equal(errorOf(run.body).code, 'FORBIDDEN');
+      assert.deepEqual(errorOf(run.body), {
+        code: 'EXPORT_FORBIDDEN',
+        message: 'Forbidden',
+      });
     }
   });
 };
@@ -397,8 +401,9 @@ test('projects relational data into the existing public assets', async (t) => {
           'is ready and prepares exactly the committed parity files',
           () => preparesCommittedFiles(context),
         );
-        await t.test('lets administrators only check and prepare', () =>
-          refusesNonAdministrators(context),
+        await t.test(
+          'refuses the check and the preparation to a refused caller',
+          () => refusesReader(context),
         );
         await t.test('refuses before any file while counts are pending', () =>
           blocksPendingCounts(context),

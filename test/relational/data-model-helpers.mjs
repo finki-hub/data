@@ -269,7 +269,7 @@ export const withDataModel = async (target, body, options = {}) => {
   }
 };
 
-// A non-administrator with a static token and no policies at all.
+// A synthetic user with a static token and no policies at all.
 export const withRestrictedUser = async (target, body) => {
   const role = await read(
     await request(

@@ -303,11 +303,10 @@ const refusesDirectAndUnauthorised = async (target, state, t) => {
       { confirm_replace: true, file: state.firstFile },
       token,
     );
-    assert.equal(flow.status, 403);
-    assert.equal(
-      messageOf(flow.body),
-      'Only administrators may import a Moodle snapshot',
-    );
+    // The import operation's own caller check, relayed by import_failed.
+    assert.equal(flow.status, 403, JSON.stringify(flow.body));
+    assert.equal(codeOf(flow.body), 'SNAPSHOT_FORBIDDEN');
+    assert.equal(messageOf(flow.body), 'Forbidden');
     const imported = await triggerProbe(target, probeImportFlowId, {
       body: { file: state.firstFile },
       token,
@@ -786,7 +785,7 @@ test('stages and activates Moodle snapshots safely', async (t) => {
         () => promotesFirstSnapshot(target, state),
       );
       await t.test(
-        'refuses direct staging writes, unconfirmed runs and non-administrators',
+        'refuses direct staging writes, unconfirmed runs and refused callers',
         (sub) => refusesDirectAndUnauthorised(target, state, sub),
       );
       await t.test(

@@ -15,7 +15,6 @@ import {
 } from './publish-one-file.js';
 import { refusal, step, claimToken as token } from './publish-steps.js';
 import { flowDescription, stepName } from './text-fragments.js';
-import { adminOnly } from './validate-readiness.js';
 
 const family = flowFamilyCodes.publish;
 
@@ -38,20 +37,16 @@ export const publishAssetsFlowId = publishId('01');
 export const publishAssetsFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
-    adminOnly: true,
     does: `Uploads every declared public file to storage location "${publishStorage}", serially`,
     note: 'Outcome: completed, partial or failed',
   }),
-  entry: publishId('11'),
+  entry: publishId('13'),
   icon: 'cloud_upload',
   id: publishAssetsFlowId,
   name: 'Publish / Public assets',
   operations: [
-    ...adminOnly(['11', '12', '13'], 'publish the public files', {
-      code: family,
-    }),
     step({
-      column: 37,
+      column: 19,
       key: 'claim',
       name: 'Claim publication',
       next: '14',
@@ -69,7 +64,7 @@ export const publishAssetsFlow: FlowTemplate = {
       family,
       key: 'raise_claim',
       name: stepName.raise('PUBLICATION_CLAIM_FAILED'),
-      position: [37, 19],
+      position: [19, 19],
       suffix: '1f',
     }),
     condition({
@@ -78,7 +73,7 @@ export const publishAssetsFlow: FlowTemplate = {
       filter: { claim: { claimed: { _eq: true } } },
       key: 'claimed',
       name: 'Claimed?',
-      position: [55, 1],
+      position: [37, 1],
       suffix: '14',
     }),
     raise({
@@ -90,11 +85,11 @@ export const publishAssetsFlow: FlowTemplate = {
       family,
       key: 'raise_unclaimed',
       name: stepName.raise('PUBLICATION_NOT_CLAIMED'),
-      position: [55, 19],
+      position: [37, 19],
       suffix: '1a',
     }),
     step({
-      column: 73,
+      column: 55,
       key: 'stage',
       name: 'Prepare and validate every file',
       next: '16',
@@ -104,7 +99,7 @@ export const publishAssetsFlow: FlowTemplate = {
       type: exportsOperation,
     }),
     ...refusal({
-      column: 73,
+      column: 55,
       error: { code: 'PUBLICATION_NOT_PREPARED', status: 409 },
       fail: { code: 'PREPARATION_REFUSED' },
       key: 'stage',
@@ -112,7 +107,7 @@ export const publishAssetsFlow: FlowTemplate = {
       suffixes: ['1b', '1c'],
     }),
     step({
-      column: 91,
+      column: 73,
       key: 'publish_files',
       name: 'Upload every file, one after another',
       next: '17',
@@ -126,7 +121,7 @@ export const publishAssetsFlow: FlowTemplate = {
       type: 'trigger',
     }),
     ...refusal({
-      column: 91,
+      column: 73,
       error: { code: 'PUBLICATION_LOOP_FAILED', status: 500 },
       fail: { code: 'PUBLISH_LOOP_FAILED' },
       key: 'publish_files',
@@ -134,7 +129,7 @@ export const publishAssetsFlow: FlowTemplate = {
       suffixes: ['1d', '20'],
     }),
     step({
-      column: 109,
+      column: 91,
       key: 'outcomes',
       name: 'Collect one outcome per file',
       next: '18',
@@ -144,7 +139,7 @@ export const publishAssetsFlow: FlowTemplate = {
       type: exportsOperation,
     }),
     ...refusal({
-      column: 109,
+      column: 91,
       error: { code: 'PUBLICATION_OUTCOMES_REFUSED', status: 500 },
       fail: { code: 'OUTCOMES_REFUSED' },
       key: 'outcomes',
@@ -157,7 +152,7 @@ export const publishAssetsFlow: FlowTemplate = {
       filter: { outcomes: { ok: { _eq: true } } },
       key: 'all_uploaded',
       name: 'Every file uploaded?',
-      position: [127, 1],
+      position: [109, 1],
       suffix: '18',
     }),
     operation({
@@ -172,7 +167,7 @@ export const publishAssetsFlow: FlowTemplate = {
         message: '{{ outcomes.message }}',
         token,
       },
-      position: [127, 19],
+      position: [109, 19],
       suffix: '23',
       type: coordinateOperation,
     }),
@@ -185,11 +180,11 @@ export const publishAssetsFlow: FlowTemplate = {
       family,
       key: 'raise_partial',
       name: stepName.raise('PUBLICATION_PARTIAL or PUBLICATION_FAILED'),
-      position: [127, 37],
+      position: [109, 37],
       suffix: '24',
     }),
     step({
-      column: 145,
+      column: 127,
       key: 'complete',
       name: 'Record the publication',
       next: '1e',
@@ -199,7 +194,7 @@ export const publishAssetsFlow: FlowTemplate = {
       type: coordinateOperation,
     }),
     ...refusal({
-      column: 145,
+      column: 127,
       error: { code: 'PUBLICATION_NOT_RECORDED', status: 409 },
       fail: { code: 'COMPLETION_REFUSED', files: '{{ outcomes.files }}' },
       key: 'complete',
@@ -219,7 +214,7 @@ export const publishAssetsFlow: FlowTemplate = {
           warnings: '{{ stage.warnings }}',
         },
       },
-      position: [163, 1],
+      position: [145, 1],
       suffix: '1e',
       type: 'transform',
     }),

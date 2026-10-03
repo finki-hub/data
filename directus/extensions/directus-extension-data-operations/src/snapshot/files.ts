@@ -44,9 +44,9 @@ const describeFile = async (
 };
 
 // The Directus services the snapshot operations use, as system services
-// (accountability null): the operations check the administrator flag of
-// the caller themselves before anything else, and the files they touch
-// are private ones in the snapshot folder. A backup is a new file in that
+// (accountability null): the operations check the caller themselves
+// (access.ts) before anything else, and the files they touch are private
+// ones in the snapshot folder. A backup is a new file in that
 // folder of the local storage location, never the publish location.
 export const snapshotFiles = async (
   context: OperationContext,

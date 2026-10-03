@@ -185,7 +185,7 @@ export const operationsCollections: readonly ModelCollection[] = [
     ],
     hidden: true,
     icon: 'settings_suggest',
-    note: 'Private coordination singleton for derivation, import and publication status. Mutated by administrators only.',
+    note: 'Private coordination singleton for derivation, import and publication status.',
     singleton: true,
     sort: 23,
   },

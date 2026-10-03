@@ -1,5 +1,5 @@
 // The text forms the runtime messages share: counts, bounded lists,
-// validation issues, the administrator refusal and dashboard fact lines. Both the API and the app
+// validation issues and dashboard fact lines. Both the API and the app
 // bundle import this module, and the root package re-exports its count and
 // list forms (src/text.ts), so one situation reads the same everywhere.
 
@@ -73,12 +73,6 @@ export const issuesText = (issues: readonly TextIssue[]): string =>
 // own message.
 export const invalidOptionsText = (issues: readonly TextIssue[]): string =>
   `Invalid options: ${issuesText(issues)}`;
-
-// The refusal of a caller who is no administrator: `Only administrators
-// may <verb> <object>`. Flows, operations and endpoints answer it with
-// FORBIDDEN (or their own forbidden code).
-export const adminOnlyText = (action: string): string =>
-  `Only administrators may ${action}`;
 
 // Facts of one dashboard line: "Label: value · Label: value".
 export const factsText = (

@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 
 import { splitHistoryEntries } from '../../directus/extensions/directus-extension-data-operations/src/history-contract.js';
 import {
@@ -53,7 +52,6 @@ export const derivedIndex = 'COORDINATION_WRITE_GUARDED';
 export const retryRequired = 'RETRY_REQUIRED';
 export const bulkCourse = 'Synthetic Bulk Course';
 export const bulkUserPrefix = 'Synthetic Bulk User ';
-export const readerPolicyPrefix = 'Synthetic history reader ';
 export const failureCode = 'SYNTHETIC_OVERSIZED_PAGE';
 export const coursesCount = 'Courses Count';
 export const alphaCourse = 'Alpha Course';
@@ -188,15 +186,6 @@ export const refused = async (target, body, code) => {
 export const rebuild = (target, body = {}) =>
   trigger(target, runnerPath, { collection: 'moodle_users', ...body });
 
-export const rebuildAs = async (target, token) => {
-  const response = await request(
-    target,
-    runnerPath,
-    json('POST', { collection: 'moodle_users' }, token),
-  );
-  return { body: await response.json(), status: response.status };
-};
-
 export const claimHistory = async (target, retry = null) => {
   const claim = await act(target, {
     action: 'claim',
@@ -313,37 +302,4 @@ export const installProbeFlow = async (target) => {
     operation: probeOperationId,
     status: 'active',
   });
-};
-
-// A user who may read moodle_users but is no administrator: a policy with
-// that one permission, a user without an address, both removed afterwards.
-export const withReader = async (target, body) => {
-  const policy = await post(target, '/policies', {
-    admin_access: false,
-    app_access: false,
-    icon: 'lock',
-    name: `${readerPolicyPrefix}${randomUUID()}`,
-  });
-  let user = null;
-  try {
-    await post(target, '/permissions', {
-      action: 'read',
-      collection: 'moodle_users',
-      fields: ['id'],
-      permissions: {},
-      policy: policy.data.id,
-    });
-    const token = `synthetic-${randomUUID()}`;
-    user = await post(target, '/users', {
-      first_name: 'Synthetic',
-      last_name: 'History Reader',
-      policies: [{ policy: policy.data.id }],
-      status: 'active',
-      token,
-    });
-    await body(token);
-  } finally {
-    if (user !== null) await remove(target, `/users/${user.data.id}`);
-    await remove(target, `/policies/${policy.data.id}`);
-  }
 };

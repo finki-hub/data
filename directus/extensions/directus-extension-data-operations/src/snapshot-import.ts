@@ -11,7 +11,7 @@ import { importOptionsSchema } from './snapshot/contract.js';
 import {
   importRefusal,
   parseOptions,
-  requireAdmin,
+  requireCaller,
 } from './snapshot/decisions.js';
 import {
   asSnapshotError,
@@ -43,7 +43,7 @@ export const runSnapshotImport = async (
   options: unknown,
   deps: SnapshotDeps,
 ): Promise<SnapshotImportResult> => {
-  requireAdmin(deps.accountability);
+  requireCaller(deps.accountability);
   const { file } = parseOptions(importOptionsSchema, options);
   const token = randomUUID();
   await deps.store.transaction(async ({ coordination, snapshot }) => {
@@ -76,7 +76,7 @@ export const runSnapshotImport = async (
 
 export default defineOperationApi({
   handler: async (options, context: OperationContext) => {
-    requireAdmin(context.accountability);
+    requireCaller(context.accountability);
     return runSnapshotImport(options, await snapshotDeps(context));
   },
   id: snapshotImportId,

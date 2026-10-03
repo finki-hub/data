@@ -21,6 +21,7 @@ const snapshotErrorCodes = {
   PROMOTION_FAILED: 500,
   PROMOTION_RUNNING: 409,
   STAGING_CHANGED: 409,
+  UNAUTHENTICATED: 401,
 } as const;
 
 type SnapshotErrorCode = keyof typeof snapshotErrorCodes;
@@ -108,8 +109,8 @@ const failureFacts = (error: unknown): FailureFacts => {
 };
 
 // PostgreSQL's query_canceled: a statement ran into the statement_timeout
-// that IMPORT_TIMEOUT sets for every snapshot transaction (or an
-// administrator cancelled it).
+// that IMPORT_TIMEOUT sets for every snapshot transaction (or a manual
+// cancel).
 const cancelledCode = '57014';
 
 // Any failure as a snapshot error: a refusal keeps its code, a cancelled

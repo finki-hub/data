@@ -7,7 +7,6 @@ import {
 } from './flow-template.js';
 import { flowDescription } from './text-fragments.js';
 import {
-  adminOnly,
   publicationButton,
   validateReadinessFlow,
 } from './validate-readiness.js';
@@ -25,7 +24,6 @@ export const prepareAssetsFlowId = publicationId('05');
 export const prepareAssetsFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
-    adminOnly: true,
     answers: [
       'revision',
       'files: [{filename, rows, bytes, sha256}]',
@@ -34,18 +32,17 @@ export const prepareAssetsFlow: FlowTemplate = {
     ],
     does: 'Prepares every declared public file without uploading: readiness, read, serialize, validate, revision check',
   }),
-  entry: publicationId('51'),
+  entry: publicationId('53'),
   icon: 'inventory',
   id: prepareAssetsFlowId,
   name: 'Publish / Prepare public assets',
   operations: [
-    ...adminOnly(['51', '52', '53'], 'prepare the public assets'),
     operation({
       family,
       key: 'prepare',
       name: 'Prepare every public file',
       options: { action: 'prepare' },
-      position: [37, 1],
+      position: [19, 1],
       suffix: '53',
       type: exportsOperation,
     }),

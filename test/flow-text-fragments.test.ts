@@ -97,7 +97,7 @@ describe('Run Script fragments', () => {
 });
 
 describe('Flow descriptions', () => {
-  test('follow one layout: what, who, input, answers, failure, caller', () => {
+  test('follow one layout: what, input, answers, failure, caller', () => {
     expect(
       flowDescription({
         answers: ['ok: true', 'completed', 'domain'],
@@ -123,15 +123,14 @@ describe('Flow descriptions', () => {
     );
   });
 
-  test('state administrator access and one more fact for a manual Flow', () => {
+  test('state one more fact after what a manual Flow does', () => {
     expect(
       flowDescription({
-        adminOnly: true,
         does: 'Creates missing enrollment rules for an academic year, a course or one pair',
         note: 'Existing rules are skipped',
       }),
     ).toBe(
-      'Creates missing enrollment rules for an academic year, a course or one pair. Administrators only. Existing rules are skipped.',
+      'Creates missing enrollment rules for an academic year, a course or one pair. Existing rules are skipped.',
     );
     expect(
       flowDescription({

@@ -9,8 +9,8 @@ import { isolatedTargets } from './isolated-target.mjs';
 // only the explicit disposable target (DIRECTUS_SEARCH_TEST_URL, _TOKEN,
 // _MARKER_COLLECTION and _MARKER_VALUE: a loopback URL, a token and the
 // synthetic marker, validated before any request). It never reads .env and
-// has no default URL, so DIRECTUS_URL or an administrator token alone never
-// point it at a project.
+// has no default URL, so DIRECTUS_URL, DIRECTUS_TOKEN or
+// DIRECTUS_ADMIN_TOKEN alone never point it at a project.
 
 const missingTargetPattern = /DIRECTUS_SEARCH_TEST_URL/u;
 

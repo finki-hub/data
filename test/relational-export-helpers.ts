@@ -167,10 +167,9 @@ export const generationIdOf = (store: FakeStore, code: string): number => {
   return id;
 };
 
-// What an administrator does to publish a label no curriculum row
-// carries: a curriculum entry of the generation carrying the label, to
-// which the course's link of that generation is pointed, its credits and
-// availability kept.
+// What publishing a label no curriculum row carries takes: a curriculum
+// entry of the generation carrying the label, to which the course's link
+// of that generation is pointed, its credits and availability kept.
 export const withLinkedLabel = (
   store: FakeStore,
   course: number,

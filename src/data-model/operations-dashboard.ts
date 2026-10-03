@@ -17,9 +17,9 @@ import { snapshotFlowId } from '../flows/snapshot-import.js';
 // The Data operations dashboard npm run setup installs once: one Insights
 // dashboard and its default panels as directus_panels rows under
 // deterministic ids. A rerun creates what is missing (a deleted panel comes
-// back) and never overwrites an administrator's edits to the dashboard or
-// a panel. Another action is a Run operation panel an administrator adds
-// in Studio for any installed Data / or Publish / Flow; no code changes.
+// back) and never overwrites an edit of the dashboard or a panel. Another
+// action is a Run operation panel added in Studio for any installed
+// Data / or Publish / Flow; no code changes.
 
 export const operationsDashboardId = rulesId('d0');
 

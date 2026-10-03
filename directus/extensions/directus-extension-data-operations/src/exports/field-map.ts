@@ -174,7 +174,7 @@ const blockPart = (
 
 // The layout declared for a block's key text, else the default. Only a
 // declared key counts, never a name every object inherits: a generation
-// an administrator codes `constructor` follows the default layout.
+// coded `constructor` follows the default layout.
 const layoutOf = ({ layouts }: BlockEntry, block: string) =>
   (Object.hasOwn(layouts.byKey, block) ? layouts.byKey[block] : undefined) ??
   layouts.default;

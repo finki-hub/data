@@ -123,8 +123,8 @@ export const assertNever = (value: never): never => {
 };
 
 // Every collection of the Directus model: the content the workbook import
-// fills and administrators maintain, then the relational, Moodle,
-// operations and coordination collections.
+// fills and Studio edits maintain, then the relational, Moodle, operations
+// and coordination collections.
 export type ModelCollectionKey =
   | 'academic_years'
   | 'course_curricula'

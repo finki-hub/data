@@ -17,9 +17,9 @@ import {
 // installed "Data / Refresh history index", the same claim-bound Flow the
 // schedule runs, so these suites exercise the production run path; it is
 // no production Flow (Mark pending is the manual path there). It answers
-// 200 with the summary or with "nothing pending", 403 for a
-// non-administrator, 409 RETRY_REQUIRED or CLAIM_BUSY for a refused claim,
-// 500 with the failure record's code and message otherwise.
+// 200 with the summary or with "nothing pending", 409 RETRY_REQUIRED or
+// CLAIM_BUSY for a refused claim, 500 with the failure record's code and
+// message otherwise.
 
 const syntheticId = (suffix) => `9e4d826c-5b1a-4c0e-8f2d-0000000013${suffix}`;
 
@@ -51,19 +51,6 @@ const raise = ({ code, key, message, status, suffix }) => [
 ];
 
 const operations = [
-  gate({
-    edges: { reject: '02', resolve: '03' },
-    filter: { $accountability: { admin: { _eq: true } } },
-    key: 'admin_only',
-    suffix: '01',
-  }),
-  raise({
-    code: 'FORBIDDEN',
-    key: 'raise_forbidden',
-    message: 'Only administrators may rebuild the Moodle history index.',
-    status: 403,
-    suffix: '02',
-  }),
   [
     '03',
     'claim',
@@ -172,7 +159,7 @@ export const installHistoryRunner = async (target) => {
     await post(target, '/operations', { ...entry, flow: historyRunnerId });
   }
   await patch(target, `/flows/${historyRunnerId}`, {
-    operation: syntheticId('01'),
+    operation: syntheticId('03'),
     status: 'active',
   });
 };

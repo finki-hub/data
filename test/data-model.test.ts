@@ -479,7 +479,7 @@ describe('curriculum generations and study programs as rows', () => {
     ).toEqual([]);
   });
 
-  test('declare generations and programs unpublished until an administrator publishes them', () => {
+  test('declare generations and programs unpublished until published', () => {
     expect(findField('curriculum_generations', 'code')).toMatchObject({
       kind: 'string',
       nullable: false,

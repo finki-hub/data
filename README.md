@@ -3,12 +3,12 @@
 This repository sets up the private Directus project that holds the FINKI
 Hub data: courses and their curriculum, staff, rooms, students, the Moodle
 course-history snapshot and the enrollment counts derived from it. Its
-few users are all Directus administrators: they change source records in
-Directus Studio with native forms and publish the declared public JSON
-files to the R2 bucket by hand, while native Directus Flows keep the
-derived data current on their own. The runtime is two services, Directus
-12.3.1 (a local image with a UTF-8 fix) and PostgreSQL 18, with no other
-long-running service, queue or system cron.
+few users change source records in Directus Studio with native forms and
+publish the declared public JSON files to the R2 bucket by hand, while
+native Directus Flows keep the derived data current on their own. The
+runtime is two services, Directus 12.3.1 (a local image with a UTF-8 fix)
+and PostgreSQL 18, with no other long-running service, queue or system
+cron.
 
 The TypeScript tooling follows the current FINKI Hub service conventions:
 npm, ESM, strict TypeScript, Zod, ESLint with `eslint-config-imperium`,
@@ -48,7 +48,7 @@ recreation installs and changes nothing, because the schema, presets and
 Flows live in the PostgreSQL database and the Directus image only serves
 them. `npm run setup` and `npm run import` name their target on the
 invocation (`DIRECTUS_URL` plus `DIRECTUS_TOKEN` or `DIRECTUS_ADMIN_TOKEN`,
-an administrator's static token); neither reads `.env` or falls back to a
+a static token of that project); neither reads `.env` or falls back to a
 default URL. `npm run brand` also writes to a project, but it changes
 nothing except the appearance settings and the branding files, and it does
 read `.env` (see [Branding](#branding)).
@@ -135,16 +135,17 @@ A few things are code-owned and kept in step on every rerun:
 
 ### Fresh setup
 
-1. Create the local Compose configuration, set the administrator's e-mail
-   and replace every `change-*` value (the administrator's password and
-   static token, a `DIRECTUS_SECRET` of at least 32 bytes and the database
-   password). The `STORAGE_PUBLISH_*` values name the R2 bucket publication
-   writes to (see [Publishing](#publishing)). Every publication replaces
-   the objects in that bucket, and readiness does not compare row counts,
-   so an empty or half-filled project publishes empty or short files. Until
-   the project holds its complete data, point `STORAGE_PUBLISH_*` at a
-   separate scratch bucket, never the bucket the public consumers read.
-   `DIRECTUS_URL` there is read only by `npm run brand`:
+1. Create the local Compose configuration, set `DIRECTUS_ADMIN_EMAIL` and
+   replace every `change-*` value (`DIRECTUS_ADMIN_PASSWORD`, the static
+   token `DIRECTUS_ADMIN_TOKEN`, a `DIRECTUS_SECRET` of at least 32 bytes
+   and `POSTGRES_PASSWORD`). The `STORAGE_PUBLISH_*` values name the R2
+   bucket publication writes to (see [Publishing](#publishing)). Every
+   publication replaces the objects in that bucket, and readiness does not
+   compare row counts, so an empty or half-filled project publishes empty or
+   short files. Until the project holds its complete data, point
+   `STORAGE_PUBLISH_*` at a separate scratch bucket, never the bucket the
+   public consumers read. `DIRECTUS_URL` there is read only by
+   `npm run brand`:
 
    ```sh
    cp .env.example .env
@@ -168,7 +169,7 @@ A few things are code-owned and kept in step on every rerun:
    The command prints its summary as JSON:
 
    ```sh
-   DIRECTUS_URL=http://localhost:8055 DIRECTUS_TOKEN=<administrator token> \
+   DIRECTUS_URL=http://localhost:8055 DIRECTUS_TOKEN=<static token> \
      npm run setup
    ```
 
@@ -239,7 +240,7 @@ run the one-time import (below) in place of step 4.
    [Fresh setup](#fresh-setup) first; the import runs setup itself):
 
    ```sh
-   DIRECTUS_URL=http://localhost:8055 DIRECTUS_TOKEN=<administrator token> \
+   DIRECTUS_URL=http://localhost:8055 DIRECTUS_TOKEN=<static token> \
      WORKBOOK_PATH=finki-hub.xlsx npm run import
    ```
 
@@ -390,8 +391,8 @@ synchronization mode. After the import, Directus is the source of truth.
 ### Replacing the Moodle snapshot
 
 A whole Moodle snapshot replaces the active one through the controlled
-import, which administrators run from Studio. The scraper's output is used
-unchanged: the [`courses-scraper`](https://github.com/finki-hub/courses-scraper)
+import, run from Studio. The scraper's output is used unchanged: the
+[`courses-scraper`](https://github.com/finki-hub/courses-scraper)
 `profiles.csv` and its 38 headers, with no conversion step and no identity
 matching here (snapshot identities are the scraper's business). The native
 **Import / Export** sidebar of **Moodle Users** is not supported for
@@ -450,9 +451,9 @@ run started.
 The import is bounded by `IMPORT_TIMEOUT` (15 minutes in `compose.yaml`) and
 by `FINKI_HUB_SNAPSHOT_MAX_BYTES` (256 MiB unless set in the Directus
 container's environment, which the checked-in Compose file does not pass).
-For administrators, `GET /finki-hub-data-operations/snapshot` reports the
-import state, the staged and active row counts with their fingerprints, the
-backup, the last error, the snapshot the last promotion made active, and
+`GET /finki-hub-data-operations/snapshot` reports the import state, the
+staged and active row counts with their fingerprints, the backup, the
+last error, the snapshot the last promotion made active, and
 whether the active rows still equal it (`activeMatchesPromotion`, false
 after an edit outside this workflow, whatever later imports did). A failed
 run logs its code and the database object involved, never a value, to the
@@ -471,7 +472,7 @@ state facts only; what to do is here.
 | Code | First stderr line | Meaning | What to do |
 | --- | --- | --- | --- |
 | 0 | none | Done. Setup and the import print their summary as JSON on stdout; branding prints `Branding succeeded`. | Nothing. |
-| 1 | `<Command> failed: <reason>` | Failed before any row was written: a workbook that cannot be read (`workbook <path>: not readable as .xlsx (…)`) or a cell that is not of its column's kind, a target that answers an error (`GET /collections: HTTP 401 INVALID_CREDENTIALS: …`), a target that does not answer (`… no response (ECONNREFUSED)`, `… timed out after 120 s`), or an unexpected error. After an unexpected error the schema or Flows may be partly installed. | Correct what the reason names: the file or cell, the URL, or the token (a static administrator token of that project for `INVALID_CREDENTIALS`), then run the command again; rerunning setup is safe. |
+| 1 | `<Command> failed: <reason>` | Failed before any row was written: a workbook that cannot be read (`workbook <path>: not readable as .xlsx (…)`) or a cell that is not of its column's kind, a target that answers an error (`GET /collections: HTTP 401 INVALID_CREDENTIALS: …`), a target that does not answer (`… no response (ECONNREFUSED)`, `… timed out after 120 s`), or an unexpected error. After an unexpected error the schema or Flows may be partly installed. | Correct what the reason names: the file or cell, the URL, or the token (a static token of that project for `INVALID_CREDENTIALS`), then run the command again; rerunning setup is safe. |
 | 2 | `<Command> refused: <reason>` | Refused before any record was written: no explicit target (`DIRECTUS_URL not set (.env not read)`), an unexpected or duplicate argument, a populated project offered to the import (`project not empty: …`), existing definitions the model cannot carry (`data model: <n> incompatible definitions`, then one `- <Kind> <path>: <live>, expected <declared>` line each, including a table or column Directus does not manage), a licence that caps the collections, a half-installed Flow (`Flow "<name>" (<id>): entry operation missing`), or a Directus without the data-operations bundle. Branding refuses an unexpected argument, a missing token or an invalid `DIRECTUS_URL`. | Pass the target on the invocation; drop the argument; import into an empty project (below); change or clear the definitions or values each `- ` line names in Studio; raise the licence limit ([Requirements](#requirements)); delete the named Flow in Studio; build and load the data-operations bundle. Then run the command again. |
 | 3 | `Import blocked: <n> cases` (`Import dry run blocked: …` for the dry run) | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them, one `- [<code>] <place>: <fact>` line each. Nothing was sent to Directus. | Correct the workbook as the table under [One-time workbook import](#one-time-workbook-import) says for each code, then run the dry run and the import again. |
 | 4 | `Import interrupted: <cause> (rows confirmed: <n>/<m>)` | Import only: the import stopped after it began writing rows; Directus had confirmed `<n>` of the `<m>` planned rows. | Set up a fresh project (new Compose volumes, or the backup taken before the import) and import again (see above). |
@@ -592,9 +593,8 @@ database guards the table:
   which also decide the database guard that keeps the key text of a
   published row.
 - **`moodle_users`**: the active snapshot. Replaced as a whole by the
-  snapshot import; an administrator may still correct a row in Studio, which
-  readiness reports (`active_snapshot_edited`) and the next import
-  replaces.
+  snapshot import; a row corrected in Studio is reported by readiness
+  (`active_snapshot_edited`) and replaced by the next import.
 - **Derived** (`moodle_history_memberships`, the history index;
   `course_enrollments`, the counts): written only by their own runs. The
   database refuses every other write (`Write refused: course_enrollments
@@ -614,7 +614,7 @@ index labels an unlinked one).
 
 ### Academic years, curriculum generations and study programs
 
-These are rows administrators manage in Studio, never a code list:
+These are rows managed in Studio, never a code list:
 
 - `academic_years` (`label` such as `2025/2026`, `sort`, `published`).
 - `curriculum_generations` (`code` such as `2023`, `label`,
@@ -624,10 +624,10 @@ These are rows administrators manage in Studio, never a code list:
   `code` such as `kn`, `name`, `description`, `published`, `sort`).
 
 A new row never adds a public key by itself: a year, generation or program
-reaches `courses.json` only once an administrator sets its `published` flag
-(a program also needs its generation published). The database keeps the key
-text of a published row: changing the label of a published year or the code
-of a published generation or program answers 400 `INVALID_FOREIGN_KEY`;
+reaches `courses.json` only once its `published` flag is set (a program
+also needs its generation published). The database keeps the key text of
+a published row: changing the label of a published year or the code of a
+published generation or program answers 400 `INVALID_FOREIGN_KEY`;
 unpublish the row first (one write may unpublish and rename). Deleting a
 generation or program that entries, links, members or program states still
 reference is refused by the database; Directus 12.3.1 answers that delete
@@ -683,9 +683,9 @@ for it:
   family** and the runner Flow its rule mode declares, then one completion
   that installs every pair). The next tick takes the next domain.
 - **Data / Mark pending** (the **Recalculate** panel of the dashboard) is a
-  manual Flow on the hidden **Data Operations** singleton for
-  administrators. It marks the chosen domains pending (the history index
-  and the enrollment counts when none is chosen) and answers the status.
+  manual Flow on the hidden **Data Operations** singleton. It marks the
+  chosen domains pending (the history index and the enrollment counts
+  when none is chosen) and answers the status.
   It runs nothing itself: the schedule picks the work up at its next tick.
   It is also the explicit retry of a failed run.
 - **Data / Count enrollments** and **Data / Refresh history index** run
@@ -790,9 +790,9 @@ counts. The status reports both as `fingerprints.current.calculation` and
 `fingerprints.current.publication`, beside the accepted ones of the last
 completed calculation and publication.
 
-`GET /finki-hub-data-operations/status` (administrators) reports each
-domain under `domains` with `state` (`current`, `pending`, `running` or
-`failed`), `current`, and `waitingFor`, the pending domains it runs after.
+`GET /finki-hub-data-operations/status` reports each domain under
+`domains` with `state` (`current`, `pending`, `running` or `failed`),
+`current`, and `waitingFor`, the pending domains it runs after.
 A failed or interrupted history run leaves `history_index` not current:
 its index is stale until a run completes. `lastError` keeps the last
 failure with its code, message and source revision after later successes;
@@ -1115,9 +1115,9 @@ To put another operation on the dashboard, see
 
 ### Publishing
 
-Publication is manual and administrator-only: nothing is published
-automatically, and nothing becomes public except through a declared
-export definition (see [Extending](#a-key-or-a-new-published-file)).
+Publication is manual: nothing is published automatically, and nothing
+becomes public except through a declared export definition (see
+[Extending](#a-key-or-a-new-published-file)).
 
 **Every publication replaces the objects the public consumers read.** The
 publish location is the live bucket once `STORAGE_PUBLISH_*` names it, and
@@ -1143,11 +1143,11 @@ location.
 `npm run setup` installs, once under stable ids (a Studio edit of any of
 them survives every later setup):
 
-- **Data / Validate readiness**, a manual Flow on **Data Operations**
-  (administrators), answers `{ready, revision, blockers, warnings,
-  issueCounts, links, reviews, blockedFiles}`: a count for every registered
-  code, the Studio page and Needs review bookmark of each positive one and
-  the files the blockers hold back, never a name or a row.
+- **Data / Validate readiness**, a manual Flow on **Data Operations**,
+  answers `{ready, revision, blockers, warnings, issueCounts, links,
+  reviews, blockedFiles}`: a count for every registered code, the Studio
+  page and Needs review bookmark of each positive one and the files the
+  blockers hold back, never a name or a row.
 - **Publish / Prepare public assets**, a dry preparation: readiness, then
   every file read, serialized and validated, then the source revision
   again. It answers `{revision, files: [{filename, rows, bytes, sha256}],
@@ -1156,16 +1156,16 @@ them survives every later setup):
   blocker, and with `EXPORT_UNSTABLE_PREPARATION` (409) when the source
   revision or the accepted calculation moved, or a calculation turned
   pending, while the files were prepared.
-- **Publish / Public assets** (the **Publish** panel), a manual Flow for
-  administrators, with a confirmation. It claims `publication`
-  (the button is an explicit request, so it also retries a failed
-  publication; it answers 409 `PUBLICATION_NOT_CLAIMED`, `Publication not
-  claimed: <reason>`, when another run holds the claim (`busy`), when the
-  calculations are pending (`upstream_dirty`), or when nothing is pending
-  (`nothing_pending`): mark publication pending with **Data / Mark
-  pending** to publish the current files again). The export operation's `stage` action
-  then checks readiness (refusing with the blocker codes), reads, serializes
-  and validates every declared file before the first upload, and refuses
+- **Publish / Public assets** (the **Publish** panel), a manual Flow with
+  a confirmation. It claims `publication` (the button is an explicit
+  request, so it also retries a failed publication; it answers 409
+  `PUBLICATION_NOT_CLAIMED`, `Publication not claimed: <reason>`, when
+  another run holds the claim (`busy`), when the calculations are pending
+  (`upstream_dirty`), or when nothing is pending (`nothing_pending`): mark
+  publication pending with **Data / Mark pending** to publish the current
+  files again). The export operation's `stage` action then checks
+  readiness (refusing with the blocker codes), reads, serializes and
+  validates every declared file before the first upload, and refuses
   (`EXPORT_UNSTABLE_PREPARATION`) when the source moved since the claim. A
   native Trigger Flow step runs **Publish / One file** once per file,
   serially, in definition order.
@@ -1182,9 +1182,8 @@ them survives every later setup):
   heartbeat's own code).
 
 The readiness and preparation Flows call the `finki-hub-exports` operation
-(actions `readiness` and `prepare`), which checks the administrator flag
-again. Neither holds a coordinator step, so neither is part of a Flow-graph
-fingerprint.
+(actions `readiness` and `prepare`). Neither holds a coordinator step, so
+neither is part of a Flow-graph fingerprint.
 
 The `outcomes` action folds the answers into one outcome per declared file.
 When every file was uploaded, the Flow completes the claim: the revision it
@@ -1232,9 +1231,9 @@ How `courses.json` projects the relational rows into its existing keys:
   import links a workbook text to staff rows only when that join gives
   the text back: a list separated by `;`, a line break or a bare `,`, or
   with padding, stays one literal review row); `assistants` likewise.
-- The curriculum keys come from rows an administrator publishes: every
-  published `curriculum_generations` row with a curriculum adds
-  `<code>-available` (newest first by `sort`) and a block `<code>-name`,
+- The curriculum keys come from published rows: every published
+  `curriculum_generations` row with a curriculum adds `<code>-available`
+  (newest first by `sort`) and a block `<code>-name`,
   `-code`, `-level`, `-semester`, `-channel`, `-prerequisite`, then its
   state keys and `<code>-credits` (the definition declares the 2018 block
   with its credits before its states, the order today's file has), valued
@@ -1271,9 +1270,8 @@ these when editing:
   `plan_pages` or `stage_page`) at least once a minute: a claim silent for
   60 seconds is released as interrupted.
 - Keep the coordinator steps, the `{{ $trigger.runner }}` target of **Data /
-  Run enrollment family**, the relational filter shape of the count query
-  (see [Mapped enrollment counts](#enrollment-counts-from-explicit-mappings))
-  and the first `Administrator?` condition of every manual Flow.
+  Run enrollment family** and the relational filter shape of the count
+  query (see [Mapped enrollment counts](#enrollment-counts-from-explicit-mappings)).
 
 ### Activity rows, retention and caching
 
@@ -1316,7 +1314,7 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 
 | Code | Meaning | What to do |
 | --- | --- | --- |
-| `FORBIDDEN`, `EXPORT_FORBIDDEN`, `SNAPSHOT_FORBIDDEN` | The caller is not an administrator (`Only administrators may …`). | Run it as an administrator. |
+| `UNAUTHENTICATED`, `SNAPSHOT_UNAUTHENTICATED`, `EXPORT_UNAUTHENTICATED`, `FORBIDDEN`, `SNAPSHOT_FORBIDDEN`, `EXPORT_FORBIDDEN` | The caller check refused the request (see [Access](#access)): `Authentication required` (401, no signed-in user) or `Forbidden` (403, the signed-in user lacks Directus's `admin` flag). | 401: send it with a session or a static token of that project. 403: send it as a user with the `admin` flag. |
 | `COORDINATION_INVALID_OPTIONS`, `SNAPSHOT_INVALID_OPTIONS`, `EXPORT_INVALID_OPTIONS`, `PUBLISH_INVALID_OPTIONS` | A step's options were refused: `Invalid options: <path>: <reason>`. A history line over 2,048 bytes is refused here too (`Moodle user <id>: history line <n> bytes, max 2048`). | Shorten the line in the user's raw `Courses` history; otherwise take the Flow's template again (delete the Flow, run setup). |
 | `SOURCE_CHANGED`, `FINGERPRINT_CHANGED` | A source edit or a Flow-graph change overtook the run; its output was discarded, not failed. | Nothing: the next tick runs it again. |
 | `CLAIM_INTERRUPTED` | The claim stopped heartbeating (a restart) at these inputs for the first time. | Nothing: the next tick runs it again once. |
@@ -1350,34 +1348,26 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 
 ## Access
 
-The project has one user type: everyone who uses it is a Directus
-administrator. Directus has REST and GraphQL APIs, but this setup grants no
-anonymous access: no command creates a public permission, every collection
-is private, and the only public output is the declared files in the R2
-bucket. Every private endpoint refuses an anonymous caller. The data
-endpoints, the managed Flows and the snapshot and export operations also
-check the caller's administrator flag, so an account that is no
-administrator runs none of them; Search checks no administrator flag and
-reads with the signed-in user's own Directus permissions:
+Directus has REST and GraphQL APIs, but this setup grants no anonymous
+access: no command creates a public permission, every collection is
+private, and the only public output is the declared files in the R2
+bucket.
 
 - `/finki-hub-data-operations/*` (status, snapshot report, the setup
-  migrations): administrators only.
-- `GET /finki-hub-data-status` and `/finki-hub-data-status/readiness`: an
-  anonymous caller gets 401, a caller who is no administrator 403. The
-  answer is a bounded view (states, codes, counts, names, links and the
-  last failure's message; no fingerprint, claim owner or record).
+  migrations), `GET /finki-hub-data-status` and
+  `/finki-hub-data-status/readiness`, and the snapshot and export
+  operations run one caller check first (`src/access.ts` of the
+  data-operations bundle): 401 `UNAUTHENTICATED` (`Authentication
+  required`) without a signed-in user, 403 `FORBIDDEN` (`Forbidden`) when
+  the caller's Directus accountability lacks the `admin` flag. The
+  operations answer the same refusals with their prefix
+  (`SNAPSHOT_UNAUTHENTICATED`, `SNAPSHOT_FORBIDDEN`,
+  `EXPORT_UNAUTHENTICATED`, `EXPORT_FORBIDDEN`).
+- The status answer is a bounded view (states, codes, counts, names, links
+  and the last failure's message; no fingerprint, claim owner or record).
 - The Search endpoints (`/finki-hub-course-history/options`, `/search`)
-  refuse an anonymous caller and run as the signed-in user.
-- Every managed manual Flow is on the `data_operations` collection (which
-  only administrators read, so the trigger endpoint refuses everyone else)
-  and starts with an `Administrator?` condition: import, promotion,
-  publication, recalculation and rule seeding are administrator-only,
-  whoever can see a button. The snapshot and export operations check the
-  flag again themselves.
-
-An administrator may edit any row; readiness flags active Moodle users
-changed outside the snapshot workflow (`active_snapshot_edited`) and a
-failed import (`snapshot_import_failed`).
+  refuse a request without a signed-in user (403 `FORBIDDEN`) and run as
+  the signed-in user.
 
 ## Course-history search
 
@@ -1454,8 +1444,8 @@ project name, and light/dark palettes through Directus's native Files and
 Settings APIs. It works on a fresh or already imported project without
 reading the workbook or changing any collection data, permissions, or Flow.
 Run it again to restore the repository's appearance after manual changes;
-existing branding file IDs are reused. It requires a running Directus and an
-administrator token. Unlike the lifecycle commands, it reads `.env`: it takes
+existing branding file IDs are reused. It needs a running Directus and a
+static token. Unlike the lifecycle commands, it reads `.env`: it takes
 `DIRECTUS_URL` (falling back to `http://localhost:8055`) and
 `DIRECTUS_TOKEN` or `DIRECTUS_ADMIN_TOKEN` from the environment, then from
 `.env`, so values given on the command line win; check both before running
@@ -1604,9 +1594,9 @@ this size, whether or not the install lost a deadlock to it.
 
 Every set that grows is declared in exactly one place, and everything that
 uses it (schema, forms, bookmarks, export definitions, readiness, the
-dashboard, the Flows and the tests) derives from that declaration. What
-administrators add in Studio is a row; what changes the public contract,
-the correctness boundary or the Flow graph is one code declaration. The
+dashboard, the Flows and the tests) derives from that declaration. What is
+added in Studio is a row; what changes the public contract, the
+correctness boundary or the Flow graph is one code declaration. The
 members named below are today's, as examples; the declaration is the
 definition.
 
@@ -1703,8 +1693,8 @@ row without a sort (`<row>_unsorted`) and two siblings sharing one
 
 A generic engine (`exports/engine.ts`) reads each definition's sources
 through the Directus ItemsService (system rights after the operation's own
-administrator check, explicit fields, events off, every nested list read
-whole rather than cut to `QUERY_LIMIT_DEFAULT`), serializes the rows in
+caller check, explicit fields, events off, every nested list read whole
+rather than cut to `QUERY_LIMIT_DEFAULT`), serializes the rows in
 id order with the value rules, and validates every payload against its
 definition (a list of one object per read row, only declared keys and in
 their order, non-empty text values, the size bound) before anything is
@@ -1760,19 +1750,12 @@ breaks as `Not runnable: <rule>`:
 | `Not runnable: trigger not manual` | **Trigger**: Manual. |
 | `Not runnable: name without a "Data / " or "Publish / " prefix` | A name that starts with `Data / ` or `Publish / `. |
 | `Not runnable: Flow inactive` | **Status**: Active. |
-| `Not runnable: no collection`, `Not runnable: collections must be exactly data_operations` | **Collections**: `data_operations` only. Only administrators read it, so the trigger endpoint (which checks nothing but read access to the Flow's collection) refuses every non-administrator before the Flow starts. |
+| `Not runnable: no collection`, `Not runnable: collections must be exactly data_operations` | **Collections**: `data_operations` only. |
 | `Not runnable: requires item selection` | **Collection Page (Requires Selection)** off. |
 | `Not runnable: requires Asynchronous off and Error on Reject on` | **Asynchronous** off and **Error on Reject** on. An asynchronous Flow answers before it runs and a Flow without Error on Reject answers success after a failed step, so the panel could not tell a failure from a finished run. |
 
-Two more rules are the Flow's own:
-
-- **First operation**: a Condition named `Administrator?` with the rule
-  `{"$accountability":{"admin":{"_eq":true}}}`, whose reject path ends in
-  a Throw Error with status `403` and code `FORBIDDEN`, as in every
-  installed managed Flow. The Flow itself is the boundary; the panel's
-  picker is a convenience, never the check.
-- The dialog fields are yours, but the API ignores them: validate every
-  input inside the Flow.
+One more rule is the Flow's own: the dialog fields are yours, but the API
+ignores them, so validate every input inside the Flow.
 
 A default panel that every project should get is one entry of
 `defaultPanels` in `src/data-model/operations-dashboard.ts`, installed by
@@ -1910,8 +1893,7 @@ Every suite takes the target from four variables:
 
 - `DIRECTUS_SEARCH_TEST_URL`: `http://127.0.0.1:<port>` or
   `http://[::1]:<port>`, with no path;
-- `DIRECTUS_SEARCH_TEST_TOKEN`: a static administrator token of that
-  project;
+- `DIRECTUS_SEARCH_TEST_TOKEN`: a static token of that project;
 - `DIRECTUS_SEARCH_TEST_MARKER_COLLECTION`: a collection named
   `synthetic_search_marker_<letters or digits>` on the target;
 - `DIRECTUS_SEARCH_TEST_MARKER_VALUE`: a value `synthetic-<letters, digits or

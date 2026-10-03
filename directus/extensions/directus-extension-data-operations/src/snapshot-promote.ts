@@ -18,7 +18,7 @@ import {
 import {
   parseOptions,
   promotionRefusal,
-  requireAdmin,
+  requireCaller,
 } from './snapshot/decisions.js';
 import {
   asSnapshotError,
@@ -139,7 +139,7 @@ export const runSnapshotPromotion = async (
   options: unknown,
   deps: SnapshotDeps,
 ): Promise<SnapshotPromotionResult> => {
-  requireAdmin(deps.accountability);
+  requireCaller(deps.accountability);
   const input = parseOptions(promoteOptionsSchema, options);
   const claimToken = randomUUID();
   const token = randomUUID();
@@ -201,7 +201,7 @@ export const runSnapshotPromotion = async (
 
 export default defineOperationApi({
   handler: async (options, context: OperationContext) => {
-    requireAdmin(context.accountability);
+    requireCaller(context.accountability);
     return runSnapshotPromotion(options, await snapshotDeps(context));
   },
   id: snapshotPromoteId,

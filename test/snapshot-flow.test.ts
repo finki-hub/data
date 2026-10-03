@@ -46,18 +46,17 @@ const next = (key: string, edge: 'reject' | 'resolve') => {
 };
 
 describe('snapshot import Flow template', () => {
-  test('gates administrators and the confirmation before importing and promoting', () => {
+  test('checks the confirmation before importing and promoting', () => {
     expect(snapshotImportFlow.id).toBe(snapshotFlowId);
     expect(snapshotImportFlow.accountability).toBe('activity');
     expect(snapshotImportFlow.trigger).toBe('manual');
-    expect(snapshotImportFlow.entry).toBe(operationByKey('admin_only').id);
+    expect(snapshotImportFlow.entry).toBe(operationByKey('confirmed').id);
     expect(
-      ['admin_only', 'confirmed', 'import', 'staged', 'promote'].map((key) => [
+      ['confirmed', 'import', 'staged', 'promote'].map((key) => [
         next(key, 'resolve'),
         next(key, 'reject'),
       ]),
     ).toEqual([
-      ['confirmed', 'raise_forbidden'],
       ['import', 'raise_unconfirmed'],
       ['staged', 'import_failed'],
       ['promote', 'raise_not_staged'],

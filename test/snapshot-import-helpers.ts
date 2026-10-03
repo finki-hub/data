@@ -23,6 +23,26 @@ export const owner = 'process-under-test';
 export const csvFileId = '11111111-2222-4333-8444-555555555555';
 export const otherFileId = '11111111-2222-4333-8444-666666666666';
 
+// The refusals of the caller check, and the accountabilities it refuses.
+const unauthenticated = {
+  code: 'SNAPSHOT_UNAUTHENTICATED',
+  message: 'Authentication required',
+  status: 401,
+};
+
+export const forbiddenCaller = {
+  code: 'SNAPSHOT_FORBIDDEN',
+  message: 'Forbidden',
+  status: 403,
+};
+
+export const refusedCallers = [
+  [null, unauthenticated],
+  [{ admin: true }, unauthenticated],
+  [{ admin: 'true', user: 'u' }, unauthenticated],
+  [{ admin: false, user: 'u' }, forbiddenCaller],
+] as const;
+
 type Row = { id: number; row: SnapshotRow };
 
 type FakeSnapshotData = {
@@ -141,7 +161,7 @@ export class FakeSnapshot {
 
   public deps(overrides: Partial<SnapshotDeps> = {}): SnapshotDeps {
     return {
-      accountability: { admin: true },
+      accountability: { admin: true, user: 'synthetic-admin' },
       claims: {
         owner,
         staleAfterMs: 60_000,
