@@ -157,6 +157,7 @@ export type ModelScalarKind = 'json' | 'timestamp' | FieldKind;
 
 type ModelFieldBase = {
   readonly field: string;
+  readonly label?: string;
   readonly note?: string;
   readonly nullable: boolean;
   readonly readOnly?: true;
@@ -187,6 +188,7 @@ export type ModelRelationAlias = {
   readonly field: string;
   readonly fields: readonly string[];
   readonly junction?: string;
+  readonly label?: string;
   readonly readOnly?: true;
   readonly template: string;
 };
@@ -209,12 +211,20 @@ export type ModelRelationField = ModelFieldBase & {
 
 export type ModelField = ModelEnumField | ModelRelationField | ModelScalarField;
 
+// A `label` is the English name Studio shows instead of the key. A
+// collection's plural names the collection, its singular one row.
+export type CollectionLabel = {
+  readonly plural: string;
+  readonly singular: string;
+};
+
 export type ModelCollection = {
   readonly collection: ModelCollectionKey;
   readonly displayTemplate: string;
   readonly fields: readonly ModelField[];
   readonly hidden: boolean;
   readonly icon: string;
+  readonly label?: CollectionLabel;
   readonly note: string;
   readonly singleton: boolean;
   readonly sort: number;

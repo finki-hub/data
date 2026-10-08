@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
@@ -30,6 +31,7 @@ import {
   searchBookmark,
 } from '../src/data-model/presentation/presets.js';
 import { aliasesFor } from '../src/data-model/relations.js';
+import { fieldTranslations } from '../src/data-model/translations.js';
 import {
   fakeDirectus,
   type FakeMeta,
@@ -207,6 +209,24 @@ const changesBaseline = (patch: (typeof presentationFieldPatches)[number]) => {
       JSON.stringify(baseline[key] ?? null) !== JSON.stringify(value),
   );
 };
+
+// The installer baseline translations of every field and alias of a
+// collection, beside the ones its declared label gives.
+const baselineLabels = ({
+  collection,
+  fields,
+}: (typeof dataModelCollections)[number]) =>
+  [
+    ...fields.map(({ field, label }) => ({ field, label })),
+    ...aliasesFor(collection).map(({ alias }) => ({
+      field: alias.field,
+      label: alias.label,
+    })),
+  ].map(({ field, label }) => ({
+    actual: baselineFieldMeta(collection, field)['translations'],
+    expected: label === undefined ? null : fieldTranslations(label),
+    field: `${collection}.${field}`,
+  }));
 
 const byShape = (
   writes: readonly RecordedRequest[],
@@ -867,5 +887,46 @@ describe('installPresentation once applied', () => {
 
     expect(mutations(requests)).toEqual([]);
     expect(summary.groups.created).toBe(0);
+  });
+});
+
+describe('labels and the presentation', () => {
+  test('takes the declared label of every field and alias, or none, into the installer baseline', () => {
+    const baselines = dataModelCollections.flatMap(baselineLabels);
+
+    expect(baselines.length).toBeGreaterThan(0);
+    expect(
+      baselines.filter(
+        ({ actual, expected }) => !isDeepStrictEqual(actual, expected),
+      ),
+    ).toEqual([]);
+  });
+
+  test('adopts a field whose installed meta carries a label, and never sends a label itself', async () => {
+    const state = freshState();
+    editLiveMeta(
+      state,
+      { collection: 'courses', field: 'name' },
+      { translations: fieldTranslations('Course name') },
+    );
+    const { request, requests } = fakeDirectus(state);
+
+    await installPresentation(request);
+
+    const patches = byShape(mutations(requests), 'PATCH', fieldPath);
+    const name = patches.find(
+      ({ pathname }) => pathname === '/fields/courses/name',
+    );
+
+    expect(metaBody.parse(name?.body).meta).toEqual({
+      group: 'overview',
+      sort: 1,
+    });
+    expect(patches).toHaveLength(presentationFieldPatches.length);
+    expect(
+      patches.filter(({ body }) =>
+        Object.hasOwn(metaBody.parse(body).meta, 'translations'),
+      ),
+    ).toEqual([]);
   });
 });

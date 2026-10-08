@@ -30,6 +30,7 @@ import {
   toRelationAlignmentPayload,
   toRelationPayload,
 } from './relations.js';
+import { collectionTranslations } from './translations.js';
 
 // Existing definitions the model cannot carry: the message counts them,
 // each refusal's reason names one (the commands print one line each).
@@ -73,9 +74,14 @@ const collectionMeta = (collection: ModelCollection) => ({
   note: collection.note,
   singleton: collection.singleton,
   sort: collection.sort,
+  ...(collection.label !== undefined && {
+    translations: collectionTranslations(collection.label),
+  }),
 });
 
-const collectionPayload = (collection: ModelCollection) => ({
+// The body of `POST /collections`: the collection with its fields and
+// aliases inline.
+export const toCollectionPayload = (collection: ModelCollection) => ({
   collection: collection.collection,
   fields: [
     ...collection.fields.map((field, index) =>
@@ -122,7 +128,7 @@ const applyCollection = async (
   try {
     await request(
       '/collections',
-      json(collectionPayload(action.collection), 'POST'),
+      json(toCollectionPayload(action.collection), 'POST'),
     );
   } catch (error) {
     if (

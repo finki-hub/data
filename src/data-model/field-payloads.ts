@@ -8,6 +8,8 @@ import type {
   Scalar,
 } from '../schema.js';
 
+import { type FieldTranslation, fieldTranslations } from './translations.js';
+
 type FieldSchemaPayload = {
   readonly default_value?: Scalar;
   readonly is_indexed?: true;
@@ -26,6 +28,7 @@ type FieldMetaPayload = {
   readonly required: boolean;
   readonly sort: number;
   readonly special?: readonly string[];
+  readonly translations?: readonly FieldTranslation[];
   readonly validation?: Readonly<Record<string, unknown>>;
   readonly width: 'full' | 'half';
 };
@@ -90,18 +93,25 @@ export const enumChoiceMeta = (field: ModelEnumField): ChoiceMeta => {
   };
 };
 
+// The English label of a field or alias, only when one is declared.
+const labelMeta = (
+  label: string | undefined,
+): Pick<FieldMetaPayload, 'translations'> =>
+  label === undefined ? {} : { translations: fieldTranslations(label) };
+
 const baseMeta = (
   field: ModelField,
   sort: number,
   width: 'full' | 'half',
 ): Pick<
   FieldMetaPayload,
-  'note' | 'readonly' | 'required' | 'sort' | 'width'
+  'note' | 'readonly' | 'required' | 'sort' | 'translations' | 'width'
 > => ({
   ...(field.note !== undefined && { note: field.note }),
   readonly: field.readOnly === true,
   required: !field.nullable,
   sort,
+  ...labelMeta(field.label),
   width,
 });
 
@@ -217,6 +227,7 @@ export const toAliasPayload = (
       required: false,
       sort,
       special: [special],
+      ...labelMeta(alias.label),
       width: 'full',
     },
     type: 'alias',
