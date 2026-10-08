@@ -250,7 +250,8 @@ The import reads the whole workbook and checks it before it contacts
 Directus, exactly as the dry run does, so a workbook it refuses leaves
 Directus untouched:
 
-- A missing or unreadable workbook, or a cell that is not of its
+- A missing or unreadable workbook, a sheet not laid out as the
+  2026-10-08 export lays it out (below), or a cell that is not of its
   column's kind (a boolean column holding other text), stops with exit
   code 1, naming the file, or the sheet, row and column
   (`Import failed: Кадар (Export) row 3, column "active": invalid boolean
@@ -359,16 +360,32 @@ its coordination status row, is accepted. On an accepted project it:
    enrollment rules; the teaching role rows; the equivalencies with their
    members; the council.
 
+The import reads the layout of the 2026-10-08 export, and an older export
+stops before Directus is contacted (exit code 1, `Import failed: Слушатели
+row 1, column 2: not an academic year`):
+
+- **Слушатели**: column A is the course. From column B to the sheet's last
+  column, a row-1 label such as `2025/2026` starts a group of three
+  columns, and the group's third column holds the patterns. The two other
+  row-1 cells of a group are empty (a label merged over its group leaves
+  them empty); an empty row-1 cell outside a group is skipped. Any other
+  row-1 text, a year heading two groups, a sheet without a year, or groups
+  not running newest first stop the import. A later year is one more
+  group, placed first.
+- **Courses**: every field of the scraper contract under its own header
+  (see [Scraper columns](#scraper-columns)); a missing one stops the import
+  (`Import failed: Courses row 1: missing column "ID_old"`). A filled
+  `ID_old` or `ID_new` is a positive id, unique within its column, as the
+  snapshot import requires; the refusal names the cell, never the id
+  (`Courses row 9, column "ID_new": repeats the id of row 4`).
+
 The academic years it writes are the ones the **Слушатели** sheet heads, in
 its order (published, the oldest sorting first), with one `legacy_regex`
-rule per course and year. The sheet must head its column groups with labels
-such as `2025/2026`, newest first, or the import stops before contacting
-Directus; a later year is one more column group, placed first. The
-curriculum generations and study programs come from the curriculum sheets:
-each program column is headed by its program code on the first line (a
-second line, such as the duration, and a link are ignored); the generations
-with a curriculum sheet and their programs are published, the label-only
-2013 generation is not.
+rule per course and year. The curriculum generations and study programs
+come from the curriculum sheets: each program column is headed by its
+program code on the first line (a second line, such as the duration, and a
+link are ignored); the generations with a curriculum sheet and their
+programs are published, the label-only 2013 generation is not.
 
 It runs no Flow and never publishes.
 
@@ -422,11 +439,17 @@ kept.
 The Flow first stages the file into the hidden staging collection in one
 transaction and answers only once it committed. The file must be strict CSV
 with exactly the 38 field names; an empty line between rows is refused,
-empty lines at the end are ignored. Every value is kept exactly as written,
+empty lines at the end are ignored. Every value is kept exactly as written
+but for the scraper's formula guard: the scraper writes a `'` before a value
+that starts with optional whitespace and `=`, `+`, `-` or `@`, and the
+import drops exactly that `'`, as Google Sheets does on the workbook path,
+so both paths store the same value. Such a `'` at the start of a value the
+scraper did not guard, a restored backup's included, is dropped as well.
 `Name` is required, and a populated `ID_old` or `ID_new` must be a positive
-id that is unique within its own column. A history line longer than 2,048
-bytes is staged unchanged and reported, because the history index will
-refuse that user until the line is shortened at the source. The Flow then
+id that is unique within its own column, the rule the one-time import also
+applies to the workbook's **Courses** sheet. A history line longer than
+2,048 bytes is staged unchanged and reported, because the history index
+will refuse that user until the line is shortened at the source. The Flow then
 writes a private backup CSV of the current Moodle users
 (`moodle-users-backup-<time>.csv` in the same private folder) and verifies
 it. Finally it replaces the active users in one database transaction under
@@ -472,7 +495,7 @@ state facts only; what to do is here.
 | Code | First stderr line | Meaning | What to do |
 | --- | --- | --- | --- |
 | 0 | none | Done. Setup and the import print their summary as JSON on stdout; branding prints `Branding succeeded`. | Nothing. |
-| 1 | `<Command> failed: <reason>` | Failed before any row was written: a workbook that cannot be read (`workbook <path>: not readable as .xlsx (…)`) or a cell that is not of its column's kind, a target that answers an error (`GET /collections: HTTP 401 INVALID_CREDENTIALS: …`), a target that does not answer (`… no response (ECONNREFUSED)`, `… timed out after 120 s`), or an unexpected error. After an unexpected error the schema or Flows may be partly installed. | Correct what the reason names: the file or cell, the URL, or the token (a static token of that project for `INVALID_CREDENTIALS`), then run the command again; rerunning setup is safe. |
+| 1 | `<Command> failed: <reason>` | Failed before any row was written: a workbook that cannot be read (`workbook <path>: not readable as .xlsx (…)`), a sheet in another layout (`Слушатели row 1, column 2: not an academic year`) or a cell that is not of its column's kind, a target that answers an error (`GET /collections: HTTP 401 INVALID_CREDENTIALS: …`), a target that does not answer (`… no response (ECONNREFUSED)`, `… timed out after 120 s`), or an unexpected error. After an unexpected error the schema or Flows may be partly installed. | Correct what the reason names: the file or cell, the URL, or the token (a static token of that project for `INVALID_CREDENTIALS`), then run the command again; rerunning setup is safe. |
 | 2 | `<Command> refused: <reason>` | Refused before any record was written: no explicit target (`DIRECTUS_URL not set (.env not read)`), an unexpected or duplicate argument, a populated project offered to the import (`project not empty: …`), existing definitions the model cannot carry (`data model: <n> incompatible definitions`, then one `- <Kind> <path>: <live>, expected <declared>` line each, including a table or column Directus does not manage), a licence that caps the collections, a half-installed Flow (`Flow "<name>" (<id>): entry operation missing`), or a Directus without the data-operations bundle. Branding refuses an unexpected argument, a missing token or an invalid `DIRECTUS_URL`. | Pass the target on the invocation; drop the argument; import into an empty project (below); change or clear the definitions or values each `- ` line names in Studio; raise the licence limit ([Requirements](#requirements)); delete the named Flow in Studio; build and load the data-operations bundle. Then run the command again. |
 | 3 | `Import blocked: <n> cases` (`Import dry run blocked: …` for the dry run) | Import only: the workbook holds values no column can hold or cases the import cannot write as it states them, one `- [<code>] <place>: <fact>` line each. Nothing was sent to Directus. | Correct the workbook as the table under [One-time workbook import](#one-time-workbook-import) says for each code, then run the dry run and the import again. |
 | 4 | `Import interrupted: <cause> (rows confirmed: <n>/<m>)` | Import only: the import stopped after it began writing rows; Directus had confirmed `<n>` of the `<m>` planned rows. | Set up a fresh project (new Compose volumes, or the backup taken before the import) and import again (see above). |
@@ -482,12 +505,14 @@ project instead (fresh Compose volumes and `npm run setup`, or the import
 alone), or restore the backup taken before the first import and import
 again.
 
-Messages name counts, codes, ids, paths, sheets, rows, columns and
-collections. A refused boolean, integer or year-header cell is quoted so it
-can be found, and the line naming a case the import refuses quotes the
-course and curriculum names, curriculum codes, 2018 labels, credits and
-availabilities it concerns; no other workbook or snapshot value is
-printed, and never a staff or student value.
+Messages name counts, codes, ids, paths, sheets, rows, columns, academic
+years and collections. A refused boolean or integer cell and a refused
+curriculum program header (with the code expected there) are quoted so
+they can be found; a refused id cell or `Слушатели` row-1 cell is named by
+its row and column only. The line naming a case the import refuses quotes
+the course and curriculum names, curriculum codes, 2018 labels, credits and
+availabilities it concerns; no other workbook or snapshot value is printed,
+and never a staff or student value.
 
 ### Compose, image and ports
 
@@ -524,8 +549,9 @@ formula results are not treated as source data. A tabular sheet is read one
 row per non-empty row below its header; the two index sheets one row per
 student of each index and name column pair, headed by its source group;
 `Дискорд` one row per channel pair of each semester's column pair; and
-`Слушатели` only its explicit patterns, one per course and year whose
-pattern cell holds a value rather than a formula. The import writes the
+`Слушатели` only its explicit patterns, one per course and year group (found
+by its year label in row 1) whose pattern cell, the group's third column,
+holds a value rather than a formula. The import writes the
 relational rows straight from them:
 
 | Sheet | Relational rows |
@@ -537,7 +563,7 @@ relational rows straight from them:
 | `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row |
 | `Наставен Кадар` | `teaching_assignments` role rows (course, staff or label, role, order) |
-| `Слушатели` | `academic_years` from its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
+| `Слушатели` | `academic_years` from the labels heading its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
 | `Дискорд` | `discord_channels`, one row per channel pair |
 | `ФСС` | `student_council`, linked to the student of its index |
 | `Деканат` | `deans_office` |
@@ -552,10 +578,10 @@ student indices are retained, and no person is merged by name.
 `moodle_users` contains names, email addresses, profile details, and course
 histories. Its field keys match the current `courses-scraper` `profiles.csv`
 headers, so every later snapshot is imported without changing the scraper
-output. The workbook's older `ID`, `Profile`, and `#` columns are imported as
-`ID_new`, `Profile_new`, and `Courses Count`; the next scraper snapshot also
-populates the old-instance and timezone fields that the workbook does not
-contain.
+output. The workbook's `Courses` sheet carries every one of those fields
+under its own header, so the one-time import fills the same fields as a
+snapshot. A row without `ID_new`, an account only the old Moodle instance
+shows, is imported with its `ID_old`.
 
 Values the import cannot relate unambiguously but can keep (a teaching text
 that names no single staff member, an equivalency label that matches no
@@ -1851,13 +1877,14 @@ stored (`string`, `text` or `integer`), with no internal field such as
 lists the CSV validation checks (integer, required and length-bounded
 fields), the staging, the backup, the fingerprint, and the columns of
 `moodle_users` and its staging twin `moodle_import_rows`. The workbook's
-**Courses** sheet (`src/specs/private.ts`) is a fixed historical export: it
-lists the scraper fields it carries, whose kinds come from the table, and
-the three headers it spells differently. A new scraper column (a change of
-the scraper's output) is a change of that table only, followed by
-`npm run build:operations`, a restart and `npm run setup`, never an import
-option. The workbook has no such column, so the one-time import leaves it
-empty, as it does the four fields only the scraper fills.
+**Courses** sheet (`src/specs/private.ts`) is the scraper's CSV imported
+into Google Sheets: it carries every field of the table under its own
+header, read with the table's kind, and `ID_old` and `ID_new` follow the
+snapshot import's id rule (`isPositiveId`, unique within the column). A new
+scraper column (a change of the scraper's output) is a change of that table
+only, followed by `npm run build:operations`, a restart and
+`npm run setup`, never an import option; a workbook exported before the
+change lacks the column, and the one-time import stops at its header.
 
 ### Closed on purpose
 

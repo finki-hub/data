@@ -21,6 +21,8 @@ import {
 type RowContext = {
   readonly fields: readonly FieldSpec[];
   readonly filledValues: Map<string, string>;
+  // Per `id` field, the row each id was first read on.
+  readonly firstRows: ReadonlyMap<string, Map<string, number>>;
   readonly headerPositions: ReadonlyMap<string, number>;
   readonly sheet: string;
 };
@@ -51,6 +53,26 @@ const validateHeaders = (
       );
     }
   }
+};
+
+// An `id` field holds each id once in its column: a repeat names the row
+// of the first, never the id.
+const assertFirstId = (
+  fieldSpec: FieldSpec,
+  { row, text }: { readonly row: number; readonly text: string },
+  context: RowContext,
+): void => {
+  const firstRows = context.firstRows.get(fieldSpec.target);
+  if (firstRows === undefined || text.trim() === '') {
+    return;
+  }
+  const first = firstRows.get(text);
+  if (first !== undefined) {
+    throw new WorkbookDataError(
+      `${sheetPlace(context.sheet, row, fieldSpec.source)}: repeats the id of row ${String(first)}`,
+    );
+  }
+  firstRows.set(text, row);
 };
 
 const readRow = (
@@ -92,6 +114,7 @@ const readRow = (
       row: rowNumber,
       sheet: context.sheet,
     });
+    assertFirstId(fieldSpec, { row: rowNumber, text }, context);
     hasContent ||= text.trim() !== '';
   }
 
@@ -112,6 +135,11 @@ export const readRows = (
   const context: RowContext = {
     fields: spec.fields,
     filledValues: new Map(),
+    firstRows: new Map(
+      spec.fields.flatMap(({ kind, target }) =>
+        kind === 'id' ? [[target, new Map<string, number>()] as const] : [],
+      ),
+    ),
     headerPositions,
     sheet: source.sheet,
   };

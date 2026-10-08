@@ -69,31 +69,15 @@ export type WorkbookContent = {
   readonly studyPrograms: readonly ProgramSeed[];
 };
 
-// An academic-year header: two consecutive calendar years, such as
-// 2025/2026. Such labels order chronologically as text.
-const yearLabelPattern = /^(?<start>\d{4})\/(?<end>\d{4})$/u;
-
-const isYearLabel = (label: string): boolean => {
-  const groups = yearLabelPattern.exec(label)?.groups;
-  return Number(groups?.['end']) === Number(groups?.['start']) + 1;
-};
-
-// Refuses headers the import could not sort: the import sorts each year by
-// its column group, so the groups must run newest first. Names the first
-// such header of the sheet's header row.
+// Refuses year groups the import could not sort: the import sorts each year
+// by its column group, so the groups must run newest first. Names the first
+// year out of that order.
 const assertChronological = (sheet: string, years: readonly string[]): void => {
-  const place = sheetPlace(sheet, 1);
-  const malformed = years.find((year) => !isYearLabel(year));
-  if (malformed !== undefined) {
-    throw new WorkbookDataError(
-      `${place}: column group header ${JSON.stringify(malformed.slice(0, 40))} not an academic year (YYYY/YYYY+1)`,
-    );
-  }
   for (const [index, year] of years.entries()) {
     const newer = years[index - 1];
     if (newer !== undefined && year >= newer) {
       throw new WorkbookDataError(
-        `${place}: academic year ${year} after ${newer} (column groups not newest first)`,
+        `${sheetPlace(sheet, 1)}: academic year ${year} after ${newer} (column groups not newest first)`,
       );
     }
   }

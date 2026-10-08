@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 import type { FieldSpec, Scalar } from './schema.js';
 
+import { isPositiveId } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
+
 const integerSchema = z
   .string()
   .regex(/^-?\d+$/u)
@@ -119,6 +121,15 @@ export const convertCell = (
     }
 
     return parsed.data;
+  }
+
+  // The snapshot import's id rule; uniqueness is the row reader's check.
+  if (fieldSpec.kind === 'id') {
+    if (!isPositiveId(value)) {
+      throw new WorkbookDataError(`${place}: not a positive id`);
+    }
+
+    return Number(value);
   }
 
   if (fieldSpec.kind === 'integer') {

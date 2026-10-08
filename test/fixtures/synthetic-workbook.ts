@@ -9,6 +9,7 @@ import {
   perWorkbookKey,
   type Scalar,
   type WorkbookData,
+  type WorkbookKey,
   type WorkbookSpec,
 } from '../../src/schema.js';
 import { workbookSpecs } from '../../src/specs/workbook.js';
@@ -160,6 +161,20 @@ const mergeBlocks = (
   }
 };
 
+// The Courses sheet carries every snapshot contract header, and the
+// synthetic workbook leaves empty the four columns the newer export added
+// (ID_old, Profile_old, Timezone_new, Timezone_old), so the users it
+// imports are those of the older layout.
+const emptyColumns: ReadonlyMap<WorkbookKey, ReadonlySet<string>> = new Map([
+  [
+    'moodle_users',
+    new Set(['ID_old', 'Profile_old', 'Timezone_new', 'Timezone_old']),
+  ],
+]);
+
+const isWritten = (key: WorkbookKey, field: FieldSpec): boolean =>
+  emptyColumns.get(key)?.has(field.target) !== true;
+
 const writeRows = (
   workbook: ExcelJS.Workbook,
   spec: WorkbookSpec,
@@ -173,8 +188,9 @@ const writeRows = (
   for (const { column, field } of columns) {
     setHeader(sheet, { column, spec }, field);
   }
+  const written = columns.filter(({ field }) => isWritten(spec.key, field));
   for (const [index, row] of rows.entries()) {
-    for (const { column, field } of columns) {
+    for (const { column, field } of written) {
       setCell(sheet, { column, row: index + 2 }, row[field.target]);
     }
   }
@@ -272,9 +288,10 @@ export const headerYears = (
   ...new Set([...years, ...rows.map((row) => text(row, 'academic_year'))]),
 ];
 
-// The listener sheet: year labels in row 1 every third column from C, the
-// literal pattern two columns right of its year, one pattern per row. Row 1
-// labels every column, so `actualColumnCount` reaches the last pattern.
+// The listener sheet in the export's layout: column A the course, then one
+// group of three columns per year from column B, its label in row 1 merged
+// over the group, the literal pattern in the group's third column, one
+// pattern per row.
 const writePatterns = (
   workbook: ExcelJS.Workbook,
   rows: readonly SyntheticRow[],
@@ -282,16 +299,15 @@ const writePatterns = (
 ): void => {
   const sheet = workbook.addWorksheet('Слушатели');
   setCell(sheet, { column: 1, row: 1 }, 'Предмет');
-  setCell(sheet, { column: 2, row: 1 }, 'Код');
   for (const [index, year] of years.entries()) {
-    setCell(sheet, { column: 3 + index * 3, row: 1 }, year);
-    setCell(sheet, { column: 4 + index * 3, row: 1 }, 'Број');
-    setCell(sheet, { column: 5 + index * 3, row: 1 }, 'Регекс');
+    const label = 2 + index * 3;
+    setCell(sheet, { column: label, row: 1 }, year);
+    sheet.mergeCells(1, label, 1, label + 2);
   }
   for (const [index, row] of rows.entries()) {
     const year = years.indexOf(text(row, 'academic_year'));
     setCell(sheet, { column: 1, row: index + 2 }, row['course_name']);
-    setCell(sheet, { column: 5 + year * 3, row: index + 2 }, row['pattern']);
+    setCell(sheet, { column: 4 + year * 3, row: index + 2 }, row['pattern']);
   }
 };
 
@@ -409,7 +425,11 @@ export const workbookData = (
     const spec = specOf(key);
     const rows = readingOrder(spec, dataset[key], years);
     const values = spec.fields.map(
-      (field) => [field.target, readValues(field, rows)] as const,
+      (field) =>
+        [
+          field.target,
+          isWritten(key, field) ? readValues(field, rows) : [],
+        ] as const,
     );
     return rows.map((_row, index) =>
       Object.fromEntries(

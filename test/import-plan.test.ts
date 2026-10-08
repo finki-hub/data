@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import type { ImportPlan } from '../src/import/plan.js';
 
+import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { entryKey } from '../src/import/curricula.js';
 import {
   ProgramHeaderError,
@@ -192,8 +193,11 @@ describe('content rows', () => {
       tags: '',
     });
     expect(recordsIn(plan, 'staff')).toHaveLength(dataset.staff.length);
-    expect(recordsIn(plan, 'moodle_users')[0]).not.toHaveProperty('ID_old');
+    expect(recordsIn(plan, 'moodle_users')[0]).toHaveProperty('ID_old', 1_001);
     expect(recordsIn(plan, 'moodle_users')[0]).toHaveProperty('ID_new', 2_001);
+    expect(
+      new Set(Object.keys(recordsIn(plan, 'moodle_users')[0] ?? {})),
+    ).toEqual(new Set(snapshotFields));
     expect(recordsIn(plan, 'student_council')[2]).toMatchObject({
       index_number: 'SYN-0002',
       student: ref('students', 3),

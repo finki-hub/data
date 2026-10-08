@@ -3,7 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
+import {
+  snapshotFields,
+  snapshotFieldTable,
+} from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { refusalLines } from '../src/import-report.js';
 import { countByCode } from '../src/import/findings.js';
 import { planImport } from '../src/import/plan.js';
@@ -15,7 +18,10 @@ import {
   type WorkbookSpec,
 } from '../src/schema.js';
 import { workbookSpecs } from '../src/specs/workbook.js';
-import { readCourseEnrollmentPatterns } from '../src/workbook-enrollment-reader.js';
+import {
+  readCourseEnrollmentPatterns,
+  readEnrollmentYears,
+} from '../src/workbook-enrollment-reader.js';
 import { readRows } from '../src/workbook-row-reader.js';
 import {
   readCellText,
@@ -36,6 +42,9 @@ import {
 } from './fixtures/synthetic-workbook.js';
 import { contentOf, planOf, withCourse } from './import-plan-helpers.js';
 import { parityDataset } from './relational-export-helpers.js';
+
+const courseOne = 'Course One';
+const courseTwo = 'Course Two';
 
 // The workbook written from the dataset, saved and reloaded, as the import
 // reads it from a file.
@@ -62,10 +71,10 @@ describe('workbook readers', () => {
     const sheet = workbook.addWorksheet('Synthetic courses');
     sheet.addRow(['name', 'professors']);
     sheet.addRow([
-      'Course One',
+      courseOne,
       { formula: '"Derived Professor"', result: 'Derived Professor' },
     ]);
-    sheet.addRow(['Course Two', 'Manual Professor']);
+    sheet.addRow([courseTwo, 'Manual Professor']);
     const spec = {
       fields: [
         requiredField('name', 'name'),
@@ -77,11 +86,11 @@ describe('workbook readers', () => {
 
     expect(readRows(workbook, spec, spec.source)).toEqual([
       {
-        item: { name: 'Course One', professors_override: null },
+        item: { name: courseOne, professors_override: null },
         place: { row: 2, sheet: 'Synthetic courses' },
       },
       {
-        item: { name: 'Course Two', professors_override: 'Manual Professor' },
+        item: { name: courseTwo, professors_override: 'Manual Professor' },
         place: { row: 3, sheet: 'Synthetic courses' },
       },
     ]);
@@ -90,11 +99,11 @@ describe('workbook readers', () => {
   test('normalizes only literal listener pattern overrides', () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Synthetic listeners');
-    sheet.addRow(['', '', '2025/2026', '', '2025/2026']);
-    sheet.addRow(['Course One', '', '', '', 'Course One-2025/2026|Legacy']);
-    sheet.addRow(['Course Two', '', '', '', '']);
-    sheet.getRow(3).getCell(5).value = {
-      formula: '$A3&"-"&C$1',
+    sheet.addRow(['', '2025/2026', '', '']);
+    sheet.addRow([courseOne, '', '', 'Course One-2025/2026|Legacy']);
+    sheet.addRow([courseTwo, '', '', '']);
+    sheet.getRow(3).getCell(4).value = {
+      formula: '$A3&"-"&B$1',
       result: 'Course Two-2025/2026',
     };
 
@@ -107,7 +116,7 @@ describe('workbook readers', () => {
       {
         item: {
           academic_year: '2025/2026',
-          course_name: 'Course One',
+          course_name: courseOne,
           pattern: 'Course One-2025/2026|Legacy',
         },
         place: { row: 2, sheet: 'Synthetic listeners' },
@@ -182,60 +191,17 @@ describe('workbook readers', () => {
     ]);
   });
 
-  test('reads the fixed columns of the Courses sheet into the scraper fields, three of them under a header of its own', () => {
+  test('reads every snapshot contract field of the Courses sheet under its own header, with its kind, the instance ids as ids', () => {
     const fields = specOf('moodle_users')?.fields ?? [];
-    const targets = fields.map(({ target }) => target);
 
-    // The historical sheet's headers, pinned literally: a scraper field
-    // added to the snapshot contract later is no column of this sheet.
-    expect(fields.map(({ source }) => source)).toEqual([
-      'ID',
-      'Name',
-      'Mail',
-      'Courses',
-      '#',
-      'Profile',
-      'AIM_new',
-      'AIM_old',
-      'Avatar_new',
-      'Avatar_old',
-      'City_new',
-      'City_old',
-      'Country_new',
-      'Country_old',
-      'Description_new',
-      'Description_old',
-      'ICQ_new',
-      'ICQ_old',
-      'Images_new',
-      'Images_old',
-      'Interests_new',
-      'Interests_old',
-      'Last Access_new',
-      'Last Access_old',
-      'MSN_new',
-      'MSN_old',
-      'MoodleNet_new',
-      'MoodleNet_old',
-      'Skype_new',
-      'Skype_old',
-      'Web_new',
-      'Web_old',
-      'Yahoo_new',
-      'Yahoo_old',
-    ]);
-    expect(targets).toEqual(
-      snapshotFields.filter((name) => targets.includes(name)),
+    expect(fields.map(({ source, target }) => [source, target])).toEqual(
+      snapshotFields.map((name) => [name, name]),
     );
-    expect(
-      fields
-        .filter(({ source, target }) => source !== target)
-        .map(({ source, target }) => [source, target]),
-    ).toEqual([
-      ['ID', 'ID_new'],
-      ['#', 'Courses Count'],
-      ['Profile', 'Profile_new'],
-    ]);
+    expect(fields.map(({ kind }) => kind)).toEqual(
+      snapshotFieldTable.map(({ field: name, kind }) =>
+        name === 'ID_old' || name === 'ID_new' ? 'id' : kind,
+      ),
+    );
   });
 });
 
@@ -607,7 +573,7 @@ describe('academic years of the enrollment sheet', () => {
     );
 
     expect(() => readWorkbookContent(workbook)).toThrow(
-      'Слушатели row 1: column group header "2026/27" not an academic year (YYYY/YYYY+1)',
+      'Слушатели row 1, column 2: not an academic year',
     );
   });
 
@@ -617,10 +583,8 @@ describe('academic years of the enrollment sheet', () => {
     if (sheet === undefined) {
       throw new Error('The listener sheet is missing');
     }
-    const next = 3 + academicYears.length * 3;
+    const next = 2 + academicYears.length * 3;
     sheet.getRow(1).getCell(next).value = '2025/2026';
-    sheet.getRow(1).getCell(next + 1).value = 'Број';
-    sheet.getRow(1).getCell(next + 2).value = 'Регекс';
 
     expect(() => readWorkbookContent(workbook)).toThrow(
       'Слушатели row 1: academic year 2025/2026 heads two column groups',
@@ -656,5 +620,310 @@ describe('academic years of the enrollment sheet', () => {
         ({ collection }) => collection === 'course_enrollment_rules',
       )?.rows,
     ).toHaveLength(withLater.courses.length * sixteenYears.length);
+  });
+});
+
+const listeners = {
+  kind: 'course-enrollment-patterns',
+  sheet: 'Слушатели',
+} as const;
+
+type SheetCell = null | number | string;
+
+// A listener sheet: the given rows from row 1, and each given label column
+// merged over its group's three columns in row 1, as the export merges it.
+const listenerSheet = (
+  rows: ReadonlyArray<readonly SheetCell[]>,
+  mergedLabels: readonly number[] = [],
+): ExcelJS.Workbook => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(listeners.sheet);
+  for (const row of rows) {
+    sheet.addRow([...row]);
+  }
+  for (const label of mergedLabels) {
+    sheet.mergeCells(1, label, 1, label + 2);
+  }
+  return workbook;
+};
+
+// The academic year, course and pattern of every pattern read.
+const patternsOf = (workbook: ExcelJS.Workbook) =>
+  readCourseEnrollmentPatterns(workbook, listeners).map(({ item, place }) => [
+    item['academic_year'],
+    item['course_name'],
+    item['pattern'],
+    place.row,
+  ]);
+
+const yearsOf = (workbook: ExcelJS.Workbook) =>
+  readEnrollmentYears(workbook, listeners);
+
+describe('year groups of the listener sheet', () => {
+  test('are read up to the last column, also when a pattern column inside the sheet is fully empty and an empty column follows the last group', () => {
+    // Groups at B, E and H; the 2025/2026 pattern column G holds nothing,
+    // and column K is empty but styled, as the export's column AX.
+    const workbook = listenerSheet([
+      [null, '2026/2027', null, null, '2025/2026', null, null, '2024/2025'],
+      [courseOne, null, null, 'Course One-2026/2027|A'],
+      [courseTwo, null, null, null, null, null, null, null, null, 'Two-B'],
+    ]);
+    const sheet = workbook.getWorksheet(listeners.sheet);
+    if (sheet === undefined) {
+      throw new Error('The listener sheet is missing');
+    }
+    sheet.getRow(1).getCell(11).style = { font: { bold: true } };
+
+    // Columns A, B, D, E, H and J hold a value; the last column is K.
+    expect(sheet.actualColumnCount).toBe(6);
+    expect(sheet.columnCount).toBe(11);
+    expect(yearsOf(workbook)).toEqual(['2026/2027', '2025/2026', '2024/2025']);
+    expect(patternsOf(workbook)).toEqual([
+      ['2026/2027', courseOne, 'Course One-2026/2027|A', 2],
+      ['2024/2025', courseTwo, 'Two-B', 3],
+    ]);
+  });
+
+  test('read a merged label once and never the two other columns of its group', async () => {
+    const workbook = await reloaded(
+      listenerSheet(
+        [
+          ['Предмет', '2025/2026', null, null, '2024/2025'],
+          [courseOne, 12, 'Stray text', 'One-A', 7, 'Stray', 'One-B'],
+          [courseTwo, 3, null, null, null, null, 'Two-B'],
+        ],
+        [2, 5],
+      ),
+    );
+
+    expect(workbook.getWorksheet(listeners.sheet)?.model.merges).toEqual([
+      'B1:D1',
+      'E1:G1',
+    ]);
+    expect(yearsOf(workbook)).toEqual(['2025/2026', '2024/2025']);
+    expect(patternsOf(workbook)).toEqual([
+      ['2025/2026', courseOne, 'One-A', 2],
+      ['2024/2025', courseOne, 'One-B', 2],
+      ['2024/2025', courseTwo, 'Two-B', 3],
+    ]);
+  });
+
+  test('refuse other text in row 1, a year heading two groups, a sheet without a group and a header inside a group', () => {
+    const refusals: ReadonlyArray<readonly [readonly SheetCell[], string]> = [
+      [
+        ['Предмет', 'Канал', '2025/2026'],
+        'Слушатели row 1, column 2: not an academic year',
+      ],
+      [
+        [null, '2025/2026', null, null, '2025/2027'],
+        'Слушатели row 1, column 5: not an academic year',
+      ],
+      [
+        [null, '2025/2026', null, null, '2025/2026'],
+        'Слушатели row 1: academic year 2025/2026 heads two column groups',
+      ],
+      [['Предмет'], 'Слушатели row 1: no academic year'],
+      [
+        [null, '2025/2026', 'Број', 'Регекс'],
+        'Слушатели row 1, column 3: not empty inside the 2025/2026 group',
+      ],
+      [
+        [null, '2025/2026', null, 'Регекс'],
+        'Слушатели row 1, column 4: not empty inside the 2025/2026 group',
+      ],
+    ];
+    for (const [header, message] of refusals) {
+      const workbook = listenerSheet([header, [courseOne]]);
+
+      expect(() => yearsOf(workbook)).toThrow(WorkbookDataError);
+      expect(() => yearsOf(workbook)).toThrow(message);
+      expect(() => patternsOf(workbook)).toThrow(message);
+    }
+  });
+
+  test('skip an empty cell outside a group, so a group may start after one', () => {
+    const workbook = listenerSheet([
+      [null, null, '2025/2026', null, null, null, '2024/2025'],
+      [courseOne, null, null, null, 'One-A', null, null, null, 'One-B'],
+    ]);
+
+    expect(yearsOf(workbook)).toEqual(['2025/2026', '2024/2025']);
+    expect(patternsOf(workbook)).toEqual([
+      ['2025/2026', courseOne, 'One-A', 2],
+      ['2024/2025', courseOne, 'One-B', 2],
+    ]);
+  });
+
+  test('refuse the older export, whose column B is the course code', async () => {
+    const workbook = await reloaded(syntheticWorkbook(lifecycleDataset()));
+    const sheet = workbook.getWorksheet(listeners.sheet);
+    sheet?.spliceColumns(2, 0, ['Код']);
+
+    expect(() => readWorkbookContent(workbook)).toThrow(
+      'Слушатели row 1, column 2: not an academic year',
+    );
+  });
+});
+
+// A Courses sheet headed by the given headers, every contract field in
+// reverse order unless a test names others, with one row per record.
+const coursesSheet = (
+  records: ReadonlyArray<Readonly<Record<string, SheetCell>>>,
+  headers: readonly string[] = snapshotFields.toReversed(),
+): ExcelJS.Workbook => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Courses');
+  sheet.addRow([...headers]);
+  for (const record of records) {
+    sheet.addRow(headers.map((header) => record[header] ?? null));
+  }
+  return workbook;
+};
+
+const usersOf = (workbook: ExcelJS.Workbook) => {
+  const spec = specOf('moodle_users');
+  if (spec?.source.kind !== 'rows') {
+    throw new Error('No spec reads the Courses sheet');
+  }
+  return readRows(workbook, spec, spec.source).map(({ item }) => item);
+};
+
+const integerKeys: ReadonlySet<string> = new Set([
+  'Courses Count',
+  'ID_new',
+  'ID_old',
+]);
+
+// A synthetic value for every contract field: a number for the integer
+// fields, a text naming the field for the others.
+const everyField = (id: number): Readonly<Record<string, SheetCell>> =>
+  Object.fromEntries(
+    snapshotFields.map((name) => [
+      name,
+      integerKeys.has(name) ? id : `Synthetic ${name} ${String(id)}`,
+    ]),
+  );
+
+const refusalOf = (read: () => unknown): string => {
+  try {
+    read();
+  } catch (error) {
+    if (error instanceof WorkbookDataError) {
+      return error.message;
+    }
+    throw error;
+  }
+  throw new Error('expected a refusal');
+};
+
+describe('the Courses sheet', () => {
+  test('reads every contract field by its own name, the four the older export lacked included, and a row without ID_new with its ID_old', () => {
+    const users = usersOf(
+      coursesSheet([
+        everyField(7),
+        { ID_old: 11, Name: 'Synthetic Old Account', Timezone_old: 'UTC' },
+      ]),
+    );
+
+    expect(users[0]).toEqual(everyField(7));
+    expect(users[0]).toMatchObject({
+      ID_old: 7,
+      Profile_old: 'Synthetic Profile_old 7',
+      Timezone_new: 'Synthetic Timezone_new 7',
+      Timezone_old: 'Synthetic Timezone_old 7',
+    });
+    expect(users[1]).toEqual({
+      ...Object.fromEntries(snapshotFields.map((name) => [name, null])),
+      ID_old: 11,
+      Name: 'Synthetic Old Account',
+      Timezone_old: 'UTC',
+    });
+  });
+
+  test('refuses the older export headers at the first contract field', () => {
+    // The 2026-09-30 Courses sheet: ID, Profile and # for ID_new,
+    // Profile_new and Courses Count, and no ID_old, Profile_old or
+    // Timezone column.
+    const renamed: ReadonlyMap<string, string> = new Map([
+      ['Courses Count', '#'],
+      ['ID_new', 'ID'],
+      ['Profile_new', 'Profile'],
+    ]);
+    const absent = new Set([
+      'ID_old',
+      'Profile_old',
+      'Timezone_new',
+      'Timezone_old',
+    ]);
+    const older = snapshotFields
+      .filter((name) => !absent.has(name))
+      .map((name) => renamed.get(name) ?? name);
+
+    expect(refusalOf(() => usersOf(coursesSheet([], older)))).toBe(
+      'Courses row 1: missing column "ID_old"',
+    );
+  });
+
+  test('refuses an id that is not positive, or that repeats in its column, with the place and never the id', () => {
+    const cases: ReadonlyArray<
+      readonly [ReadonlyArray<Readonly<Record<string, SheetCell>>>, string]
+    > = [
+      [
+        [{ ID_new: 0, Name: 'Zero' }],
+        'Courses row 2, column "ID_new": not a positive id',
+      ],
+      [
+        [{ ID_old: -5, Name: 'Negative' }],
+        'Courses row 2, column "ID_old": not a positive id',
+      ],
+      [
+        [{ ID_new: 1.5, Name: 'Fraction' }],
+        'Courses row 2, column "ID_new": not a positive id',
+      ],
+      [
+        [{ ID_old: 'abc', Name: 'Text' }],
+        'Courses row 2, column "ID_old": not a positive id',
+      ],
+      [
+        [{ ID_new: 2_147_483_648, Name: 'Beyond int4' }],
+        'Courses row 2, column "ID_new": not a positive id',
+      ],
+      [
+        [
+          { ID_old: 9, Name: 'First' },
+          { ID_old: 8, Name: 'Second' },
+          { ID_old: 9, Name: 'Third' },
+        ],
+        'Courses row 4, column "ID_old": repeats the id of row 2',
+      ],
+      [
+        [
+          { ID_new: 4, Name: 'First' },
+          { ID_new: 4, Name: 'Second' },
+        ],
+        'Courses row 3, column "ID_new": repeats the id of row 2',
+      ],
+    ];
+    for (const [records, message] of cases) {
+      expect(refusalOf(() => usersOf(coursesSheet(records)))).toBe(message);
+    }
+  });
+
+  test('accepts empty ids on several rows, and one id in both columns', () => {
+    const users = usersOf(
+      coursesSheet([
+        { Name: 'No id' },
+        { Name: 'No id either' },
+        { ID_new: 5, ID_old: 6, Name: 'First' },
+        { ID_new: 6, ID_old: 5, Name: 'Second' },
+      ]),
+    );
+
+    expect(users.map((user) => [user['ID_old'], user['ID_new']])).toEqual([
+      [null, null],
+      [null, null],
+      [6, 5],
+      [5, 6],
+    ]);
   });
 });

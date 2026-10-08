@@ -75,7 +75,8 @@ type FieldKind = 'boolean' | 'integer' | 'string' | 'text';
 export type FieldSpec = {
   readonly fillDown?: true;
   readonly fillMerged?: true;
-  readonly kind: FieldKind;
+  // `id`: an integer that must be positive and unique within its column.
+  readonly kind: 'id' | FieldKind;
   readonly required?: true;
   readonly source: string;
   readonly sourceColumn?: number;

@@ -1,78 +1,31 @@
 import {
-  type SnapshotField,
+  instanceIdFields,
   type SnapshotFieldDeclaration,
   snapshotFieldTable,
 } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { type FieldSpec, type WorkbookSpec } from '../schema.js';
 
-// The workbook's Courses sheet, the first Moodle users snapshot: a fixed
-// historical export, so its columns never grow. It carries these scraper
-// fields, whose kinds come from the snapshot contract. The fields only the
-// scraper fills (ID_old, Profile_old, Timezone_new, Timezone_old) and any
-// scraper field added later are not among them; the import leaves those
-// columns empty.
-const sheetFields: ReadonlySet<SnapshotField> = new Set([
-  'AIM_new',
-  'AIM_old',
-  'Avatar_new',
-  'Avatar_old',
-  'City_new',
-  'City_old',
-  'Country_new',
-  'Country_old',
-  'Courses',
-  'Courses Count',
-  'Description_new',
-  'Description_old',
-  'ICQ_new',
-  'ICQ_old',
-  'ID_new',
-  'Images_new',
-  'Images_old',
-  'Interests_new',
-  'Interests_old',
-  'Last Access_new',
-  'Last Access_old',
-  'Mail',
-  'MoodleNet_new',
-  'MoodleNet_old',
-  'MSN_new',
-  'MSN_old',
-  'Name',
-  'Profile_new',
-  'Skype_new',
-  'Skype_old',
-  'Web_new',
-  'Web_old',
-  'Yahoo_new',
-  'Yahoo_old',
-]);
+const idFields: ReadonlySet<string> = new Set(instanceIdFields);
 
-// The sheet's headers that differ from the field names.
-const renamedHeaders: Readonly<Partial<Record<SnapshotField, string>>> = {
-  'Courses Count': '#',
-  ID_new: 'ID',
-  Profile_new: 'Profile',
-};
-
+// The workbook's Courses sheet, the first Moodle users snapshot: the
+// scraper's profiles.csv imported into Google Sheets. It carries every
+// field of the snapshot contract under its own header, each read with the
+// contract's kind; ID_old and ID_new follow the snapshot import's id rule
+// (kind `id`).
 const sheetField = ({
   field,
   kind,
   required,
-}: SnapshotFieldDeclaration & {
-  readonly field: SnapshotField;
-}): FieldSpec => ({
-  kind,
+}: SnapshotFieldDeclaration): FieldSpec => ({
+  kind: idFields.has(field) ? 'id' : kind,
   ...(required !== undefined && { required }),
-  source: renamedHeaders[field] ?? field,
+  source: field,
   target: field,
 });
 
 export const privateWorkbookSpecs = [
   {
-    fields: snapshotFieldTable
-      .filter(({ field }) => sheetFields.has(field))
-      .map(sheetField),
+    fields: snapshotFieldTable.map(sheetField),
     key: 'moodle_users',
     source: { kind: 'rows', sheet: 'Courses' },
   },

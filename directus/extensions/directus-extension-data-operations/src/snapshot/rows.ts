@@ -12,6 +12,7 @@ import {
   historyField,
   instanceIdFields,
   integerFields,
+  isPositiveId,
   maxInteger,
   requiredFields,
   type SnapshotField,
@@ -20,6 +21,7 @@ import {
   type SnapshotValue,
 } from './contract.js';
 import { snapshotError } from './errors.js';
+import { withoutFormulaGuard } from './formula-guard.js';
 
 const knownFields: ReadonlySet<string> = new Set(snapshotFields);
 
@@ -66,7 +68,6 @@ type RowProblem = {
   readonly row: number;
 };
 
-const positiveId = /^[1-9]\d*$/u;
 const countPattern = /^(?:0|[1-9]\d*)$/u;
 
 // Characters as PostgreSQL counts them (code points).
@@ -151,7 +152,10 @@ export class SnapshotRows {
     }
     const id = (instanceIdFields as readonly string[]).includes(field);
     const value = Number(cell);
-    if (!(id ? positiveId : countPattern).test(cell) || value > maxInteger) {
+    const valid = id
+      ? isPositiveId(cell)
+      : countPattern.test(cell) && value <= maxInteger;
+    if (!valid) {
       const kind = id ? 'a positive integer id' : 'a non-negative integer';
       this.#problem(record, field, `is not ${kind}`);
       return null;
@@ -169,7 +173,10 @@ export class SnapshotRows {
     }
   }
 
-  #text(record: CsvRecord, field: SnapshotField, value: CsvCell) {
+  // A text value as it is stored: without the scraper's formula guard
+  // (formula-guard.ts), then checked.
+  #text(record: CsvRecord, field: SnapshotField, cell: CsvCell) {
+    const value = cell === null ? null : withoutFormulaGuard(cell);
     if (requiredFields.includes(field) && (value === null || value === '')) {
       this.#problem(record, field, 'is required');
     }

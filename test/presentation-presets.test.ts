@@ -102,6 +102,15 @@ describe('presets', () => {
     });
   });
 
+  test('shows both instance ids in the staged Moodle rows view, so a row without ID_new shows its ID_old', () => {
+    expect(
+      defaultViewOf('moodle_import_rows')?.layout_query.tabular,
+    ).toMatchObject({
+      fields: ['Name', 'Mail', 'ID_old', 'ID_new', 'Courses Count'],
+      sort: ['Name'],
+    });
+  });
+
   test('gives every directory a default table view', () => {
     expect(
       ['staff', 'rooms', 'students', 'discord_channels', 'deans_office'].map(

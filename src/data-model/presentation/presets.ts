@@ -136,7 +136,7 @@ const defaultViews: readonly TabularPreset[] = [
   ),
   defaultView(
     'moodle_import_rows',
-    ['Name', 'Mail', 'ID_new', 'Courses Count'],
+    ['Name', 'Mail', 'ID_old', 'ID_new', 'Courses Count'],
     ['Name'],
   ),
   defaultView(

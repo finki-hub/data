@@ -23,9 +23,11 @@ import { SnapshotFingerprint } from './fingerprint.js';
 // lossless convention (NULL as an empty unquoted cell, every text quoted,
 // so an empty text stays empty text). It is therefore a valid snapshot:
 // restoring it is an explicit run of the same import and promotion, and
-// re-staging it reproduces the fingerprint of the rows it saved. It lives
-// in the local storage location as a new file and is never deleted by the
-// workflow.
+// re-staging it reproduces the fingerprint of the rows it saved, except
+// for a value starting with a `'` the import takes for the scraper's
+// formula guard (formula-guard.ts), which is staged without that `'`. It
+// lives in the local storage location as a new file and is never deleted
+// by the workflow.
 
 const csvCell = (value: SnapshotValue): string => {
   if (value === null) {

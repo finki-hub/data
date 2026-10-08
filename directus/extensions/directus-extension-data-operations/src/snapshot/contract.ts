@@ -94,6 +94,14 @@ export const boundedLength = 255;
 
 export const maxInteger = 2_147_483_647;
 
+const positiveIdPattern = /^[1-9]\d*$/u;
+
+// A populated instance id as both snapshot paths accept it (the CSV import
+// and the workbook's Courses sheet): a positive int4, written without a
+// sign, a fraction or leading zeros.
+export const isPositiveId = (text: string): boolean =>
+  positiveIdPattern.test(text) && Number(text) <= maxInteger;
+
 // The import states are declared once with the coordinator's other
 // vocabularies (coordination/domains.ts).
 

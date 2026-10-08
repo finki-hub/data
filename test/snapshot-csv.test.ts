@@ -1,11 +1,19 @@
 import { describe, expect, test } from 'vitest';
 
 import { csvLine } from '../directus/extensions/directus-extension-data-operations/src/snapshot/backup.js';
+import {
+  type SnapshotField,
+  snapshotFields,
+} from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { readCsv } from '../directus/extensions/directus-extension-data-operations/src/snapshot/csv-parser.js';
 import {
   type CsvCell,
   CsvFormatError,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/csv-types.js';
+import {
+  headerPositions,
+  SnapshotRows,
+} from '../directus/extensions/directus-extension-data-operations/src/snapshot/rows.js';
 
 const limits = { maxCellChars: 1_000, maxCells: 8 };
 
@@ -183,5 +191,74 @@ describe('snapshot CSV reader', () => {
       [1, 2],
       [2, 5],
     ]);
+  });
+});
+
+// One CSV line of a snapshot whose header is the contract order: the given
+// values in their fields, every other cell empty.
+const snapshotLine = (values: Readonly<Record<string, string>>): string =>
+  `${snapshotFields.map((field) => values[field] ?? '').join(',')}\n`;
+
+// The staged values of the data rows, checked as the import checks them.
+const stagedOf = async (lines: readonly string[]) => {
+  const reader = readCsv([`${snapshotFields.join(',')}\n`, ...lines], {
+    maxCellChars: 1_000,
+    maxCells: 64,
+  });
+  let rows: null | SnapshotRows = null;
+  const staged = [];
+  for await (const record of reader) {
+    if (rows === null) {
+      rows = new SnapshotRows(headerPositions(record.cells));
+    } else {
+      staged.push(rows.accept(record));
+    }
+  }
+  return { problems: rows?.problems, staged };
+};
+
+const valueIn = (field: SnapshotField) => snapshotFields.indexOf(field);
+
+describe('the scraper formula guard', () => {
+  // The scraper writes a ' before a text value whose start matches the
+  // Python pattern \s*[=+\-@]; Google Sheets drops it on the workbook path.
+  test('is removed before the checks, and every other value stays as written', async () => {
+    const values: ReadonlyArray<readonly [string, string]> = [
+      ["'=SUM(1)", '=SUM(1)'],
+      ["' -5", ' -5'],
+      ["'@x", '@x'],
+      ["'+1", '+1'],
+      ["'\t\u{1C}\u{3000}=x", '\t\u{1C}\u{3000}=x'],
+      ["'abc", "'abc"],
+      ["'\u{FEFF}=x", "'\u{FEFF}=x"],
+      ["it's =", "it's ="],
+      ['=raw', '=raw'],
+      ["'", "'"],
+    ];
+    const { problems, staged } = await stagedOf(
+      values.map(([written], index) =>
+        snapshotLine({ Interests_new: written, Name: `User ${String(index)}` }),
+      ),
+    );
+
+    expect(problems).toBe(0);
+    expect(staged.map((row) => row?.[valueIn('Interests_new')])).toEqual(
+      values.map(([, kept]) => kept),
+    );
+  });
+
+  test('is removed from a guarded first history line and a guarded Name', async () => {
+    const { problems, staged } = await stagedOf([
+      snapshotLine({
+        Courses: '"\'=Synthetic Course-2025/2026\nOther Course-2024/2025"',
+        Name: "'@Synthetic",
+      }),
+    ]);
+
+    expect(problems).toBe(0);
+    expect(staged[0]?.[valueIn('Courses')]).toBe(
+      '=Synthetic Course-2025/2026\nOther Course-2024/2025',
+    );
+    expect(staged[0]?.[valueIn('Name')]).toBe('@Synthetic');
   });
 });
