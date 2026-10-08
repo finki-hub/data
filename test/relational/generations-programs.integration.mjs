@@ -10,7 +10,7 @@ import { readQuery } from '../../directus/extensions/directus-extension-data-ope
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { runImportCli } from '../../src/import-run.js';
 import { exitCodes } from '../../src/lifecycle.js';
-import { expectedFiles } from '../expected-exports.js';
+import { asData, expectedData } from '../expected-exports.js';
 import {
   syntheticPrograms,
   syntheticWorkbook,
@@ -152,22 +152,23 @@ const importsWorkbook = async ({ context, t, target }) => {
   t.diagnostic(`imported workbook settled after ${settled.elapsedMs} ms`);
 };
 
-// The four prepared files equal the committed parity files, the workbook's
+// The four prepared files hold the committed parity data, the workbook's
 // dataset.
 const matchesCommitted = async ({ context, target }) => {
   const answer = await readiness(target);
   assert.equal(answer.ready, true, JSON.stringify(answer));
   const digests = await preparedDigests(target);
-  const expected = await expectedFiles('parity');
+  const live = await liveFiles(target);
+  assert.deepEqual(live.digests, digests);
+  const expected = await expectedData('parity');
   for (const filename of publicFiles) {
-    assert.equal(
-      digests[filename],
-      expected[filename.replace('.json', '')].sha256,
+    const file = filename.replace('.json', '');
+    assert.deepEqual(
+      asData(file, live.parsed[filename]),
+      expected[file],
       filename,
     );
   }
-  const live = await liveFiles(target);
-  assert.deepEqual(live.digests, digests);
   const keys = Object.keys(live.parsed[coursesFile][0] ?? {});
   assert.equal(
     keys.some((key) => key.includes('-state-')),
@@ -459,7 +460,7 @@ test('manages curriculum generations and study programs as rows on the fixture',
             () => importsWorkbook(scenario),
           );
           await t.test(
-            'the four prepared files equal the committed parity files',
+            'the four prepared files hold the committed parity data',
             () => matchesCommitted(scenario),
           );
           await t.test(

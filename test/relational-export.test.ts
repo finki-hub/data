@@ -12,10 +12,12 @@ import { exportDefinitions } from '../directus/extensions/directus-extension-dat
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import {
   assignmentTexts,
-  expectedFiles,
+  expectedData,
   expectedKeys,
   expectedRows,
   type ExportCase,
+  filesData,
+  publicFileNames,
 } from './expected-exports.js';
 import {
   academicYears,
@@ -33,7 +35,6 @@ import {
   importedStore,
   injecting,
   parityDataset,
-  publishedFiles,
   refusalOf,
   renamedCurrent,
   reversed,
@@ -59,10 +60,10 @@ const projected = async (
 ): Promise<Assets> =>
   assetsSchema.parse(await engineAssets(exportDefinitions, reader));
 
-// The four files the definitions publish over a store: each exact body
-// and its sha256, to compare with the committed expected files.
-const publishedOf = (store: Parameters<typeof storeReader>[0]) =>
-  publishedFiles(exportDefinitions, storeReader(store));
+// The four files the definitions publish over a store, as data, to
+// compare with the committed expected files.
+const publishedData = async (store: Parameters<typeof storeReader>[0]) =>
+  filesData(await projected(store));
 
 // Parsed JSON compared as text, so key order, row order and every string
 // form count, not only deep equality.
@@ -179,13 +180,11 @@ const crossedLink =
   };
 
 describe('parity with the committed public files', () => {
-  test('projects the imported fixture into exactly the committed parity files, byte for byte', async () => {
+  test('projects the imported fixture into exactly the committed parity data', async () => {
     const store = await importedStore(parityDataset());
     const assets = await projected(store);
 
-    await expect(publishedOf(store)).resolves.toEqual(
-      await expectedFiles('parity'),
-    );
+    expect(filesData(assets)).toEqual(await expectedData('parity'));
     // The files cover the value rules: false, zero, empty and null.
     expect(courseNamed(assets, courseNames.beta)).toMatchObject({
       '2018-credits': '0',
@@ -209,25 +208,19 @@ describe('parity with the committed public files', () => {
     expect(assets.staff.map((row) => row['active'])).toContain('0');
   });
 
-  test('declares exactly the committed keys of every file, in their order', async () => {
+  test('declares exactly the committed key set of every file', async () => {
     expect(exportDefinitions.map(({ filename }) => filename)).toEqual([
       'courses.json',
       'rooms.json',
       'staff.json',
       'students.json',
     ]);
-    await expect(keysOf(coursesFile)).resolves.toEqual(
-      await expectedKeys('courses'),
-    );
-    await expect(keysOf('rooms.json')).resolves.toEqual(
-      await expectedKeys('rooms'),
-    );
-    await expect(keysOf('staff.json')).resolves.toEqual(
-      await expectedKeys('staff'),
-    );
-    await expect(keysOf('students.json')).resolves.toEqual(
-      await expectedKeys('students'),
-    );
+
+    for (const file of publicFileNames) {
+      expect(new Set(await keysOf(`${file}.json`))).toEqual(
+        new Set(await expectedKeys(file)),
+      );
+    }
   });
 
   test('publishes "1"/"0" exactly where the committed files do', async () => {
@@ -269,13 +262,13 @@ describe('parity with the committed public files', () => {
 describe('the cases where the committed files differ from what the import writes', () => {
   test('refuses the lifecycle dataset at its duplicate teaching row; its FALSE 2018 availability without a name publishes nothing, as an empty cell', async () => {
     const blocked = planOf(lifecycleDataset()).blockers;
-    const lifecycle = await expectedFiles('lifecycle');
-    const parity = await expectedFiles('parity');
+    const parity = await expectedData('parity');
 
     expect(blocked.map(({ code }) => code)).toEqual(['duplicate_assignment']);
-    // The committed lifecycle files as today's files publish the workbook:
-    // Alpha's first teaching row only, and Gamma's 2018 availability of
-    // FALSE without a 2018 curriculum, which the relational model omits.
+    // The committed lifecycle courses.json (its other three files are
+    // parity's) as today's files publish the workbook: Alpha's first
+    // teaching row only, and Gamma's 2018 availability of FALSE without a
+    // 2018 curriculum, which the relational model omits.
     await expect(
       expectedCourse('lifecycle', courseNames.alpha),
     ).resolves.toHaveProperty('professors', 'Prof. Zed Alpha, Prof. Abe Alpha');
@@ -285,15 +278,6 @@ describe('the cases where the committed files differ from what the import writes
     await expect(
       expectedCourse('parity', courseNames.gamma),
     ).resolves.not.toHaveProperty('2018-available');
-    expect({
-      rooms: lifecycle.rooms,
-      staff: lifecycle.staff,
-      students: lifecycle.students,
-    }).toEqual({
-      rooms: parity.rooms,
-      staff: parity.staff,
-      students: parity.students,
-    });
 
     // The operator's resolution in the workbook, the later row removed:
     // the import publishes exactly the parity files whether Gamma's FALSE
@@ -304,9 +288,9 @@ describe('the cases where the committed files differ from what the import writes
     );
 
     await expect(readinessOf(cleared)).resolves.toMatchObject({ ready: true });
-    await expect(publishedOf(cleared)).resolves.toEqual(parity);
+    await expect(publishedData(cleared)).resolves.toEqual(parity);
     await expect(readinessOf(kept)).resolves.toMatchObject({ ready: true });
-    await expect(publishedOf(kept)).resolves.toEqual(parity);
+    await expect(publishedData(kept)).resolves.toEqual(parity);
   });
 
   test.each([
@@ -346,8 +330,8 @@ describe('the cases where the committed files differ from what the import writes
       withLinkedLabel(store, Number(course?.id), generation);
 
       await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
-      await expect(publishedOf(store)).resolves.toEqual(
-        await expectedFiles(expected),
+      await expect(publishedData(store)).resolves.toEqual(
+        await expectedData(expected),
       );
     },
   );
@@ -368,8 +352,8 @@ describe('the cases where the committed files differ from what the import writes
         ),
       });
 
-      await expect(publishedOf(store)).resolves.toEqual(
-        await expectedFiles(expected),
+      await expect(publishedData(store)).resolves.toEqual(
+        await expectedData(expected),
       );
       await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
     },

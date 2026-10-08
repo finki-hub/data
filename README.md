@@ -1707,10 +1707,19 @@ To change a file or add one:
    key with its rule. When the file needs data that must be complete
    first, add a readiness check that gates it (below).
 2. Update the expected output in the tests: `test/relational-export.test.ts`
-   pins today's declared files byte for byte to the files committed under
-   `test/fixtures/expected-exports` (with their
-   `SHA256SUMS`; `test/expected-exports.ts` reads them), and
-   `test/export-definitions.test.ts` shows a new definition end to end.
+   compares today's declared files as data with the files committed under
+   `test/fixtures/expected-exports` (`test/expected-exports.ts` reads
+   them), and `test/export-definitions.test.ts` shows a new definition end
+   to end. The comparison pairs rows by a match key (courses and staff by
+   `name`, rooms by `location` and `name`, students by `index`) and pins
+   every value in its exact text, each row's keys, the rows themselves and
+   the key set listed in `keys/<file>.json`. Bytes, digests, layout, key
+   order and row order are not compared; the engine's own tests cover
+   them. `keys/courses.json` keeps the declared key order, which the
+   key-position tests in `test/public-assets-contract.test.ts` read.
+   Edit the expected values by hand, in 2-space JSON; never
+   regenerate them from the engine. A case whose rooms, staff and students
+   equal the parity case's holds only its `courses.json`.
 3. `npm run build:operations`, then restart Directus.
 
 No Flow, no schema change and no Studio edit is involved: the publication

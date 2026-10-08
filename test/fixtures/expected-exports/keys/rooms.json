@@ -1,1 +1,9 @@
-["name","type","location","description","floor","capacity","mrbs"]
+[
+  "name",
+  "type",
+  "location",
+  "description",
+  "floor",
+  "capacity",
+  "mrbs"
+]

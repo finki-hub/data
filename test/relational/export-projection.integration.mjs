@@ -10,7 +10,7 @@ import { exportDefinitions } from '../../directus/extensions/directus-extension-
 import { publicationFlows } from '../../src/flows/prepare-public-assets.js';
 import { snapshotFolder } from '../../src/flows/snapshot-folder.js';
 import { runSetup } from '../../src/setup.js';
-import { expectedFiles } from '../expected-exports.js';
+import { asData, expectedData } from '../expected-exports.js';
 import { privateSentinels } from '../fixtures/synthetic-data.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { parityDataset } from '../relational-export-helpers.js';
@@ -153,25 +153,30 @@ const preparesCommittedFiles = async ({ state, t, target }) => {
   const files = await prepared(target);
   assert.equal(files.revision, report.revisions.source);
   t.diagnostic(`prepared in ${files.elapsedMs} ms: ${JSON.stringify(files)}`);
-  const expected = await expectedFiles('parity');
-  for (const filename of publicFiles) {
-    const { body, sha256: digest } = expected[filename.replace('.json', '')];
-    assert.deepEqual(digestOf(files, filename), {
-      bytes: Buffer.byteLength(body, 'utf8'),
-      filename,
-      rows: JSON.parse(body).length,
-      sha256: digest,
-    });
-    for (const sentinel of privateSentinels)
-      assert.ok(!body.includes(sentinel));
-  }
   // The same engine in this process over the same rows read through REST
-  // answers the same bytes: the digests name exactly this content.
+  // answers the same bytes: the digests name exactly this content, which
+  // holds the committed parity data.
   const local = await engineFiles(exportDefinitions, restReader(target));
   assert.deepEqual(
     local.map(({ filename, sha256: digest }) => ({ digest, filename })),
     files.files.map(({ filename, sha256: digest }) => ({ digest, filename })),
   );
+  const expected = await expectedData('parity');
+  for (const filename of publicFiles) {
+    const file = filename.replace('.json', '');
+    const built = local.find((entry) => entry.filename === filename);
+    assert.ok(built, filename);
+    const { body, sha256: digest } = built;
+    assert.deepEqual(digestOf(files, filename), {
+      bytes: Buffer.byteLength(body, 'utf8'),
+      filename,
+      rows: expected[file].length,
+      sha256: digest,
+    });
+    assert.deepEqual(asData(file, JSON.parse(body)), expected[file], filename);
+    for (const sentinel of privateSentinels)
+      assert.ok(!body.includes(sentinel));
+  }
   state.local = local;
 };
 
@@ -398,7 +403,7 @@ test('projects relational data into the existing public assets', async (t) => {
           seedsAndCounts(context),
         );
         await t.test(
-          'is ready and prepares exactly the committed parity files',
+          'is ready and prepares exactly the committed parity data',
           () => preparesCommittedFiles(context),
         );
         await t.test(

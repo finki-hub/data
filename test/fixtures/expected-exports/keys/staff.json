@@ -1,1 +1,11 @@
-["name","active","title","position","email","cabinet","profile","courses","consultations"]
+[
+  "name",
+  "active",
+  "title",
+  "position",
+  "email",
+  "cabinet",
+  "profile",
+  "courses",
+  "consultations"
+]

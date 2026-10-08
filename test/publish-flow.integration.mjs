@@ -10,7 +10,7 @@ import {
   publishFlows,
 } from '../src/flows/publish-public-assets.js';
 import { runSetup } from '../src/setup.js';
-import { expectedFiles } from './expected-exports.js';
+import { asData, expectedData } from './expected-exports.js';
 import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
   bucketStatus,
@@ -247,21 +247,21 @@ const creates = async ({ s3, state, t, target }) => {
   assert.equal(run.body.published, true);
   const report = await observed({ label: 'create', run, t, target });
   assert.equal(run.body.revision, report.revisions.source);
-  // The JSON contract: the objects hold exactly the committed parity files
+  // The JSON contract: the objects hold exactly the committed parity data
   // (test/fixtures/expected-exports/parity).
-  const committed = await expectedFiles('parity');
+  const committed = await expectedData('parity');
   const current = await objects(s3);
   for (const key of declaredFilenames) {
     const object = current[key];
     assert.ok(object, key);
     assert.equal(object.contentType, 'application/json', key);
     assert.equal(object.sha256, expected[key], key);
-    assert.equal(
-      object.sha256,
-      committed[key.replace('.json', '')].sha256,
+    const file = key.replace('.json', '');
+    assert.deepEqual(
+      asData(file, JSON.parse(object.body)),
+      committed[file],
       key,
     );
-    assert.ok(Array.isArray(JSON.parse(object.body)), key);
   }
   const files = await publishedFiles(target);
   assert.deepEqual(

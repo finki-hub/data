@@ -20,10 +20,11 @@ import {
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { exportsOperation } from '../src/flows/flow-template.js';
-import { expectedFiles, publicFileNames } from './expected-exports.js';
+import { expectedData, publicFileNames } from './expected-exports.js';
 import {
   edit,
   importedStore,
+  publishedFiles,
   refusalOf,
   roomCapacity,
   storeReader,
@@ -160,22 +161,27 @@ describe('the export operation', () => {
     expect(built).toBe(0);
   });
 
-  test('prepares exactly the committed parity files and answers only their sizes and digests', async () => {
-    const expected = await expectedFiles('parity');
+  test('prepares the parity files and answers only their sizes and digests', async () => {
+    const store = await importedStore();
+    const parity = await expectedData('parity');
+    // The bytes and digests the engine publishes over the same store.
+    const published = await publishedFiles(
+      exportDefinitions,
+      storeReader(store),
+    );
     const answer = await runExportAction(
       { action: 'prepare' },
-      { accountability: admin, deps: () => depsOf() },
+      { accountability: admin, deps: () => depsOf({ store }) },
     );
     const { durationMs, ...summary } = prepareAnswer.parse(answer);
 
     expect(durationMs.total).toBeGreaterThanOrEqual(durationMs.read);
     expect(summary).toEqual({
       files: publicFileNames.map((name) => ({
-        bytes: Buffer.byteLength(expected[name].body, 'utf8'),
+        bytes: Buffer.byteLength(published[name]?.body ?? '', 'utf8'),
         filename: `${name}.json`,
-        rows: z.array(z.unknown()).parse(JSON.parse(expected[name].body))
-          .length,
-        sha256: expected[name].sha256,
+        rows: parity[name].length,
+        sha256: published[name]?.sha256,
       })),
       revision: 42,
       warnings: [

@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 
 import { courses as coursesDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { expectedFiles, expectedKeys } from './expected-exports.js';
+import { asData, expectedData, expectedKeys } from './expected-exports.js';
 import {
   academicYears,
   forbiddenPrivateFields,
@@ -11,8 +12,8 @@ import {
 } from './fixtures/synthetic-data.js';
 import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
 import {
+  engineAssets,
   injecting,
-  publishedFiles,
   storeReader,
 } from './relational-export-helpers.js';
 import { storeFromDataset } from './store-test-helpers.js';
@@ -31,15 +32,29 @@ const directoryDefinitions = exportDefinitions.filter(
   ({ filename }) => filename !== 'courses.json',
 );
 
+const rowsSchema = z.array(z.record(z.string(), z.string()));
+
+const directoriesSchema = z.strictObject({
+  rooms: rowsSchema,
+  staff: rowsSchema,
+  students: rowsSchema,
+});
+
 describe('the synthetic directories through the export engine', () => {
-  test('publish exactly the committed synthetic rooms, staff and students, private columns on every row or not', async () => {
+  test('publish exactly the committed synthetic rooms, staff and students data, private columns on every row or not', async () => {
     const reader = storeReader(storeFromDataset(makeSyntheticDataset()));
-    const { rooms, staff, students } = await expectedFiles('synthetic');
+    const { rooms, staff, students } = await expectedData('synthetic');
 
     for (const read of [reader, injecting(reader, forbiddenPrivateFields)]) {
-      await expect(publishedFiles(directoryDefinitions, read)).resolves.toEqual(
-        { rooms, staff, students },
+      const files = directoriesSchema.parse(
+        await engineAssets(directoryDefinitions, read),
       );
+
+      expect({
+        rooms: asData('rooms', files.rooms),
+        staff: asData('staff', files.staff),
+        students: asData('students', files.students),
+      }).toEqual({ rooms, staff, students });
     }
   });
 });
