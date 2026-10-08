@@ -17,6 +17,7 @@ export const emptyData: WorkbookData = perWorkbookKey(() => []);
 export const emptyWorkbook: WorkbookContent = {
   academicYears,
   data: emptyData,
+  formulaPatternCells: [],
   places: perWorkbookKey(() => []),
   studyPrograms: syntheticPrograms,
 };

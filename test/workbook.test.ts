@@ -21,6 +21,7 @@ import { workbookSpecs } from '../src/specs/workbook.js';
 import {
   readCourseEnrollmentPatterns,
   readEnrollmentYears,
+  readFormulaPatternCells,
 } from '../src/workbook-enrollment-reader.js';
 import { readRows } from '../src/workbook-row-reader.js';
 import {
@@ -96,9 +97,13 @@ describe('workbook readers', () => {
     ]);
   });
 
-  test('normalizes only literal listener pattern overrides', () => {
+  test('normalizes only literal listener pattern overrides, and places a formula pattern cell without reading it', () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Synthetic listeners');
+    const source = {
+      kind: 'course-enrollment-patterns',
+      sheet: 'Synthetic listeners',
+    } as const;
     sheet.addRow(['', '2025/2026', '', '']);
     sheet.addRow([courseOne, '', '', 'Course One-2025/2026|Legacy']);
     sheet.addRow([courseTwo, '', '', '']);
@@ -107,12 +112,10 @@ describe('workbook readers', () => {
       result: 'Course Two-2025/2026',
     };
 
-    expect(
-      readCourseEnrollmentPatterns(workbook, {
-        kind: 'course-enrollment-patterns',
-        sheet: 'Synthetic listeners',
-      }),
-    ).toEqual([
+    expect(readFormulaPatternCells(workbook, source)).toEqual([
+      { column: '2025/2026', row: 3, sheet: 'Synthetic listeners' },
+    ]);
+    expect(readCourseEnrollmentPatterns(workbook, source)).toEqual([
       {
         item: {
           academic_year: '2025/2026',
@@ -363,10 +366,13 @@ describe('the up-front check of a workbook file', () => {
     );
   });
 
-  test('refuses the lifecycle workbook at its duplicate teaching row and skips what nothing published', async () => {
+  test('plans the lifecycle workbook without a blocking case, ignoring its second teaching row of a course with a warning, and skips what nothing published', async () => {
     const plan = planImport(await readBack(lifecycleDataset()));
 
-    expect(countByCode(plan.blockers)).toEqual({ duplicate_assignment: 1 });
+    expect(countByCode(plan.blockers)).toEqual({});
+    expect(countByCode(plan.warnings)).toMatchObject({
+      duplicate_assignment: 1,
+    });
     expect(countByCode(plan.skipped)).toEqual({
       duplicate_pattern: 1,
       orphan_assignment: 1,

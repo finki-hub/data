@@ -11,26 +11,34 @@ export type Part<K extends keyof CourseCandidate> = {
   readonly value: CourseCandidate[K];
 };
 
-// Credits, or an availability of TRUE, of a generation the course has no
-// name for: course_curricula, the only row that could hold them, gets
-// none, so the published values would disappear. An availability of FALSE
-// alone holds nothing a published file needs (the file then omits the
-// key, as for an empty cell), so it is no case.
+// Values of a generation the course has no name for: course_curricula,
+// the only row that could hold them, gets none. Credits would disappear,
+// so they block (the refusal line also names an availability of TRUE
+// beside them). An availability alone is no value without a curriculum:
+// the course links nothing of that generation, and TRUE, which the
+// workbook states for a curriculum it does not name, is a rule fix
+// (unlinked_availability, a warning). FALSE alone is no case.
 const unlinkedValues = (
   course: CourseRow,
   generation: '2018' | '2023',
   link: LinkCandidate,
 ): readonly Finding[] => {
-  const credits = course[`credits_${generation}`];
-  const available = course[`available_${generation}`];
-  return link.resolution === 'none' && (credits !== null || available === true)
+  if (link.resolution !== 'none') {
+    return [];
+  }
+  const ids = [course.id];
+  if (course[`credits_${generation}`] !== null) {
+    return [
+      detailed(finding('unlinked_generation_values', 'courses', ids), {
+        generation,
+      }),
+    ];
+  }
+  return course[`available_${generation}`] === true
     ? [
-        detailed(
-          finding('unlinked_generation_values', 'courses', [course.id]),
-          {
-            generation,
-          },
-        ),
+        detailed(finding('unlinked_availability', 'courses', ids), {
+          generation,
+        }),
       ]
     : [];
 };

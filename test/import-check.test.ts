@@ -4,6 +4,7 @@ import type { CourseCandidate } from '../src/import/candidates.js';
 
 import {
   blockerCodes,
+  ruleFixCodes,
   skippedCodes,
   warningCodes,
 } from '../src/import/findings.js';
@@ -82,12 +83,18 @@ describe('the finding codes', () => {
     expect(new Set(all).size).toBe(all.length);
     expect(blockerCodes).toEqual(
       expect.arrayContaining([
-        'duplicate_assignment',
         'unlinked_generation_values',
         'unmatched_curriculum_2018_label',
         'unmatched_curriculum_2023_label',
       ]),
     );
+    // What a rule fixes is a warning, never a blocker.
+    expect([...ruleFixCodes]).toEqual([
+      'duplicate_assignment',
+      'formula_pattern_cell',
+      'unlinked_availability',
+    ]);
+    expect(warningCodes).toEqual(expect.arrayContaining([...ruleFixCodes]));
     expect([...skippedCodes]).toEqual([
       'duplicate_pattern',
       'orphan_assignment',
@@ -212,7 +219,7 @@ describe('staff, rule and council candidates', () => {
     ]);
   });
 
-  test('reports the staff text of every imported teaching row, never of a row it skips', () => {
+  test('reports the staff text of every imported teaching row, never of a row it skips or ignores', () => {
     const { candidates, findings } = checkOf(makeSyntheticDataset());
     const textsOf = (id: number) =>
       candidates.assignments
@@ -223,9 +230,12 @@ describe('staff, rule and council candidates', () => {
       ['professor', null, 'none'],
       ['assistant', 'Asst. Zeta', 'unresolved'],
     ]);
+    // Row 2, Alpha's second teaching row, is ignored: no candidate, and
+    // its texts are not checked.
+    expect(textsOf(2)).toBeUndefined();
     expect(
       shapes(findings, 'unresolved_staff_text').map(({ ids }) => ids[0]),
-    ).toEqual([1, 1, 2, 2, 3, 3, 4, 5, 7, 7, 8, 8]);
+    ).toEqual([1, 1, 3, 3, 4, 5, 7, 7, 8, 8]);
     expect(shapes(findings, 'orphan_assignment')).toEqual([
       { collection: 'teaching_assignments', ids: [6] },
     ]);
@@ -351,7 +361,7 @@ describe('cases that refuse the import', () => {
     );
   });
 
-  test('blocks every ambiguity of the synthetic dataset and the case that would change the published files', () => {
+  test('blocks every ambiguity of the synthetic dataset', () => {
     const plan = planOf(makeSyntheticDataset());
 
     expect(
@@ -369,20 +379,27 @@ describe('cases that refuse the import', () => {
         collection: 'student_council',
         ids: [1],
       },
-      {
-        code: 'duplicate_assignment',
-        collection: 'teaching_assignments',
-        ids: [1, 2],
-      },
     ]);
   });
 
-  test('blocks the duplicate teaching row of the lifecycle dataset, not its FALSE 2018 availability without a 2018 name', () => {
+  test('imports the lifecycle dataset with the first teaching row of Alpha, the second ignored with a warning, and its FALSE 2018 availability without a 2018 name as no case', () => {
     const plan = planOf(lifecycleDataset());
 
+    expect(plan.blockers).toEqual([]);
     expect(
-      plan.blockers.map(({ code, collection, ids }) => [code, collection, ids]),
-    ).toEqual([['duplicate_assignment', 'teaching_assignments', [1, 2]]]);
+      plan.warnings.filter(({ code }) => code === 'duplicate_assignment'),
+    ).toEqual([
+      {
+        code: 'duplicate_assignment',
+        collection: 'teaching_assignments',
+        ids: [2],
+        related: [
+          { collection: 'courses', ids: [1] },
+          { collection: 'teaching_assignments', ids: [1] },
+        ],
+      },
+    ]);
+    expect(codes(plan.warnings)).not.toContain('unlinked_availability');
     expect(codes(plan.skipped)).toEqual([
       'duplicate_pattern',
       'orphan_assignment',

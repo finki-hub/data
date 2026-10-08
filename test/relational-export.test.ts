@@ -260,11 +260,16 @@ describe('parity with the committed public files', () => {
 });
 
 describe('the cases where the committed files differ from what the import writes', () => {
-  test('refuses the lifecycle dataset at its duplicate teaching row; its FALSE 2018 availability without a name publishes nothing, as an empty cell', async () => {
-    const blocked = planOf(lifecycleDataset()).blockers;
+  test('imports the lifecycle dataset with the first teaching row of Alpha and a warning for the second; its FALSE 2018 availability without a name publishes nothing, as an empty cell', async () => {
+    const plan = planOf(lifecycleDataset());
     const parity = await expectedData('parity');
 
-    expect(blocked.map(({ code }) => code)).toEqual(['duplicate_assignment']);
+    expect(plan.blockers).toEqual([]);
+    expect(
+      plan.warnings
+        .filter(({ code }) => code === 'duplicate_assignment')
+        .map(({ ids }) => ids),
+    ).toEqual([[2]]);
     // The committed lifecycle courses.json (its other three files are
     // parity's) as today's files publish the workbook: Alpha's first
     // teaching row only, and Gamma's 2018 availability of FALSE without a
@@ -279,9 +284,18 @@ describe('the cases where the committed files differ from what the import writes
       expectedCourse('parity', courseNames.gamma),
     ).resolves.not.toHaveProperty('2018-available');
 
-    // The operator's resolution in the workbook, the later row removed:
-    // the import publishes exactly the parity files whether Gamma's FALSE
-    // stays or is cleared.
+    // Imported as it stands, Alpha publishes its first teaching row, as
+    // the committed lifecycle file does, and every file equals parity's:
+    // only Gamma's FALSE differs from the lifecycle file.
+    const lifecycle = await importedStore(lifecycleDataset());
+
+    await expect(readinessOf(lifecycle)).resolves.toMatchObject({
+      ready: true,
+    });
+    await expect(publishedData(lifecycle)).resolves.toEqual(parity);
+
+    // Without the later row, the import publishes exactly the parity
+    // files whether Gamma's FALSE stays or is cleared.
     const cleared = await importedStore(parityDataset());
     const kept = await importedStore(
       parityDataset({ gammaAvailability: true }),

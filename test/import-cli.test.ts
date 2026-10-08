@@ -6,15 +6,18 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { SyntheticDataset } from './fixtures/synthetic-data.js';
-
 import packageJson from '../package.json' with { type: 'json' };
 import { runImportCli } from '../src/import-run.js';
 import { exitCodes } from '../src/lifecycle.js';
 import {
+  courseNames,
+  type SyntheticDataset,
+} from './fixtures/synthetic-data.js';
+import {
   lifecycleDataset,
   syntheticWorkbook,
 } from './fixtures/synthetic-workbook.js';
+import { withCourse } from './import-plan-helpers.js';
 import {
   emptyStore,
   fakeImportDirectus,
@@ -26,6 +29,7 @@ const packageScripts = z.object({ scripts: z.record(z.string(), z.string()) });
 const counts = z.record(z.string(), z.number().int());
 const checkSummary = z.strictObject({
   blockers: counts,
+  fixes: z.record(z.string(), z.array(z.string())),
   mode: z.enum(['dry-run', 'import']),
   rows: counts,
   skipped: counts,
@@ -104,6 +108,14 @@ const cli = (fake: ImportFake = fakeImportDirectus(emptyStore())) => {
   };
 };
 
+// The lifecycle dataset with 2018 credits for Gamma, which has no 2018
+// name: a value no relational row could hold, so the import refuses it.
+const creditsWithoutName = (): SyntheticDataset =>
+  withCourse(lifecycleDataset(), courseNames.gamma, { credits_2018: 6 });
+
+const creditsRefusal =
+  '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6';
+
 const duplicateIndexDataset = (): SyntheticDataset => {
   const base = parityDataset();
   return {
@@ -142,8 +154,48 @@ describe('import command', () => {
       },
     });
     expect(summary.warnings).toMatchObject({ unmatched_council_index: 1 });
-    expect([summary.blockers, summary.unstorable]).toEqual([{}, {}]);
+    expect([summary.blockers, summary.fixes, summary.unstorable]).toEqual([
+      {},
+      {},
+      {},
+    ]);
     expect(run.requests.created).toBe(0);
+    expect(run.stderr).toEqual([]);
+  });
+
+  test('dry-run accepts a second teaching row of a course, ignoring it with a warning placed under fixes', async () => {
+    const run = cli();
+
+    await expect(
+      run.run(['--dry-run'], {
+        WORKBOOK_PATH: await savedDataset(lifecycleDataset()),
+      }),
+    ).resolves.toBe(exitCodes.ok);
+
+    const line = run.stdout.join('\n');
+    const summary = checkSummary.parse(JSON.parse(line));
+
+    expect(summary.blockers).toEqual({});
+    expect(summary.warnings).toMatchObject({ duplicate_assignment: 1 });
+    expect(summary.fixes).toEqual({
+      duplicate_assignment: ['Наставен Кадар row 3 (used: row 2)'],
+    });
+    expect(
+      Object.keys(z.record(z.string(), z.unknown()).parse(JSON.parse(line))),
+    ).toEqual([
+      'mode',
+      'blockers',
+      'fixes',
+      'rows',
+      'skipped',
+      'unstorable',
+      'warnings',
+    ]);
+
+    for (const forbidden of forbiddenOnStdout) {
+      expect(line).not.toContain(forbidden);
+    }
+
     expect(run.stderr).toEqual([]);
   });
 
@@ -281,21 +333,24 @@ describe('workbooks the import refuses', () => {
 
     await expect(
       run.run(['--dry-run'], {
-        WORKBOOK_PATH: await savedDataset(lifecycleDataset()),
+        WORKBOOK_PATH: await savedDataset(creditsWithoutName()),
       }),
     ).resolves.toBe(exitCodes.blocked);
-    expect(
-      checkSummary.parse(JSON.parse(run.stdout.join('\n'))).blockers,
-    ).toEqual({ duplicate_assignment: 1 });
+    expect(checkSummary.parse(JSON.parse(run.stdout.join('\n')))).toMatchObject(
+      {
+        blockers: { unlinked_generation_values: 1 },
+        fixes: { duplicate_assignment: ['Наставен Кадар row 3 (used: row 2)'] },
+      },
+    );
     expect(run.stderr).toEqual([
       'Import dry run blocked: 1 case',
-      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
+      creditsRefusal,
     ]);
     expect(run.requests.created).toBe(0);
   });
 
   test('names every value no column can hold with every blocking case in one run, with exit code 3 and no request', async () => {
-    const base = lifecycleDataset();
+    const base = creditsWithoutName();
     const tooLong = await savedDataset({
       ...base,
       rooms: base.rooms.map((row, index) =>
@@ -304,7 +359,7 @@ describe('workbooks the import refuses', () => {
     });
     const refusals = [
       '- [unstorable] Простории (Export) row 2, rooms.name: 300 characters, max 255',
-      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
+      creditsRefusal,
     ];
     const dryRun = cli();
     const run = cli();
@@ -318,7 +373,7 @@ describe('workbooks the import refuses', () => {
     expect(
       checkSummary.parse(JSON.parse(dryRun.stdout.join('\n'))),
     ).toMatchObject({
-      blockers: { duplicate_assignment: 1 },
+      blockers: { unlinked_generation_values: 1 },
       mode: 'dry-run',
       unstorable: { 'rooms.name': 1 },
     });

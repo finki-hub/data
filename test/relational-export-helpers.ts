@@ -25,13 +25,9 @@ import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
 import { planOf } from './import-plan-helpers.js';
 import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 
-// The two places the committed lifecycle files (the lifecycle dataset as
-// today's files publish it) differ from the parity ones.
+// Where the committed lifecycle courses.json (the lifecycle dataset as
+// today's files publish it) differs from the parity one.
 type ReviewItems = {
-  // The duplicate assignment row of Alpha, which the published file never
-  // listed: the import refuses it (duplicate_assignment) until the operator
-  // removes the row.
-  readonly duplicateAssignment?: boolean;
   // Gamma's 2018 availability of FALSE without any 2018 name, which the
   // committed lifecycle file publishes: it holds no value the relational
   // model keeps (owner decision 2026-09-29), so the import links no 2018
@@ -39,10 +35,11 @@ type ReviewItems = {
   readonly gammaAvailability?: boolean;
 };
 
-// The lifecycle dataset, by default as the committed parity files state
-// it: the duplicate row removed, Gamma's 2018 availability cleared.
+// The lifecycle dataset as the committed parity files state it: one
+// teaching row per course (the lifecycle dataset's second Alpha row, which
+// the import ignores with a duplicate_assignment warning, removed), and by
+// default Gamma's 2018 availability cleared.
 export const parityDataset = ({
-  duplicateAssignment = false,
   gammaAvailability = false,
 }: ReviewItems = {}): SyntheticDataset => {
   const base = lifecycleDataset();
@@ -55,9 +52,9 @@ export const parityDataset = ({
             ? { ...course, available_2018: null }
             : course,
         ),
-    teaching_assignments: duplicateAssignment
-      ? base.teaching_assignments
-      : base.teaching_assignments.filter((row) => row.id !== 2),
+    teaching_assignments: base.teaching_assignments.filter(
+      (row) => row.id !== 2,
+    ),
   };
 };
 

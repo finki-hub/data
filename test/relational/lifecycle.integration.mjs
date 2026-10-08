@@ -16,10 +16,7 @@ import { planImport } from '../../src/import/plan.js';
 import { exitCodes } from '../../src/lifecycle.js';
 import { runSetup } from '../../src/setup.js';
 import { loadWorkbook } from '../../src/workbook.js';
-import {
-  lifecycleDataset,
-  syntheticWorkbook,
-} from '../fixtures/synthetic-workbook.js';
+import { syntheticWorkbook } from '../fixtures/synthetic-workbook.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { flowTemplates } from '../registry-test-helpers.js';
 import { parityDataset } from '../relational-export-helpers.js';
@@ -172,18 +169,18 @@ const badWorkbookAborts = async (target, context) => {
   assert.deepEqual(await flowIds(target), flowsBefore, 'no Flow was created');
 };
 
-// A workbook with a case the import cannot write as it states it: the
-// import refuses it before Directus is contacted, explaining it by course,
-// sheet and row.
+// A workbook with a case the import cannot write as it states it (2018
+// credits of a course without a 2018 name): the import refuses it before
+// Directus is contacted, explaining it by course, sheet and row.
 const blockedWorkbookRefused = async (target, context) => {
   const run = importCli(target, context.blocked);
   assert.equal(await run.run(), exitCodes.blocked);
   assert.deepEqual(run.calls, [], 'Directus was never contacted');
   assert.deepEqual(aggregateOnly(run.stdout[0]).blockers, {
-    duplicate_assignment: 1,
+    unlinked_generation_values: 1,
   });
   assert.deepEqual(run.stderr.slice(1), [
-    '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
+    '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6',
   ]);
   assert.deepEqual(await userCollections(target), [target.markerCollection]);
 };
@@ -453,7 +450,12 @@ test('separates fresh setup and the one-time workbook import on the fixture', as
   try {
     const dataset = parityDataset();
     await syntheticWorkbook(dataset).xlsx.writeFile(files.workbook);
-    await syntheticWorkbook(lifecycleDataset()).xlsx.writeFile(files.blocked);
+    await syntheticWorkbook({
+      ...dataset,
+      courses: dataset.courses.map((row) =>
+        row.name === 'Gamma Course' ? { ...row, credits_2018: 6 } : row,
+      ),
+    }).xlsx.writeFile(files.blocked);
     await syntheticWorkbook({
       ...dataset,
       staff: dataset.staff.map((row, index) =>

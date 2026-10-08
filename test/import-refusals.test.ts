@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-import { refusalLines } from '../src/import-report.js';
+import { checkSummary, refusalLines } from '../src/import-report.js';
 import { entryKey } from '../src/import/curricula.js';
 import { countByCode } from '../src/import/findings.js';
 import { type ImportPlan, planImport } from '../src/import/plan.js';
@@ -241,20 +241,16 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
     );
     const dataset = semesterBlocks(
       { current: 'SYN23-009', legacy: 'SYN18-005' },
-      withCourse(
-        parityDataset({ duplicateAssignment: true }),
-        courseNames.gamma,
-        {
-          available_2018: true,
-        },
-      ),
+      withCourse(parityDataset(), courseNames.gamma, {
+        available_2018: true,
+        credits_2018: 6,
+      }),
     );
     const { lines } = await readBack(dataset);
 
     expect(lines).toEqual([
       '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»',
-      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
-      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 available TRUE',
+      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE',
     ]);
 
     for (const line of lines) {
@@ -287,15 +283,15 @@ describe('curriculum values of a generation the course has no name for', () => {
   test('imports an availability of FALSE alone as no value: no finding and no link', () => {
     const dataset = parityDataset({ gammaAvailability: true });
     const plan = planOf(dataset);
+    const found = [...plan.blockers, ...plan.warnings].map(({ code }) => code);
 
     expect(dataset.courses[2]).toMatchObject({
       available_2018: false,
       credits_2018: null,
       name: courseNames.gamma,
     });
-    expect(
-      [...plan.blockers, ...plan.warnings].map(({ code }) => code),
-    ).not.toContain('unlinked_generation_values');
+    expect(found).not.toContain('unlinked_generation_values');
+    expect(found).not.toContain('unlinked_availability');
     expect(plan.blockers).toEqual([]);
     expect(
       rowsIn(plan, 'course_curricula').map(({ key }) => key),
@@ -305,14 +301,43 @@ describe('curriculum values of a generation the course has no name for', () => {
     );
   });
 
-  test('refuses an availability of TRUE or credits without the name, and says which', () => {
-    const base = parityDataset();
+  test('imports an availability of TRUE alone as no link, with a warning', () => {
+    const plan = planOf(
+      withCourse(parityDataset(), courseNames.gamma, { available_2018: true }),
+    );
 
+    expect(plan.blockers).toEqual([]);
     expect(
-      linesOf(withCourse(base, courseNames.gamma, { available_2018: true })),
-    ).toEqual([
-      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 available TRUE',
+      plan.warnings
+        .filter(({ code }) => code.startsWith('unlinked_'))
+        .map(({ code, collection, generation, ids }) => [
+          code,
+          collection,
+          ids,
+          generation,
+        ]),
+    ).toEqual([['unlinked_availability', 'courses', [3], '2018']]);
+    expect(
+      rowsIn(plan, 'course_curricula').map(({ key }) => key),
+    ).not.toContain(compositeKey(3, '2018'));
+  });
+
+  test('refuses credits without the name, naming an availability of TRUE beside them', () => {
+    const base = parityDataset();
+    const creditsAndTrue = withCourse(base, courseNames.gamma, {
+      available_2018: true,
+      credits_2018: 6,
+    });
+    const plan = planOf(creditsAndTrue);
+
+    expect(linesOf(creditsAndTrue)).toEqual([
+      '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE',
     ]);
+    // The blocker alone: the TRUE beside the credits adds no rule fix.
+    expect(plan.warnings.map(({ code }) => code)).not.toContain(
+      'unlinked_availability',
+    );
+    expect(checkSummary(plan, contentOf(creditsAndTrue)).fixes).toEqual({});
     expect(
       linesOf(
         withCourse(base, courseNames.gamma, {
@@ -351,7 +376,6 @@ describe('the refusal lines', () => {
       '- [ambiguous_curriculum_2023] Предмети (Export) row 2 «Alpha Course»: 2023 name «Alpha Course (2023)» matches Предмети - 2023 rows 2, 3; codes: row 2 «SYN23-001», row 3 «SYN23-001-DUP»',
       '- [ambiguous_legacy_equivalency] Предмети (Export) row 2 «Alpha Course»: Еквиваленции rows 2, 3 give different 2018 names: «Alpha Legacy», «Alpha Legacy Duplicate»',
       '- [ambiguous_student_index] ФСС row 2: index matches several students: Индекси - Година, Индекси - Други rows 2, 3',
-      '- [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3',
     ]);
   });
 
@@ -461,7 +485,6 @@ describe('the refusal lines', () => {
       ...base.student_council.map((row) => row['index_number']),
     ].filter((value) => typeof value === 'string' && value !== '');
 
-    expect(lines).toContain('[duplicate_assignment]');
     expect(lines).toContain('[ambiguous_student_index]');
     expect(lines).toContain('[duplicate_role_row]');
 

@@ -1,4 +1,5 @@
 import type { WorkbookKey } from '../schema.js';
+import type { SheetCell } from '../workbook-values.js';
 
 // What the up-front check of the one-time import finds in the workbook,
 // declared once. Every finding names the part of the workbook and the rows
@@ -10,14 +11,14 @@ import type { WorkbookKey } from '../schema.js';
 // with more than one candidate, a row the model cannot hold, and a value
 // the published files carry that no relational row could hold as the
 // workbook states it. The operator corrects the workbook and imports
-// again.
+// again. What a rule can fix is no blocker: the import fixes it and warns
+// (ruleFixCodes).
 export const blockerCodes = [
   'ambiguous_course_name',
   'ambiguous_curriculum_2018',
   'ambiguous_curriculum_2023',
   'ambiguous_legacy_equivalency',
   'ambiguous_student_index',
-  'duplicate_assignment',
   'duplicate_role_row',
   'invalid_regex',
   'invalid_source_row',
@@ -38,22 +39,38 @@ export const skippedCodes = [
   'unknown_academic_year',
 ] as const;
 
-// Rows imported as they are that deserve a look in Studio.
+// Rows imported as they are that deserve a look in Studio, and the rule
+// fixes.
 export const warningCodes = [
   'ambiguous_equivalency_entry',
   'ambiguous_staff_label',
+  'duplicate_assignment',
   'duplicate_course_name',
   'duplicate_equivalency',
   'duplicate_staff_name',
   'duplicate_student_index',
   'equivalency_label_after_precedent',
+  'formula_pattern_cell',
   'label_metacharacters',
   'orphan_equivalency',
+  'unlinked_availability',
   'unmatched_council_index',
   'unmatched_equivalency_entry',
   'unreferenced_rows',
   'unresolved_staff_text',
 ] as const;
+
+// The warnings of what the import fixes by rule, never in the workbook:
+// a later teaching row of a course is ignored (the first is used), an
+// availability of TRUE without a name links nothing, and a formula
+// pattern cell is not read. The summary places each case (fixes).
+export const ruleFixCodes = [
+  'duplicate_assignment',
+  'formula_pattern_cell',
+  'unlinked_availability',
+] as const satisfies ReadonlyArray<(typeof warningCodes)[number]>;
+
+export type RuleFixCode = (typeof ruleFixCodes)[number];
 
 export type FindingCode =
   | (typeof blockerCodes)[number]
@@ -68,10 +85,13 @@ export type PartRows = {
   readonly ids: readonly number[];
 };
 
-// What else a case involves, still ordinals and codes only: the rows of
-// other parts it concerns (such as the curriculum rows a name matches),
-// and the curriculum generation of a case about one generation's values.
+// What else a case involves, never a value: the rows of other parts it
+// concerns (such as the curriculum rows a name matches), the curriculum
+// generation of a case about one generation's values, and the place of a
+// cell no row was read from (sheet, row and column header of a formula
+// pattern cell, whose ids are empty).
 type CaseDetail = {
+  readonly cell?: SheetCell;
   readonly generation?: '2018' | '2023';
   readonly related?: readonly PartRows[];
 };
@@ -130,6 +150,11 @@ const blockerSet: ReadonlySet<string> = new Set(blockerCodes);
 
 export const isBlockerCode = (code: FindingCode): code is BlockerCode =>
   blockerSet.has(code);
+
+const ruleFixSet: ReadonlySet<string> = new Set(ruleFixCodes);
+
+export const isRuleFixCode = (code: FindingCode): code is RuleFixCode =>
+  ruleFixSet.has(code);
 
 // How often each key occurs, sorted by key.
 export const countKeys = (

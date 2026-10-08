@@ -1,5 +1,4 @@
 import type { Candidates } from './candidates.js';
-import type { Indexes } from './preflight-indexes.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
 import { resolveCurriculum } from './curriculum-labels.js';
@@ -10,6 +9,7 @@ import {
   type FindingCode,
 } from './findings.js';
 import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
+import { type Indexes, usedAssignment } from './preflight-indexes.js';
 import { assignmentStaff, staffFindings } from './preflight-staff.js';
 
 type Linked = {
@@ -112,7 +112,9 @@ const equivalencies = (
 
 // Every teaching row becomes role rows (course, staff, role, display
 // text): its course by label, and each staff text resolved. A row naming
-// no course is skipped, so its texts are not reported.
+// no course is skipped, so its texts are not reported. A later row of a
+// course one row already names is no candidate: it is neither planned
+// nor checked (the course reports it, duplicateAssignment).
 const assignments = (
   rows: WorkbookRows,
   indexes: Indexes,
@@ -120,25 +122,26 @@ const assignments = (
   readonly candidates: Candidates['assignments'];
   readonly findings: readonly Finding[];
 } => {
-  const results = rows.teaching_assignments.map((row) => {
+  const results = rows.teaching_assignments.flatMap((row) => {
+    const label = nonEmpty(row.course_name);
     const linked = courseLink(
-      {
-        collection: 'teaching_assignments',
-        id: row.id,
-        label: nonEmpty(row.course_name),
-      },
+      { collection: 'teaching_assignments', id: row.id, label },
       { indexes, orphan: 'orphan_assignment' },
     );
+    const unique = linked.link.resolution === 'unique';
+    if (unique && usedAssignment(label, indexes) !== row.id) {
+      return [];
+    }
     const staff = assignmentStaff(row, indexes.staff);
-    return {
-      candidate: { course: linked.link, id: row.id, staff },
-      findings: [
-        ...linked.findings,
-        ...(linked.link.resolution === 'unique'
-          ? staffFindings(row, staff)
-          : []),
-      ],
-    };
+    return [
+      {
+        candidate: { course: linked.link, id: row.id, staff },
+        findings: [
+          ...linked.findings,
+          ...(unique ? staffFindings(row, staff) : []),
+        ],
+      },
+    ];
   });
   return {
     candidates: results.map(({ candidate }) => candidate),

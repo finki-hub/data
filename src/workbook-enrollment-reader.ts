@@ -7,6 +7,7 @@ import {
   getWorksheet,
   isFormulaCell,
   readCellText,
+  type SheetCell,
   sheetPlace,
   WorkbookDataError,
 } from './workbook-values.js';
@@ -44,6 +45,8 @@ type PatternCellContext = {
   readonly worksheet: ExcelJS.Worksheet;
 };
 
+// A typed pattern, or null for an empty cell and a formula cell (the
+// import reports the latter by its place, readFormulaPatternCells).
 const readPatternCell = (context: PatternCellContext): null | PlacedItem => {
   const row = context.worksheet.getRow(context.rowNumber);
   const patternCell = row.getCell(context.patternColumn);
@@ -159,37 +162,48 @@ export const readEnrollmentYears = (
     ({ academicYear }) => academicYear,
   );
 
-// The typed patterns of every year group: each pattern cell below row 1
-// that holds text rather than a formula, with its course and year. The
-// group's other two columns are never read.
+// Every pattern cell below row 1, group by group in sheet order and row by
+// row, with its year. The group's other two columns are never read.
+const patternCells = (
+  worksheet: ExcelJS.Worksheet,
+  sheet: string,
+): readonly PatternCellContext[] =>
+  yearColumns(worksheet, sheet).flatMap(({ academicYear, patternColumn }) =>
+    Array.from(
+      { length: Math.max(worksheet.actualRowCount - 1, 0) },
+      (_, index) => ({
+        academicYear,
+        patternColumn,
+        rowNumber: index + 2,
+        sheet,
+        worksheet,
+      }),
+    ),
+  );
+
+// The typed patterns of every year group: each pattern cell that holds
+// text rather than a formula, with its course and year.
 export const readCourseEnrollmentPatterns = (
   workbook: ExcelJS.Workbook,
   source: PatternSource,
-): readonly PlacedItem[] => {
-  const worksheet = getWorksheet(workbook, source.sheet);
-  const items: PlacedItem[] = [];
+): readonly PlacedItem[] =>
+  patternCells(getWorksheet(workbook, source.sheet), source.sheet).flatMap(
+    (context) => {
+      const item = readPatternCell(context);
+      return item === null ? [] : [item];
+    },
+  );
 
-  for (const { academicYear, patternColumn } of yearColumns(
-    worksheet,
-    source.sheet,
-  )) {
-    for (
-      let rowNumber = 2;
-      rowNumber <= worksheet.actualRowCount;
-      rowNumber += 1
-    ) {
-      const item = readPatternCell({
-        academicYear,
-        patternColumn,
-        rowNumber,
-        sheet: source.sheet,
-        worksheet,
-      });
-      if (item !== null) {
-        items.push(item);
-      }
-    }
-  }
-
-  return items;
-};
+// The pattern cells that hold a formula, which the import does not read:
+// each by its sheet, row and year (its group's header), never by its
+// formula or result.
+export const readFormulaPatternCells = (
+  workbook: ExcelJS.Workbook,
+  source: PatternSource,
+): readonly SheetCell[] =>
+  patternCells(getWorksheet(workbook, source.sheet), source.sheet).flatMap(
+    ({ academicYear, patternColumn, rowNumber, worksheet }) =>
+      isFormulaCell(worksheet.getRow(rowNumber).getCell(patternColumn))
+        ? [{ column: academicYear, row: rowNumber, sheet: source.sheet }]
+        : [],
+  );

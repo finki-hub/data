@@ -51,8 +51,9 @@ const generationSpecs: readonly GenerationSpec[] = [
 // sheet lists in several semester blocks), with the credits and
 // availability of that generation. A course without a label for a
 // generation gets no link of it (a label naming no entry or several
-// subjects, and credits or an availability of TRUE without a label,
-// refuse the import; an availability of FALSE alone is no value).
+// subjects, and credits without a label, refuse the import; an
+// availability without a label links nothing, and TRUE is the rule fix
+// unlinked_availability).
 export const planCourseCurricula = (
   candidates: readonly CourseCandidate[],
   courses: readonly CourseRow[],

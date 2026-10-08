@@ -15,11 +15,16 @@ import { workbookSpecs } from './specs/workbook.js';
 import {
   readCourseEnrollmentPatterns,
   readEnrollmentYears,
+  readFormulaPatternCells,
 } from './workbook-enrollment-reader.js';
 import { readDiscordPairs, readStudentPairs } from './workbook-pair-reader.js';
 import { readStudyPrograms } from './workbook-program-reader.js';
 import { readRows } from './workbook-row-reader.js';
-import { sheetPlace, WorkbookDataError } from './workbook-values.js';
+import {
+  type SheetCell,
+  sheetPlace,
+  WorkbookDataError,
+} from './workbook-values.js';
 
 const readSource = (
   workbook: ExcelJS.Workbook,
@@ -60,11 +65,13 @@ const readParts = (
 
 // What the one-time import reads from the workbook: the rows of every
 // part with the sheet and row of each, the academic years its enrollment
-// sheet names, in sheet order, and the study programs its curriculum
-// sheets head their program columns with.
+// sheet names, in sheet order, the places of the enrollment sheet's
+// pattern cells that hold a formula (not read; no value), and the study
+// programs its curriculum sheets head their program columns with.
 export type WorkbookContent = {
   readonly academicYears: readonly string[];
   readonly data: WorkbookData;
+  readonly formulaPatternCells: readonly SheetCell[];
   readonly places: WorkbookPlaces;
   readonly studyPrograms: readonly ProgramSeed[];
 };
@@ -95,11 +102,20 @@ const readAcademicYears = (workbook: ExcelJS.Workbook): readonly string[] =>
     return years;
   });
 
+// The enrollment sheet's pattern cells that hold a formula.
+const readFormulaCells = (workbook: ExcelJS.Workbook): readonly SheetCell[] =>
+  workbookSpecs.flatMap((spec) =>
+    spec.source.kind === 'course-enrollment-patterns'
+      ? readFormulaPatternCells(workbook, spec.source)
+      : [],
+  );
+
 export const readWorkbookContent = (
   workbook: ExcelJS.Workbook,
 ): WorkbookContent => ({
   academicYears: readAcademicYears(workbook),
   ...readParts(workbook),
+  formulaPatternCells: readFormulaCells(workbook),
   studyPrograms: readStudyPrograms(workbook),
 });
 

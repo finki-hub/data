@@ -3,6 +3,7 @@ import type { UnstorableValue } from './import/storable.js';
 import type { WorkbookContent, WorkbookPlaces } from './workbook.js';
 
 import { countByCode, countKeys } from './import/findings.js';
+import { fixPlaces } from './import/fix-places.js';
 import { displayKey } from './import/planned.js';
 import { refusalText } from './import/refusal-text.js';
 import { workbookRows } from './import/workbook-rows.js';
@@ -10,12 +11,18 @@ import { workbookRows } from './import/workbook-rows.js';
 const columnOf = ({ collection, field }: UnstorableValue): string =>
   `${collection}.${field}`;
 
-// What both import commands print on stdout: counts only, never a value
-// of the workbook. The rows are those the import writes per collection;
-// the blocking cases, the skipped rows and the warnings are counted per
-// code, the values no column can hold per column.
-export const checkSummary = (plan: ImportPlan) => ({
+// What both import commands print on stdout: counts and places only,
+// never a value of the workbook. The rows are those the import writes per
+// collection; the blocking cases, the skipped rows and the warnings are
+// counted per code, the values no column can hold per column; `fixes`
+// places each case of a rule fix by sheet, row and column, per code with
+// a case.
+export const checkSummary = (
+  plan: ImportPlan,
+  { places }: Pick<WorkbookContent, 'places'>,
+) => ({
   blockers: countByCode(plan.blockers),
+  fixes: fixPlaces(plan.warnings, places),
   rows: Object.fromEntries(
     plan.collections.map(({ collection, rows }) => [collection, rows.length]),
   ),

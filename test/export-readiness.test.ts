@@ -581,14 +581,9 @@ describe('the enrollment and curriculum checks of courses.json', () => {
       'unmatched_curriculum_2018_label',
     ],
     [
-      'a 2018 availability of TRUE without any 2018 label',
-      withCourse(parityDataset(), courseNames.gamma, { available_2018: true }),
+      '2018 credits without any 2018 label',
+      withCourse(parityDataset(), courseNames.gamma, { credits_2018: 6 }),
       'unlinked_generation_values',
-    ],
-    [
-      'a second teaching row of a course',
-      parityDataset({ duplicateAssignment: true }),
-      'duplicate_assignment',
     ],
   ])(
     'leaves %s, a value the published file would lose or merge, to the import, which refuses it',

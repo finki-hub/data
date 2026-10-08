@@ -120,16 +120,15 @@ const invalidRegex: Line = (finding, context) => {
   ]);
 };
 
+// Credits of a generation without its name, and an availability of TRUE
+// beside them.
 const unlinkedValues: Line = (finding, context) => {
   const id = firstId(finding);
   const row = courseRow(id, context);
   const { generation } = finding;
   const place = courseRowNamed(id, context);
   if (row === undefined || generation === undefined) {
-    return placed(place, [
-      'generation name empty',
-      'credits or available TRUE set',
-    ]);
+    return placed(place, ['generation name empty', 'credits set']);
   }
   const credits = row[`credits_${generation}`];
   const available = row[`available_${generation}`] === true;
@@ -165,12 +164,6 @@ const lines: Readonly<Record<BlockerCode, Line>> = {
     placed(rowsAt(finding.collection, finding.ids, context), [
       `index matches several students: ${rowsAt('students', relatedIds(finding, 'students'), context)}`,
     ]),
-  duplicate_assignment: (finding, context) => {
-    const [course = 0] = relatedIds(finding, 'courses');
-    return placed(courseRowNamed(course, context), [
-      `named by ${rowsAt(finding.collection, finding.ids, context)}`,
-    ]);
-  },
   duplicate_role_row: (finding, context) =>
     placed(rowsAt(finding.collection, finding.ids, context), [
       'same year, person and position',

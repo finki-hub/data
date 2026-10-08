@@ -43,12 +43,13 @@ const reportBlocked = (
 };
 
 // `npm run import [--dry-run]`: returns the exit code (see exitCodes) and
-// prints aggregate counts only. Both commands read the workbook and run
-// the same check before Directus is contacted: a workbook that cannot be
-// read fails (exit 1); every value no column can hold and every case the
-// import cannot write as the workbook states it block (exit 3), all named
-// by code, sheet and row on stderr in one run. Only an unblocked import
-// contacts Directus. The dry run names itself in its blocked header
+// prints aggregate counts and the places of the rule fixes only, never a
+// value. Both commands read the workbook and run the same check before
+// Directus is contacted: a workbook that cannot be read fails (exit 1);
+// every value no column can hold and every case the import cannot write
+// as the workbook states it block (exit 3), all named by code, sheet and
+// row on stderr in one run. Only an unblocked import contacts Directus.
+// The dry run names itself in its blocked header
 // (`Import dry run blocked: <n> cases`); every other first line starts
 // with `Import <outcome>:` in both modes.
 export const runImportCli = async (
@@ -60,7 +61,7 @@ export const runImportCli = async (
     const config = loadImportConfig(arguments_, environment);
     const workbook = await loadWorkbook(config.workbookPath);
     const plan = planImport(workbook);
-    const summary = checkSummary(plan);
+    const summary = checkSummary(plan, workbook);
     const dryRun = config.directus === null;
     if (dryRun) {
       printSummary(io, { mode: 'dry-run', ...summary });

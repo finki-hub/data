@@ -46,11 +46,12 @@ const labelledStaff = [
 // index sheet needs, and every other peculiarity kept: the orphan
 // curriculum, equivalency, assignment and pattern rows, the 2013-only
 // equivalency and the superseded pattern, which the import imports or
-// skips, and the two places its committed files differ from the parity
-// ones (parityDataset of test/relational-export-helpers.ts): the duplicate
-// assignment row of Alpha, which refuses the import until resolved, and
-// Gamma's 2018 availability of FALSE without a 2018 name, which the import
-// takes as no value.
+// skips, and the two rows the parity dataset (parityDataset of
+// test/relational-export-helpers.ts) removes or clears: the second
+// teaching row of Alpha, which the import ignores with a warning (the
+// first row is used, as the committed files publish it), and Gamma's 2018
+// availability of FALSE without a 2018 name, which the import takes as no
+// value.
 export const lifecycleDataset = (
   base = makeSyntheticDataset(),
 ): SyntheticDataset => ({

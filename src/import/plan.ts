@@ -1,10 +1,19 @@
+import type { SheetCell } from '../workbook-values.js';
 import type { WorkbookContent } from '../workbook.js';
 
 import { planTeachingAssignments } from './assignments.js';
 import { planCourseCurricula } from './course-links.js';
 import { planCurriculumEntries, planProgramStates } from './curricula.js';
 import { planEquivalencyMembers } from './equivalency-members.js';
-import { type Finding, isBlocker, isSkipped, isWarning } from './findings.js';
+import {
+  detailed,
+  type Finding,
+  finding,
+  isBlocker,
+  isSkipped,
+  isWarning,
+  sortFindings,
+} from './findings.js';
 import { planGenerations, planPrograms } from './generations.js';
 import { contentRows, councilLinks, equivalencyLinks } from './plan-content.js';
 import { type PlannedCollection } from './planned.js';
@@ -36,6 +45,13 @@ export type ImportPlan = {
   readonly warnings: readonly Finding[];
 };
 
+// A formula pattern cell is not read, so its course and year take the
+// default rule: a rule fix, placed by its cell.
+const formulaCellFinding = (cell: SheetCell): Finding =>
+  detailed(finding('formula_pattern_cell', 'course_enrollment_patterns', []), {
+    cell,
+  });
+
 // Pure: the up-front check `npm run import` and `npm run import:dry-run`
 // share, before anything reaches Directus, and the plan of the parsed
 // workbook. The seeds come first, then the content rows, the courses, the
@@ -45,10 +61,16 @@ export type ImportPlan = {
 export const planImport = ({
   academicYears,
   data,
+  formulaPatternCells,
   studyPrograms,
 }: WorkbookContent): ImportPlan => {
   const rows = workbookRows(data);
-  const { candidates, findings } = preflight(rows, academicYears);
+  const checked = preflight(rows, academicYears);
+  const { candidates } = checked;
+  const findings = sortFindings([
+    ...checked.findings,
+    ...formulaPatternCells.map(formulaCellFinding),
+  ]);
   const collections: readonly PlannedCollection[] = [
     { collection: 'academic_years', rows: planAcademicYears(academicYears) },
     { collection: 'curriculum_generations', rows: planGenerations() },

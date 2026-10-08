@@ -197,8 +197,9 @@ run the one-time import (below) in place of step 4.
    The command runs the import's own check (below) and prints, as JSON,
    the rows the import would write per collection, the count per code of
    the cases that would refuse it (`blockers`), of the rows it would skip
-   (`skipped`) and of the warnings (`warnings`), and the count per column
-   of the values no column can hold (`unstorable`). When the import would
+   (`skipped`) and of the warnings (`warnings`), the count per column of
+   the values no column can hold (`unstorable`), and the place of every
+   case the import fixes by rule (`fixes`, below). When the import would
    refuse the workbook it exits with code 3: the first stderr line counts
    the cases, and every later line names one case as
    `- [<code>] <place>: <fact>`. A value no column can hold has the code
@@ -212,10 +213,9 @@ run the one-time import (below) in place of step 4.
    in a cell shows. For example:
 
    ```text
-   Import dry run blocked: 3 cases
+   Import dry run blocked: 2 cases
    - [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»
-   - [duplicate_assignment] Предмети (Export) row 2 «Alpha Course»: named by Наставен Кадар rows 2, 3
-   - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 available TRUE
+   - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE
    ```
 
    What to change in the workbook, per code:
@@ -227,12 +227,11 @@ run the one-time import (below) in place of step 4.
    | `ambiguous_curriculum_2018`, `ambiguous_curriculum_2023` | Give each subject its own name; when the rows list one subject, give every row its code. |
    | `ambiguous_legacy_equivalency` | Make the 2018 names of the equivalency rows agree, or fill in the course's 2018-name to choose one. |
    | `ambiguous_student_index` | Correct the index, or keep one student row for it. |
-   | `duplicate_assignment` | Keep one teaching row per course. |
    | `duplicate_role_row` | Delete the repeated rows. |
    | `invalid_regex` | Correct the pattern. For the default pattern, add a valid pattern for each year without one, or rename the course. |
    | `invalid_source_row` | Fill in the missing cell, or delete the row. |
    | `missing_override_target` | Correct the 2018-name to the name of a 2018 subject, or clear it. |
-   | `unlinked_generation_values` | Fill in that generation's name, or clear the credits and set available to FALSE. |
+   | `unlinked_generation_values` | Fill in that generation's name, or clear the credits. |
    | `unmatched_curriculum_2018_label` | Correct the 2018 name in the equivalency sheet, or fill in the course's 2018-name. |
    | `unmatched_curriculum_2023_label` | Correct the 2023 name to the name of a 2023 subject. |
 
@@ -267,12 +266,9 @@ Directus untouched:
   different 2018 labels for one course), a row the model cannot hold (a
   course without a name, a pattern that is no Unicode regular expression,
   a repeated council or dean's office row), and the values the published
-  files carry that no relational row could hold (all but an availability
-  of FALSE without a name, below): credits, or an
-  availability of TRUE, of a generation without its name
-  (`unlinked_generation_values`), two `Наставен Кадар` rows for one
-  course (`duplicate_assignment`), a curriculum name, 2018 override or
-  2018 equivalency label that matches no curriculum row
+  files carry that no relational row could hold: credits of a generation
+  without its name (`unlinked_generation_values`), a curriculum name,
+  2018 override or 2018 equivalency label that matches no curriculum row
   (`unmatched_curriculum_2023_label`, `missing_override_target`,
   `unmatched_curriculum_2018_label`). Correct the workbook and run the
   import again; the project is still empty.
@@ -289,17 +285,40 @@ Directus untouched:
   them (the earliest row, as today's files do) without a finding, and
   every listing is imported as its own curriculum entry. Only rows with
   different codes, or a matching row without a code, refuse the import.
-- An availability of FALSE with no name and no credits for that
-  generation holds no value: the import links no curriculum of that
-  generation and reports nothing, and `courses.json` omits the course's
+- An availability of FALSE or TRUE with no name and no credits for that
+  generation holds no value without a curriculum: the import links no
+  curriculum of that generation, and `courses.json` omits the course's
   availability key of that generation, as it does for an empty cell.
-  Today's `courses.json` carries that key as `FALSE`; it is the only kind
-  of value of today's files the first publication leaves out.
+  FALSE is no case; TRUE is a rule fix (`unlinked_availability`, below).
+  Today's `courses.json` carries that key as the workbook states it; it is
+  the only kind of value of today's files the first publication leaves
+  out.
 - Rows no published file ever used are skipped, and the summary counts
   them per kind: a `Наставен Кадар` or `Слушатели` row naming no course
   (`orphan_assignment`, `orphan_pattern`), a pattern of a year the sheet
   does not head (`unknown_academic_year`), and the earlier patterns of a
   course and year, of which the last one applies (`duplicate_pattern`).
+- What a rule can fix, the import fixes (the workbook file stays as it
+  is) and counts as a warning. The summary's `fixes` lists the place of
+  each case per code, by sheet, row and column, never a value, in sheet
+  and row order:
+  - a second or later `Наставен Кадар` row of a course is ignored,
+    neither planned nor checked, and the first row is used, as the
+    spreadsheet's VLOOKUP did (`duplicate_assignment`; the place names
+    the row used);
+  - an availability of TRUE of a generation without its name links
+    nothing, as above (`unlinked_availability`);
+  - a formula in a `Слушатели` pattern cell is not read, and that course
+    and year take the default `<name>-<year>` pattern
+    (`formula_pattern_cell`; the column is the year).
+
+  ```json
+  "fixes": {
+    "duplicate_assignment": ["Наставен Кадар row 3 (used: row 2)"],
+    "formula_pattern_cell": ["Слушатели row 2, column \"2024/2025\""],
+    "unlinked_availability": ["Предмети (Export) row 4, column \"2018-available\""]
+  }
+  ```
 - Everything else is imported as the workbook holds it, and what deserves
   a look in Studio is counted under `warnings`. Readiness counts some of
   these again afterwards (a teaching text that names no single staff
@@ -307,7 +326,8 @@ Directus untouched:
   student carries); others only the import counts (curriculum rows no
   course names, `unreferenced_rows`).
 
-The codes both summaries print (declared in `src/import/findings.ts`):
+The codes both summaries print (declared in `src/import/findings.ts`; a
+rule fix is a warning whose places `fixes` lists):
 
 | Code | Group | Meaning |
 | --- | --- | --- |
@@ -316,12 +336,11 @@ The codes both summaries print (declared in `src/import/findings.ts`):
 | `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
 | `ambiguous_student_index` | refuses | Several students carry the index of a council row. |
-| `duplicate_assignment` | refuses | Two `Наставен Кадар` rows name one course. |
 | `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
 | `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, or the `<name>-<year>` default) is no Unicode regular expression. |
 | `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
 | `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
-| `unlinked_generation_values` | refuses | A course has credits, or an availability of TRUE, of a generation but no name of that generation (an availability of FALSE alone is no case). |
+| `unlinked_generation_values` | refuses | A course has credits of a generation but no name of that generation (an availability alone is a rule fix or no case). |
 | `unmatched_curriculum_2018_label` | refuses | The 2018 label of a course's first equivalency row matches no 2018 curriculum row. |
 | `unmatched_curriculum_2023_label` | refuses | A course's 2023 name matches no 2023 curriculum row. |
 | `duplicate_pattern` | skipped | An earlier pattern of a course and year; the last one applies. |
@@ -330,13 +349,16 @@ The codes both summaries print (declared in `src/import/findings.ts`):
 | `unknown_academic_year` | skipped | A pattern of a year the `Слушатели` sheet does not head. |
 | `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation that carry different codes, or one without a code; the member keeps the label without an entry. |
 | `ambiguous_staff_label` | warning | A teaching text names a staff name several staff rows carry; the text stays display text and links no staff. |
+| `duplicate_assignment` | warning | A second or later `Наставен Кадар` row names a course; it is ignored, and the first row is used (rule fix). |
 | `duplicate_course_name` | warning | Several courses share one name. |
 | `duplicate_equivalency` | warning | Several equivalency rows name one course, with no conflicting 2018 label. |
 | `duplicate_staff_name` | warning | Several staff rows share one name. |
 | `duplicate_student_index` | warning | Several students share one index. |
 | `equivalency_label_after_precedent` | warning | A course has no 2018 override, and its first equivalency row, which decides, has no 2018 label while a later one has, so the course gets no 2018 link. |
+| `formula_pattern_cell` | warning | A `Слушатели` pattern cell holds a formula; it is not read, and that course and year take the default pattern (rule fix). |
 | `label_metacharacters` | warning | A course name holds a regular-expression or `LIKE` metacharacter, so its default `<name>-<year>` pattern matches differently than it reads. |
 | `orphan_equivalency` | warning | An equivalency row whose 2023 label names no course; it is imported without a course. |
+| `unlinked_availability` | warning | A course has an availability of TRUE of a generation but no name of that generation; it links nothing (rule fix). |
 | `unmatched_council_index` | warning | A council index no student carries; the member is imported, labelled by the index. |
 | `unmatched_equivalency_entry` | warning | An equivalency label matches no curriculum row of its generation; the member keeps the label without an entry. |
 | `unreferenced_rows` | warning | Curriculum rows no course names; they are imported as entries without a course link. |
@@ -551,7 +573,8 @@ student of each index and name column pair, headed by its source group;
 `Дискорд` one row per channel pair of each semester's column pair; and
 `Слушатели` only its explicit patterns, one per course and year group (found
 by its year label in row 1) whose pattern cell, the group's third column,
-holds a value rather than a formula. The import writes the
+holds a value rather than a formula (a formula cell is reported,
+`formula_pattern_cell`). The import writes the
 relational rows straight from them:
 
 | Sheet | Relational rows |
@@ -589,11 +612,14 @@ single subject, a council index that matches no student) are kept as literal
 labels and counted by readiness. Nothing is guessed: an ambiguity a
 published value depends on, and every value the published files carry that
 no relational row could hold, refuses the import instead (exit code 3). The
-one exception is an availability of FALSE of a generation a course has no
-name for: it holds no value, so the import links nothing and
-`courses.json` omits that availability key, as for an empty cell.
-Only rows no published file ever used are left out, and the import counts
-them (see [One-time workbook import](#one-time-workbook-import)).
+exceptions: an availability of TRUE or FALSE of a generation a course has
+no name for holds no value, so the import links nothing and `courses.json`
+omits that availability key, as for an empty cell; a second or later
+teaching row of a course is ignored and the first is used; a formula
+pattern cell is not read. Each of these but FALSE is a rule fix, a warning
+placed under `fixes`. Only rows no published file ever used are left out,
+and the import counts them (see
+[One-time workbook import](#one-time-workbook-import)).
 
 ### Editable, derived and bookkeeping collections
 
@@ -1018,14 +1044,14 @@ membership linked to no student), `snapshot_staged`,
 `active_snapshot_edited` and `snapshot_never_promoted`.
 
 A value of the workbook that the relational rows could not publish as it
-stands (a curriculum name that matches no entry, credits, or an
-availability of TRUE, without a name, two teaching rows of one course)
+stands (a curriculum name that matches no entry, credits without a name)
 never reaches readiness: the import refuses the workbook until it is
 corrected (see [One-time workbook import](#one-time-workbook-import)), so
-the first publication loses or changes no text silently. The one exception
-is an availability of FALSE without a name, which holds no value: the
-import links nothing and reports nothing, and `courses.json` omits that
-availability key, as it does for an empty cell.
+the first publication loses or changes no text silently. The exceptions
+are the import's rule fixes, listed there, each a warning placed under
+`fixes`, and an availability of FALSE without a name, which reports
+nothing. An availability without a name links nothing, so `courses.json`
+omits that availability key, as it does for an empty cell.
 
 Unmapped Moodle lines only warn: map an entry, mark it `ignored` with a
 reason, or leave it counted by a reviewed legacy rule; administrative lines

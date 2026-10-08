@@ -44,6 +44,10 @@ export const sheetPlace = (
 // A cell's sheet and row.
 export type CellPlace = { readonly row: number; readonly sheet: string };
 
+// A cell the import names but reads no row from (a formula pattern cell):
+// its sheet, row and the header of its column.
+export type SheetCell = CellPlace & { readonly column: string };
+
 // Rich text: runs of formatted text, read as their joined text.
 const richTextSchema = z
   .object({ richText: z.array(z.object({ text: z.string() })) })

@@ -123,6 +123,7 @@ export const contentOf = (
   return {
     academicYears: headerYears(dataset.course_enrollment_patterns, years),
     data,
+    formulaPatternCells: [],
     places: perWorkbookKey((key) =>
       data[key].map((_, index) => ({ row: index + 2, sheet: sheetOf(key) })),
     ),
