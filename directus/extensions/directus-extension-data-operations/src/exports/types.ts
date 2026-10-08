@@ -3,8 +3,8 @@ import type { Filter } from '@directus/types';
 // The shapes of the declarative export layer. Every published file is one
 // ExportDefinition: the native reads it needs, the order of its rows and
 // an ordered field map whose keys are the whole allowlist of the file.
-// Generic code (engine.ts) reads, serializes and validates every
-// definition; nothing else knows a file's format.
+// Generic code (engine.ts, file-check.ts) reads, serializes and validates
+// every definition; nothing else knows a file's format.
 
 export type Aggregate = 'count' | 'countDistinct';
 
@@ -43,9 +43,12 @@ export type ExportDefinition = {
 export type FieldEntry = BlockEntry | FixedEntry | KeyedEntry;
 
 // One public key: its value is a source path of the main row (for example
-// `name`, or `entry.code` when that dot path is read) or a resolver.
+// `name`, or `entry.code` when that dot path is read) or a resolver. A
+// required key is one a consumer reads on every row: a row without it
+// refuses the file (validateFile of file-check.ts).
 export type FixedEntry = {
   readonly key: string;
+  readonly required?: true;
   readonly rule: ValueRule;
   readonly value: Resolver | string;
 };
@@ -55,9 +58,11 @@ export type IssueCounts = Readonly<Record<string, number>>;
 // One public key per row of a key source (key-sources.ts), in the source's
 // order and at this entry's position: the key is the row's key text, or
 // `<key text>-<suffix>`, the value the resolver's answer for the file row
-// and that key row. A row the source does not read adds no key.
+// and that key row. A row the source does not read adds no key. Required:
+// every row of the file carries each of these keys.
 export type KeyedEntry = {
   readonly keys: KeySourceName;
+  readonly required?: true;
   readonly rule: ValueRule;
   readonly suffix?: string;
   readonly value: (context: RowContext, keyRow: Row) => unknown;
@@ -132,12 +137,11 @@ export type SourceRead = {
 
 export type SourceRows = Readonly<Record<string, readonly Row[]>>;
 
-// The closed vocabulary of public value forms, as the public files
-// (committed under test/fixtures/expected-exports) carry them: text as
-// is, a number as its decimal text, a numeric boolean as "1"/"0", any
-// other boolean as "TRUE"/"FALSE". Every rule omits null, undefined and
-// ''; false and 0 are kept. A value of another type is refused, never
-// converted.
+// The closed vocabulary of public value forms, as the consumers of the
+// public files read them: text as is, a number as its decimal text, a
+// numeric boolean as "1"/"0", any other boolean as "TRUE"/"FALSE". Every
+// rule omits null, undefined and ''; false and 0 are kept. A value of
+// another type is refused, never converted.
 export type ValueRule = 'boolean' | 'number' | 'numeric_boolean' | 'text';
 
 type BlockLayouts = {

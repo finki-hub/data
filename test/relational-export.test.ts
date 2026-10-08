@@ -3,11 +3,9 @@ import { z } from 'zod';
 
 import type { FakeItem, FakeStore } from './store-test-helpers.js';
 
-import {
-  fileKeys,
-  readFileSources,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import { readFileSources } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { resolveFields } from '../directus/extensions/directus-extension-data-operations/src/exports/field-map.js';
+import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import {
@@ -27,7 +25,7 @@ import {
   privateSentinels,
 } from './fixtures/synthetic-data.js';
 import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
-import { planOf } from './import-plan-helpers.js';
+import { codes, planOf, withCourse } from './import-plan-helpers.js';
 import {
   edit,
   engineAssets,
@@ -260,9 +258,8 @@ describe('parity with the committed public files', () => {
 });
 
 describe('the cases where the committed files differ from what the import writes', () => {
-  test('imports the lifecycle dataset with the first teaching row of Alpha and a warning for the second; its FALSE 2018 availability without a name publishes nothing, as an empty cell', async () => {
+  test('imports the lifecycle dataset with the first teaching row of Alpha and a warning for the second, and publishes exactly the parity files', async () => {
     const plan = planOf(lifecycleDataset());
-    const parity = await expectedData('parity');
 
     expect(plan.blockers).toEqual([]);
     expect(
@@ -270,41 +267,60 @@ describe('the cases where the committed files differ from what the import writes
         .filter(({ code }) => code === 'duplicate_assignment')
         .map(({ ids }) => ids),
     ).toEqual([[2]]);
-    // The committed lifecycle courses.json (its other three files are
-    // parity's) as today's files publish the workbook: Alpha's first
-    // teaching row only, and Gamma's 2018 availability of FALSE without a
-    // 2018 curriculum, which the relational model omits.
-    await expect(
-      expectedCourse('lifecycle', courseNames.alpha),
-    ).resolves.toHaveProperty('professors', 'Prof. Zed Alpha, Prof. Abe Alpha');
-    await expect(
-      expectedCourse('lifecycle', courseNames.gamma),
-    ).resolves.toHaveProperty('2018-available', 'FALSE');
-    await expect(
-      expectedCourse('parity', courseNames.gamma),
-    ).resolves.not.toHaveProperty('2018-available');
 
-    // Imported as it stands, Alpha publishes its first teaching row, as
-    // the committed lifecycle file does, and every file equals parity's:
-    // only Gamma's FALSE differs from the lifecycle file.
     const lifecycle = await importedStore(lifecycleDataset());
 
     await expect(readinessOf(lifecycle)).resolves.toMatchObject({
       ready: true,
     });
-    await expect(publishedData(lifecycle)).resolves.toEqual(parity);
+    await expect(publishedData(lifecycle)).resolves.toEqual(
+      await expectedData('parity'),
+    );
+    await expect(
+      expectedCourse('parity', courseNames.alpha),
+    ).resolves.toHaveProperty('professors', 'Prof. Zed Alpha, Prof. Abe Alpha');
+  });
 
-    // Without the later row, the import publishes exactly the parity
-    // files whether Gamma's FALSE stays or is cleared.
-    const cleared = await importedStore(parityDataset());
-    const kept = await importedStore(
-      parityDataset({ gammaAvailability: true }),
+  test.each([
+    { cell: 'cleared', value: null, warnings: [] },
+    { cell: 'FALSE', value: false, warnings: [] },
+    { cell: 'TRUE', value: true, warnings: ['unlinked_availability'] },
+  ] as const)(
+    "publishes Gamma's 2018 availability without a 2018 name as FALSE when the cell is $cell",
+    async ({ value, warnings }) => {
+      const dataset = withCourse(parityDataset(), courseNames.gamma, {
+        available_2018: value,
+      });
+      const plan = planOf(dataset);
+      const store = await importedStore(dataset);
+
+      expect(plan.blockers).toEqual([]);
+      expect(
+        codes(plan.warnings).filter((code) => code.startsWith('unlinked_')),
+      ).toEqual(warnings);
+      await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
+      await expect(publishedData(store)).resolves.toEqual(
+        await expectedData('parity'),
+      );
+      await expect(
+        expectedCourse('parity', courseNames.gamma),
+      ).resolves.toHaveProperty('2018-available', 'FALSE');
+    },
+  );
+
+  test('publishes FALSE for a linked course whose availability cell is empty', async () => {
+    const store = await importedStore(
+      withCourse(parityDataset(), courseNames.alpha, { available_2023: null }),
     );
 
-    await expect(readinessOf(cleared)).resolves.toMatchObject({ ready: true });
-    await expect(publishedData(cleared)).resolves.toEqual(parity);
-    await expect(readinessOf(kept)).resolves.toMatchObject({ ready: true });
-    await expect(publishedData(kept)).resolves.toEqual(parity);
+    expect(
+      rowsOf(store, 'course_curricula')
+        .filter((row) => row['course'] === 1)
+        .map((row) => row['available']),
+    ).toEqual([false, false]);
+    expect(
+      courseNamed(await projected(store), courseNames.alpha),
+    ).toMatchObject({ '2018-available': 'FALSE', '2023-available': 'FALSE' });
   });
 
   test.each([
@@ -698,6 +714,10 @@ const without2028 = (row: Readonly<Record<string, string>>) =>
     Object.entries(row).filter(([key]) => !key.startsWith('2028-')),
   );
 
+// The keys of generation 2028 a public row carries.
+const keysOf2028 = (row: Readonly<Record<string, string>>) =>
+  Object.keys(row).filter((key) => key.startsWith('2028-'));
+
 const generationKeys = [
   '2028-name',
   '2028-code',
@@ -746,7 +766,7 @@ describe('curriculum generations and study programs as rows', () => {
     },
   );
 
-  test('a published generation without published programs adds its keys but no state key', async () => {
+  test('a published generation without published programs adds its keys but no state key, and FALSE for every course without a link of it', async () => {
     const before = await projected(await importedStore());
     const store = withGeneration(await importedStore(), {
       generation: true,
@@ -754,12 +774,21 @@ describe('curriculum generations and study programs as rows', () => {
     });
     const keys = await keysOf(coursesFile, store);
     const { courses } = await projected(store);
+    const [linked, ...unlinked] = courses;
 
     expect(keys.filter((key) => key.startsWith('2028-'))).toEqual([
       '2028-available',
       ...generationKeys.filter((key) => !key.includes('-state-')),
     ]);
     expect(courses.map(without2028)).toEqual(before.courses);
+    expect(linked?.['2028-available']).toBe('TRUE');
+    expect(unlinked).toHaveLength(7);
+    expect(unlinked.map((row) => row['2028-available'])).toEqual(
+      unlinked.map(() => 'FALSE'),
+    );
+    expect(unlinked.flatMap(keysOf2028)).toEqual(
+      unlinked.map(() => '2028-available'),
+    );
   });
 
   test('publishing the generation and both programs adds its availability key and block, states in program sort order, with no code change', async () => {
@@ -817,6 +846,73 @@ describe('curriculum generations and study programs as rows', () => {
       ),
       ...rest,
     ]);
+  });
+});
+
+// The rows with the field of the second row set to the value.
+const secondRowWith =
+  (field: string, value: null | string) =>
+  (rows: FakeItem[]): FakeItem[] =>
+    rows.map((row, index) => (index === 1 ? { ...row, [field]: value } : row));
+
+// Every non-empty text a row holds.
+const textsOf = (row: FakeItem): string[] =>
+  Object.values(row).filter(
+    (cell): cell is string => typeof cell === 'string' && cell !== '',
+  );
+
+// The keys of the list that a public row lacks.
+const missingOf =
+  (keys: readonly string[]) =>
+  (row: Readonly<Record<string, string>>): string[] =>
+    keys.filter((key) => !Object.hasOwn(row, key));
+
+describe('the keys a consumer requires', () => {
+  test.each(
+    [
+      ['courses', 'name'],
+      ['staff', 'title'],
+      ['staff', 'position'],
+      ['staff', 'email'],
+      ['rooms', 'type'],
+    ].flatMap(([collection = '', field = '']) =>
+      [null, ''].map((value) => ({ collection, field, value })),
+    ),
+  )(
+    'refuses $collection.json when its second row has $field $value, naming the row and the key, never a value',
+    async ({ collection, field, value }) => {
+      const store = edit(
+        await importedStore(),
+        collection,
+        secondRowWith(field, value),
+      );
+      const values = rowsOf(store, collection).flatMap(textsOf);
+      const refusal = await refusalOf(() => projected(store));
+
+      expect(refusal).toEqual({
+        code: 'EXPORT_INVALID_PAYLOAD',
+        message: `${collection}.json row 1: required key ${field} missing`,
+      });
+      expect(values.filter((text) => refusal.message.includes(text))).toEqual(
+        [],
+      );
+    },
+  );
+
+  test('publishes every required key on every row of the parity files', async () => {
+    const assets = await projected(await importedStore());
+
+    expect(
+      assets.courses.flatMap(
+        missingOf(['name', '2023-available', '2018-available']),
+      ),
+    ).toEqual([]);
+    expect(
+      assets.staff.flatMap(missingOf(['name', 'title', 'position', 'email'])),
+    ).toEqual([]);
+    expect(
+      assets.rooms.flatMap(missingOf(['name', 'type', 'location'])),
+    ).toEqual([]);
   });
 });
 

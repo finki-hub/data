@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 
 import {
-  fileKeys,
   readFileSources,
   serializeFile,
-  validateFile,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import {
+  fileShape,
+  validateFile,
+} from '../../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { snapshotFields } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { validateReadinessFlowId } from '../../src/flows/validate-readiness.js';
@@ -96,10 +98,11 @@ export const engineFiles = async (definitions, reader) => {
   for (const definition of definitions) {
     const sources = await readFileSources(definition, reader);
     files.push(
-      validateFile(definition, serializeFile(definition, sources), {
-        keys: fileKeys(definition, sources),
-        rows: sources.rows.length,
-      }),
+      validateFile(
+        definition,
+        serializeFile(definition, sources),
+        fileShape(definition, sources),
+      ),
     );
   }
   return files;

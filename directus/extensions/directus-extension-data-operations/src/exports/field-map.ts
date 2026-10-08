@@ -24,8 +24,11 @@ import { idOf, pathValue, textOf } from './values.js';
 // The rows each key source answered, by source name.
 export type KeyRows = Readonly<Partial<Record<KeySourceName, readonly Row[]>>>;
 
+// One key of the preparation; required when its entry is (block keys
+// never are).
 export type ResolvedField = {
   readonly key: string;
+  readonly required: boolean;
   readonly rule: ValueRule;
   readonly value: (context: RowContext) => unknown;
 };
@@ -134,6 +137,7 @@ const expand = (expansion: Expansion, entry: KeyedEntry): ResolvedField[] =>
     const key = keyText(expansion, entry.keys, row);
     return {
       key: entry.suffix === undefined ? key : `${key}-${entry.suffix}`,
+      required: entry.required === true,
       rule: entry.rule,
       value: (context) => entry.value(context, row),
     };
@@ -160,6 +164,7 @@ const blockPart = (
     return [
       {
         key: `${block}-${part.suffix}`,
+        required: false,
         rule: part.rule,
         value: (context) => part.value(context, row),
       },
@@ -167,6 +172,7 @@ const blockPart = (
   }
   return nestedRows(expansion, part, row).map((nested) => ({
     key: `${block}-${part.infix}-${keyText(expansion, part.nested, nested)}`,
+    required: false,
     rule: part.rule,
     value: (context) => part.value(context, row, nested),
   }));
@@ -189,6 +195,7 @@ const blocks = (expansion: Expansion, entry: BlockEntry): ResolvedField[] =>
 
 const fixed = (entry: FixedEntry): ResolvedField => ({
   key: entry.key,
+  required: entry.required === true,
   rule: entry.rule,
   value: (context) =>
     typeof entry.value === 'string'

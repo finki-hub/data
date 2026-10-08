@@ -9,7 +9,7 @@ import type {
   Scalar,
 } from '../../src/schema.js';
 
-import { fileKeys } from '../../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import { fileKeys } from '../../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { findModelCollection } from '../../src/data-model/collections.js';
 import {

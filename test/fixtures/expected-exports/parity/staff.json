@@ -13,27 +13,44 @@
   {
     "name": "Synthetic Staff Inactive",
     "active": "0",
+    "title": "Asst.",
     "position": "Assistant",
+    "email": "inactive.staff@staff.example",
     "courses": "Free text; not linked to any course row"
   },
   {
     "name": "Synthetic Staff Minimal",
-    "active": "1"
+    "active": "1",
+    "title": "Prof.",
+    "position": "Professor",
+    "email": "minimal.staff@staff.example"
   },
   {
     "name": "Prof. Zed Alpha",
-    "active": "1"
+    "active": "1",
+    "title": "Prof.",
+    "position": "Professor",
+    "email": "prof.zed.alpha@staff.example"
   },
   {
     "name": "Prof. Abe Alpha",
-    "active": "1"
+    "active": "1",
+    "title": "Prof.",
+    "position": "Professor",
+    "email": "prof.abe.alpha@staff.example"
   },
   {
     "name": "Prof. Theta",
-    "active": "1"
+    "active": "1",
+    "title": "Prof.",
+    "position": "Professor",
+    "email": "prof.theta@staff.example"
   },
   {
     "name": "Asst. Theta",
-    "active": "1"
+    "active": "1",
+    "title": "Asst.",
+    "position": "Assistant",
+    "email": "asst.theta@staff.example"
   }
 ]

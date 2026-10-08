@@ -257,8 +257,13 @@ const publishesOnlyWhenPublished = async ({ context, target }) => {
   }
   const [first, ...rest] = published.parsed[coursesFile];
   assert.deepEqual(
-    [withoutNewGeneration(first), ...rest],
+    published.parsed[coursesFile].map(withoutNewGeneration),
     context.baseline.parsed[coursesFile],
+  );
+  // Every other course has no link of the new generation: FALSE.
+  assert.deepEqual(
+    rest.map((row) => row[`${newGeneration}-available`]),
+    rest.map(() => 'FALSE'),
   );
   const added = Object.keys(first).filter((key) =>
     key.startsWith(`${newGeneration}-`),

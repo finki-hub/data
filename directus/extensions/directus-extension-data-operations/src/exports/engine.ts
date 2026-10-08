@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 import type { ExportDefinition, Row, RowContext, SourceRead } from './types.js';
@@ -13,19 +12,10 @@ import {
 import { keySources } from './key-sources.js';
 import { idOf, isAbsent, publicForm } from './values.js';
 
-// The generic export engine: it reads the sources of every definition,
-// serializes each file with its field map and value rules and validates
-// every payload against its definition. The serialization and the
-// validation are pure; only the reader touches Directus.
-
-export type PreparedFile = {
-  // The compact JSON the file publishes.
-  readonly body: string;
-  readonly bytes: number;
-  readonly filename: string;
-  readonly rows: number;
-  readonly sha256: string;
-};
+// The generic export engine: it reads the sources of every definition and
+// serializes each file with its field map and value rules; file-check.ts
+// validates every payload against its definition. The serialization is
+// pure; only the reader touches Directus.
 
 export type SourceReader = (read: SourceRead) => Promise<readonly unknown[]>;
 
@@ -128,97 +118,6 @@ export const serializeFile = (
       id,
     }),
   );
-};
-
-// The keys a file may carry for these sources, in output order.
-export const fileKeys = (
-  definition: ExportDefinition,
-  sources: Pick<FileSources, 'keyRows'>,
-): readonly string[] =>
-  resolveFields(definition, sources.keyRows).map(({ key }) => key);
-
-const payloadSchema = z.array(z.record(z.string(), z.string().min(1)));
-
-// A payload refusal, placed at the file or at one of its rows:
-// `<file>[ row <n>]: <fault>`.
-const refusePayload = (
-  definition: ExportDefinition,
-  fault: string,
-  row?: number,
-): never => {
-  const place =
-    row === undefined
-      ? definition.filename
-      : `${definition.filename} row ${String(row)}`;
-  throw exportError('INVALID_PAYLOAD', `${place}: ${fault}`);
-};
-
-// Every key of a row is declared, once and in declaration order.
-const checkKeys = (
-  definition: ExportDefinition,
-  declared: readonly string[],
-  { index, row }: { readonly index: number; readonly row: PublicRow },
-): void => {
-  let position = -1;
-  for (const key of Object.keys(row)) {
-    const next = declared.indexOf(key);
-    if (next === -1) {
-      refusePayload(definition, `undeclared key ${key.slice(0, 60)}`, index);
-    }
-    if (next <= position) {
-      refusePayload(definition, `key ${key} out of order`, index);
-    }
-    position = next;
-  }
-};
-
-// What a payload must hold: a row per read row, and the keys the
-// definition resolved to for its sources (fileKeys). A bare row count
-// stands for a definition without key sources.
-type FileShape =
-  number | { readonly keys: readonly string[]; readonly rows: number };
-
-// Validates a payload against its definition, independently of how it was
-// built: an array of one object per read row, every key declared by the
-// definition and in its order, every value non-empty text, and the compact
-// JSON within the definition's size bound. Answers the published body.
-export const validateFile = (
-  definition: ExportDefinition,
-  payload: unknown,
-  shape: FileShape,
-): PreparedFile => {
-  const { keys, rows: expectedRows } =
-    typeof shape === 'number'
-      ? { keys: fileKeys(definition, { keyRows: {} }), rows: shape }
-      : shape;
-  const parsed = payloadSchema.safeParse(payload);
-  if (!parsed.success) {
-    return refusePayload(definition, 'not a list of rows of text values');
-  }
-  if (parsed.data.length !== expectedRows) {
-    refusePayload(
-      definition,
-      `rows ${String(parsed.data.length)}, expected ${String(expectedRows)}`,
-    );
-  }
-  for (const [index, row] of parsed.data.entries()) {
-    checkKeys(definition, keys, { index, row });
-  }
-  const body = JSON.stringify(parsed.data);
-  const bytes = Buffer.byteLength(body, 'utf8');
-  if (bytes > definition.maxBytes) {
-    refusePayload(
-      definition,
-      `${String(bytes)} bytes, max ${String(definition.maxBytes)}`,
-    );
-  }
-  return {
-    body,
-    bytes,
-    filename: definition.filename,
-    rows: parsed.data.length,
-    sha256: createHash('sha256').update(body).digest('hex'),
-  };
 };
 
 // The sources of one definition through the reader: its key sources

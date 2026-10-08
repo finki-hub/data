@@ -26,6 +26,7 @@ import {
   recordsIn,
   rowsIn,
   uniqueDataset,
+  withCourse,
 } from './import-plan-helpers.js';
 import { matchingHistories } from './relational-export-helpers.js';
 
@@ -329,6 +330,24 @@ describe('course links', () => {
     expect(linkOf(4, '2023')).toBeUndefined();
     expect(linkOf(3, '2018')).toBeUndefined();
     expect(linkOf(8, '2018')).toBeUndefined();
+  });
+
+  test('links a course whose availability cell is empty as not available', () => {
+    const plan = planOf(
+      withCourse(uniqueDataset(), courseNames.alpha, {
+        available_2018: null,
+        available_2023: null,
+      }),
+    );
+    const links = rowsIn(plan, 'course_curricula').filter(({ key }) =>
+      [compositeKey(1, '2018'), compositeKey(1, '2023')].includes(key),
+    );
+
+    expect(links.map(({ record }) => record['available'])).toEqual([
+      false,
+      false,
+    ]);
+    expect(plan.unstorable).toEqual([]);
   });
 
   test('links no label that names several entries or none', () => {

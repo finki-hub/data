@@ -1,5 +1,6 @@
 import {
   assistants,
+  availability,
   channel,
   curriculum,
   enrollmentCount,
@@ -15,13 +16,13 @@ import {
   type NestedKeys,
 } from './types.js';
 
-// courses.json: one row per course in id order, with the keys, order and
-// value forms of the committed file (under
-// test/fixtures/expected-exports), projected from the relational rows on
-// read. Its curriculum keys come from published rows:
-// every published generation with a curriculum adds its availability key
-// and a block of keys, and every published program of it a state key. A
-// new generation or program needs no change here.
+// courses.json: one row per course in id order, projected from the
+// relational rows on read, with the keys and value forms its consumers
+// read. Its curriculum keys come from published rows: every published
+// generation with a curriculum adds its availability key and a block of
+// keys, and every published program of it a state key. A new generation
+// or program needs no change here. The name and every availability key
+// are required: the consumers reject a file with a row lacking one.
 
 // name, code, level, semester, channel and prerequisite of a generation,
 // from the course's linked entry of that generation.
@@ -84,17 +85,19 @@ const entryColumns = [
 
 export const courses: ExportDefinition = {
   fields: [
-    { key: 'name', rule: 'text', value: 'name' },
+    { key: 'name', required: true, rule: 'text', value: 'name' },
     { key: 'professors', rule: 'text', value: professors },
     // The published-year rule: one key per published academic year, its
     // label, newest first, valued by the course's count for that year.
     { keys: 'published_years', rule: 'number', value: enrollmentCount },
-    // One availability key per published generation, newest first.
+    // One availability key per published generation, newest first, FALSE
+    // for a course without a link of that generation.
     {
       keys: 'published_generations',
+      required: true,
       rule: 'boolean',
       suffix: 'available',
-      value: curriculum('available'),
+      value: availability,
     },
     { key: 'channel', rule: 'boolean', value: channel },
     { key: 'tags', rule: 'text', value: 'tags' },

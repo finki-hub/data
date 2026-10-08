@@ -131,6 +131,8 @@
     "2013/2014": "0",
     "2012/2013": "0",
     "2011/2012": "0",
+    "2023-available": "FALSE",
+    "2018-available": "FALSE",
     "channel": "FALSE"
   },
   {
@@ -271,6 +273,7 @@
     "2012/2013": "0",
     "2011/2012": "0",
     "2023-available": "TRUE",
+    "2018-available": "FALSE",
     "channel": "FALSE",
     "assistants": "Asst. Iota",
     "2023-name": "Iota 2.0 Course",

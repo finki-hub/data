@@ -280,8 +280,8 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
 });
 
 describe('curriculum values of a generation the course has no name for', () => {
-  test('imports an availability of FALSE alone as no value: no finding and no link', () => {
-    const dataset = parityDataset({ gammaAvailability: true });
+  test('imports an availability of FALSE alone with no finding and no link', () => {
+    const dataset = parityDataset();
     const plan = planOf(dataset);
     const found = [...plan.blockers, ...plan.warnings].map(({ code }) => code);
 

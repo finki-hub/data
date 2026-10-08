@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import type { CourseCandidate } from '../src/import/candidates.js';
 
+import { refusalLines } from '../src/import-report.js';
 import {
   blockerCodes,
   ruleFixCodes,
@@ -608,5 +609,33 @@ describe('rows the import skips and warnings', () => {
     for (const sentinel of privateSentinels) {
       expect(text).not.toContain(sentinel);
     }
+  });
+});
+
+describe('values a required column cannot hold', () => {
+  test('reports an empty staff title, position or email and an empty room type as unstorable, by sheet, row and column, never the value', () => {
+    const base = uniqueDataset();
+    const content = contentOf({
+      ...base,
+      rooms: base.rooms.map((row) =>
+        row.id === 2 ? { ...row, type: null } : row,
+      ),
+      staff: base.staff.map((row) =>
+        row.id === 1
+          ? { ...row, email: null, position: null, title: null }
+          : row,
+      ),
+    });
+    const plan = planImport(content);
+    const lines = refusalLines(plan, content);
+
+    expect(lines).toEqual([
+      '- [unstorable] Кадар (Export) row 2, staff.title: empty (required)',
+      '- [unstorable] Кадар (Export) row 2, staff.position: empty (required)',
+      '- [unstorable] Кадар (Export) row 2, staff.email: empty (required)',
+      '- [unstorable] Простории (Export) row 3, rooms.type: empty (required)',
+    ]);
+    expect(lines.join('\n')).not.toContain('Synthetic');
+    expect(planOf(base).unstorable).toEqual([]);
   });
 });

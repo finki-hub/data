@@ -105,6 +105,12 @@ const withoutCourse =
   (rows: FakeItem[]): FakeItem[] =>
     rows.filter((row) => row['course'] !== course);
 
+// The rows with the field of the row with the id cleared.
+const cleared =
+  (id: number, field: string) =>
+  (rows: FakeItem[]): FakeItem[] =>
+    rows.map((row) => (row.id === id ? { ...row, [field]: null } : row));
+
 const declaredReads = new Set(
   [
     ...registryReads(readinessRegistry),
@@ -287,6 +293,19 @@ describe('the preparation', () => {
       { room: 'Synthetic Hall 2', seats: '0', large: 'FALSE' },
       { room: 'Synthetic Storage' },
     ]);
+  });
+
+  test('refuses the files when a staff row lacks a key its consumers require, naming the row and the key, never a value', async () => {
+    const store = edit(await importedStore(), 'staff', cleared(2, 'title'));
+    const refusal = await refusalOf(async () =>
+      preparePublicFiles(exportDefinitions, await depsOf({ store })),
+    );
+
+    expect(refusal).toEqual({
+      code: 'EXPORT_INVALID_PAYLOAD',
+      message: 'staff.json row 1: required key title missing',
+    });
+    expect(refusal.message).not.toMatch(recordText);
   });
 
   test('refuses a malformed definition before anything is read', async () => {

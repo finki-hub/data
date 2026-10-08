@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
 import { courses as coursesDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
-import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { asData, expectedData, expectedKeys } from './expected-exports.js';
 import {

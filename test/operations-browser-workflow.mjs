@@ -44,13 +44,20 @@ const professorsOf = async (s3, courseName) => {
   return rows.find(({ name }) => name === courseName)?.professors;
 };
 
-// Two synthetic staff members and a professor assignment of the first
-// course to the first of them, published over REST as the starting point.
+// Two synthetic staff members, with the title, position and email
+// staff.json requires, and a professor assignment of the first course to
+// the first of them, published over REST as the starting point.
 const seedsAssignment = async ({ s3, state, target }) => {
   const staff = await createMany(
     target,
     'staff',
-    staffNames.map((name) => ({ active: true, name })),
+    staffNames.map((name, index) => ({
+      active: true,
+      email: `browser-staff-${index}@staff.example`,
+      name,
+      position: 'Professor',
+      title: 'Prof.',
+    })),
   );
   const [course] = await get(
     target,

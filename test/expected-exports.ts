@@ -48,7 +48,6 @@ const fullCases = ['parity', 'synthetic'] as const;
 // The cases whose rooms, staff and students equal parity's: each holds
 // its courses.json alone and takes the other three from parity.
 const coursesCases = [
-  'lifecycle',
   'renamed-current',
   'unmatched-legacy',
   ...assignmentTexts.map(

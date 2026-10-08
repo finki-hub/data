@@ -259,7 +259,8 @@ Directus untouched:
   with exit code 3, all of it reported in one run and never by a staff or
   student value: each value the column it is written to cannot hold (a
   string over 255 characters, an integer out of range, an empty required
-  value), named by its sheet, row and column and never quoted, and each
+  value such as a staff member's title, position or email or a room's
+  type), named by its sheet, row and column and never quoted, and each
   case below, named by its code, sheet and rows. The cases are a relationship with more than one candidate (a
   course name two courses carry, a curriculum name matching curriculum
   rows of different subjects, a council index two students share, two
@@ -287,12 +288,11 @@ Directus untouched:
   different codes, or a matching row without a code, refuse the import.
 - An availability of FALSE or TRUE with no name and no credits for that
   generation holds no value without a curriculum: the import links no
-  curriculum of that generation, and `courses.json` omits the course's
-  availability key of that generation, as it does for an empty cell.
-  FALSE is no case; TRUE is a rule fix (`unlinked_availability`, below).
-  Today's `courses.json` carries that key as the workbook states it; it is
-  the only kind of value of today's files the first publication leaves
-  out.
+  curriculum of that generation, and `courses.json` publishes FALSE as the
+  course's availability of that generation, as for every course without a
+  link of a published generation. FALSE is no case; TRUE is a rule fix
+  (`unlinked_availability`, below). An empty availability cell of a linked
+  course imports as FALSE.
 - Rows no published file ever used are skipped, and the summary counts
   them per kind: a `Наставен Кадар` or `Слушатели` row naming no course
   (`orphan_assignment`, `orphan_pattern`), a pattern of a year the sheet
@@ -307,7 +307,7 @@ Directus untouched:
     spreadsheet's VLOOKUP did (`duplicate_assignment`; the place names
     the row used);
   - an availability of TRUE of a generation without its name links
-    nothing, as above (`unlinked_availability`);
+    nothing and publishes FALSE, as above (`unlinked_availability`);
   - a formula in a `Слушатели` pattern cell is not read, and that course
     and year take the default `<name>-<year>` pattern
     (`formula_pattern_cell`; the column is the year).
@@ -358,7 +358,7 @@ rule fix is a warning whose places `fixes` lists):
 | `formula_pattern_cell` | warning | A `Слушатели` pattern cell holds a formula; it is not read, and that course and year take the default pattern (rule fix). |
 | `label_metacharacters` | warning | A course name holds a regular-expression or `LIKE` metacharacter, so its default `<name>-<year>` pattern matches differently than it reads. |
 | `orphan_equivalency` | warning | An equivalency row whose 2023 label names no course; it is imported without a course. |
-| `unlinked_availability` | warning | A course has an availability of TRUE of a generation but no name of that generation; it links nothing (rule fix). |
+| `unlinked_availability` | warning | A course has an availability of TRUE of a generation but no name of that generation; it links nothing and publishes FALSE (rule fix). |
 | `unmatched_council_index` | warning | A council index no student carries; the member is imported, labelled by the index. |
 | `unmatched_equivalency_entry` | warning | An equivalency label matches no curriculum row of its generation; the member keeps the label without an entry. |
 | `unreferenced_rows` | warning | Curriculum rows no course names; they are imported as entries without a course link. |
@@ -614,8 +614,8 @@ published value depends on, and every value the published files carry that
 no relational row could hold, refuses the import instead (exit code 3). The
 exceptions: an availability of TRUE or FALSE of a generation a course has
 no name for holds no value, so the import links nothing and `courses.json`
-omits that availability key, as for an empty cell; a second or later
-teaching row of a course is ignored and the first is used; a formula
+publishes FALSE for that availability, as for an empty cell; a second or
+later teaching row of a course is ignored and the first is used; a formula
 pattern cell is not read. Each of these but FALSE is a rule fix, a warning
 placed under `fixes`. Only rows no published file ever used are left out,
 and the import counts them (see
@@ -709,6 +709,11 @@ mappings, and the users carrying it (the derived index, read-only).
   is saved (Directus behaviour).
 - **Professors** of `courses.json` are `professors_override` when set, else
   the course's professor assignments in order; see [Publishing](#publishing).
+- **Available** on a curriculum link is on or off, never empty; a new link
+  starts on.
+- **Title**, **Position** and **Email** of a staff member and **Type** of a
+  room are required, because `staff.json` and `rooms.json` carry them on
+  every row; see [Publishing](#publishing).
 
 ## Day-to-day operation
 
@@ -1049,9 +1054,11 @@ never reaches readiness: the import refuses the workbook until it is
 corrected (see [One-time workbook import](#one-time-workbook-import)), so
 the first publication loses or changes no text silently. The exceptions
 are the import's rule fixes, listed there, each a warning placed under
-`fixes`, and an availability of FALSE without a name, which reports
-nothing. An availability without a name links nothing, so `courses.json`
-omits that availability key, as it does for an empty cell.
+`fixes`, and an empty availability cell, which publishes FALSE without a
+finding. An availability without a name links nothing, and `courses.json`
+publishes FALSE for it, as for every course without a link of that
+generation: a FALSE is kept, and a TRUE is the rule fix
+`unlinked_availability`.
 
 Unmapped Moodle lines only warn: map an entry, mark it `ignored` with a
 reason, or leave it counted by a reviewed legacy rule; administrative lines
@@ -1184,7 +1191,14 @@ authorized cutover, after taking a snapshot of the current public objects
 
 Today's declared files are `courses.json`, `rooms.json`, `staff.json` and
 `students.json`, with the key allowlists, omission rules, ordering and
-string representations the public consumers already read. Configure the
+string representations the public consumers already read. A file also
+declares the keys its consumers read on every row: `name` and every
+`<code>-available` of `courses.json`; `name`, `title`, `position` and
+`email` of `staff.json`; `name`, `type` and `location` of `rooms.json`. A
+row without one, or with an empty one (an empty text is omitted), refuses
+the preparation before anything is uploaded, with `EXPORT_INVALID_PAYLOAD`
+naming the file, the row (counted from 0 in id order) and the key, never a
+value: `staff.json row 12: required key title missing`. Configure the
 `STORAGE_PUBLISH_*` variables shown in `.env.example`: for Cloudflare R2,
 the account S3 endpoint (`https://<ACCOUNT_ID>.r2.cloudflarestorage.com`),
 region `auto`, the existing bucket name, and an Object Read & Write token's
@@ -1285,7 +1299,9 @@ How `courses.json` projects the relational rows into its existing keys:
   with padding, stays one literal review row); `assistants` likewise.
 - The curriculum keys come from published rows: every published
   `curriculum_generations` row with a curriculum adds `<code>-available`
-  (newest first by `sort`) and a block `<code>-name`,
+  (newest first by `sort`; the link's availability, FALSE for a course
+  without a link of that generation, so every course carries it) and a
+  block `<code>-name`,
   `-code`, `-level`, `-semester`, `-channel`, `-prerequisite`, then its
   state keys and `<code>-credits` (the definition declares the 2018 block
   with its credits before its states, the order today's file has), valued
@@ -1390,6 +1406,7 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 | `EXPORT_NOT_READY` | Readiness has blockers (`Not ready: source revision <n>, blockers: <code> <count>, …`). | Clear the blockers (the **Readiness** panel links their records), then publish. |
 | `EXPORT_UNSTABLE_PREPARATION` | The source or the accepted calculation moved while the files were prepared, or since the claim. | Publish again once the edits and calculations have settled. |
 | `EXPORT_UNRESOLVED` | The projection cannot resolve a value: a missing count, two links of one generation, an assignment without a role or a label. | Correct the rows the ids name. |
+| `EXPORT_INVALID_PAYLOAD` with `required key <key> missing` | A row of the named file lacks a key its consumers read on every row, or holds it empty (see [Publishing](#publishing)). | Fill in that value of the row. |
 | `EXPORT_INVALID_READ`, `EXPORT_INVALID_PAYLOAD`, `EXPORT_INVALID_DEFINITION` | A read answered another shape, a file row breaks its definition, or the export definitions or readiness registry are inconsistent. | A code or schema fault: run `npm run setup`, and report the message if it stays. |
 | `PUBLICATION_NOT_CLAIMED` | `busy`: another run holds the claim; `upstream_dirty`: the calculations are pending; `nothing_pending`: publication is current. | Wait; wait for the calculations; mark publication pending (**Recalculate**) to publish the current files again. |
 | `PUBLICATION_PARTIAL`, `PUBLICATION_FAILED`, `PUBLISH_UPLOAD_FAILED`, `PUBLISH_FAILED` | Some or no declared files were uploaded (`Uploaded <n> of <m>; failed: …. First failure: …`); a file whose failure carries no code of its own is listed as `PUBLISH_FAILED`. | Correct the upload cause (bucket, credentials, network), then publish again. |
@@ -1729,8 +1746,10 @@ publication order, and a definition module (today `courses.ts`, `rooms.ts`,
   decimal text), `numeric_boolean` (`"1"`/`"0"`) or `boolean`
   (`"TRUE"`/`"FALSE"`); every rule omits null, undefined and `''` and keeps
   `false` and `0`, as the public files committed under
-  `test/fixtures/expected-exports` do. The map is the file's whole
-  allowlist: no other key can be published;
+  `test/fixtures/expected-exports` do. A key or keyed entry with
+  `required: true` is one a consumer reads on every row: a row without it
+  refuses the file. The map is the file's whole allowlist: no other key
+  can be published;
 - `maxBytes`, the size bound of the compact JSON.
 
 A key the data decides comes from a key source (`exports/key-sources.ts`, a
@@ -1748,9 +1767,9 @@ through the Directus ItemsService (system rights after the operation's own
 caller check, explicit fields, events off, every nested list read whole
 rather than cut to `QUERY_LIMIT_DEFAULT`), serializes the rows in
 id order with the value rules, and validates every payload against its
-definition (a list of one object per read row, only declared keys and in
-their order, non-empty text values, the size bound) before anything is
-answered.
+definition (`exports/file-check.ts`: a list of one object per read row,
+only declared keys and in their order, every required key, non-empty text
+values, the size bound) before anything is answered.
 
 To change a file or add one:
 

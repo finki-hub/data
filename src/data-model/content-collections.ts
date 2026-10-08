@@ -45,9 +45,9 @@ export const contentCollections: readonly ModelCollection[] = [
     fields: [
       required('name'),
       required('active', 'boolean'),
-      scalar('title', 'string'),
-      scalar('position', 'string'),
-      scalar('email', 'string'),
+      required('title'),
+      required('position'),
+      required('email'),
       scalar('cabinet', 'string'),
       scalar('profile', 'text'),
       scalar('courses', 'string'),
@@ -64,7 +64,7 @@ export const contentCollections: readonly ModelCollection[] = [
     displayTemplate: '{{location}} / {{name}}',
     fields: [
       required('name'),
-      scalar('type', 'string'),
+      required('type'),
       required('location'),
       scalar('description', 'text'),
       scalar('floor', 'integer'),

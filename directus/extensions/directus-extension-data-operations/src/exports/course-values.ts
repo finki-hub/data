@@ -5,11 +5,10 @@ import { idOf, pathValue, textOf } from './values.js';
 
 // The resolvers of courses.json. Each one reads the course row and its
 // related rows (read keys `curricula`, `assignments`, `enrollments` of
-// courses.ts) and answers the value the committed public file holds
-// (test/fixtures/expected-exports), resolving relation values on read, so
-// a renamed staff member or curriculum entry is published without any
-// rebuild. A generation or a program is a key row of a published source,
-// never a code constant.
+// courses.ts) and answers the public value, resolving relation values on
+// read, so a renamed staff member or curriculum entry is published
+// without any rebuild. A generation or a program is a key row of a
+// published source, never a code constant.
 // Anything they cannot resolve unambiguously is refused with ids only;
 // nothing is guessed.
 
@@ -61,6 +60,12 @@ export const curriculum =
     const link = linkOf(context, generation);
     return link === undefined ? null : pathValue(link, path);
   };
+
+// The course's availability of a published generation: its link's
+// `available`, or false without a link, so every course carries the key
+// of every published generation.
+export const availability = (context: RowContext, generation: Row): unknown =>
+  curriculum('available')(context, generation) ?? false;
 
 // The state of the course's linked entry of the generation in a published
 // program: the entry's state row of that program, null without one (an

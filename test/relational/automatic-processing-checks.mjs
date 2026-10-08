@@ -376,7 +376,7 @@ const seedBulk = async (t, target, state) => {
   );
 };
 
-const room = (name) => ({ location: 'Synthetic Wing', name });
+const room = (name) => ({ location: 'Synthetic Wing', name, type: 'lab' });
 
 const running = (target) =>
   waitForStatus(target, (report) => report.claim?.domain === 'enrollments', {

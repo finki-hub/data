@@ -15,9 +15,10 @@ export type Part<K extends keyof CourseCandidate> = {
 // the only row that could hold them, gets none. Credits would disappear,
 // so they block (the refusal line also names an availability of TRUE
 // beside them). An availability alone is no value without a curriculum:
-// the course links nothing of that generation, and TRUE, which the
-// workbook states for a curriculum it does not name, is a rule fix
-// (unlinked_availability, a warning). FALSE alone is no case.
+// the course links nothing of that generation and publishes FALSE for
+// it, and TRUE, which the workbook states for a curriculum it does not
+// name, is a rule fix (unlinked_availability, a warning). FALSE alone is
+// no case.
 const unlinkedValues = (
   course: CourseRow,
   generation: '2018' | '2023',

@@ -3,15 +3,9 @@ import type { ExportDefinition } from './types.js';
 
 import { calculationDomains } from '../coordination/domains.js';
 import { checkDefinitions } from './definitions-check.js';
-import {
-  fileKeys,
-  type PreparedFile,
-  readFileSources,
-  serializeFile,
-  type SourceReader,
-  validateFile,
-} from './engine.js';
+import { readFileSources, serializeFile, type SourceReader } from './engine.js';
 import { exportError } from './errors.js';
+import { fileShape, type PreparedFile, validateFile } from './file-check.js';
 import { type CoordinationFacts } from './readiness-facts.js';
 import { readinessRegistry } from './readiness-registry.js';
 import {
@@ -78,10 +72,7 @@ const prepareFiles = async (
     const payload = serializeFile(definition, sources);
     lap('serialize');
     files.push(
-      validateFile(definition, payload, {
-        keys: fileKeys(definition, sources),
-        rows: sources.rows.length,
-      }),
+      validateFile(definition, payload, fileShape(definition, sources)),
     );
     lap('validate');
   }

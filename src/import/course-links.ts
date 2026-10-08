@@ -29,7 +29,7 @@ const generationSpecs: readonly GenerationSpec[] = [
     sheet: 'curriculum_2023',
     sort: 1,
     values: (row) => ({
-      available: row.available_2023,
+      available: row.available_2023 ?? false,
       credits: row.credits_2023,
     }),
   },
@@ -39,7 +39,7 @@ const generationSpecs: readonly GenerationSpec[] = [
     sheet: 'curriculum_2018',
     sort: 2,
     values: (row) => ({
-      available: row.available_2018,
+      available: row.available_2018 ?? false,
       credits: row.credits_2018,
     }),
   },
@@ -49,10 +49,11 @@ const generationSpecs: readonly GenerationSpec[] = [
 // one subject: the 2023 entry by its 2023 name, the 2018 entry by its
 // override or first equivalency label (the first listing of a subject the
 // sheet lists in several semester blocks), with the credits and
-// availability of that generation. A course without a label for a
-// generation gets no link of it (a label naming no entry or several
-// subjects, and credits without a label, refuse the import; an
-// availability without a label links nothing, and TRUE is the rule fix
+// availability of that generation (an empty availability cell is FALSE).
+// A course without a label for a generation gets no link of it and
+// publishes FALSE for it (a label naming no entry or several subjects,
+// and credits without a label, refuse the import; an availability
+// without a label links nothing, and TRUE is the rule fix
 // unlinked_availability).
 export const planCourseCurricula = (
   candidates: readonly CourseCandidate[],

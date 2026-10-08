@@ -211,7 +211,10 @@ const editsCourseThroughRelations = async (target, state) => {
   });
   const professor = await createItem(target, 'staff', {
     active: true,
+    email: 'presentation.professor@staff.example',
     name: 'Synthetic Presentation Professor',
+    position: 'Professor',
+    title: 'Prof.',
   });
   state.items = [
     ['staff', professor.data.id],

@@ -8,12 +8,14 @@ import type {
 import type { FakeItem, FakeStore } from './store-test-helpers.js';
 
 import {
-  fileKeys,
   readFileSources,
   serializeFile,
   type SourceReader,
-  validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import {
+  fileShape,
+  validateFile,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
 import { importWorkbook } from '../src/import-workbook.js';
@@ -25,33 +27,15 @@ import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
 import { planOf } from './import-plan-helpers.js';
 import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 
-// Where the committed lifecycle courses.json (the lifecycle dataset as
-// today's files publish it) differs from the parity one.
-type ReviewItems = {
-  // Gamma's 2018 availability of FALSE without any 2018 name, which the
-  // committed lifecycle file publishes: it holds no value the relational
-  // model keeps (owner decision 2026-09-29), so the import links no 2018
-  // curriculum and courses.json omits the key, as for an empty cell.
-  readonly gammaAvailability?: boolean;
-};
-
 // The lifecycle dataset as the committed parity files state it: one
 // teaching row per course (the lifecycle dataset's second Alpha row, which
-// the import ignores with a duplicate_assignment warning, removed), and by
-// default Gamma's 2018 availability cleared.
-export const parityDataset = ({
-  gammaAvailability = false,
-}: ReviewItems = {}): SyntheticDataset => {
+// the import ignores with a duplicate_assignment warning, removed). Gamma
+// keeps its 2018 availability of FALSE without a 2018 name, which links
+// nothing: Gamma publishes "2018-available" FALSE, as for an empty cell.
+export const parityDataset = (): SyntheticDataset => {
   const base = lifecycleDataset();
   return {
     ...base,
-    courses: gammaAvailability
-      ? base.courses
-      : base.courses.map((course) =>
-          course['name'] === courseNames.gamma
-            ? { ...course, available_2018: null }
-            : course,
-        ),
     teaching_assignments: base.teaching_assignments.filter(
       (row) => row.id !== 2,
     ),
@@ -391,10 +375,11 @@ export const engineAssets = async (
   const files: Record<string, unknown> = {};
   for (const definition of definitions) {
     const sources = await readFileSources(definition, reader);
-    const file = validateFile(definition, serializeFile(definition, sources), {
-      keys: fileKeys(definition, sources),
-      rows: sources.rows.length,
-    });
+    const file = validateFile(
+      definition,
+      serializeFile(definition, sources),
+      fileShape(definition, sources),
+    );
     files[definition.filename.replace(jsonSuffix, '')] = rowList.parse(
       JSON.parse(file.body),
     );
@@ -414,7 +399,7 @@ export const publishedFiles = async (
     const { body, sha256 } = validateFile(
       definition,
       serializeFile(definition, sources),
-      { keys: fileKeys(definition, sources), rows: sources.rows.length },
+      fileShape(definition, sources),
     );
     files[definition.filename.replace(jsonSuffix, '')] = { body, sha256 };
   }

@@ -82,7 +82,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
         'Must match the generation of the linked curriculum entry.',
       ),
       scalar('credits', 'integer'),
-      scalar('available', 'boolean'),
+      scalar('available', 'boolean', { defaultValue: true, nullable: false }),
       scalar('sort', 'integer'),
     ],
     hidden: true,

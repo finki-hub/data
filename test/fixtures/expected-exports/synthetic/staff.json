@@ -13,11 +13,16 @@
   {
     "name": "Synthetic Staff Inactive",
     "active": "0",
+    "title": "Asst.",
     "position": "Assistant",
+    "email": "inactive.staff@staff.example",
     "courses": "Free text; not linked to any course row"
   },
   {
     "name": "Synthetic Staff Minimal",
-    "active": "1"
+    "active": "1",
+    "title": "Prof.",
+    "position": "Professor",
+    "email": "minimal.staff@staff.example"
   }
 ]

@@ -1,11 +1,13 @@
 import { performance } from 'node:perf_hooks';
 
 import {
-  fileKeys,
   readFileSources,
   serializeFile,
-  validateFile,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import {
+  fileShape,
+  validateFile,
+} from '../../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { get, post } from './history-index-helpers.mjs';
 
 // The realistic dataset of the export measurement (about 1,000 courses
@@ -267,10 +269,11 @@ export const measureEngine = async (definitions, reader) => {
   const afterRead = process.memoryUsage().heapUsed;
   const built = performance.now();
   const files = definitions.map((definition, index) =>
-    validateFile(definition, serializeFile(definition, sources[index]), {
-      keys: fileKeys(definition, sources[index]),
-      rows: sources[index].rows.length,
-    }),
+    validateFile(
+      definition,
+      serializeFile(definition, sources[index]),
+      fileShape(definition, sources[index]),
+    ),
   );
   const buildMs = performance.now() - built;
   const peak = process.memoryUsage().heapUsed;

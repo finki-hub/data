@@ -22,6 +22,7 @@ import {
 
 // Staff rows whose names are the complete labels the synthetic assignment
 // texts use, so the migration links some role rows and retains others.
+// Each has the title, position and email staff.json requires.
 const labelledStaff = [
   'Prof. Zed Alpha',
   'Prof. Abe Alpha',
@@ -31,9 +32,9 @@ const labelledStaff = [
   id: 4 + index,
   name,
   active: true,
-  title: null,
-  position: null,
-  email: null,
+  title: name.startsWith('Asst.') ? 'Asst.' : 'Prof.',
+  position: name.startsWith('Asst.') ? 'Assistant' : 'Professor',
+  email: `${name.toLowerCase().replaceAll(/\.? /gu, '.')}@staff.example`,
   cabinet: null,
   profile: null,
   courses: null,
@@ -46,12 +47,11 @@ const labelledStaff = [
 // index sheet needs, and every other peculiarity kept: the orphan
 // curriculum, equivalency, assignment and pattern rows, the 2013-only
 // equivalency and the superseded pattern, which the import imports or
-// skips, and the two rows the parity dataset (parityDataset of
-// test/relational-export-helpers.ts) removes or clears: the second
-// teaching row of Alpha, which the import ignores with a warning (the
-// first row is used, as the committed files publish it), and Gamma's 2018
-// availability of FALSE without a 2018 name, which the import takes as no
-// value.
+// skips, the second teaching row of Alpha, which the parity dataset
+// (parityDataset of test/relational-export-helpers.ts) removes and the
+// import ignores with a warning (the first row is used, as the committed
+// files publish it), and Gamma's 2018 availability of FALSE without a
+// 2018 name, which links nothing and publishes FALSE.
 export const lifecycleDataset = (
   base = makeSyntheticDataset(),
 ): SyntheticDataset => ({

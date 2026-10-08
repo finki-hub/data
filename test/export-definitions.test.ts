@@ -9,6 +9,7 @@ import type {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 import type { FakeItem } from './store-test-helpers.js';
 
+import { courses } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import {
   checkDefinitions,
   definitionProblems,
@@ -18,12 +19,16 @@ import {
   readFileSources,
   serializeFile,
   type SourceReader,
-  validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
+import {
+  fileShape,
+  validateFile,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
+import { staff } from '../directus/extensions/directus-extension-data-operations/src/exports/staff.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';
@@ -380,16 +385,110 @@ describe('payload validation', () => {
   });
 
   test('answers the body, its UTF-8 bytes and its sha256', () => {
-    // Declared order: name, floor, capacity.
+    // Declared order: name, type, location, floor, capacity.
     const file = validateFile(
       rooms,
-      [{ name: 'Синтетичка сала', floor: '0', capacity: '24' }],
+      [
+        {
+          name: 'Синтетичка сала',
+          type: 'сала',
+          location: 'Синтетичка зграда',
+          floor: '0',
+          capacity: '24',
+        },
+      ],
       1,
     );
 
     expect(file.bytes).toBe(Buffer.byteLength(file.body, 'utf8'));
     expect(file.bytes).toBeGreaterThan(file.body.length);
     expect(file.sha256).toMatch(sha256Pattern);
+  });
+});
+
+const without = (
+  row: Readonly<Record<string, string>>,
+  key: string,
+): Record<string, string> =>
+  Object.fromEntries(Object.entries(row).filter(([name]) => name !== key));
+
+// The required entries of a definition: a fixed key by its key, a keyed
+// entry by its source and suffix.
+const requiredOf = (definition: ExportDefinition): readonly string[] =>
+  definition.fields.flatMap((entry) => {
+    if (!('required' in entry)) {
+      return [];
+    }
+    return ['key' in entry ? entry.key : `${entry.keys} ${entry.suffix}`];
+  });
+
+describe('the keys a consumer requires', () => {
+  const room = { name: 'Room', type: 'hall', location: 'Building' };
+  const person = {
+    name: 'Staff',
+    active: '1',
+    title: 'Prof.',
+    position: 'Professor',
+    email: 'staff@staff.example',
+  };
+
+  test.each([
+    ...['name', 'title', 'position', 'email'].map((key) => ({
+      definition: staff,
+      key,
+      row: without(person, key),
+    })),
+    ...['name', 'type', 'location'].map((key) => ({
+      definition: rooms,
+      key,
+      row: without(room, key),
+    })),
+  ])(
+    'refuses a $definition.filename row without $key, naming the row and the key',
+    ({ definition, key, row }) => {
+      const complete = definition === staff ? person : room;
+
+      expect(() => validateFile(definition, [complete, row], 2)).toThrow(
+        `${definition.filename} row 1: required key ${key} missing`,
+      );
+    },
+  );
+
+  test('requires exactly the keys the consumers read on every row', () => {
+    expect(requiredOf(courses)).toEqual([
+      'name',
+      'published_generations available',
+    ]);
+    expect(requiredOf(staff)).toEqual(['name', 'title', 'position', 'email']);
+    expect(requiredOf(rooms)).toEqual(['name', 'type', 'location']);
+    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(9);
+  });
+
+  test("refuses a courses.json row without a published generation's availability", () => {
+    const shape = fileShape(courses, {
+      keyRows: {
+        published_generations: [
+          { code: '2018', id: 2, sort: 1 },
+          { code: '2023', id: 1, sort: 2 },
+        ],
+      },
+      rows: [{}, {}],
+    });
+    const row = { name: 'Course', '2023-available': 'FALSE' };
+
+    expect(() =>
+      validateFile(courses, [{ ...row, '2018-available': 'TRUE' }, row], shape),
+    ).toThrow('courses.json row 1: required key 2018-available missing');
+    expect(
+      validateFile(
+        courses,
+        [
+          { ...row, '2018-available': 'TRUE' },
+          { ...row, '2018-available': 'FALSE' },
+        ],
+        shape,
+      ).rows,
+    ).toBe(2);
   });
 });
 

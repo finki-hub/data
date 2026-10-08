@@ -40,13 +40,14 @@ export const uniqueDataset = (
   teaching_assignments: base.teaching_assignments.filter((row) => row.id !== 2),
 });
 
+// A staff row with the title, position and email staff.json requires.
 export const staffRow = (id: number, name: string): SyntheticRow => ({
   id,
   name,
   active: true,
-  title: null,
-  position: null,
-  email: null,
+  title: 'Prof.',
+  position: 'Professor',
+  email: `staff${String(id)}@staff.example`,
   cabinet: null,
   profile: null,
   courses: null,
