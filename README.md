@@ -731,6 +731,13 @@ mappings, and the users carrying it (the derived index, read-only).
   from the links), Inactive `(неактивиран предмет)` as both. A new course
   starts Active, and publishing is blocked while an Active course has no
   professor; see [Publishing](#publishing).
+- A row of a course's **Teaching staff** (a staff member's **Teaches**)
+  needs its course, staff member and role. The database refuses a second
+  link of one person in one role of a course; the same person may be both
+  professor and assistant. Taking a row out of either list, or deleting
+  the course or the staff member, deletes the link. When that removes an
+  Active course's last professor, publishing is blocked until another is
+  added.
 - **Available** on a curriculum link is on or off, never empty; a new link
   starts on.
 - The **Code** of a curriculum entry gives its level, the digit after `L`
@@ -1063,14 +1070,9 @@ with a curriculum and their blocks), `study_program_unsorted` and
 generation and their state keys), `enrollment_count_missing` (a course and
 published year without a count row), `enrollment_rule_missing` (without a
 rule, so it is never counted), `course_without_professor` (an Active
-course without a professor link to a staff member, whose professors
-`courses.json` cannot publish), `assignment_role_missing`,
-`assignment_unresolved` (an assignment with neither a staff member nor a
-display label). Today's warnings: `assignment_review_label` (an
-assignment with a display label but no staff member; no label is
-published), `assignment_order_ambiguous` (two rows of one course and role
-at one position; the id decides their order), `mapping_without_rule`
-(mappings nothing counts), `mapped_entry_awaiting_review`,
+course without a professor link, whose professors `courses.json` cannot
+publish). Today's warnings: `mapping_without_rule` (mappings nothing
+counts), `mapped_entry_awaiting_review`,
 `entry_needs_mapping` (Moodle lines nobody mapped, administrative ones
 included), `equivalency_without_course`, `equivalency_entry_unresolved` (an
 equivalency with a member label of a generation with a curriculum linked
@@ -1124,15 +1126,13 @@ is kept. The views are generated from `exports/review-views.ts` and
 | **Mapped entries awaiting review** | `moodle_course_entries` | `mapped_entry_awaiting_review` | entries still `needs_mapping` with a mapping, and its course and year |
 | **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
 | **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
-| **Assignments without staff or label**, **Assignments shown by their label only**, **Assignments without a known role** | `teaching_assignments` | `assignment_unresolved`, `assignment_review_label`, `assignment_role_missing` | the rows each check counts (a professor row of a course with `professors_override` set counts nowhere) |
 | **Council members without a student** | `student_council` | `council_member_unresolved` | memberships without a student |
 | **Published academic years / curriculum generations / study programs without a sort** | the key source's collection | `academic_year_unsorted` and the like | published rows without a position; a program shows its generation and name |
 
 The checks no plain filter can list (a missing row, a duplicate) link
 their collection page instead: today `enrollment_count_missing`,
 `enrollment_rule_missing`, `course_without_professor`,
-`mapping_without_rule`, the three `*_sort_shared` blockers and
-`assignment_order_ambiguous`.
+`mapping_without_rule` and the three `*_sort_shared` blockers.
 
 Curriculum views show the generation and filter through the
 `curriculum_generations` relation, so a new generation's rows appear in

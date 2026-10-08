@@ -229,7 +229,7 @@ export type ModelCollection = {
   readonly hidden: boolean;
   readonly icon: string;
   readonly label?: CollectionLabel;
-  readonly note: string;
+  readonly note?: string;
   readonly singleton: boolean;
   readonly sort: number;
 };

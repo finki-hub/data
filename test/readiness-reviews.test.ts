@@ -50,27 +50,9 @@ const append =
   (rows: readonly FakeItem[]) =>
   (existing: FakeItem[]): FakeItem[] => [...existing, ...rows];
 
-const withValues =
-  (id: number, values: Readonly<Record<string, unknown>>) =>
-  (rows: FakeItem[]): FakeItem[] =>
-    rows.map((row) => (row.id === id ? { ...row, ...values } : row));
-
-// A synthetic assignment row of course 1: an assistant without staff.
-const assignment = (id: number, values: Readonly<Record<string, unknown>>) => ({
-  course: 1,
-  display_override: null,
-  id,
-  role: 'assistant',
-  sort: id,
-  staff: null,
-  ...values,
-});
-
 // Every counted record kind at least once: history entries with and
-// without mappings, assignment rows of each kind (and the professors an
-// override replaces, which count nowhere), a published year, generation
-// and program without a sort, and a council member and an equivalency with
-// an empty link.
+// without mappings, a published year, generation and program without a
+// sort, and a council member and an equivalency with an empty link.
 const everyIssue = async (): Promise<FakeStore> => {
   const store = await importedStore();
   const legacy = generationIdOf(store, '2018');
@@ -92,24 +74,6 @@ const everyIssue = async (): Promise<FakeStore> => {
       { academic_year: 1, course: 1, entry: 2, id: 1 },
       { academic_year: 2, course: 1, entry: 2, id: 2 },
       { academic_year: 1, course: 2, entry: 3, id: 3 },
-    ]),
-  );
-  edit(store, 'courses', withValues(2, { professors_override: 'Override' }));
-  edit(
-    store,
-    'teaching_assignments',
-    append([
-      assignment(901, { role: null }),
-      assignment(902, { role: 'lecturer' }),
-      assignment(903, {}),
-      assignment(904, { display_override: '', role: 'professor' }),
-      assignment(905, { course: 2, role: 'professor' }),
-      assignment(906, { display_override: 'Synthetic Label' }),
-      assignment(907, {
-        course: 2,
-        display_override: 'Hidden',
-        role: 'professor',
-      }),
     ]),
   );
   edit(
@@ -229,10 +193,9 @@ describe('the Needs review views', () => {
         .map(({ code }) => code),
     ).toEqual([]);
     expect(issueCounts).toMatchObject({
-      assignment_review_label: 1,
-      assignment_role_missing: 2,
-      assignment_unresolved: 2,
+      council_member_unresolved: 2,
       entry_needs_mapping: 2,
+      equivalency_without_course: 4,
       mapped_entry_awaiting_review: 1,
     });
   });

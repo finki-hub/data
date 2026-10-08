@@ -3,6 +3,7 @@ import type { ModelCollection, ModelScalarKind } from '../schema.js';
 import {
   assignmentRoles,
   courseStatuses,
+  teachingTexts,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
 import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
@@ -16,11 +17,16 @@ const roleChoices = labelledChoices(assignmentRoles, {
   professor: 'Professor',
 });
 
-const statusChoices = labelledChoices(courseStatuses, {
+const statusLabels = {
   active: 'Active',
   all_professors: 'All professors',
   inactive: 'Inactive',
-});
+} as const;
+
+const statusChoices = labelledChoices(courseStatuses, statusLabels);
+
+// What the two statuses that replace names publish.
+const statusNote = `${statusLabels.all_professors} publishes "${teachingTexts.allProfessors}" as professors. ${statusLabels.inactive} publishes "${teachingTexts.inactive}" as professors and assistants.`;
 
 export const courseTemplate = '{{name}}';
 const staffTemplate = '{{name}}';
@@ -40,9 +46,10 @@ export const contentCollections: readonly ModelCollection[] = [
       required('name'),
       enumField('status', statusChoices, {
         defaultValue: 'active',
+        label: 'Status',
+        note: statusNote,
         nullable: false,
       }),
-      scalar('professors_override', 'text', { note: 'Not published.' }),
       scalar('tags', 'string'),
     ],
     hidden: false,
@@ -130,13 +137,17 @@ export const contentCollections: readonly ModelCollection[] = [
     collection: 'teaching_assignments',
     displayTemplate: '{{course.name}} ({{role}})',
     fields: [
+      // One link per person, role and course
+      // (teaching_assignments_course_staff_role_unique); deleting the
+      // course or the staff member deletes the link.
       m2o('course', 'courses', {
         alias: {
           field: 'assignments',
-          fields: ['role', 'staff', 'display_override', 'sort'],
+          fields: ['role', 'staff'],
+          label: 'Teaching staff',
           template: '{{role}}: {{staff.name}}',
         },
-        note: 'The course the staff member teaches.',
+        nullable: false,
         sortField: 'sort',
         template: courseTemplate,
       }),
@@ -144,18 +155,18 @@ export const contentCollections: readonly ModelCollection[] = [
         alias: {
           field: 'assignments',
           fields: ['course', 'role'],
+          label: 'Teaches',
           template: '{{course.name}} ({{role}})',
         },
+        nullable: false,
         template: staffTemplate,
       }),
-      enumField('role', roleChoices),
+      enumField('role', roleChoices, { nullable: false }),
       scalar('sort', 'integer'),
-      // Neither the import nor courses.json uses it.
-      scalar('display_override', 'text', { note: 'Not published.' }),
     ],
     hidden: false,
     icon: 'co_present',
-    note: 'Professor and assistant assignments by course.',
+    label: { plural: 'Teaching staff', singular: 'Teaching assignment' },
     singleton: false,
     sort: 8,
   },

@@ -188,9 +188,6 @@ describe('workbook readers', () => {
       source: 'assistants',
       target: 'export_assistants',
     });
-    expect(courses?.fields.map(({ target }) => target)).not.toContain(
-      'professors_override',
-    );
     expect(
       specOf('student_council')?.fields.map(({ target }) => target),
     ).toEqual(['year', 'index_number', 'position']);

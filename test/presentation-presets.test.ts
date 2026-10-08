@@ -152,6 +152,15 @@ describe('presets', () => {
     ]);
   });
 
+  test('lists teaching links by course, role and staff member in the default Teaching staff view', () => {
+    expect(
+      defaultViewOf('teaching_assignments')?.layout_query.tabular,
+    ).toMatchObject({
+      fields: ['course', 'role', 'staff'],
+      sort: ['course', 'sort'],
+    });
+  });
+
   test('lists only fields that exist on the collection or its relation targets', () => {
     expect(unresolvedPresetPaths).toEqual([]);
 

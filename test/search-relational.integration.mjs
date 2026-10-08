@@ -160,8 +160,7 @@ const installsReviewViews = async ({ directus, t, target }) => {
 // The first snapshot through the import Flow, indexed by the synthetic
 // runner; one line mapped to a course and year, one ignored, one mapped
 // but still awaiting review; beside them, rows that make the council and
-// assignment checks count (a professor row a course override replaces
-// counts nowhere).
+// equivalency checks count.
 const importsAndMaps = async ({ state, target }) => {
   await importSnapshot(target, state, {
     rows: firstSnapshot,
@@ -210,35 +209,7 @@ const importsAndMaps = async ({ state, target }) => {
     course: awaiting.data.id,
     entry: entries.get('Tie Entry'),
   });
-  const overridden = await createItem(target, 'courses', {
-    name: 'Synthetic Overridden Course',
-    professors_override: 'Synthetic Override',
-  });
-  for (const row of [
-    {
-      course: course.data.id,
-      display_override: 'Synthetic Label',
-      role: 'assistant',
-      sort: 1,
-      staff: null,
-    },
-    {
-      course: course.data.id,
-      display_override: '',
-      role: 'professor',
-      sort: 2,
-      staff: null,
-    },
-    {
-      course: overridden.data.id,
-      display_override: null,
-      role: 'professor',
-      sort: 1,
-      staff: null,
-    },
-  ]) {
-    await createItem(target, 'teaching_assignments', row);
-  }
+  await createItem(target, 'course_equivalencies', { course: null });
   await createItem(target, 'student_council', {
     index_number: 'SYN-SEARCH-1',
     position: 'Member',
@@ -276,7 +247,7 @@ const listsWhatReadinessCounts = async ({ t, target }) => {
     if (listed > 0) compared.push(`${code} ${String(listed)}`);
   }
   assert.ok(
-    compared.length >= 5,
+    compared.length >= 4,
     'the seeded checks count through their views',
   );
   t.diagnostic(`views listing what readiness counts: ${compared.join(', ')}`);

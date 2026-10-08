@@ -108,9 +108,9 @@ const installsStudioMetadata = async (target) => {
   assert.equal(overview.meta.interface, 'group-detail');
   const name = await get(target, '/fields/courses/name');
   assert.equal(name.meta.group, 'overview');
-  const override = await get(target, '/fields/courses/professors_override');
-  assert.equal(override.meta.group, 'staff');
-  assert.equal(override.meta.readonly, false);
+  const status = await get(target, '/fields/courses/status');
+  assert.equal(status.meta.group, 'staff');
+  assert.equal(status.meta.required, true);
   const entry = await get(target, '/fields/course_curricula/entry');
   assert.deepEqual(entry.meta.options.filter, generationFilter);
   assert.equal(entry.meta.readonly, false);
@@ -133,11 +133,7 @@ const installsStudioMetadata = async (target) => {
   assert.equal(junction.meta.junction_field, 'program');
   assert.equal(junction.meta.one_field, 'program_states');
   const assignments = await get(target, '/fields/courses/assignments');
-  assert.deepEqual(assignments.meta.options.fields, [
-    'role',
-    'staff',
-    'display_override',
-  ]);
+  assert.deepEqual(assignments.meta.options.fields, ['role', 'staff']);
   assert.equal(assignments.meta.options.sort, 'sort');
   // The linked student names a council member; the index an unlinked one.
   const councilCollection = await get(target, '/collections/student_council');

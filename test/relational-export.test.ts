@@ -41,7 +41,6 @@ import {
   unmatchedLabel,
   unmatchedLegacy,
   withLinkedLabel,
-  withValues,
   workbookStore,
 } from './relational-export-helpers.js';
 
@@ -529,7 +528,7 @@ describe('relation values resolved on read', () => {
     ).not.toContain(staffNames.minimal);
   });
 
-  test('joins the staff names of a role by line breaks in drag order, then id, and never reads an override', async () => {
+  test('joins the staff names of a role by line breaks in drag order, then id', async () => {
     const store = edit(
       await importedStore(),
       'teaching_assignments',
@@ -537,20 +536,8 @@ describe('relation values resolved on read', () => {
         ...rows,
         { course: 7, id: 500, role: 'professor', sort: 0, staff: 5 },
         { course: 7, id: 501, role: 'professor', sort: null, staff: 4 },
-        {
-          course: 7,
-          display_override: 'Never Shown',
-          id: 502,
-          role: 'assistant',
-          sort: 2,
-          staff: 2,
-        },
+        { course: 7, id: 502, role: 'assistant', sort: 2, staff: 2 },
       ],
-    );
-    withValues(
-      store,
-      { collection: 'courses', id: 7 },
-      { professors_override: 'Never Shown' },
     );
     const theta = courseNamed(await projected(store), courseNames.theta);
 
@@ -558,7 +545,6 @@ describe('relation values resolved on read', () => {
       assistants: `${staffNames.active}\n${staffNames.inactive}`,
       professors: `Prof. Abe Alpha\n${staffNames.minimal}\nProf. Zed Alpha`,
     });
-    expect(JSON.stringify(theta)).not.toContain('Never Shown');
   });
 
   test.each([

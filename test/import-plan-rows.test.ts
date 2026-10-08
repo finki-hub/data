@@ -94,8 +94,8 @@ describe('teaching assignments: staff links', () => {
       'active',
       'active',
     ]);
-    expect(records.some((record) => 'professors_override' in record)).toBe(
-      false,
+    expect(new Set(records.flatMap((record) => Object.keys(record)))).toEqual(
+      new Set(['name', 'status', 'tags']),
     );
   });
 

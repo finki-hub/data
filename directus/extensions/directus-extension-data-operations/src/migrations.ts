@@ -27,6 +27,7 @@ export const isMigrationName = (name: string | undefined): name is string =>
 export const schemaConstraints: Migration = {
   name: 'schema-constraints',
   statements: [
+    'CREATE UNIQUE INDEX IF NOT EXISTS "teaching_assignments_course_staff_role_unique" ON "teaching_assignments" ("course", "staff", "role")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_curricula_course_generation_unique" ON "course_curricula" ("course", "generation")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "study_programs_generation_code_unique" ON "study_programs" ("generation", "code")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "curriculum_entry_program_states_entry_program_unique" ON "curriculum_entry_program_states" ("entry", "program")',

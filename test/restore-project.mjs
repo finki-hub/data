@@ -11,7 +11,12 @@ import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
 import { runImportCli } from '../src/import-run.js';
 import { exitCodes } from '../src/lifecycle.js';
 import { runSetup } from '../src/setup.js';
-import { installedCounts, seedMappings, snapshotFor } from './fixture-seed.mjs';
+import {
+  installedCounts,
+  seedMappings,
+  snapshotFor,
+  staffFreeFor,
+} from './fixture-seed.mjs';
 import { yearRows } from './fixtures/stress-fixture.js';
 import { expectedCounts } from './fixtures/stress-oracle.js';
 import { syntheticWorkbook } from './fixtures/synthetic-workbook.js';
@@ -247,11 +252,11 @@ export const customizesProject = async (context) => {
   state.userId = user.data.id;
   const [assignment] = await get(
     target,
-    '/items/teaching_assignments?fields=id,staff&filter[staff][_nnull]=true&sort=id&limit=1',
+    '/items/teaching_assignments?fields=id,course,role&sort=id&limit=1',
   );
-  const staff = await get(target, '/items/staff?fields=id&sort=id&limit=-1');
+  const next = await staffFreeFor(target, assignment);
   await patch(target, `/items/teaching_assignments/${assignment.id}`, {
-    staff: staff.find(({ id }) => id !== assignment.staff).id,
+    staff: next.id,
   });
   const [course] = state.seeded.courses;
   await patch(target, `/items/courses/${course.id}`, {

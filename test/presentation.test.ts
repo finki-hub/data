@@ -299,13 +299,10 @@ describe('field groups', () => {
 });
 
 describe('curriculum generations in the forms', () => {
-  test('keeps the curriculum of a course in its links only, the override editable', () => {
+  test('keeps the curriculum of a course in its links only', () => {
     expect(fieldNames('courses')).toEqual(
       expect.not.arrayContaining(['name_2023', 'credits_2018']),
     );
-    expect(effectiveFieldMeta('courses', 'professors_override')).toMatchObject({
-      readonly: false,
-    });
     expect(findFieldGroup('courses', 'curriculum')?.members).toEqual([
       'curricula',
       'equivalencies',
@@ -459,7 +456,6 @@ describe('field presentation', () => {
     expect(findFieldGroup('courses', 'staff')?.members).toEqual([
       'status',
       'assignments',
-      'professors_override',
     ]);
     expect(choicesOf('courses', 'status')).toEqual([
       { text: 'Active', value: 'active' },
@@ -486,12 +482,17 @@ describe('field presentation', () => {
     const assignments = relationLists.find(
       ({ field }) => field === 'courses.assignments',
     );
+    const programs = relationLists.find(
+      ({ field }) => field === 'curriculum_generations.programs',
+    );
     const history = relationLists.find(
       ({ field }) => field === 'moodle_users.history_memberships',
     );
 
-    expect(assignments?.fields).toEqual(['role', 'staff', 'display_override']);
+    expect(assignments?.fields).toEqual(['role', 'staff']);
     expect(assignments?.sort).toBe('sort');
+    expect(programs?.fields).toEqual(['code', 'name', 'published']);
+    expect(programs?.sort).toBe('sort');
     expect(history?.fields).toEqual([
       'entry',
       'entry.review_state',

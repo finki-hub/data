@@ -71,7 +71,7 @@ const collectionMeta = (collection: ModelCollection) => ({
   display_template: collection.displayTemplate,
   hidden: collection.hidden,
   icon: collection.icon,
-  note: collection.note,
+  ...(collection.note !== undefined && { note: collection.note }),
   singleton: collection.singleton,
   sort: collection.sort,
   ...(collection.label !== undefined && {

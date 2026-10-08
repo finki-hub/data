@@ -152,6 +152,12 @@ export const findModelRelation = (
 // tests cross-check the shipped SQL.
 export const compositeKeys: readonly CompositeKey[] = [
   {
+    collection: 'teaching_assignments',
+    columns: ['course', 'staff', 'role'],
+    kind: 'unique',
+    name: 'teaching_assignments_course_staff_role_unique',
+  },
+  {
     collection: 'course_curricula',
     columns: ['course', 'generation'],
     kind: 'unique',

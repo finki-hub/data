@@ -166,12 +166,11 @@ describe('target collections', () => {
     ).toEqual([
       ['name', 'string', false],
       ['status', 'enum', false],
-      ['professors_override', 'text', true],
       ['tags', 'string', true],
     ]);
     expect(
       findCollection('teaching_assignments').fields.map(({ field }) => field),
-    ).toEqual(['course', 'staff', 'role', 'sort', 'display_override']);
+    ).toEqual(['course', 'staff', 'role', 'sort']);
     expect(
       findCollection('student_council').fields.map(({ field }) => field),
     ).toEqual(['year', 'index_number', 'position', 'student']);
@@ -342,6 +341,11 @@ describe('domain keys', () => {
         kind,
       })),
     ).toEqual([
+      {
+        collection: 'teaching_assignments',
+        columns: ['course', 'staff', 'role'],
+        kind: 'unique',
+      },
       {
         collection: 'course_curricula',
         columns: ['course', 'generation'],
@@ -582,7 +586,7 @@ describe('enumerations', () => {
       { label: 'Professor', value: 'professor' },
       { label: 'Assistant', value: 'assistant' },
     ]);
-    expect(enumOf('teaching_assignments', 'role').nullable).toBeTruthy();
+    expect(enumOf('teaching_assignments', 'role').nullable).toBe(false);
     expect(enumOf('course_enrollment_rules', 'mode').choices).toEqual([
       { label: 'Mapped entries', value: 'mapped_entries' },
       { label: 'Legacy regex', value: 'legacy_regex' },
@@ -668,12 +672,13 @@ describe('enumerations', () => {
       type: 'string',
     });
 
-    const optional = toFieldPayload(enumOf('teaching_assignments', 'role'), 1);
+    const domain = enumOf('data_operations', 'claim_domain');
+    const optional = toFieldPayload(domain, 1);
 
     expect(optional.meta.validation).toEqual({
       _or: [
-        { role: { _null: true } },
-        { role: { _in: ['professor', 'assistant'] } },
+        { claim_domain: { _null: true } },
+        { claim_domain: { _in: choiceValues(domain) } },
       ],
     });
     expect(optional.schema).toMatchObject({ is_nullable: true });
@@ -785,21 +790,14 @@ describe('relations and aliases', () => {
     ).toEqual(['memberships', 'mappings']);
   });
 
-  test('keeps the links of imported rows nullable and an unresolved label reviewable', () => {
+  test('keeps the links of imported equivalencies and council members nullable', () => {
     const mandatory = [
       ...relationFields('course_equivalencies'),
-      ...relationFields('teaching_assignments'),
       ...relationFields('student_council'),
     ].filter(({ nullable }) => !nullable);
 
     expect(mandatory).toEqual([]);
     expect(findField('student_council', 'index_number').nullable).toBe(false);
-    expect(
-      findField('teaching_assignments', 'display_override').nullable,
-    ).toBeTruthy();
-    expect(findField('teaching_assignments', 'display_override').kind).toBe(
-      'text',
-    );
   });
 
   test('cascades mandatory links and nullifies optional ones', () => {

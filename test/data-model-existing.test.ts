@@ -320,6 +320,10 @@ describe('installDataModel enum realignment', () => {
         { text: 'Assistant', value: 'assistant' },
       ],
     });
+    // A required role: the realigned rule no longer admits an empty one.
+    expect(declared.validation).toEqual({
+      role: { _in: ['professor', 'assistant'] },
+    });
     expect(summary.fields).toMatchObject({
       adopted: 0,
       aligned: 1,

@@ -8,6 +8,7 @@ import {
   installedCounts,
   seedReference,
   snapshotFor,
+  staffFreeFor,
 } from './fixture-seed.mjs';
 import { indexOf } from './fixtures/stress-snapshot.js';
 import {
@@ -127,13 +128,9 @@ export const publishesRelationChange = async (context) => {
   const before = publishedRows(state.objects, coursesFile);
   const [assignment] = await get(
     target,
-    `/items/teaching_assignments?fields=id,course,staff&filter[role][_eq]=professor&filter[display_override][_null]=true&sort=id&limit=1`,
+    '/items/teaching_assignments?fields=id,course,role&filter[role][_eq]=professor&sort=id&limit=1',
   );
-  const staff = await get(
-    target,
-    '/items/staff?fields=id,name&sort=id&limit=-1',
-  );
-  const next = staff.find(({ id }) => id !== assignment.staff);
+  const next = await staffFreeFor(target, assignment);
   await patch(target, `/items/teaching_assignments/${assignment.id}`, {
     staff: next.id,
   });

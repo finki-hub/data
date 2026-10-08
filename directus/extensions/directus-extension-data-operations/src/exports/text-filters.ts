@@ -17,6 +17,3 @@ const on = (path: string, operator: FieldFilterOperator): FieldFilter => {
 // could not open a view filtering with `_neq: ''`; `_nempty` means the
 // same and passes it.
 export const filled = (path: string): Filter => on(path, { _nempty: true });
-
-// A text field holding no value: NULL or '' (`_empty`).
-export const blank = (path: string): Filter => on(path, { _empty: true });

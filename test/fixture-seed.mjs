@@ -142,6 +142,23 @@ const seedAssignments = (target, courses, staff) => {
   return createRows(target, 'teaching_assignments', rows);
 };
 
+// The first staff member, by id, a teaching link can move to: one not yet
+// linked to its course in its role, since the database refuses a second
+// (course, staff, role) link.
+export const staffFreeFor = async (target, { course, role }) => {
+  const taken = await get(
+    target,
+    `/items/teaching_assignments?fields=staff&filter[course][_eq]=${course}&filter[role][_eq]=${role}&limit=-1`,
+  );
+  const staff = await get(
+    target,
+    '/items/staff?fields=id,name&sort=id&limit=-1',
+  );
+  const free = staff.find(({ id }) => taken.every((row) => row.staff !== id));
+  assert.ok(free, `no staff member is free for course ${course} as ${role}`);
+  return free;
+};
+
 // A legacy rule per course and published year with the default pattern
 // `<course name>-<year label>`, as the one-time import seeds them; answers
 // them in oracle form (course and year as positions).

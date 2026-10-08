@@ -493,8 +493,8 @@ describe('teaching role rows', () => {
       [1, 1, 1, 2, 3, 6, 7, 7, 8, 8, 8].map((id) => course(id)),
     );
     expect(rows.map(({ origin }) => origin?.source)).not.toContain(undefined);
-    expect(
-      rows.every(({ record }) => !('display_override' in record)),
-    ).toBeTruthy();
+    expect(new Set(rows.flatMap(({ record }) => Object.keys(record)))).toEqual(
+      new Set(['course', 'role', 'sort', 'staff']),
+    );
   });
 });

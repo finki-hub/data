@@ -85,16 +85,6 @@ const without =
   (rows: FakeItem[]): FakeItem[] =>
     rows.filter((row) => !drop(row));
 
-const assignmentRow = (id: number, values: Partial<FakeItem>): FakeItem => ({
-  course: 7,
-  display_override: null,
-  id,
-  role: 'assistant',
-  sort: 5,
-  staff: null,
-  ...values,
-});
-
 const recordText = /Synthetic|Prof\.|Asst\.|Course|@/u;
 
 // The course's columns set to the values.
@@ -373,10 +363,14 @@ describe('the registry decides every code once', () => {
     const reads = log.map((read) => JSON.stringify(read));
 
     expect(new Set(reads).size).toBe(reads.length);
-    // Once for the four assignment checks, once for the professor check.
+    // Once for the two codes of the enrollment check, once for the
+    // professor check.
+    expect(
+      log.filter(({ collection }) => collection === 'course_enrollments'),
+    ).toHaveLength(1);
     expect(
       log.filter(({ collection }) => collection === 'teaching_assignments'),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 });
 
@@ -592,52 +586,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
   );
 });
 
-describe('the assignment and mapping checks of courses.json', () => {
-  test('blocks published assignment rows without a role or a label, and ignores professors an override replaces', async () => {
-    // The import no longer writes an override; this one is set in Studio.
-    const store = edit(
-      await importedStore(),
-      'courses',
-      withValues(2, { professors_override: 'Override' }),
-    );
-    const decision = await decide({
-      store: edit(
-        store,
-        'teaching_assignments',
-        append([
-          assignmentRow(500, { role: null }),
-          assignmentRow(501, {}),
-          assignmentRow(502, { course: 2, role: 'professor' }),
-        ]),
-      ),
-    });
-
-    expect(decision.blockers).toEqual([
-      'assignment_role_missing',
-      'assignment_unresolved',
-    ]);
-    expect(decision.issueCounts).toMatchObject({
-      assignment_role_missing: 1,
-      assignment_unresolved: 1,
-    });
-  });
-
-  test('warns, never blocks, about rows added in Studio that share a position', async () => {
-    const decision = await decide({
-      store: edit(
-        await importedStore(),
-        'teaching_assignments',
-        append([
-          assignmentRow(500, { staff: 5 }),
-          assignmentRow(501, { staff: 6 }),
-        ]),
-      ),
-    });
-
-    expect(decision.ready).toBeTruthy();
-    expect(decision.issueCounts['assignment_order_ambiguous']).toBe(1);
-  });
-
+describe('the teaching and mapping checks of courses.json', () => {
   test('warns about mappings no rule counts and entries awaiting review, never blocking on them', async () => {
     const store = await importedStore();
     edit(
@@ -676,11 +625,12 @@ describe('the assignment and mapping checks of courses.json', () => {
       store: edit(
         await importedStore(),
         'teaching_assignments',
-        append([assignmentRow(501, {})]),
+        without((row) => row['role'] === 'professor'),
       ),
     });
     const text = JSON.stringify(decision);
 
+    expect(decision.blockers).toEqual(['course_without_professor']);
     expect(text).not.toMatch(recordText);
   });
 });

@@ -111,7 +111,7 @@ const byPosition = (left: Row, right: Row): number =>
 
 const knownRoles: ReadonlySet<unknown> = new Set(assignmentRoles);
 
-export const isRole = (value: unknown): value is AssignmentRole =>
+const isRole = (value: unknown): value is AssignmentRole =>
   knownRoles.has(value);
 
 const knownStatuses: ReadonlySet<unknown> = new Set(courseStatuses);

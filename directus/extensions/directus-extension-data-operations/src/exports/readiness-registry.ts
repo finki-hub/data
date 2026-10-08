@@ -8,7 +8,7 @@ import type {
 import type { ReadinessCheck } from './types.js';
 
 import { domainLabel } from '../coordination/domains.js';
-import { assignmentCheck, professorCheck } from './assignment-checks.js';
+import { professorCheck } from './assignment-checks.js';
 import { unlinkedMember } from './curriculum-checks.js';
 import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
 import { keyOrderEntries } from './key-order.js';
@@ -61,7 +61,6 @@ const blocker = declare('blocker', ['courses.json']);
 const warning = declare('warning', []);
 
 const enrollments = checkedBy(enrollmentCheck);
-const assignments = checkedBy(assignmentCheck);
 const mappings = checkedBy(mappingCheck);
 
 export const readinessRegistry: readonly ReadinessEntry[] = [
@@ -145,33 +144,6 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     description: 'Active course without a professor',
     page: 'courses',
     source: checkedBy(professorCheck),
-  }),
-  warning({
-    code: 'assignment_order_ambiguous',
-    description: 'Two assignment rows share a position; their ids order them',
-    page: 'teaching_assignments',
-    source: assignments,
-  }),
-  warning({
-    code: 'assignment_review_label',
-    description: 'An assignment row has a display label but no staff member',
-    page: 'teaching_assignments',
-    review: reviewViews.assignmentLabelOnly,
-    source: assignments,
-  }),
-  blocker({
-    code: 'assignment_role_missing',
-    description: 'An assignment row of a course has no known role',
-    page: 'teaching_assignments',
-    review: reviewViews.assignmentRoleMissing,
-    source: assignments,
-  }),
-  blocker({
-    code: 'assignment_unresolved',
-    description: 'An assignment row has neither a staff member nor a label',
-    page: 'teaching_assignments',
-    review: reviewViews.assignmentUnresolved,
-    source: assignments,
   }),
   warning({
     code: 'council_member_unresolved',

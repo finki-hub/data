@@ -195,7 +195,6 @@ describe('the readiness-check registry', () => {
       academic_year_sort_shared: 'blocker/check',
       academic_year_unsorted: 'blocker/count',
       active_snapshot_edited: 'warning/snapshot',
-      assignment_unresolved: 'blocker/check',
       council_member_unresolved: 'warning/count',
       course_without_professor: 'blocker/check',
       enrollment_count_missing: 'blocker/check',
@@ -208,6 +207,25 @@ describe('the readiness-check registry', () => {
       mapping_without_rule: 'warning/check',
       snapshot_import_failed: 'blocker/snapshot',
     });
+  });
+
+  test('checks teaching links only for an Active course without a professor, with no bookmark on them', () => {
+    expect(
+      readinessRegistry
+        .filter(
+          ({ code, page }) =>
+            code.startsWith('assignment_') || page === 'teaching_assignments',
+        )
+        .map(({ code }) => code),
+    ).toEqual([]);
+    expect(
+      reviewPresets(readinessRegistry).filter(
+        ({ collection }) => collection === 'teaching_assignments',
+      ),
+    ).toEqual([]);
+    expect(
+      readinessRegistry.find(({ code }) => code === 'course_without_professor'),
+    ).toMatchObject({ page: 'courses', severity: 'blocker' });
   });
 
   test('derives two order blockers for every key source a definition places, linking its collection', () => {

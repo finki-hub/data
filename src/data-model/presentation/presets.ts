@@ -117,7 +117,7 @@ const defaultViews: readonly TabularPreset[] = [
   ),
   defaultView(
     'teaching_assignments',
-    ['course', 'role', 'staff', 'display_override'],
+    ['course', 'role', 'staff'],
     ['course', 'sort'],
   ),
   // The linked student names a member; the index is the only label of an

@@ -2,11 +2,6 @@ import type { Filter } from '@directus/types';
 
 import type { ReviewView } from './readiness-types.js';
 
-import {
-  labelOnlyRow,
-  roleMissing,
-  unresolvedRow,
-} from './assignment-checks.js';
 import { unlinkedMember } from './curriculum-checks.js';
 import { awaitingMapping } from './enrollment-checks.js';
 
@@ -35,27 +30,6 @@ export const councilWithoutStudent: Filter = { student: { _null: true } };
 export const equivalencyWithoutCourse: Filter = { course: { _null: true } };
 
 export const reviewViews = {
-  assignmentLabelOnly: {
-    bookmark: 'Assignments shown by their label only',
-    fields: ['course', 'role', 'display_override'],
-    filter: labelOnlyRow,
-    icon: 'badge',
-    sort: ['course', 'role', 'sort'],
-  },
-  assignmentRoleMissing: {
-    bookmark: 'Assignments without a known role',
-    fields: ['course', 'role', 'staff', 'display_override'],
-    filter: roleMissing,
-    icon: 'badge',
-    sort: ['course', 'sort'],
-  },
-  assignmentUnresolved: {
-    bookmark: 'Assignments without staff or label',
-    fields: ['course', 'role'],
-    filter: unresolvedRow,
-    icon: 'badge',
-    sort: ['course', 'role', 'sort'],
-  },
   councilWithoutStudent: {
     bookmark: 'Council members without a student',
     fields: ['year', 'index_number', 'position', 'student'],

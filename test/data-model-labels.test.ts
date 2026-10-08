@@ -116,6 +116,24 @@ const declaredTranslations = (collection: ModelCollection) => ({
       : collectionTranslations(collection.label),
 });
 
+// Every label a collection declares, for itself, its fields and its
+// aliases, as `<collection>[.<field>]: <label>`.
+const declaredLabels = ({ collection, fields, label }: ModelCollection) => [
+  ...(label === undefined
+    ? []
+    : [`${collection}: ${label.plural} / ${label.singular}`]),
+  ...fields.flatMap((field) =>
+    field.label === undefined
+      ? []
+      : [`${collection}.${field.field}: ${field.label}`],
+  ),
+  ...aliasesFor(collection).flatMap(({ alias }) =>
+    alias.label === undefined
+      ? []
+      : [`${collection}.${alias.field}: ${alias.label}`],
+  ),
+];
+
 describe('field and alias labels', () => {
   // One noted field of each kind: string, boolean, enum, relation and a
   // read-only JSON column.
@@ -145,14 +163,14 @@ describe('field and alias labels', () => {
   );
 
   test('adds the en-US translation of a label to an alias payload and changes nothing else', () => {
-    const alias = aliasOf('courses', 'assignments');
+    const alias = aliasOf('courses', 'curricula');
     const plain = toAliasPayload(alias, 9);
 
-    expect(toAliasPayload({ ...alias, label: 'Teaching staff' }, 9)).toEqual({
+    expect(toAliasPayload({ ...alias, label: 'Curriculum links' }, 9)).toEqual({
       ...plain,
       meta: {
         ...plain.meta,
-        translations: [{ language: 'en-US', translation: 'Teaching staff' }],
+        translations: [{ language: 'en-US', translation: 'Curriculum links' }],
       },
     });
     expect(translationsOf(plain.meta)).toBe(absent);
@@ -163,6 +181,15 @@ describe('field and alias labels', () => {
 
     expect(unlabelled.length).toBeGreaterThan(0);
     expect(new Set(unlabelled)).toEqual(new Set([absent]));
+  });
+
+  test('labels only the course status and the teaching staff links', () => {
+    expect(dataModelCollections.flatMap(declaredLabels)).toEqual([
+      'courses.status: Status',
+      'courses.assignments: Teaching staff',
+      'staff.assignments: Teaches',
+      'teaching_assignments: Teaching staff / Teaching assignment',
+    ]);
   });
 });
 
@@ -201,6 +228,11 @@ describe('collection labels', () => {
         field.field === 'name' ? withLabel(field, 'Course name') : field,
       ),
     });
+    const labels = new Map([
+      ['assignments', 'Teaching staff'],
+      ['name', 'Course name'],
+      ['status', 'Status'],
+    ]);
 
     expect(
       payload.fields.map(({ field, meta }) => [field, translationsOf(meta)]),
@@ -208,12 +240,15 @@ describe('collection labels', () => {
       [
         ...courses.fields.map(({ field }) => field),
         ...aliasesFor('courses').map(({ alias }) => alias.field),
-      ].map((field) => [
-        field,
-        field === 'name'
-          ? [{ language: 'en-US', translation: 'Course name' }]
-          : absent,
-      ]),
+      ].map((field) => {
+        const label = labels.get(field);
+        return [
+          field,
+          label === undefined
+            ? absent
+            : [{ language: 'en-US', translation: label }],
+        ];
+      }),
     );
   });
 
