@@ -18,10 +18,11 @@ const firstGroupColumn = 2;
 const groupWidth = 3;
 
 // An academic-year label: two consecutive calendar years, such as
-// 2025/2026. Such labels order chronologically as text.
+// 2025/2026. Such labels order chronologically as text, and courses.json
+// keys its counts by them.
 const yearLabelPattern = /^(?<start>\d{4})\/(?<end>\d{4})$/u;
 
-const isYearLabel = (label: string): boolean => {
+export const isYearLabel = (label: string): boolean => {
   const groups = yearLabelPattern.exec(label)?.groups;
   return Number(groups?.['end']) === Number(groups?.['start']) + 1;
 };

@@ -23,11 +23,8 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { reviewPresets } from '../src/data-model/presentation/presets.js';
-import {
-  edit,
-  importedStore,
-  storeReader,
-} from './relational-export-helpers.js';
+import { storeReader } from '../src/projection/memory-reader.js';
+import { edit, importedStore } from './relational-export-helpers.js';
 
 const codes = readinessRegistry.map(({ code }) => code);
 

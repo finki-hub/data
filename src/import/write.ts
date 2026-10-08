@@ -17,9 +17,9 @@ class ImportPlanError extends Error {
 
 type CreatedIds = ReadonlyMap<string, ReadonlyMap<string, number>>;
 
-// The record with every reference replaced by the id Directus gave the
-// row it names.
-const resolved = (
+// The record with every reference replaced by the id the row it names got
+// (from Directus, or in the memory store of src/projection/).
+export const resolved = (
   collection: string,
   record: PlannedRecord,
   created: CreatedIds,
@@ -38,6 +38,21 @@ const resolved = (
       return [field, id];
     }),
   );
+
+// Records the id a planned row got under its plan key; a key the
+// collection already holds is a bug in the plan.
+export const recordId = (
+  ids: Map<string, number>,
+  { collection, key }: { readonly collection: string; readonly key: string },
+  id: number,
+): void => {
+  if (ids.has(key)) {
+    throw new ImportPlanError(
+      `plan: duplicate ${collection} key ${displayKey(key)}`,
+    );
+  }
+  ids.set(key, id);
+};
 
 type WriteOptions = {
   readonly batchSize: number;
@@ -71,12 +86,7 @@ export const writePlan = async (
             `POST /items/${collection}: no id for row ${displayKey(row.key)}`,
           );
         }
-        if (ids.has(row.key)) {
-          throw new ImportPlanError(
-            `plan: duplicate ${collection} key ${displayKey(row.key)}`,
-          );
-        }
-        ids.set(row.key, id);
+        recordId(ids, { collection, key: row.key }, id);
       }
     }
     created.set(collection, ids);

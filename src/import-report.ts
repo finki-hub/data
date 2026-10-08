@@ -38,8 +38,12 @@ export const refusalCount = ({ blockers, unstorable }: ImportPlan): number =>
 
 // The sheet and row a planned row comes from, or, for a row no workbook
 // row gave (a seed), its collection and plan key.
-const rowPlaceOf = (
-  { collection, key, origin }: UnstorableValue,
+export const rowPlaceOf = (
+  {
+    collection,
+    key,
+    origin,
+  }: Pick<UnstorableValue, 'collection' | 'key' | 'origin'>,
   places: WorkbookPlaces,
 ): string => {
   const place =

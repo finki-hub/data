@@ -10,12 +10,13 @@ import { SetupConfigError } from './setup-config.js';
 import { errorText } from './text.js';
 
 // Exit codes of the commands (`npm run setup`, `npm run import`, its dry
-// run and `npm run brand`), each with the outcome word its first line
-// carries: 0 succeeded; 1 failed, before any row was written; 2 refused,
-// the invocation or the project in a state the command does not accept,
-// before any record was written; 3 blocked (import only), workbook cases
-// named by sheet and row, before Directus is contacted; 4 interrupted
-// (import only), after rows were written. README lists what to do.
+// run, `npm run brand` and `npm run compare:live`), each with the outcome
+// word its first line carries: 0 succeeded; 1 failed, before any row was
+// written; 2 refused, the invocation or the project in a state the command
+// does not accept, before any record was written; 3 blocked (import and
+// live check only), workbook cases named by sheet and row, before
+// Directus or the live files are contacted; 4 interrupted (import only),
+// after rows were written. README lists what to do.
 export const exitCodes = {
   blocked: 3,
   failed: 1,
@@ -26,7 +27,8 @@ export const exitCodes = {
 
 // The command a first line names; `Import dry run` heads the dry run's
 // blocked header only.
-export type CommandName = 'Branding' | 'Import' | 'Import dry run' | 'Setup';
+export type CommandName =
+  'Branding' | 'Import' | 'Import dry run' | 'Live check' | 'Setup';
 
 type Outcome = 'blocked' | 'failed' | 'interrupted' | 'refused' | 'succeeded';
 

@@ -33,6 +33,7 @@ import { publicForm } from '../directus/extensions/directus-extension-data-opera
 import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
 import { readinessEntry } from './registry-test-helpers.js';
 import {
@@ -42,7 +43,6 @@ import {
   refusalOf,
   roomCapacity,
   rowsOf,
-  storeReader,
 } from './relational-export-helpers.js';
 
 const publicRows = (body: string) =>

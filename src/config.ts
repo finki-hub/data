@@ -76,3 +76,17 @@ export const loadImportConfig = (
     ),
   };
 };
+
+// The live check's workbook. It takes no argument and has no default
+// workbook: `WORKBOOK_PATH` names the file on the invocation.
+export const loadLiveCheckConfig = (
+  arguments_: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+): { readonly workbookPath: string } => {
+  refuseArguments(arguments_, []);
+  const workbookPath = environment['WORKBOOK_PATH'] ?? '';
+  if (workbookPath === '') {
+    throw new SetupConfigError('WORKBOOK_PATH not set');
+  }
+  return { workbookPath: path.resolve(workbookPath) };
+};

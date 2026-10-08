@@ -21,8 +21,9 @@ type ImportCliIo = ImportIo & {
 
 // Everything that blocks the import, on stderr: the header with the number
 // of cases, then one line per value no column can hold and per blocking
-// case, each with its code and its sheet and row.
-const reportBlocked = (
+// case, each with its code and its sheet and row. The live check reports
+// a workbook it cannot project the same way.
+export const reportBlocked = (
   command: CommandName,
   {
     plan,

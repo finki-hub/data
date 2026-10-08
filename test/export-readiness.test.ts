@@ -19,6 +19,7 @@ import {
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import {
   claimNext,
   fail,
@@ -38,7 +39,6 @@ import {
   parityDataset,
   renamedCurrent,
   rowsOf,
-  storeReader,
   unmatchedLegacy,
 } from './relational-export-helpers.js';
 

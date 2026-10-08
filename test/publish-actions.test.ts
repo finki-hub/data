@@ -16,12 +16,12 @@ import { exportDefinitions } from '../directus/extensions/directus-extension-dat
 import { type ExportDeps } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import publishOperation from '../directus/extensions/directus-extension-publish-json/api.js';
 import { publishFileFlow } from '../src/flows/publish-one-file.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
 import {
   edit,
   importedStore,
   roomCapacity,
-  storeReader,
 } from './relational-export-helpers.js';
 
 const admin = { admin: true, user: 'synthetic-admin' };

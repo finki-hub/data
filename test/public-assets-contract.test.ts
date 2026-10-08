@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { courses as coursesDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import { asData, expectedData, expectedKeys } from './expected-exports.js';
 import {
   academicYears,
@@ -11,11 +12,7 @@ import {
   makeSyntheticDataset,
 } from './fixtures/synthetic-data.js';
 import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
-import {
-  engineAssets,
-  injecting,
-  storeReader,
-} from './relational-export-helpers.js';
+import { engineAssets, injecting } from './relational-export-helpers.js';
 import { storeFromDataset } from './store-test-helpers.js';
 
 // The public contract of the files beside the committed expected files

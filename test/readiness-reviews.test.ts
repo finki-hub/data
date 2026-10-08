@@ -7,11 +7,11 @@ import type { FakeItem, FakeStore } from './store-test-helpers.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import {
   edit,
   generationIdOf,
   importedStore,
-  storeReader,
 } from './relational-export-helpers.js';
 
 // The Needs review views against the counts they explain: over synthetic

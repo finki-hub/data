@@ -94,12 +94,16 @@ const httpFault = (details: DirectusErrorDetails, body: string): string => {
   return reason === null ? head : `${head}: ${reason}`;
 };
 
-// A request no answer came back to: timed out, or refused by the network
-// with the cause's code (such as ECONNREFUSED).
-const unanswered = (place: string, error: unknown): Error => {
+// A request no answer came back to: timed out after `timeoutMs`, or
+// refused by the network with the cause's code (such as ECONNREFUSED).
+export const unanswered = (
+  place: string,
+  error: unknown,
+  timeoutMs = requestTimeoutMs,
+): Error => {
   if (error instanceof Error && error.name === 'TimeoutError') {
     return new Error(
-      `${place}: timed out after ${String(requestTimeoutMs / 1_000)} s`,
+      `${place}: timed out after ${String(timeoutMs / 1_000)} s`,
       { cause: error },
     );
   }

@@ -8,6 +8,7 @@ import { resolveFields } from '../directus/extensions/directus-extension-data-op
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import {
   assignmentTexts,
   expectedData,
@@ -37,7 +38,6 @@ import {
   renamedCurrent,
   reversed,
   rowsOf,
-  storeReader,
   unmatchedLabel,
   unmatchedLegacy,
   withLinkedLabel,

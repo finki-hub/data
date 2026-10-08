@@ -20,6 +20,7 @@ import {
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { exportsOperation } from '../src/flows/flow-template.js';
+import { storeReader } from '../src/projection/memory-reader.js';
 import { expectedData, publicFileNames } from './expected-exports.js';
 import {
   edit,
@@ -27,7 +28,6 @@ import {
   publishedFiles,
   refusalOf,
   roomCapacity,
-  storeReader,
 } from './relational-export-helpers.js';
 
 const current: CoordinationFacts = {

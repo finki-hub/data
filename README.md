@@ -1965,6 +1965,7 @@ Fixture-free checks, which need no Directus:
 | `npm run build:operations` | Rebuilds the data-operations bundle into its committed `dist/`; restart Directus afterwards. |
 | `npm run build:search` | Rebuilds the course-search bundle into its committed `dist/`; restart Directus afterwards. |
 | `npm run generate:invalidation` | Rewrites the reviewed snapshot `source-invalidation.sql` of the data-operations extension from the collection roles. |
+| `npm run compare:live` | Compares what a fresh import of a workbook would publish with the live `courses.json`, `staff.json` and `rooms.json`; a manual check before a cutover, never part of `npm test` (see [Comparing with the live files](#comparing-with-the-live-files)). |
 
 The fixture suites run against a disposable Directus only, never a project
 holding data. None has a default target or reads `.env`; each validates its
@@ -2154,3 +2155,45 @@ would not notice, so recover the test project before anything else runs:
    password user, the appearance settings, and the files and Flows it
    added) and tear the model down to marker-only (see
    [Back to marker-only after a manual run](#back-to-marker-only-after-a-manual-run)).
+
+### Comparing with the live files
+
+`npm run compare:live` shows what a fresh import of a workbook would change
+in the files consumers read today. It never contacts Directus and writes
+nothing; the workbook is named on the invocation, with no default:
+
+```sh
+WORKBOOK_PATH=finki-hub.xlsx npm run compare:live
+```
+
+1. It reads the workbook and runs the import's own check. A workbook the
+   import would refuse stops it as the dry run stops (exit code 3).
+2. It holds the planned rows in memory as a fresh import would write them
+   and runs the export engine over them, as publishing does. Counts are not
+   derived there: every count is 0, so the year keys of `courses.json` are
+   not compared and are listed under `notCompared`.
+3. It fetches `courses.json`, `staff.json` and `rooms.json` from
+   `https://assets.finki-hub.com/` into memory, 30 s at most per file.
+   `students.json` is never fetched.
+4. It prints one JSON document: `workbook` (the path read), then per file
+   the rows on each side and the rows matched (`rows`), the rows on one
+   side only (`onlyLive`, `onlyProjected`), the rows whose match key
+   repeats on either side, which are not compared (`duplicateKeys`), the
+   number of differing values (`differingValues`), and per differing key
+   where its value differs, is live only or is projected only (`keys`). A
+   course and a staff member are matched by name, a room by location and
+   name.
+
+The output holds course names, keys, counts and workbook places only. For
+`courses.json` it lists the course names per key, never a professors or
+assistants text; a compared year key lists each course with both counts.
+For `staff.json` and `rooms.json` it gives counts, and each projected row
+without a live partner by its workbook place (`Кадар (Export) row 61`),
+never a staff or room value.
+
+| Code | First stderr line | Meaning |
+| --- | --- | --- |
+| 0 | none | Compared. Differences are reported on stdout, never as a failure. |
+| 1 | `Live check failed: <reason>` | The workbook cannot be read, the projection is refused (`staff.json row 12: required key title missing`), or a live file failed (`courses.json: HTTP 503`, `staff.json: unexpected response: <path>: <message>`, `rooms.json: timed out after 30 s`). |
+| 2 | `Live check refused: WORKBOOK_PATH not set` | No workbook named, or an argument given. |
+| 3 | `Live check blocked: <n> cases` | The cases the dry run reports, one `- [<code>] <place>: <fact>` line each; see [One-time workbook import](#one-time-workbook-import). |
