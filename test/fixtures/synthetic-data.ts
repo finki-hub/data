@@ -89,7 +89,6 @@ const makeCurriculum2023 = (
   name,
   url: `https://curriculum.example/2023/${id}`,
   code: null,
-  level: null,
   semester: null,
   prerequisites: null,
   state_kn: null,
@@ -114,7 +113,6 @@ const makeCurriculum2018 = (
   name,
   url: `https://curriculum.example/2018/${id}`,
   code: null,
-  level: null,
   semester: null,
   prerequisites: null,
   state_kn: null,
@@ -245,10 +243,13 @@ const makeCourses = (): readonly SyntheticRow[] => [
   }),
 ];
 
+// Curriculum codes in FINKI's form F<yy>L<level><W or S><nnn>: the
+// sheet's generation, the level the projection publishes, W for an odd
+// (winter) and S for an even (summer) semester, and a serial. The
+// duplicate, decoy and equivalent rows keep their marker levels 7 to 9.
 const makeCurriculum2023Rows = (): readonly SyntheticRow[] => [
   makeCurriculum2023(1, 'Alpha Course (2023)', {
-    code: 'SYN23-001',
-    level: 1,
+    code: 'F23L1W001',
     semester: 1,
     state_kn: 'mandatory',
     state_siis: 'elective',
@@ -260,22 +261,19 @@ const makeCurriculum2023Rows = (): readonly SyntheticRow[] => [
     channel: true,
   }),
   makeCurriculum2023(2, 'Alpha Course (2023)', {
-    code: 'SYN23-001-DUP',
-    level: 9,
+    code: 'F23L9W001',
     semester: 9,
     state_kn: 'duplicate-must-lose',
     channel: false,
   }),
   makeCurriculum2023(3, courseNames.alpha, {
-    code: 'SYN23-DECOY',
-    level: 8,
+    code: 'F23L8S900',
     semester: 8,
     state_kn: 'decoy-must-lose',
     channel: false,
   }),
   makeCurriculum2023(4, courseNames.beta, {
-    code: 'SYN23-002',
-    level: 2,
+    code: 'F23L2W002',
     semester: 3,
     prerequisites: 'SYN23-001',
     state_kn: 'elective',
@@ -283,15 +281,13 @@ const makeCurriculum2023Rows = (): readonly SyntheticRow[] => [
     channel: false,
   }),
   makeCurriculum2023(5, courseNames.gamma, {
-    code: 'SYN23-003',
-    level: 1,
+    code: 'F23L1S003',
     semester: 2,
     state_pit: 'mandatory',
     channel: false,
   }),
   makeCurriculum2023(6, courseNames.epsilon, {
-    code: 'SYN23-005',
-    level: 3,
+    code: 'F23L3W005',
     semester: 5,
     prerequisites: 'SYN23-002',
     state_kn: 'kn-state',
@@ -312,21 +308,18 @@ const makeCurriculum2023Rows = (): readonly SyntheticRow[] => [
     channel: null,
   }),
   makeCurriculum2023(8, courseNames.theta, {
-    code: 'SYN23-007',
-    level: 2,
+    code: 'F23L2S007',
     semester: 4,
     state_ki: 'mandatory',
     channel: true,
   }),
   makeCurriculum2023(9, courseNames.iota, {
-    code: 'SYN23-008',
-    level: 1,
+    code: 'F23L1W008',
     semester: 1,
     channel: false,
   }),
   makeCurriculum2023(10, 'Orphan Current Course', {
-    code: 'SYN23-ORPHAN',
-    level: 1,
+    code: 'F23L1W999',
     semester: 1,
     channel: true,
   }),
@@ -334,8 +327,7 @@ const makeCurriculum2023Rows = (): readonly SyntheticRow[] => [
 
 const makeCurriculum2018Rows = (): readonly SyntheticRow[] => [
   makeCurriculum2018(1, 'Alpha Legacy', {
-    code: 'SYN18-001',
-    level: 1,
+    code: 'F18L1S001',
     semester: 2,
     state_kn: 'mandatory',
     state_pit: 'elective',
@@ -343,29 +335,25 @@ const makeCurriculum2018Rows = (): readonly SyntheticRow[] => [
     channel: false,
   }),
   makeCurriculum2018(2, 'Alpha Legacy Duplicate', {
-    code: 'SYN18-001-DUP',
-    level: 9,
+    code: 'F18L9W001',
     semester: 9,
     channel: true,
   }),
   makeCurriculum2018(3, 'Beta Legacy Manual', {
-    code: 'SYN18-002-MANUAL',
-    level: 2,
+    code: 'F18L2S002',
     semester: 4,
     prerequisites: 'SYN18-001',
     state_kn: 'elective',
     channel: true,
   }),
   makeCurriculum2018(4, 'Beta Legacy Equivalent', {
-    code: 'SYN18-002-EQUIV',
-    level: 7,
+    code: 'F18L7W002',
     semester: 7,
     state_kn: 'equivalent-must-lose',
     channel: false,
   }),
   makeCurriculum2018(5, 'Epsilon Legacy', {
-    code: 'SYN18-005',
-    level: 3,
+    code: 'F18L3S005',
     semester: 6,
     prerequisites: 'SYN18-002-MANUAL',
     state_kn: 'kn-legacy',
@@ -378,34 +366,29 @@ const makeCurriculum2018Rows = (): readonly SyntheticRow[] => [
     channel: true,
   }),
   makeCurriculum2018(6, 'Zeta Legacy', {
-    code: 'SYN18-006',
-    level: 1,
+    code: 'F18L1W006',
     semester: 1,
     channel: false,
   }),
   makeCurriculum2018(7, 'Theta Legacy', {
-    code: 'SYN18-007',
-    level: 2,
+    code: 'F18L2W007',
     semester: 3,
     state_ke: 'mandatory',
     channel: false,
   }),
   makeCurriculum2018(8, 'Orphan Legacy Course', {
-    code: 'SYN18-ORPHAN',
-    level: 1,
+    code: 'F18L1W999',
     semester: 1,
     channel: true,
   }),
   makeCurriculum2018(9, 'Alpha Legacy', {
-    code: 'SYN18-001-LATER',
-    level: 9,
+    code: 'F18L9W101',
     semester: 9,
     state_kn: 'later-duplicate-must-lose',
     channel: true,
   }),
   makeCurriculum2018(10, courseNames.alpha, {
-    code: 'SYN18-DECOY',
-    level: 8,
+    code: 'F18L8S900',
     semester: 8,
     state_kn: 'decoy-must-lose',
     channel: true,

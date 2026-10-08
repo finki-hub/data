@@ -66,6 +66,7 @@ const config = [
       'directus/flows/count-history-page.cjs',
       'src/import/labels.ts',
       'src/workbook-enrollment-reader.ts',
+      'test/curriculum-code.test.ts',
       'test/fixtures/stress-oracle.ts',
       'test/relational-export-helpers.ts',
     ],

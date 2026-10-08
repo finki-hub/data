@@ -266,10 +266,10 @@ const followsRenames = async ({ state, target }) => {
   });
   const [entry] = await get(
     target,
-    '/items/curriculum_entries?fields=id&filter[code][_eq]=SYN23-007',
+    '/items/curriculum_entries?fields=id&filter[code][_eq]=F23L2S007',
   );
   await patch(target, `/items/curriculum_entries/${entry.id}`, {
-    code: 'SYN23-007-R',
+    code: 'F23L4S007',
   });
   assert.equal(await isReady(target), true, 'no recalculation');
   const files = await prepared(target);
@@ -281,7 +281,8 @@ const followsRenames = async ({ state, target }) => {
   const before = JSON.parse(state.local[0].body);
   const renamed = rows.find((row) => row.name === theta);
   assert.equal(renamed.professors, 'Prof. Theta Renamed');
-  assert.equal(renamed['2023-code'], 'SYN23-007-R');
+  assert.equal(renamed['2023-code'], 'F23L4S007');
+  assert.equal(renamed['2023-level'], '4');
   assert.deepEqual(
     rows.filter((row) => row.name !== theta),
     before.filter((row) => row.name !== theta),

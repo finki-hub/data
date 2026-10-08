@@ -32,7 +32,6 @@ const curriculumBase = {
   channel: flag,
   code: text,
   id,
-  level: integer,
   name: text,
   prerequisites: text,
   semester: integer,

@@ -2,6 +2,7 @@ import type { Candidates, CourseCandidate } from './candidates.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
 import { type Finding, finding, sortFindings } from './findings.js';
+import { codeFindings } from './preflight-codes.js';
 import { courseCandidates } from './preflight-courses.js';
 import { buildIndexes } from './preflight-indexes.js';
 import { rowCandidates } from './preflight-rows.js';
@@ -48,6 +49,7 @@ export const preflight = (
       ...courses.findings,
       ...linked.findings,
       ...unreferencedFindings(rows, courses.candidates),
+      ...codeFindings(rows),
     ]),
   };
 };

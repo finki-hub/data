@@ -35,18 +35,19 @@ const createAll = async (target, collection, rows) => {
   return ids;
 };
 
-const entryOf = (generation, index) => {
-  const prefix = `SYN${generation.code.slice(2)}M`;
-  return {
-    channel: index % 4 !== 0,
-    code: `${prefix}-${pad(index)}`,
-    generation: generation.id,
-    level: 1 + (index % 3),
-    name: `${measuredCourse(index)} (${generation.code})`,
-    prerequisites: index % 5 === 0 ? null : `${prefix}-${pad(index - 1)}`,
-    semester: 1 + (index % 8),
-  };
-};
+// A code in FINKI's form F<yy>L<level>W<nnnn>, whose level the
+// projection publishes.
+const codeOf = (generation, index) =>
+  `F${generation.code.slice(-2)}L${String(1 + (index % 3))}W${pad(index)}`;
+
+const entryOf = (generation, index) => ({
+  channel: index % 4 !== 0,
+  code: codeOf(generation, index),
+  generation: generation.id,
+  name: `${measuredCourse(index)} (${generation.code})`,
+  prerequisites: index % 5 === 0 ? null : codeOf(generation, index - 1),
+  semester: 1 + (index % 8),
+});
 
 // Two of every three programs of the entry's generation carry a state.
 const statesOf = (entries, programs) =>

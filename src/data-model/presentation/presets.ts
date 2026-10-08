@@ -28,7 +28,6 @@ export const curriculumBookmark: TabularPreset = tabularPresetSchema.parse({
         'generation',
         'code',
         'name',
-        'level',
         'semester',
         'channel',
         'course_links',
@@ -95,7 +94,7 @@ const defaultViews: readonly TabularPreset[] = [
   ),
   defaultView(
     'curriculum_entries',
-    ['generation', 'code', 'name', 'level', 'semester', 'channel'],
+    ['generation', 'code', 'name', 'semester', 'channel'],
     ['generation', 'catalog_order'],
   ),
   defaultView(

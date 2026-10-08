@@ -4,6 +4,7 @@ import {
   channel,
   curriculum,
   enrollmentCount,
+  level,
   professors,
   programState,
 } from './course-values.js';
@@ -25,11 +26,12 @@ import {
 // are required: the consumers reject a file with a row lacking one.
 
 // name, code, level, semester, channel and prerequisite of a generation,
-// from the course's linked entry of that generation.
+// from the course's linked entry of that generation; the level is the one
+// its code gives.
 const entryFields: readonly BlockField[] = [
   { rule: 'text', suffix: 'name', value: curriculum('entry.name') },
   { rule: 'text', suffix: 'code', value: curriculum('entry.code') },
-  { rule: 'number', suffix: 'level', value: curriculum('entry.level') },
+  { rule: 'number', suffix: 'level', value: level },
   { rule: 'number', suffix: 'semester', value: curriculum('entry.semester') },
   {
     rule: 'numeric_boolean',
@@ -75,7 +77,6 @@ const entryColumns = [
   'generation',
   'name',
   'code',
-  'level',
   'semester',
   'prerequisites',
   'channel',

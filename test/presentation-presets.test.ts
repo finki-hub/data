@@ -128,6 +128,20 @@ describe('presets', () => {
     ]);
   });
 
+  test('lists curriculum entries without a level column, in the default view and the curriculum bookmark', () => {
+    expect(
+      defaultViewOf('curriculum_entries')?.layout_query.tabular.fields,
+    ).toEqual(['generation', 'code', 'name', 'semester', 'channel']);
+    expect(curriculumBookmark.layout_query.tabular.fields).toEqual([
+      'generation',
+      'code',
+      'name',
+      'semester',
+      'channel',
+      'course_links',
+    ]);
+  });
+
   test('shows a course with its tags, curriculum links and assignments in the default Courses view', () => {
     expect(defaultViewOf('courses')?.layout_query.tabular.fields).toEqual([
       'name',

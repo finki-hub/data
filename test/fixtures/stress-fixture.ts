@@ -144,6 +144,11 @@ type PlannedEntry = {
 
 const states = ['Задолжителен', 'Изборен', null] as const;
 
+// The code of a course's entry in a generation, in FINKI's form
+// F<yy>L<level>W<nnn>: level 1 to 3 by the course's index.
+const entryCode = (generation: string, index: number): string =>
+  `F${generation.slice(-2)}L${String(1 + (index % 3))}W${String(index).padStart(3, '0')}`;
+
 // One curriculum entry per course and generation with a curriculum (four
 // courses in five get one), with a state per program of that generation
 // (two in three programs) and the course's link; all from the created
@@ -166,9 +171,8 @@ export const curriculumPlan = (
             course: course.id,
             entry: {
               channel: index % 4 === 0,
-              code: `SYN-${generation.code}-${String(index).padStart(4, '0')}`,
+              code: entryCode(generation.code, index),
               generation: generation.id,
-              level: 1 + (index % 3),
               name: `${course.name} (${generation.code})`,
               prerequisites: index % 6 === 0 ? 'Синтетички предуслов' : null,
               semester: 1 + (index % 8),

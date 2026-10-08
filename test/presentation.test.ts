@@ -292,6 +292,13 @@ describe('curriculum generations in the forms', () => {
     ]);
   });
 
+  test('shows an entry code with the note that its L-digit is the level, and no level field', () => {
+    expect(fieldNames('curriculum_entries')).not.toContain('level');
+    expect(effectiveFieldMeta('curriculum_entries', 'code')['note']).toBe(
+      'The digit after L is the level: F18L3W055 is level 3.',
+    );
+  });
+
   test('offers only the programs of the entry generation, locked until one is chosen', () => {
     const states = effectiveFieldMeta('curriculum_entries', 'program_states');
 

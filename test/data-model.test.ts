@@ -427,6 +427,7 @@ describe('domain keys', () => {
     for (const trigger of [
       '"course_curricula_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_curricula"',
       '"curriculum_entries_generation_guard" BEFORE INSERT OR UPDATE OF "generation" ON "curriculum_entries"',
+      '"curriculum_entries_code_guard" BEFORE INSERT OR UPDATE OF "code" ON "curriculum_entries"',
       '"curriculum_entry_program_states_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "program" ON "curriculum_entry_program_states"',
       '"course_equivalency_members_generation_guard" BEFORE INSERT OR UPDATE OF "entry", "generation" ON "course_equivalency_members"',
       '"study_programs_generation_guard" BEFORE UPDATE OF "generation" ON "study_programs"',
@@ -437,6 +438,7 @@ describe('domain keys', () => {
 
     expect(curriculumGuards.map(({ table }) => table)).toEqual([
       'course_curricula',
+      'curriculum_entries',
       'curriculum_entries',
       'curriculum_entry_program_states',
       'course_equivalency_members',
@@ -451,8 +453,8 @@ describe('domain keys', () => {
     expect(sql).toContain(
       '"course_equivalency_members" WHERE "entry" = NEW."id"',
     );
-    // Eight curriculum refusals and one per key guard (key-guards.ts).
-    expect(sql.match(/ERRCODE = 'foreign_key_violation'/gu)).toHaveLength(11);
+    // Nine curriculum refusals and one per key guard (key-guards.ts).
+    expect(sql.match(/ERRCODE = 'foreign_key_violation'/gu)).toHaveLength(12);
   });
 });
 

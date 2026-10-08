@@ -10,10 +10,11 @@ import {
 
 // The database guards of the curriculum generations: each row that names
 // a generation, directly or through its entry or program, must name the
-// same one, and only a generation with a curriculum takes entries. Studio
-// filters its pickers by generation as a convenience; these triggers are
-// the boundary for every writer (REST, Flows, imports, raw SQL); each
-// refuses as every row guard does (row-guards.ts).
+// same one, and only a generation with a curriculum takes entries. A
+// non-empty entry code must give a level. Studio filters its pickers by
+// generation as a convenience; these triggers are the boundary for every
+// writer (REST, Flows, imports, raw SQL); each refuses as every row guard
+// does (row-guards.ts).
 //
 // A guard of a dependant row reads its parent FOR SHARE. The guard of a
 // parent counts the dependants while its UPDATE holds the parent row (FOR
@@ -23,6 +24,10 @@ import {
 // neither passes on the other's uncommitted state.
 
 const newGeneration = 'NEW."generation"';
+
+// The start of a code that gives a level, `F<yy>L<level>`: the SQL form of
+// codeLevel (exports/curriculum-code.ts), pinned to it by a test.
+const levelCodeStart = '^F[0-9]{2}L[0-9]';
 
 const guards: readonly Guard[] = [
   {
@@ -55,6 +60,15 @@ const guards: readonly Guard[] = [
     declarations: 'curriculum boolean;\n  dependants integer;',
     events: 'INSERT OR UPDATE OF "generation"',
     name: 'curriculum_entries_generation_guard',
+    table: 'curriculum_entries',
+  },
+  {
+    body: `IF COALESCE(NEW."code", '') <> '' AND NEW."code" !~ '${levelCodeStart}' THEN
+    ${refuse('curriculum_entries', rowMessage('curriculum_entries', 'code', 'has no level: expected F<yy>L<level>'), keyFacts('code', 'NEW."code"', [fact(['entry', 'NEW."id"'])]))}
+  END IF;`,
+    declarations: '',
+    events: 'INSERT OR UPDATE OF "code"',
+    name: 'curriculum_entries_code_guard',
     table: 'curriculum_entries',
   },
   {

@@ -10,8 +10,9 @@ const curriculumBaseFields = [
   },
   requiredField('Предмет', 'name'),
   field('Линк', 'url', 'text'),
+  // The level is the one the code gives (codeLevel), so the Ниво column
+  // beside it is not read.
   field('Код', 'code'),
-  field('Ниво', 'level', 'integer'),
   { ...field('Семестар', 'semester', 'integer'), sourceColumn: 6 },
   field('Предуслови', 'prerequisites', 'text'),
 ] as const;

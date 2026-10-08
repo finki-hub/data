@@ -17,8 +17,8 @@ const migrationNamePattern = /^[a-z][a-z0-9-]{0,63}$/u;
 export const isMigrationName = (name: string | undefined): name is string =>
   name !== undefined && migrationNamePattern.test(name);
 
-// Composite domain keys, join indexes, the curriculum generation guards
-// (curriculum-guards.ts), the key guards of published key rows
+// Composite domain keys, join indexes, the curriculum generation and code
+// guards (curriculum-guards.ts), the key guards of published key rows
 // (key-guards.ts) and the write guards of the derived, candidate and
 // staging tables (from the collection-role registry) that the Directus
 // schema API cannot express.

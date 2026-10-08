@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ExportDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 
+import { codeLevel } from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-code.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import {
   labelBytes,
@@ -308,6 +309,23 @@ describe('the years, generations and programs follow the model and the created r
 
     expect(programsOfStates).toEqual(new Set([91, 92]));
     expect(plan[0]?.states.map(({ program }) => program)).toEqual([92, 91]);
+
+    // Each code gives a level (1 to 3), so the curriculum guard accepts it.
+    const entryCodes = plan.map(({ entry }) => String(entry['code']));
+
+    expect(entryCodes).toEqual([
+      'F28L1W000',
+      'F28L2W001',
+      'F28L3W002',
+      'F28L1W003',
+      'F28L3W005',
+      'F28L1W006',
+      'F28L2W007',
+      'F28L3W008',
+    ]);
+    expect(entryCodes.map((code) => codeLevel(code))).toEqual([
+      1, 2, 3, 1, 3, 1, 2, 3,
+    ]);
     expect(
       plan.every(({ course, link }) => link['course'] === course),
     ).toBeTruthy();

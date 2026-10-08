@@ -69,12 +69,29 @@ export const lifecycleDataset = (
 
 const studentSheets = ['Индекси - Година', 'Индекси - Други'] as const;
 
-// The worksheet column of every source field: its fixed position, or the
-// next column no fixed position takes.
+// The curriculum sheets' Ниво column, between Код and the semester as the
+// real sheets lay it out. The import does not read it (the level is the
+// one the code gives), so a row fills it only when a test gives the row a
+// `level`.
+const levelColumn: FieldSpec = {
+  kind: 'integer',
+  source: 'Ниво',
+  sourceColumn: 5,
+  target: 'level',
+};
+
+const unreadColumns: ReadonlyMap<WorkbookKey, readonly FieldSpec[]> = new Map([
+  ['curriculum_2018', [levelColumn]],
+  ['curriculum_2023', [levelColumn]],
+]);
+
+// The worksheet column of every source field and every unread column of
+// the sheet: its fixed position, or the next column no fixed position
+// takes.
 const columnsOf = (
   spec: WorkbookSpec,
 ): ReadonlyArray<{ readonly column: number; readonly field: FieldSpec }> => {
-  const { fields } = spec;
+  const fields = [...spec.fields, ...(unreadColumns.get(spec.key) ?? [])];
   const taken = new Set(fields.flatMap((field) => field.sourceColumn ?? []));
   let next = 1;
   return fields.map((field) => {

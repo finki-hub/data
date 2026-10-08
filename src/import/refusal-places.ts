@@ -17,6 +17,12 @@ export type RefusalContext = {
 
 export const quoted = (text: null | string): string => `«${text ?? ''}»`;
 
+// The header of the column a field of a workbook part is read from.
+export const headerOf = (key: WorkbookKey, target: string): string =>
+  workbookSpecs
+    .find((spec) => spec.key === key)
+    ?.fields.find((field) => field.target === target)?.source ?? target;
+
 // The sheet a workbook part is read from.
 export const sheetOf = (key: WorkbookKey): string => {
   const source = workbookSpecs.find((spec) => spec.key === key)?.source;

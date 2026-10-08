@@ -47,8 +47,9 @@ const applyMigration = async (
   }
 };
 
-// Applies the composite domain keys and the generation guard that Directus
-// cannot express through its schema API.
+// Applies the composite domain keys and the row guards (the curriculum
+// generation and code guards among them) that Directus cannot express
+// through its schema API.
 export const applySchemaConstraints = (
   request: DirectusRequest,
 ): Promise<MigrationResult> =>

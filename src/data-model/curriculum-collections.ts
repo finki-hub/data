@@ -43,8 +43,9 @@ export const curriculumCollections: readonly ModelCollection[] = [
       scalar('name', 'string', { nullable: false }),
       scalar('catalog_order', 'integer'),
       scalar('url', 'text'),
-      scalar('code', 'string'),
-      scalar('level', 'integer'),
+      scalar('code', 'string', {
+        note: 'The digit after L is the level: F18L3W055 is level 3.',
+      }),
       scalar('semester', 'integer'),
       scalar('prerequisites', 'text'),
       scalar('channel', 'boolean'),

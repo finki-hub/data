@@ -1,4 +1,5 @@
 import { listText } from '../text.js';
+import { sheetPlace } from '../workbook-values.js';
 import {
   type BlockerCode,
   type Finding,
@@ -10,6 +11,7 @@ import { nonEmpty } from './labels.js';
 import {
   courseRow,
   courseRowNamed,
+  headerOf,
   quoted,
   type RefusalContext,
   rowsAt,
@@ -17,8 +19,9 @@ import {
 } from './refusal-places.js';
 
 // Every case that blocks the import, one line per code in one form:
-// `<sheet> row N[ «course»]: <fact>[; <fact>]`, naming the rows and the
-// course it concerns. What to change is in README, per code.
+// `<sheet> row N[, column "X"][ «course»]: <fact>[; <fact>]`, naming the
+// rows, the cell and the course it concerns. What to change is in README,
+// per code.
 
 type Line = (finding: Finding, context: RefusalContext) => string;
 
@@ -139,6 +142,22 @@ const unlinkedValues: Line = (finding, context) => {
   return placed(place, [`${generation} name empty`, values.join(', ')]);
 };
 
+// A curriculum code that gives no level, by its cell, quoted.
+const codeWithoutLevel: Line = ({ collection, ids }, context) => {
+  const id = ids[0] ?? 0;
+  const place = context.places[collection][id - 1];
+  const code =
+    collection === 'curriculum_2018' || collection === 'curriculum_2023'
+      ? context.rows[collection][id - 1]?.code
+      : null;
+  return placed(
+    place === undefined
+      ? rowsAt(collection, ids, context)
+      : sheetPlace(place.sheet, place.row, headerOf(collection, 'code')),
+    [`${quoted(code ?? null)} has no level digit (expected F<yy>L<level>)`],
+  );
+};
+
 const lines: Readonly<Record<BlockerCode, Line>> = {
   ambiguous_course_name: (finding, context) => {
     const courses = relatedIds(finding, 'courses');
@@ -164,6 +183,7 @@ const lines: Readonly<Record<BlockerCode, Line>> = {
     placed(rowsAt(finding.collection, finding.ids, context), [
       `index matches several students: ${rowsAt('students', relatedIds(finding, 'students'), context)}`,
     ]),
+  curriculum_code_without_level: codeWithoutLevel,
   duplicate_role_row: (finding, context) =>
     placed(rowsAt(finding.collection, finding.ids, context), [
       'same year, person and position',

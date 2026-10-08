@@ -41,6 +41,7 @@ import {
   unmatchedLabel,
   unmatchedLegacy,
   withLinkedLabel,
+  workbookStore,
 } from './relational-export-helpers.js';
 
 const assetsSchema = z.strictObject({
@@ -520,18 +521,19 @@ describe('year configuration', () => {
 });
 
 describe('relation values resolved on read', () => {
-  test('publishes a renamed staff member and a renamed entry without any rebuild', async () => {
+  test('publishes a renamed staff member and a renamed entry without any rebuild, the level from the new code', async () => {
     const store = await importedStore();
     edit(store, 'staff', renamed('name', 'Prof. Theta', 'Prof. Theta Renamed'));
     edit(
       store,
       'curriculum_entries',
-      renamed('code', 'SYN23-007', 'SYN23-007-R'),
+      renamed('code', 'F23L2S007', 'F23L4S007'),
     );
     const theta = courseNamed(await projected(store), courseNames.theta);
 
     expect(theta).toMatchObject({
-      '2023-code': 'SYN23-007-R',
+      '2023-code': 'F23L4S007',
+      '2023-level': '4',
       professors: 'Prof. Theta Renamed',
     });
   });
@@ -639,6 +641,52 @@ describe('relation values resolved on read', () => {
   });
 });
 
+describe('the curriculum level from the code', () => {
+  test('publishes the level the linked entry code gives, and no level without a code or for a code that gives none', async () => {
+    const store = await importedStore();
+    edit(store, 'curriculum_entries', renamed('code', 'F23L1S003', ''));
+    edit(store, 'curriculum_entries', renamed('code', 'F23L2W002', 'L2W002'));
+    edit(store, 'curriculum_entries', renamed('code', 'F23L3W005', 'F23L5W5'));
+    const assets = await projected(store);
+
+    expect(
+      [courseNames.gamma, courseNames.beta, courseNames.epsilon].map((name) => {
+        const row = courseNamed(assets, name);
+        return [row?.['2023-code'], row?.['2023-level']];
+      }),
+    ).toEqual([
+      [undefined, undefined],
+      ['L2W002', undefined],
+      ['F23L5W5', '5'],
+    ]);
+  });
+
+  test('publishes the parity data from a workbook whose Ниво disagrees with every code', async () => {
+    // Every curriculum row states Ниво 6, which no code gives (Theta's
+    // F23L2S007 publishes 2023-level 2).
+    const base = parityDataset();
+    const { store, workbook } = await workbookStore({
+      ...base,
+      curriculum_2018: base.curriculum_2018.map((row) => ({
+        ...row,
+        level: 6,
+      })),
+      curriculum_2023: base.curriculum_2023.map((row) => ({
+        ...row,
+        level: 6,
+      })),
+    });
+    const levelCells = (sheet: string) =>
+      [1, 2].map((row) => workbook.getWorksheet(sheet)?.getCell(row, 5).value);
+
+    expect(levelCells('Предмети - 2018')).toEqual(['Ниво', 6]);
+    expect(levelCells('Предмети - 2023')).toEqual(['Ниво', 6]);
+    await expect(publishedData(store)).resolves.toEqual(
+      await expectedData('parity'),
+    );
+  });
+});
+
 // A generation 2028 added in Studio: two programs (CD sorts before ab),
 // an entry with a state in each, linked to course 1. Nothing is published
 // unless asked.
@@ -680,10 +728,9 @@ const withGeneration = (
     ...rows,
     {
       channel: false,
-      code: 'SYN28-001',
+      code: 'F28L1S001',
       generation: 90,
       id: 950,
-      level: 1,
       name: 'Synthetic 2028 Entry',
       prerequisites: null,
       semester: 2,
@@ -814,7 +861,7 @@ describe('curriculum generations and study programs as rows', () => {
     expect(course).toMatchObject({
       '2028-available': 'TRUE',
       '2028-channel': '0',
-      '2028-code': 'SYN28-001',
+      '2028-code': 'F28L1S001',
       '2028-credits': '6',
       '2028-level': '1',
       '2028-name': 'Synthetic 2028 Entry',

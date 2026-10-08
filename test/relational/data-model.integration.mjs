@@ -29,9 +29,10 @@ const missingUrlPattern = /DIRECTUS_SEARCH_TEST_URL/u;
 const loopbackPattern = /loopback-only/u;
 const migrationsPath = '/finki-hub-data-operations/migrations';
 const courseLinkPath = '/relations/course_curricula/course';
-// Keys and indexes, the curriculum generation guards (a function and a
-// trigger each), then the shared write guard function and one statement
-// trigger per guarded table of the collection-role registry.
+// Keys and indexes, the curriculum guards (generation and code) and the
+// key guards (a function and a trigger each), then the shared write guard
+// function and one statement trigger per guarded table of the
+// collection-role registry.
 const expectedStatements = schemaConstraints.statements.length;
 const longLabel = `Synthetic history entry ${'x'.repeat(300)}`;
 const needsDatabase =

@@ -41,8 +41,8 @@ import { get, patch } from './history-index-helpers.mjs';
 // rows. A generated workbook import seeds them; the public files stay the
 // committed parity files until a new generation and its programs are
 // published, whose sorts readiness keeps unique; the database guards
-// refuse every row that names the wrong generation and a new code of a
-// published row.
+// refuse every row that names the wrong generation, an entry code that
+// gives no level and a new code of a published row.
 
 const nothingToResume = () => Promise.resolve();
 const coursesFile = 'courses.json';
@@ -379,6 +379,20 @@ const refusesWrongRows = async ({ context, target }) => {
       invalidKey,
     ],
     [
+      'entry code without a level',
+      post('/items/curriculum_entries', {
+        code: 'SYN28-002',
+        generation,
+        name: 'Synthetic 2028 Entry Without Level',
+      }),
+      invalidKey,
+    ],
+    [
+      'entry code changed to one without a level',
+      patchOf(`/items/curriculum_entries/${entry}`, { code: 'F28-L1' }),
+      invalidKey,
+    ],
+    [
       'member entry of another generation',
       patchOf(`/items/course_equivalency_members/${member.id}`, { entry }),
       invalidKey,
@@ -419,6 +433,11 @@ const refusesWrongRows = async ({ context, target }) => {
     answered,
     attempts.map(([label, , code]) => [label, code]),
   );
+  // An entry code needs only the F<yy>L<level> start, whatever its
+  // generation digits and serial, and may be empty.
+  for (const code of ['F18L3S07', '', 'F28L1S001']) {
+    await patch(target, `/items/curriculum_entries/${entry}`, { code });
+  }
   // The unpublished new generation takes a new code, and back.
   const renamed = `/items/curriculum_generations/${generation}`;
   await patch(target, renamed, { code: `${newGeneration}x` });
@@ -473,7 +492,7 @@ test('manages curriculum generations and study programs as rows on the fixture',
             () => publishesOnlyWhenPublished(scenario),
           );
           await t.test(
-            'wrong generations, duplicates and new key texts of published rows are refused over REST',
+            'wrong generations, entry codes without a level, duplicates and new key texts of published rows are refused over REST',
             () => refusesWrongRows(scenario),
           );
         } finally {

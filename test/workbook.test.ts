@@ -279,24 +279,31 @@ describe('generated synthetic workbook', () => {
     }
   });
 
-  test('reads the label of a merged semester block on every row of the block, and every other column as the row holds it', async () => {
+  test('reads the label of a merged semester block on every row of the block, and every other column but Ниво as the row holds it', async () => {
     const base = lifecycleDataset();
     // The first three 2023 rows are one semester block, labelled on its
-    // first row; the two rows it continues leave their level empty too.
-    // The third to fifth 2018 rows are one block of the 2018 sheet.
+    // first row; the third to fifth 2018 rows are one block of the 2018
+    // sheet. Every 2023 row fills Ниво, which the level no longer comes
+    // from.
     const dataset = {
       ...base,
       curriculum_2018: base.curriculum_2018.map((row, index) =>
         index === 3 || index === 4 ? { ...row, catalog_order: null } : row,
       ),
-      curriculum_2023: base.curriculum_2023.map((row, index) =>
-        index === 1 || index === 2
-          ? { ...row, catalog_order: null, level: null }
-          : row,
-      ),
+      curriculum_2023: base.curriculum_2023.map((row, index) => {
+        const stated = { ...row, level: 7 };
+        return index === 1 || index === 2
+          ? { ...stated, catalog_order: null }
+          : stated;
+      }),
     };
     const workbook = await reloaded(syntheticWorkbook(dataset));
     const { data } = readWorkbookContent(workbook);
+    const levelCell = (row: number) =>
+      workbook.getWorksheet('Предмети - 2023')?.getRow(row).getCell(5).value;
+
+    expect([levelCell(1), levelCell(2)]).toEqual(['Ниво', 7]);
+    expect(data.curriculum_2023.filter((row) => 'level' in row)).toEqual([]);
 
     expect(workbook.getWorksheet('Предмети - 2023')?.model.merges).toEqual([
       'A2:A4',
@@ -309,17 +316,6 @@ describe('generated synthetic workbook', () => {
     ]);
     expect(data.curriculum_2018.map((row) => row['catalog_order'])).toEqual([
       1, 2, 3, 3, 3, 6, 7, 8, 10,
-    ]);
-    expect(data.curriculum_2023.map((row) => row['level'])).toEqual([
-      1,
-      null,
-      null,
-      1,
-      3,
-      null,
-      2,
-      1,
-      1,
     ]);
     expect(data).toEqual(workbookData(dataset));
   });

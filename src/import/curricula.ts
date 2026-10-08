@@ -25,9 +25,10 @@ const sheetsOf = (
 ];
 
 // One curriculum_entries row per curriculum sheet row, orphans and
-// duplicates included: every column copied literally (an empty string
+// duplicates included: every column read copied literally (an empty string
 // stays an empty string; the projection decides what a public file
-// omits), in the generation of its sheet. Every 2023 row, then every 2018
+// omits), in the generation of its sheet. The sheet's Ниво is not read:
+// the level is the one the code gives. Every 2023 row, then every 2018
 // row, in workbook order.
 export const planCurriculumEntries = (
   rows: WorkbookRows,
@@ -41,7 +42,6 @@ export const planCurriculumEntries = (
           channel: row.channel,
           code: row.code,
           generation: ref('curriculum_generations', generationOfSheet(sheet)),
-          level: row.level,
           name: row.name,
           prerequisites: row.prerequisites,
           semester: row.semester,

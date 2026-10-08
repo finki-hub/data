@@ -205,16 +205,16 @@ run the one-time import (below) in place of step 4.
    `- [<code>] <place>: <fact>`. A value no column can hold has the code
    `unstorable` and is placed by sheet, row and column, never quoted. A
    blocking case is placed by the sheet and row it concerns, with the
-   course after its row; the table below says what to change for each
-   code. The dry run exits with code 1 when the workbook cannot be read.
-   The lines quote course and curriculum names, curriculum codes, 2018
-   labels, credits and availabilities only, never a staff or student
-   value; names, codes and labels stand between « and », so a stray space
-   in a cell shows. For example:
+   course after its row (a curriculum code by its cell instead); the table
+   below says what to change for each code. The dry run exits with code 1
+   when the workbook cannot be read. The lines quote course and curriculum
+   names, curriculum codes, 2018 labels, credits and availabilities only,
+   never a staff or student value; names, codes and labels stand between
+   « and », so a stray space in a cell shows. For example:
 
    ```text
    Import dry run blocked: 2 cases
-   - [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»
+   - [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 «F23L2W009»
    - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE
    ```
 
@@ -227,6 +227,7 @@ run the one-time import (below) in place of step 4.
    | `ambiguous_curriculum_2018`, `ambiguous_curriculum_2023` | Give each subject its own name; when the rows list one subject, give every row its code. |
    | `ambiguous_legacy_equivalency` | Make the 2018 names of the equivalency rows agree, or fill in the course's 2018-name to choose one. |
    | `ambiguous_student_index` | Correct the index, or keep one student row for it. |
+   | `curriculum_code_without_level` | Correct the code to start with `F`, the generation's two digits, `L` and the level, such as `F18L3W055`, or clear it. |
    | `duplicate_role_row` | Delete the repeated rows. |
    | `invalid_regex` | Correct the pattern. For the default pattern, add a valid pattern for each year without one, or rename the course. |
    | `invalid_source_row` | Fill in the missing cell, or delete the row. |
@@ -261,16 +262,17 @@ Directus untouched:
   string over 255 characters, an integer out of range, an empty required
   value such as a staff member's title, position or email or a room's
   type), named by its sheet, row and column and never quoted, and each
-  case below, named by its code, sheet and rows. The cases are a relationship with more than one candidate (a
-  course name two courses carry, a curriculum name matching curriculum
-  rows of different subjects, a council index two students share, two
-  different 2018 labels for one course), a row the model cannot hold (a
-  course without a name, a pattern that is no Unicode regular expression,
-  a repeated council or dean's office row), and the values the published
-  files carry that no relational row could hold: credits of a generation
-  without its name (`unlinked_generation_values`), a curriculum name,
-  2018 override or 2018 equivalency label that matches no curriculum row
-  (`unmatched_curriculum_2023_label`, `missing_override_target`,
+  case below, named by its code, sheet and rows. The cases are a
+  relationship with more than one candidate (a course name two courses
+  carry, a curriculum name matching curriculum rows of different subjects,
+  a council index two students share, two different 2018 labels for one
+  course), a row the model cannot hold (a course without a name, a pattern
+  that is no Unicode regular expression, a repeated council or dean's
+  office row, a curriculum code that gives no level), and the values the
+  published files carry that no relational row could hold: credits of a
+  generation without its name (`unlinked_generation_values`), a curriculum
+  name, 2018 override or 2018 equivalency label that matches no curriculum
+  row (`unmatched_curriculum_2023_label`, `missing_override_target`,
   `unmatched_curriculum_2018_label`). Correct the workbook and run the
   import again; the project is still empty.
 - The curriculum sheets are laid out by semester (column A is merged over
@@ -336,6 +338,7 @@ rule fix is a warning whose places `fixes` lists):
 | `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
 | `ambiguous_student_index` | refuses | Several students carry the index of a council row. |
+| `curriculum_code_without_level` | refuses | A curriculum row, linked or not, has a non-empty code that does not start with `F`, two digits, `L` and a digit, so it gives no level (the database refuses such a code as well); the line places it by sheet, row and column `Код`. |
 | `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
 | `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, or the `<name>-<year>` default) is no Unicode regular expression. |
 | `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
@@ -583,7 +586,7 @@ relational rows straight from them:
 | `Кадар (Export)` | `staff` |
 | `Простории (Export)` | `rooms` |
 | `Индекси - Година`, `Индекси - Други` | `students` |
-| `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included |
+| `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included; `Ниво` is not read, because the level is the digit after `L` in the code |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row |
 | `Наставен Кадар` | `teaching_assignments` role rows (course, staff or label, role, order) |
 | `Слушатели` | `academic_years` from the labels heading its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
@@ -711,6 +714,12 @@ mappings, and the users carrying it (the derived index, read-only).
   the course's professor assignments in order; see [Publishing](#publishing).
 - **Available** on a curriculum link is on or off, never empty; a new link
   starts on.
+- The **Code** of a curriculum entry gives its level, the digit after `L`
+  (`F18L3W055` is level 3); there is no Level field. The database refuses a
+  code that does not start with `F`, two digits, `L` and a digit (400
+  `INVALID_FOREIGN_KEY` on `code`) from every writer. Only that start is
+  read: `F18L3S07` is level 3, and the two digits are not compared with the
+  generation. An empty code is allowed and publishes no code and no level.
 - **Title**, **Position** and **Email** of a staff member and **Type** of a
   room are required, because `staff.json` and `rooms.json` carry them on
   every row; see [Publishing](#publishing).
@@ -1302,7 +1311,8 @@ How `courses.json` projects the relational rows into its existing keys:
   (newest first by `sort`; the link's availability, FALSE for a course
   without a link of that generation, so every course carries it) and a
   block `<code>-name`,
-  `-code`, `-level`, `-semester`, `-channel`, `-prerequisite`, then its
+  `-code`, `-level` (the digit after `L` in the entry's code, left out
+  without a code), `-semester`, `-channel`, `-prerequisite`, then its
   state keys and `<code>-credits` (the definition declares the 2018 block
   with its credits before its states, the order today's file has), valued
   from the course's curriculum link of that generation and its entry; a
@@ -1717,8 +1727,12 @@ one (`enrollment_rule_missing`).
    `has_curriculum`, `sort`), then its `study_programs` rows (`generation`,
    `code`, `name`, `description`, `sort`). Both stay unpublished.
 2. Create the generation's `curriculum_entries` and their program states
-   (the program picker offers only the generation's programs), link courses
-   in the course form's **Curricula** list, and add equivalency members of the
+   (the program picker offers only the generation's programs). A code
+   starts with `F`, two digits (the generation's), `L` and the level, as in
+   `F28L1W001`: the database refuses a non-empty code without that start,
+   so codes of another scheme need `codeLevel` (`exports/curriculum-code.ts`)
+   and its guard (`curriculum-guards.ts`) changed first. Link courses in
+   the course form's **Curricula** list, and add equivalency members of the
    generation where they apply. Browse them with **Curriculum by
    generation** narrowed by the Generation filter; the Needs review views
    show the new rows too. No bookmark and no setup rerun is needed.

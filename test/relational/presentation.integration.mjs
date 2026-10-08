@@ -200,12 +200,12 @@ const editsCourseThroughRelations = async (target, state) => {
     name: 'Synthetic Presentation Course',
   });
   const entry2018 = await createItem(target, 'curriculum_entries', {
-    code: 'SYN-2018',
+    code: 'F18L1W001',
     generation: generations['2018'],
     name: 'Synthetic Presentation Entry 2018',
   });
   const entry2023 = await createItem(target, 'curriculum_entries', {
-    code: 'SYN-2023',
+    code: 'F23L1W001',
     generation: generations['2023'],
     name: 'Synthetic Presentation Entry 2023',
   });

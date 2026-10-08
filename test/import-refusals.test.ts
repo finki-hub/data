@@ -153,8 +153,8 @@ const ordinalsOf = (
 describe('a subject a curriculum sheet lists in several semester blocks', () => {
   test('links the course and the equivalency member to the first listing when every listing carries the code, with no finding, and imports every listing', async () => {
     const dataset = semesterBlocks({
-      current: 'SYN23-002',
-      legacy: 'SYN18-005',
+      current: 'F23L2W002',
+      legacy: 'F18L3S005',
     });
     const { blocks, content, lines, plan } = await readBack(dataset);
     const parity = planOf(parityDataset());
@@ -218,7 +218,7 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
 
   test('refuses listings with different codes, naming the course, the rows and the codes', async () => {
     const { lines, plan } = await readBack(
-      semesterBlocks({ current: 'SYN23-009', legacy: 'SYN18-009' }),
+      semesterBlocks({ current: 'F23L2W009', legacy: 'F18L3W009' }),
     );
 
     expect(countByCode(plan.blockers)).toEqual({
@@ -226,8 +226,8 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
       ambiguous_curriculum_2023: 1,
     });
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2018] Предмети (Export) row 6 «Epsilon Course»: 2018 name «Epsilon Legacy» (from Еквиваленции row 6) matches Предмети - 2018 rows 7, 9; codes: row 7 «SYN18-005», row 9 «SYN18-009»',
-      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»',
+      '- [ambiguous_curriculum_2018] Предмети (Export) row 6 «Epsilon Course»: 2018 name «Epsilon Legacy» (from Еквиваленции row 6) matches Предмети - 2018 rows 7, 9; codes: row 7 «F18L3S005», row 9 «F18L3W009»',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 «F23L2W009»',
     ]);
     expect(countByCode(plan.warnings)).toMatchObject({
       ambiguous_equivalency_entry: 2,
@@ -240,7 +240,7 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
       'utf8',
     );
     const dataset = semesterBlocks(
-      { current: 'SYN23-009', legacy: 'SYN18-005' },
+      { current: 'F23L2W009', legacy: 'F18L3S005' },
       withCourse(parityDataset(), courseNames.gamma, {
         available_2018: true,
         credits_2018: 6,
@@ -249,7 +249,7 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
     const { lines } = await readBack(dataset);
 
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-009»',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 «F23L2W009»',
       '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE',
     ]);
 
@@ -260,21 +260,48 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
 
   test('refuses listings of which one carries no code', async () => {
     const { lines } = await readBack(
-      semesterBlocks({ current: null, legacy: 'SYN18-005' }),
+      semesterBlocks({ current: null, legacy: 'F18L3S005' }),
     );
 
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 none',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 none',
     ]);
   });
 
   test('refuses listings whose codes differ only by a space, quoting each code so the space shows', async () => {
     const { lines } = await readBack(
-      semesterBlocks({ current: 'SYN23-002 ', legacy: 'SYN18-005' }),
+      semesterBlocks({ current: 'F23L2W002 ', legacy: 'F18L3S005' }),
     );
 
     expect(lines).toEqual([
-      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «SYN23-002», row 9 «SYN23-002 »',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 «F23L2W002 »',
+    ]);
+  });
+});
+
+// The curriculum rows with the code of the named row replaced.
+const coded = (rows: readonly SyntheticRow[], name: string, code: string) =>
+  rows.map((row) => (row['name'] === name ? { ...row, code } : row));
+
+describe('a curriculum code that gives no level', () => {
+  test('refuses the import, placing each code by its sheet, row and column, linked or not', async () => {
+    const base = parityDataset();
+    const { lines, plan } = await readBack({
+      ...base,
+      curriculum_2018: coded(
+        base.curriculum_2018,
+        'Orphan Legacy Course',
+        'SYN18-ORPHAN',
+      ),
+      curriculum_2023: coded(base.curriculum_2023, courseNames.beta, 'F23-L2'),
+    });
+
+    expect(countByCode(plan.blockers)).toEqual({
+      curriculum_code_without_level: 2,
+    });
+    expect(lines).toEqual([
+      '- [curriculum_code_without_level] Предмети - 2018 row 9, column "Код": «SYN18-ORPHAN» has no level digit (expected F<yy>L<level>)',
+      '- [curriculum_code_without_level] Предмети - 2023 row 4, column "Код": «F23-L2» has no level digit (expected F<yy>L<level>)',
     ]);
   });
 });
@@ -372,8 +399,8 @@ const withPatterns = (
 describe('the refusal lines', () => {
   test('name the ambiguities of the synthetic dataset, each with its code, sheet, rows and course', () => {
     expect(linesOf(makeSyntheticDataset())).toEqual([
-      '- [ambiguous_curriculum_2018] Предмети (Export) row 2 «Alpha Course»: 2018 name «Alpha Legacy» (from Еквиваленции row 2) matches Предмети - 2018 rows 2, 10; codes: row 2 «SYN18-001», row 10 «SYN18-001-LATER»',
-      '- [ambiguous_curriculum_2023] Предмети (Export) row 2 «Alpha Course»: 2023 name «Alpha Course (2023)» matches Предмети - 2023 rows 2, 3; codes: row 2 «SYN23-001», row 3 «SYN23-001-DUP»',
+      '- [ambiguous_curriculum_2018] Предмети (Export) row 2 «Alpha Course»: 2018 name «Alpha Legacy» (from Еквиваленции row 2) matches Предмети - 2018 rows 2, 10; codes: row 2 «F18L1S001», row 10 «F18L9W101»',
+      '- [ambiguous_curriculum_2023] Предмети (Export) row 2 «Alpha Course»: 2023 name «Alpha Course (2023)» matches Предмети - 2023 rows 2, 3; codes: row 2 «F23L1W001», row 3 «F23L9W001»',
       '- [ambiguous_legacy_equivalency] Предмети (Export) row 2 «Alpha Course»: Еквиваленции rows 2, 3 give different 2018 names: «Alpha Legacy», «Alpha Legacy Duplicate»',
       '- [ambiguous_student_index] ФСС row 2: index matches several students: Индекси - Година, Индекси - Други rows 2, 3',
     ]);

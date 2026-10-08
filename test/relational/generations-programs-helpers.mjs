@@ -86,9 +86,8 @@ export const addGeneration = async (target, course) => {
   const [entry] = await created(target, '/items/curriculum_entries', [
     {
       channel: false,
-      code: 'SYN28-001',
+      code: 'F28L1S001',
       generation: generation.id,
-      level: 1,
       name: 'Synthetic 2028 Entry',
       semester: 2,
     },

@@ -1,5 +1,6 @@
 import type { Resolver, Row, RowContext } from './types.js';
 
+import { codeLevel } from './curriculum-code.js';
 import { unresolved } from './errors.js';
 import { idOf, pathValue, textOf } from './values.js';
 
@@ -66,6 +67,12 @@ export const curriculum =
 // of every published generation.
 export const availability = (context: RowContext, generation: Row): unknown =>
   curriculum('available')(context, generation) ?? false;
+
+// The course's level of a published generation: the level its linked
+// entry's code gives (codeLevel), null without a link, without a code or
+// for a code that gives none.
+export const level = (context: RowContext, generation: Row): unknown =>
+  codeLevel(textOf(curriculum('entry.code')(context, generation)));
 
 // The state of the course's linked entry of the generation in a published
 // program: the entry's state row of that program, null without one (an

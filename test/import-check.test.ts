@@ -522,6 +522,47 @@ describe('cases that refuse the import', () => {
   });
 });
 
+// The curriculum rows with the codes given by row name.
+const coded = (
+  rows: readonly SyntheticRow[],
+  byName: ReadonlyMap<string, null | string>,
+): readonly SyntheticRow[] =>
+  rows.map((row) => {
+    const code = byName.get(String(row['name']));
+    return code === undefined ? row : { ...row, code };
+  });
+
+describe('a curriculum code that gives no level', () => {
+  test('blocks every non-empty code without the F<yy>L<level> start, one case per row, linked or not, and passes an empty or missing code', () => {
+    const base = uniqueDataset();
+    const plan = planOf({
+      ...base,
+      curriculum_2018: coded(
+        base.curriculum_2018,
+        new Map([
+          ['Orphan Legacy Course', 'SYN18-ORPHAN'],
+          ['Zeta Legacy', null],
+        ]),
+      ),
+      curriculum_2023: coded(
+        base.curriculum_2023,
+        new Map([
+          [courseNames.beta, 'f23L2W002'],
+          [courseNames.gamma, 'F23L1S003'],
+        ]),
+      ),
+    });
+
+    expect(blockerCodes).toContain('curriculum_code_without_level');
+    expect(
+      plan.blockers.map(({ code, collection, ids }) => [code, collection, ids]),
+    ).toEqual([
+      ['curriculum_code_without_level', 'curriculum_2018', [8]],
+      ['curriculum_code_without_level', 'curriculum_2023', [3]],
+    ]);
+  });
+});
+
 describe('rows the import skips and warnings', () => {
   test('skips the earlier of two patterns of one course and year, and orphan rows', () => {
     expect(

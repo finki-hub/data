@@ -9,6 +9,7 @@ import {
   relatedIds,
   type RuleFixCode,
 } from './findings.js';
+import { headerOf } from './refusal-places.js';
 
 // Where each rule fix of the import applies, for the summary's `fixes`:
 // `<sheet> row N[, column "X"][, line L][ (used: row M)]`, from the
@@ -25,12 +26,6 @@ const rowOf = (
   places: WorkbookPlaces,
 ): null | SheetRow =>
   (id === undefined ? undefined : places[collection][id - 1]) ?? null;
-
-// The header of the course sheet column a course field is read from.
-const courseHeader = (target: string): string =>
-  workbookSpecs
-    .find((spec) => spec.key === 'courses')
-    ?.fields.find((field) => field.target === target)?.source ?? target;
 
 const placers: Readonly<Record<RuleFixCode, Placer>> = {
   // The later teaching row, and the row used instead.
@@ -62,7 +57,7 @@ const placers: Readonly<Record<RuleFixCode, Placer>> = {
     if (row === null || generation === undefined) {
       return null;
     }
-    const column = courseHeader(`available_${generation}`);
+    const column = headerOf('courses', `available_${generation}`);
     return { ...row, text: sheetPlace(row.sheet, row.row, column) };
   },
 };

@@ -196,8 +196,8 @@ describe('schema constraints', () => {
     expect(executed).toEqual([...schemaConstraints.statements]);
 
     // Eleven keys and indexes, a function and a trigger per curriculum
-    // generation guard and per key guard, then the write guards of the
-    // collection-role registry: one shared function and a statement
+    // guard (generation and code) and per key guard, then the write guards
+    // of the collection-role registry: one shared function and a statement
     // trigger per derived, candidate and staging table.
     const rowGuards = [...curriculumGuardStatements(), ...keyGuardStatements()];
     const fixed = 11 + rowGuards.length;

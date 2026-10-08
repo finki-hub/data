@@ -19,11 +19,17 @@ import {
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
 import { importWorkbook } from '../src/import-workbook.js';
+import { type ImportPlan, planImport } from '../src/import/plan.js';
+import { readWorkbookContent } from '../src/workbook.js';
 import {
   courseNames,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
-import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
+import {
+  lifecycleDataset,
+  reloaded,
+  syntheticWorkbook,
+} from './fixtures/synthetic-workbook.js';
 import { planOf } from './import-plan-helpers.js';
 import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
 
@@ -110,13 +116,10 @@ const countRows = (store: FakeStore): FakeItem[] => {
   });
 };
 
-// The relational rows of a dataset: the workbook import of it into an
-// empty fake project, with the count rows its rules produce. A dataset
-// the import refuses fails here.
-export const importedStore = async (
-  dataset: SyntheticDataset = parityDataset(),
-): Promise<FakeStore> => {
-  const plan = planOf(dataset);
+// The relational rows of an import plan: the workbook import of it into an
+// empty fake project, with the count rows its rules produce. A plan with
+// blockers fails here.
+const plannedStore = async (plan: ImportPlan): Promise<FakeStore> => {
   if (plan.blockers.length > 0) {
     throw new Error(
       `The import refuses the dataset: ${plan.blockers.map(({ code }) => code).join(', ')}`,
@@ -126,6 +129,21 @@ export const importedStore = async (
   await importWorkbook(fake.request, plan.collections, fake.io);
   fake.store.items.set('course_enrollments', countRows(fake.store));
   return fake.store;
+};
+
+// The relational rows of a dataset, planned from the rows the reader would
+// read from it.
+export const importedStore = (
+  dataset: SyntheticDataset = parityDataset(),
+): Promise<FakeStore> => plannedStore(planOf(dataset));
+
+// The relational rows of the workbook written from a dataset, saved and
+// read back as the import reads a file, with that workbook. Columns the
+// reader does not read (Ниво) are written and reach no row.
+export const workbookStore = async (dataset: SyntheticDataset) => {
+  const workbook = await reloaded(syntheticWorkbook(dataset));
+  const store = await plannedStore(planImport(readWorkbookContent(workbook)));
+  return { store, workbook };
 };
 
 export const edit = (

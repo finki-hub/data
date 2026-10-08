@@ -251,7 +251,7 @@ describe('curriculum entries and program states', () => {
     ]);
     expect(records.find(({ name }) => name === orphanLegacy)).toMatchObject({
       channel: true,
-      code: 'SYN18-ORPHAN',
+      code: 'F18L1W999',
       generation: generation('2018'),
     });
     expect(
