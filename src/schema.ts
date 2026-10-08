@@ -50,6 +50,10 @@ export type CollectionSource =
       readonly sheet: string;
     }
   | {
+      readonly kind: 'generation-columns';
+      readonly sheet: string;
+    }
+  | {
       readonly kind: 'rows';
       readonly sheet: string;
     }

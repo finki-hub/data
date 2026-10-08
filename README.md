@@ -587,7 +587,7 @@ relational rows straight from them:
 | `Простории (Export)` | `rooms` |
 | `Индекси - Година`, `Индекси - Други` | `students` |
 | `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included; `Ниво` is not read, because the level is the digit after `L` in the code |
-| `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row |
+| `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row; one label column per generation, headed `Предмет (<generation code>)`. The column of a label-only generation (2013) may be missing and then reads as empty; a missing column of a generation with a curriculum, a header that names no known generation, or a filled cell under an empty header stops the import (exit code 1) |
 | `Наставен Кадар` | `teaching_assignments` role rows (course, staff or label, role, order) |
 | `Слушатели` | `academic_years` from the labels heading its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
 | `Дискорд` | `discord_channels`, one row per channel pair |

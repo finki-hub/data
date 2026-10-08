@@ -27,7 +27,9 @@ type RowContext = {
   readonly sheet: string;
 };
 
-const readHeaders = (row: ExcelJS.Row): ReadonlyMap<string, number> => {
+// The column of each header text in a sheet's first row (a repeated text,
+// its last column).
+export const readHeaders = (row: ExcelJS.Row): ReadonlyMap<string, number> => {
   const positions = new Map<string, number>();
   row.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
     const text = readCellText(cell);

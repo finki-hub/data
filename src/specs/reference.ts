@@ -52,6 +52,10 @@ export const referenceWorkbookSpecs = [
     key: 'curriculum_2018',
     source: { kind: 'rows', sheet: 'Предмети - 2018' },
   },
+  // One label column per workbook generation, newest first, headed
+  // "Предмет (<code>)" and read into the generation's equivalency column.
+  // Only a generation without a curriculum may lack its column
+  // (src/workbook-generation-reader.ts).
   {
     fields: [
       field('Предмет (2023)', 'course_2023'),
@@ -59,7 +63,7 @@ export const referenceWorkbookSpecs = [
       field('Предмет (2013)', 'course_2013'),
     ],
     key: 'course_equivalencies',
-    source: { kind: 'rows', sheet: 'Еквиваленции' },
+    source: { kind: 'generation-columns', sheet: 'Еквиваленции' },
   },
   {
     fields: [

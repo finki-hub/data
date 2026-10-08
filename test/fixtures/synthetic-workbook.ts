@@ -193,12 +193,17 @@ const emptyColumns: ReadonlyMap<WorkbookKey, ReadonlySet<string>> = new Map([
 const isWritten = (key: WorkbookKey, field: FieldSpec): boolean =>
   emptyColumns.get(key)?.has(field.target) !== true;
 
+// A sheet of rows, or of one label column per generation: row 1 heads
+// each field's column, and each row of the dataset fills one row below.
 const writeRows = (
   workbook: ExcelJS.Workbook,
   spec: WorkbookSpec,
   rows: readonly SyntheticRow[],
 ): void => {
-  if (spec.source.kind !== 'rows') {
+  if (
+    spec.source.kind !== 'rows' &&
+    spec.source.kind !== 'generation-columns'
+  ) {
     return;
   }
   const sheet = workbook.addWorksheet(spec.source.sheet);
@@ -341,6 +346,7 @@ const writeSource = (
     case 'discord-pairs':
       writeDiscord(workbook, rows);
       return;
+    case 'generation-columns':
     case 'rows':
       writeRows(workbook, spec, rows);
       return;
@@ -360,6 +366,47 @@ export const syntheticWorkbook = (
   for (const spec of workbookSpecs) {
     writeSource(workbook, spec, { rows: dataset[spec.key], years });
   }
+  return workbook;
+};
+
+type HeadedColumn = { readonly header: string; readonly sheet: string };
+
+// The worksheet and the column a sheet heads with the given text.
+const headedColumn = (
+  workbook: ExcelJS.Workbook,
+  { header, sheet }: HeadedColumn,
+): { readonly column: number; readonly worksheet: ExcelJS.Worksheet } => {
+  const worksheet = workbook.getWorksheet(sheet);
+  const headers: string[] = [];
+  worksheet?.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
+    headers.push(cell.text);
+  });
+  const column = headers.indexOf(header) + 1;
+  if (worksheet === undefined || column === 0) {
+    throw new TypeError(`${sheet}: no column headed ${header}`);
+  }
+  return { column, worksheet };
+};
+
+// The workbook with the column a sheet heads with the given text deleted,
+// the columns after it moved left, as deleting it in the spreadsheet does.
+export const withoutColumn = (
+  workbook: ExcelJS.Workbook,
+  headed: HeadedColumn,
+): ExcelJS.Workbook => {
+  const { column, worksheet } = headedColumn(workbook, headed);
+  worksheet.spliceColumns(column, 1);
+  return workbook;
+};
+
+// The workbook with the header cell of that column cleared and the cells
+// below it kept.
+export const withHeaderCleared = (
+  workbook: ExcelJS.Workbook,
+  headed: HeadedColumn,
+): ExcelJS.Workbook => {
+  const { column, worksheet } = headedColumn(workbook, headed);
+  worksheet.getRow(1).getCell(column).value = null;
   return workbook;
 };
 

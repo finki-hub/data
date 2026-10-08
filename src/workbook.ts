@@ -17,6 +17,7 @@ import {
   readEnrollmentYears,
   readFormulaPatternCells,
 } from './workbook-enrollment-reader.js';
+import { readGenerationColumns } from './workbook-generation-reader.js';
 import { readDiscordPairs, readStudentPairs } from './workbook-pair-reader.js';
 import { readStudyPrograms } from './workbook-program-reader.js';
 import { readRows } from './workbook-row-reader.js';
@@ -35,6 +36,8 @@ const readSource = (
       return readCourseEnrollmentPatterns(workbook, spec.source);
     case 'discord-pairs':
       return readDiscordPairs(workbook, spec.source);
+    case 'generation-columns':
+      return readGenerationColumns(workbook, spec, spec.source);
     case 'rows':
       return readRows(workbook, spec, spec.source);
     case 'student-pairs':

@@ -16,6 +16,7 @@ import {
 import {
   lifecycleDataset,
   syntheticWorkbook,
+  withoutColumn,
 } from './fixtures/synthetic-workbook.js';
 import { withCourse } from './import-plan-helpers.js';
 import {
@@ -412,6 +413,60 @@ describe('workbooks the import refuses', () => {
     );
     expect(run.requests.created).toBe(0);
     expect(run.fake.calls).toEqual([]);
+  });
+});
+
+describe('the Еквиваленции generation columns', () => {
+  test('dry-run reads an Еквиваленции sheet without the label-only 2013 column, and fails without a curriculum generation column', async () => {
+    const savedWithout = (header: string) =>
+      saved(
+        withoutColumn(syntheticWorkbook(lifecycleDataset()), {
+          header,
+          sheet: 'Еквиваленции',
+        }),
+        `without ${header}.xlsx`,
+      );
+    const run = cli();
+
+    await expect(
+      run.run(['--dry-run'], {
+        WORKBOOK_PATH: await savedDataset(lifecycleDataset()),
+      }),
+    ).resolves.toBe(exitCodes.ok);
+
+    const full = checkSummary.parse(JSON.parse(run.stdout.join('\n')));
+    run.stdout.length = 0;
+
+    await expect(
+      run.run(['--dry-run'], {
+        WORKBOOK_PATH: await savedWithout('Предмет (2013)'),
+      }),
+    ).resolves.toBe(exitCodes.ok);
+
+    const summary = checkSummary.parse(JSON.parse(run.stdout.join('\n')));
+    // Every 2013 label goes, and with it the one row that held only a 2013
+    // label.
+    const labels2013 = lifecycleDataset().course_equivalencies.filter(
+      (row) => row['course_2013'] !== null,
+    ).length;
+
+    expect(summary.blockers).toEqual({});
+    expect(summary.rows).toEqual({
+      ...full.rows,
+      course_equivalencies: (full.rows['course_equivalencies'] ?? 0) - 1,
+      course_equivalency_members:
+        (full.rows['course_equivalency_members'] ?? 0) - labels2013,
+    });
+    expect(run.stderr).toEqual([]);
+    await expect(
+      run.run(['--dry-run'], {
+        WORKBOOK_PATH: await savedWithout('Предмет (2018)'),
+      }),
+    ).resolves.toBe(exitCodes.failed);
+    expect(run.stderr).toEqual([
+      'Import failed: Еквиваленции row 1: missing column "Предмет (2018)"',
+    ]);
+    expect(run.requests.created).toBe(0);
   });
 });
 
