@@ -185,6 +185,13 @@ describe('the one-time workbook import', () => {
         courses.has(Number(row['course'])),
       ),
     ).toBeTruthy();
+
+    // Every staff link names a staff row by the id Directus gave it.
+    const staff = new Set(rowsIn(fake.store, 'staff').map(({ id }) => id));
+    const links = rowsIn(fake.store, 'teaching_assignments');
+
+    expect(links).toHaveLength(11);
+    expect(links.filter((row) => !staff.has(Number(row['staff'])))).toEqual([]);
   });
 
   test('accepts the empty schema setup creates, coordination singleton included', async () => {

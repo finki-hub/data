@@ -22,8 +22,9 @@ import {
 // read. Its curriculum keys come from published rows: every published
 // generation with a curriculum adds its availability key and a block of
 // keys, and every published program of it a state key. A new generation
-// or program needs no change here. The name and every availability key
-// are required: the consumers reject a file with a row lacking one.
+// or program needs no change here. The name, the professors and every
+// availability key are required: the consumers reject a file with a row
+// lacking one.
 
 // name, code, level, semester, channel and prerequisite of a generation,
 // from the course's linked entry of that generation; the level is the one
@@ -87,7 +88,7 @@ const entryColumns = [
 export const courses: ExportDefinition = {
   fields: [
     { key: 'name', required: true, rule: 'text', value: 'name' },
-    { key: 'professors', rule: 'text', value: professors },
+    { key: 'professors', required: true, rule: 'text', value: professors },
     // The published-year rule: one key per published academic year, its
     // label, newest first, valued by the course's count for that year.
     { keys: 'published_years', rule: 'number', value: enrollmentCount },
@@ -119,14 +120,7 @@ export const courses: ExportDefinition = {
     assignments: {
       by: 'course',
       collection: 'teaching_assignments',
-      fields: [
-        'id',
-        'course',
-        'role',
-        'sort',
-        'display_override',
-        'staff.name',
-      ],
+      fields: ['id', 'course', 'role', 'sort', 'staff.name'],
       filter: { course: { _nnull: true } },
       sort: ['course', 'sort', 'id'],
     },
@@ -155,7 +149,7 @@ export const courses: ExportDefinition = {
   },
   rows: {
     collection: 'courses',
-    fields: ['id', 'name', 'tags', 'professors_override'],
+    fields: ['id', 'name', 'tags', 'status'],
     sort: ['id'],
   },
 };

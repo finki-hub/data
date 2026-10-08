@@ -14,7 +14,7 @@ import {
 import { readObject, trigger } from './publish-flow-helpers.mjs';
 import { createMany } from './relational/automatic-processing-helpers.mjs';
 import { readiness } from './relational/export-projection-helpers.mjs';
-import { count, get } from './relational/history-index-helpers.mjs';
+import { count, get, patch } from './relational/history-index-helpers.mjs';
 import {
   snapshotPath,
   syntheticRows,
@@ -46,7 +46,8 @@ const professorsOf = async (s3, courseName) => {
 
 // Two synthetic staff members, with the title, position and email
 // staff.json requires, and a professor assignment of the first course to
-// the first of them, published over REST as the starting point.
+// the first of them, the course made Active so the name is published,
+// published over REST as the starting point.
 const seedsAssignment = async ({ s3, state, target }) => {
   const staff = await createMany(
     target,
@@ -71,6 +72,7 @@ const seedsAssignment = async ({ s3, state, target }) => {
       staff: staff[0],
     },
   ]);
+  await patch(target, `/items/courses/${course.id}`, { status: 'active' });
   const run = await trigger(target, publishAssetsFlowId);
   assert.equal(run.status, 200, JSON.stringify(run.body));
   assert.equal(await professorsOf(s3, course.name), staffNames[0]);

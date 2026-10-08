@@ -7,10 +7,13 @@ import {
 
 // The course sheet also carries each course's 2023 and 2018 name, credits
 // and availability: the import resolves them into curriculum links
-// (src/import/course-links.ts), never into columns of the course.
+// (src/import/course-links.ts), never into columns of the course. Its
+// professors cell is read only where it is typed over the formula, and
+// its assistants cell as shown: a typed row's teaching comes from these
+// two cells instead of Наставен Кадар (src/import/preflight-teaching.ts).
 const courseFields = [
   requiredField('name', 'name'),
-  literalField('professors', 'professors_override', 'text'),
+  literalField('professors', 'typed_professors', 'text'),
   field('2023-available', 'available_2023', 'boolean'),
   field('2018-available', 'available_2018', 'boolean'),
   field('tags', 'tags'),
@@ -18,6 +21,7 @@ const courseFields = [
   field('2023-credits', 'credits_2023', 'integer'),
   literalField('2018-name', 'name_2018_override'),
   field('2018-credits', 'credits_2018', 'integer'),
+  field('assistants', 'export_assistants', 'text'),
 ] as const;
 
 export const publicWorkbookSpecs = [

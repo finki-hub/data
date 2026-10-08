@@ -165,6 +165,7 @@ describe('target collections', () => {
       ]),
     ).toEqual([
       ['name', 'string', false],
+      ['status', 'enum', false],
       ['professors_override', 'text', true],
       ['tags', 'string', true],
     ]);

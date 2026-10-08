@@ -9,6 +9,7 @@ import {
   professorsText,
   teachingTexts,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
+import { findField } from './data-model-test-helpers.js';
 
 // The teaching values courses.json publishes, declared once: what each
 // status publishes as professors and assistants, from the staff names of
@@ -71,12 +72,36 @@ const table: readonly Row[] = [
   },
 ];
 
+// The stored values of a model enum, its default and whether it may be
+// empty.
+const valuesOf = (collection: string, field: string) => {
+  const found = findField(collection, field);
+  return found.kind === 'enum'
+    ? {
+        defaultValue: found.defaultValue,
+        nullable: found.nullable,
+        values: found.choices.map(({ value }) => value),
+      }
+    : null;
+};
+
 describe('the teaching values', () => {
   test('declare the statuses, roles, status texts and separator once', () => {
     expect(courseStatuses).toEqual(['active', 'all_professors', 'inactive']);
     expect(assignmentRoles).toEqual(['professor', 'assistant']);
     expect(teachingTexts).toEqual({ allProfessors, inactive });
     expect(labelSeparator).toBe('\n');
+  });
+
+  test('give the model its course status and staff roles, a course starting Active', () => {
+    expect(valuesOf('courses', 'status')).toEqual({
+      defaultValue: 'active',
+      nullable: false,
+      values: [...courseStatuses],
+    });
+    expect(valuesOf('teaching_assignments', 'role')?.values).toEqual([
+      ...assignmentRoles,
+    ]);
   });
 
   test.each(table)(

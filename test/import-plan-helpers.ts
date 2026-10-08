@@ -54,15 +54,16 @@ export const staffRow = (id: number, name: string): SyntheticRow => ({
   consultations: null,
 });
 
-export const withStaff = (
+// The dataset with the cells of the course's teaching rows replaced.
+export const withTeaching = (
   dataset: SyntheticDataset,
-  names: readonly string[],
+  course: string,
+  cells: Readonly<Record<string, null | string>>,
 ): SyntheticDataset => ({
   ...dataset,
-  staff: [
-    ...dataset.staff,
-    ...names.map((name, index) => staffRow(100 + index, name)),
-  ],
+  teaching_assignments: dataset.teaching_assignments.map((row) =>
+    row['course_name'] === course ? { ...row, ...cells } : row,
+  ),
 });
 
 export const withAssignment = (

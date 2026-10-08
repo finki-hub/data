@@ -190,7 +190,7 @@ describe('content rows', () => {
 
     expect(recordsIn(plan, 'courses')[1]).toEqual({
       name: courseNames.beta,
-      professors_override: 'Prof. Beta Override',
+      status: 'active',
       tags: '',
     });
     expect(recordsIn(plan, 'staff')).toHaveLength(dataset.staff.length);
@@ -481,33 +481,20 @@ describe('equivalencies and their members', () => {
 });
 
 describe('teaching role rows', () => {
-  test('plans an unresolved text as one review row per role, never splitting on spaces, and skips an orphan row', () => {
+  test('plans the links of every course a teaching row or a typed export row names, and skips an orphan row', () => {
     const dataset = uniqueDataset();
     const rows = rowsIn(planOf(dataset), 'teaching_assignments');
-    const ofRow = (id: number) =>
-      rows
-        .filter(({ origin }) => origin?.id === id)
-        .map(({ record }) => record);
+    const courses = rows.map(({ record }) => record['course']);
 
-    expect(rows).toHaveLength(10);
-    expect(ofRow(1)).toEqual([
-      {
-        course: course(1),
-        display_override: 'Prof. Zed Alpha, Prof. Abe Alpha',
-        role: 'professor',
-        sort: 1,
-        staff: null,
-      },
-      {
-        course: course(1),
-        display_override: 'Asst. Alpha One; Asst. Alpha Two',
-        role: 'assistant',
-        sort: 1,
-        staff: null,
-      },
-    ]);
-    expect(ofRow(3).map(({ role }) => role)).toEqual(['professor']);
-    expect(ofRow(4).map(({ role }) => role)).toEqual(['assistant']);
-    expect(ofRow(5)).toEqual([]);
+    // Alpha 3, Beta 1, Gamma 1, Zeta 1, Theta 2, Iota 3; Delta and
+    // Epsilon replace every name by their status text.
+    expect(rows).toHaveLength(11);
+    expect(courses).toEqual(
+      [1, 1, 1, 2, 3, 6, 7, 7, 8, 8, 8].map((id) => course(id)),
+    );
+    expect(rows.map(({ origin }) => origin?.source)).not.toContain(undefined);
+    expect(
+      rows.every(({ record }) => !('display_override' in record)),
+    ).toBeTruthy();
   });
 });

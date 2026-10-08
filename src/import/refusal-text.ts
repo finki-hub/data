@@ -17,6 +17,7 @@ import {
   rowsAt,
   sheetOf,
 } from './refusal-places.js';
+import { teachingLines } from './refusal-teaching.js';
 
 // Every case that blocks the import, one line per code in one form:
 // `<sheet> row N[, column "X"][ «course»]: <fact>[; <fact>]`, naming the
@@ -179,6 +180,7 @@ const lines: Readonly<Record<BlockerCode, Line>> = {
       `${rowsAt('course_equivalencies', rows, context)} give different 2018 names: ${listText([...labels].map(quoted))}`,
     ]);
   },
+  ambiguous_staff_name: teachingLines.ambiguous_staff_name,
   ambiguous_student_index: (finding, context) =>
     placed(rowsAt(finding.collection, finding.ids, context), [
       `index matches several students: ${rowsAt('students', relatedIds(finding, 'students'), context)}`,
@@ -188,6 +190,7 @@ const lines: Readonly<Record<BlockerCode, Line>> = {
     placed(rowsAt(finding.collection, finding.ids, context), [
       'same year, person and position',
     ]),
+  inactive_course_assistants: teachingLines.inactive_course_assistants,
   invalid_regex: invalidRegex,
   invalid_source_row: (finding, context) =>
     placed(rowsAt(finding.collection, finding.ids, context), [
@@ -212,6 +215,7 @@ const lines: Readonly<Record<BlockerCode, Line>> = {
       `2023 name ${quoted(nonEmpty(courseRow(id, context)?.name_2023))} matches no row of ${sheetOf('curriculum_2023')}`,
     ]);
   },
+  unmatched_staff_name: teachingLines.unmatched_staff_name,
 };
 
 // A blocking case by its sheets and rows and the course it concerns.

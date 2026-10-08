@@ -3,7 +3,7 @@ import type {
   WorkbookItem,
   WorkbookKey,
 } from '../schema.js';
-import type { Candidates } from './candidates.js';
+import type { Candidates, CourseCandidate } from './candidates.js';
 
 import { findModelCollection } from '../data-model/collections.js';
 import { linkedRow } from './labels.js';
@@ -50,6 +50,16 @@ export const contentRows = (
       { id: index + 1, source },
     ),
   );
+
+// The teaching status of a course row, decided from its teaching cells.
+export const courseStatus = (candidates: readonly CourseCandidate[]) => {
+  const statuses = new Map(
+    candidates.map(({ id, teaching }) => [id, teaching.status]),
+  );
+  return (id: number): PlannedRecord => ({
+    status: statuses.get(id) ?? null,
+  });
+};
 
 // The course of an equivalency row, when its 2023 label names exactly
 // one course.

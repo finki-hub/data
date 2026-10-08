@@ -1,8 +1,9 @@
 // The teaching values of courses.json, declared once: a course's status,
 // the roles of its staff links, the texts a status publishes in place of
-// names, and the separator between names. The workbook import
-// (src/import/teaching-cells.ts) reads them from here. Pure: it imports
-// nothing.
+// names, and the separator between names. The data model
+// (src/data-model/content-collections.ts), the workbook import
+// (src/import/teaching-cells.ts) and the projection (course-values.ts)
+// read them from here. Pure: it imports nothing.
 
 // Active publishes names from the course's staff links. All professors
 // publishes its text as professors; assistants still come from the links.

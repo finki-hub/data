@@ -455,6 +455,23 @@ describe('field presentation', () => {
     ).toEqual(['needs_mapping', 'mapped', 'ignored']);
   });
 
+  test('shows the course status first in the staff group, as a required dropdown starting Active', () => {
+    expect(findFieldGroup('courses', 'staff')?.members).toEqual([
+      'status',
+      'assignments',
+      'professors_override',
+    ]);
+    expect(choicesOf('courses', 'status')).toEqual([
+      { text: 'Active', value: 'active' },
+      { text: 'All professors', value: 'all_professors' },
+      { text: 'Inactive', value: 'inactive' },
+    ]);
+    expect(effectiveFieldMeta('courses', 'status')).toMatchObject({
+      display: 'labels',
+      required: true,
+    });
+  });
+
   test('makes every relation list searchable and orders the sortable ones', () => {
     expect(relationLists.length).toBeGreaterThan(0);
     expect(

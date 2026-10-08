@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { assignmentRoles } from '../directus/extensions/directus-extension-data-operations/src/exports/course-values.js';
+import { assignmentRoles } from '../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
 import { ruleMode } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import {
   curriculumPlan,
@@ -115,25 +115,19 @@ const seedReferenceRows = async (target, declarations, count) => {
   return created;
 };
 
-// A professor for two courses in three and an assistant for every other
-// course, from the created staff (none without staff rows); every tenth
-// course shows a literal label instead of the staff member's name.
+// A professor for every course, so no Active course blocks publishing
+// (course_without_professor), and an assistant for every other course,
+// from the created staff (none without staff rows).
 const seedAssignments = (target, courses, staff) => {
   if (staff.length === 0) return Promise.resolve([]);
   const [professor, assistant] = assignmentRoles;
   const rows = courses.flatMap((course, index) => [
-    ...(index % 3 === 2
-      ? []
-      : [
-          {
-            course: course.id,
-            display_override:
-              index % 10 === 0 ? 'Synthetic Guest Lecturer' : null,
-            role: professor,
-            sort: 1,
-            staff: staff[index % staff.length],
-          },
-        ]),
+    {
+      course: course.id,
+      role: professor,
+      sort: 1,
+      staff: staff[index % staff.length],
+    },
     ...(index % 2 === 0
       ? [
           {

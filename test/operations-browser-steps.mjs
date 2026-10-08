@@ -57,7 +57,8 @@ const dialogs = '#dialog-outlet';
 const freeRow = Math.max(...defaultPanels.map(({ height, y }) => y + height));
 
 // Three courses, a new unpublished academic year and a generated snapshot
-// CSV of synthetic users uploaded into the private folder.
+// CSV of synthetic users uploaded into the private folder. The courses are
+// All professors, so they publish without a staff link.
 export const seedRows = async (
   target,
   state,
@@ -65,11 +66,14 @@ export const seedRows = async (
 ) => {
   const files = await get(target, '/files?fields=id&limit=-1');
   state.fileIdsBefore = new Set(files.map(({ id }) => id));
-  const courses = await createMany(target, 'courses', [
-    { name: 'Synthetic Browser Course A' },
-    { name: 'Synthetic Browser Course B' },
-    { name: 'Synthetic Browser Course C' },
-  ]);
+  const courses = await createMany(
+    target,
+    'courses',
+    ['A', 'B', 'C'].map((letter) => ({
+      name: `Synthetic Browser Course ${letter}`,
+      status: 'all_professors',
+    })),
+  );
   const [year] = await createMany(target, 'academic_years', [
     { label: yearLabel, published: false, sort: 95 },
   ]);

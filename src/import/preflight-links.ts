@@ -9,8 +9,7 @@ import {
   type FindingCode,
 } from './findings.js';
 import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
-import { type Indexes, usedAssignment } from './preflight-indexes.js';
-import { assignmentStaff, staffFindings } from './preflight-staff.js';
+import { type Indexes } from './preflight-indexes.js';
 
 type Linked = {
   readonly findings: readonly Finding[];
@@ -110,43 +109,23 @@ const equivalencies = (
   };
 };
 
-// Every teaching row becomes role rows (course, staff, role, display
-// text): its course by label, and each staff text resolved. A row naming
-// no course is skipped, so its texts are not reported. A later row of a
-// course one row already names is no candidate: it is neither planned
-// nor checked (the course reports it, duplicateAssignment).
+// The course of every teaching row, by label: a row naming no course is
+// skipped, and a name several courses carry blocks it. The course reads
+// the cells of the row it uses (preflight-teaching.ts).
 const assignments = (
   rows: WorkbookRows,
   indexes: Indexes,
-): {
-  readonly candidates: Candidates['assignments'];
-  readonly findings: readonly Finding[];
-} => {
-  const results = rows.teaching_assignments.flatMap((row) => {
-    const label = nonEmpty(row.course_name);
-    const linked = courseLink(
-      { collection: 'teaching_assignments', id: row.id, label },
-      { indexes, orphan: 'orphan_assignment' },
-    );
-    const unique = linked.link.resolution === 'unique';
-    if (unique && usedAssignment(label, indexes) !== row.id) {
-      return [];
-    }
-    const staff = assignmentStaff(row, indexes.staff);
-    return [
-      {
-        candidate: { course: linked.link, id: row.id, staff },
-        findings: [
-          ...linked.findings,
-          ...(unique ? staffFindings(row, staff) : []),
-        ],
-      },
-    ];
-  });
-  return {
-    candidates: results.map(({ candidate }) => candidate),
-    findings: results.flatMap(({ findings }) => findings),
-  };
-};
+): readonly Finding[] =>
+  rows.teaching_assignments.flatMap(
+    (row) =>
+      courseLink(
+        {
+          collection: 'teaching_assignments',
+          id: row.id,
+          label: nonEmpty(row.course_name),
+        },
+        { indexes, orphan: 'orphan_assignment' },
+      ).findings,
+  );
 
 export const linkedRows = { assignments, equivalencies };

@@ -15,7 +15,12 @@ import {
   sortFindings,
 } from './findings.js';
 import { planGenerations, planPrograms } from './generations.js';
-import { contentRows, councilLinks, equivalencyLinks } from './plan-content.js';
+import {
+  contentRows,
+  councilLinks,
+  courseStatus,
+  equivalencyLinks,
+} from './plan-content.js';
 import { type PlannedCollection } from './planned.js';
 import { preflight } from './preflight.js';
 import { planAcademicYears, planEnrollmentRules } from './rules.js';
@@ -54,10 +59,10 @@ const formulaCellFinding = (cell: SheetCell): Finding =>
 
 // Pure: the up-front check `npm run import` and `npm run import:dry-run`
 // share, before anything reaches Directus, and the plan of the parsed
-// workbook. The seeds come first, then the content rows, the courses, the
-// curriculum entries and their program states, the course links, the
-// enrollment rules, the teaching role rows, the equivalencies with their
-// members and the council.
+// workbook. The seeds come first, then the content rows, the courses with
+// their status, the curriculum entries and their program states, the
+// course links, the enrollment rules, the teaching role rows, the
+// equivalencies with their members and the council.
 export const planImport = ({
   academicYears,
   data,
@@ -84,6 +89,7 @@ export const planImport = ({
       rows: contentRows(
         { collection: 'courses', source: 'courses' },
         data.courses,
+        courseStatus(candidates.courses),
       ),
     },
     { collection: 'curriculum_entries', rows: planCurriculumEntries(rows) },
@@ -101,7 +107,7 @@ export const planImport = ({
     },
     {
       collection: 'teaching_assignments',
-      rows: planTeachingAssignments(candidates.assignments),
+      rows: planTeachingAssignments(candidates.courses),
     },
     {
       collection: 'course_equivalencies',

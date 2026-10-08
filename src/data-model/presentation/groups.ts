@@ -24,7 +24,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'staff',
     headerIcon: 'co_present',
-    members: ['assignments', 'professors_override'],
+    members: ['status', 'assignments', 'professors_override'],
     sort: 3,
     start: 'open',
   },

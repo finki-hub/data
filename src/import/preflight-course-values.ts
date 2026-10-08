@@ -4,11 +4,7 @@ import type { CourseRow } from './workbook-rows.js';
 
 import { detailed, type Finding, finding, type PartRows } from './findings.js';
 import { isValidPattern, nonEmpty } from './labels.js';
-import {
-  type Indexes,
-  patternKey,
-  usedAssignment,
-} from './preflight-indexes.js';
+import { type Indexes, patternKey } from './preflight-indexes.js';
 
 // The rule of one course and year: the last pattern the workbook names
 // for them applies, and every earlier one is skipped. A last row with an
@@ -90,28 +86,4 @@ export const rulesOf = (
     );
   }
   return { findings, value: results.map(({ rule }) => rule) };
-};
-
-// Several teaching rows of one course (a name one course carries; a name
-// several carry blocks each row as ambiguous): one warning per later row,
-// naming that row, the course and the row used.
-export const duplicateAssignment = (
-  course: CourseRow,
-  name: string,
-  indexes: Indexes,
-): readonly Finding[] => {
-  const used = usedAssignment(nonEmpty(name), indexes);
-  if (used === undefined || indexes.courses.get(name)?.length !== 1) {
-    return [];
-  }
-  return (indexes.assignments.get(name) ?? [])
-    .filter((id) => id !== used)
-    .map((id) =>
-      detailed(finding('duplicate_assignment', 'teaching_assignments', [id]), {
-        related: [
-          { collection: 'courses', ids: [course.id] },
-          { collection: 'teaching_assignments', ids: [used] },
-        ],
-      }),
-    );
 };

@@ -97,17 +97,15 @@ export const rowCandidates = (
   readonly candidates: RowCandidates;
   readonly findings: readonly Finding[];
 } => {
-  const assignments = linkedRows.assignments(rows, indexes);
   const members = council(rows, indexes);
   const equivalencies = linkedRows.equivalencies(rows, indexes);
   return {
     candidates: {
-      assignments: assignments.candidates,
       council: members.candidates,
       equivalencies: equivalencies.candidates,
     },
     findings: [
-      ...assignments.findings,
+      ...linkedRows.assignments(rows, indexes),
       ...members.findings,
       ...equivalencies.findings,
       ...patternFindings(rows, indexes, new Set(academicYears)),

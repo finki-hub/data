@@ -137,10 +137,9 @@ const nameOnly = (dataset: SyntheticDataset): SyntheticDataset => ({
 
 // The warnings of the imported parity fixture: its three equivalencies
 // without a course, its two equivalency labels without an entry (Alpha's
-// decoy 2018 label, the orphan 2023 label), the six review labels of its
-// assignments and its council member whose index matched no student.
+// decoy 2018 label, the orphan 2023 label) and its council member whose
+// index matched no student.
 const baselineWarnings = {
-  assignment_review_label: 6,
   council_member_unresolved: 1,
   equivalency_entry_unresolved: 2,
   equivalency_without_course: 3,
@@ -176,7 +175,6 @@ describe('the readiness decision', () => {
       blockers: [],
       issueCounts: everyCode(baselineWarnings),
       links: {
-        assignment_review_label: '/admin/content/teaching_assignments',
         council_member_unresolved: '/admin/content/student_council',
         equivalency_entry_unresolved:
           '/admin/content/course_equivalency_members',
@@ -184,7 +182,6 @@ describe('the readiness decision', () => {
       },
       ready: true,
       reviews: {
-        assignment_review_label: 'Assignments shown by their label only',
         council_member_unresolved: 'Council members without a student',
         equivalency_entry_unresolved: 'Equivalency labels without an entry',
         equivalency_without_course: 'Equivalencies without a course',
@@ -193,7 +190,6 @@ describe('the readiness decision', () => {
       warnings: [
         'equivalency_without_course',
         'equivalency_entry_unresolved',
-        'assignment_review_label',
         'council_member_unresolved',
       ],
     });
@@ -377,9 +373,10 @@ describe('the registry decides every code once', () => {
     const reads = log.map((read) => JSON.stringify(read));
 
     expect(new Set(reads).size).toBe(reads.length);
+    // Once for the four assignment checks, once for the professor check.
     expect(
       log.filter(({ collection }) => collection === 'teaching_assignments'),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
   });
 });
 
@@ -597,9 +594,15 @@ describe('the enrollment and curriculum checks of courses.json', () => {
 
 describe('the assignment and mapping checks of courses.json', () => {
   test('blocks published assignment rows without a role or a label, and ignores professors an override replaces', async () => {
+    // The import no longer writes an override; this one is set in Studio.
+    const store = edit(
+      await importedStore(),
+      'courses',
+      withValues(2, { professors_override: 'Override' }),
+    );
     const decision = await decide({
       store: edit(
-        await importedStore(),
+        store,
         'teaching_assignments',
         append([
           assignmentRow(500, { role: null }),

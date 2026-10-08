@@ -2,7 +2,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-import { checkSummary, refusalLines } from '../src/import-report.js';
+import {
+  checkSummary,
+  refusalCount,
+  refusalLines,
+} from '../src/import-report.js';
 import { entryKey } from '../src/import/curricula.js';
 import { countByCode } from '../src/import/findings.js';
 import { type ImportPlan, planImport } from '../src/import/plan.js';
@@ -11,6 +15,7 @@ import { readWorkbookContent } from '../src/workbook.js';
 import {
   courseNames,
   makeSyntheticDataset,
+  staffNames,
   type SyntheticDataset,
   type SyntheticRow,
   withMetacharacterCourse,
@@ -22,6 +27,7 @@ import {
   rowsIn,
   uniqueDataset,
   withCourse,
+  withTeaching,
 } from './import-plan-helpers.js';
 import { parityDataset } from './relational-export-helpers.js';
 
@@ -239,23 +245,37 @@ describe('a subject a curriculum sheet lists in several semester blocks', () => 
       path.resolve(import.meta.dirname, '..', 'README.md'),
       'utf8',
     );
+    // Theta's professors cell names staff rows on lines 1 and 3 only.
+    const theta = withTeaching(parityDataset(), courseNames.theta, {
+      professors: [
+        staffNames.minimal,
+        'Synthetic Staff Nobody One',
+        staffNames.active,
+        'Synthetic Staff Nobody Two',
+      ].join('\n'),
+    });
     const dataset = semesterBlocks(
       { current: 'F23L2W009', legacy: 'F18L3S005' },
-      withCourse(parityDataset(), courseNames.gamma, {
+      withCourse(theta, courseNames.gamma, {
         available_2018: true,
         credits_2018: 6,
       }),
     );
-    const { lines } = await readBack(dataset);
+    const { lines, plan } = await readBack(dataset);
 
+    expect(refusalCount(plan)).toBe(3);
     expect(lines).toEqual([
       '- [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 «F23L2W009»',
       '- [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE',
+      '- [unmatched_staff_name] Наставен Кадар row 7, column "Професори" «Theta Course»: lines 2, 4 not found in Кадар (Export)',
     ]);
 
-    for (const line of lines) {
-      expect(readme).toContain(`   ${line}\n`);
-    }
+    // The whole example block: its header counts the cases, one line each.
+    expect(readme).toContain(
+      ['```text', 'Import dry run blocked: 3 cases', ...lines, '```']
+        .map((line) => `   ${line}\n`)
+        .join(''),
+    );
   });
 
   test('refuses listings of which one carries no code', async () => {
@@ -364,7 +384,9 @@ describe('curriculum values of a generation the course has no name for', () => {
     expect(plan.warnings.map(({ code }) => code)).not.toContain(
       'unlinked_availability',
     );
-    expect(checkSummary(plan, contentOf(creditsAndTrue)).fixes).toEqual({});
+    expect(checkSummary(plan, contentOf(creditsAndTrue)).fixes).toEqual({
+      repeated_staff_name: ['Наставен Кадар row 8, column "Професори", line 3'],
+    });
     expect(
       linesOf(
         withCourse(base, courseNames.gamma, {

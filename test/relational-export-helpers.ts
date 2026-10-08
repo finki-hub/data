@@ -153,6 +153,16 @@ export const edit = (
   return store;
 };
 
+// The store with the values set on one row of a collection.
+export const withValues = (
+  store: FakeStore,
+  { collection, id }: { readonly collection: string; readonly id: number },
+  values: Readonly<Record<string, unknown>>,
+): FakeStore =>
+  edit(store, collection, (rows) =>
+    rows.map((row) => (row.id === id ? { ...row, ...values } : row)),
+  );
+
 // The id of the generation row of a code.
 export const generationIdOf = (store: FakeStore, code: string): number => {
   const id = rowsOf(store, 'curriculum_generations').find(

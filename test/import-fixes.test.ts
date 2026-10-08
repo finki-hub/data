@@ -13,6 +13,7 @@ import { compositeKey } from '../src/import/planned.js';
 import { readWorkbookContent } from '../src/workbook.js';
 import {
   courseNames,
+  staffNames,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
 import {
@@ -39,27 +40,43 @@ const summaryOf = (dataset: SyntheticDataset) =>
 // The ordinals of the teaching rows the planned role rows come from.
 const plannedTeachingRows = (dataset: SyntheticDataset) => [
   ...new Set(
-    rowsIn(planOf(dataset), 'teaching_assignments').map(
-      ({ origin }) => origin?.id,
+    rowsIn(planOf(dataset), 'teaching_assignments').flatMap(({ origin }) =>
+      origin?.source === 'teaching_assignments' ? [origin.id] : [],
     ),
   ),
 ];
 
-// The lifecycle dataset with a third teaching row of Alpha.
+// The lifecycle dataset with a tenth teaching row, a third of Alpha.
 const thirdAlphaRow = (): SyntheticDataset =>
   withAssignment(lifecycleDataset(), {
-    id: 9,
+    id: 10,
     course_name: courseNames.alpha,
     professors: 'Prof. Third Alpha',
     assistants: null,
   });
 
+// The dataset with Iota's professors listed once each, so no rule fixes
+// a repeated name.
+const withoutRepeat = (dataset: SyntheticDataset): SyntheticDataset => ({
+  ...dataset,
+  teaching_assignments: dataset.teaching_assignments.map((row) =>
+    row['course_name'] === courseNames.iota
+      ? { ...row, professors: `${staffNames.active}\n${staffNames.inactive}` }
+      : row,
+  ),
+});
+
+// Iota's teaching row lists its first professor again on line 3: row 9 of
+// the lifecycle dataset's Наставен Кадар, row 8 of the parity dataset's,
+// which lacks Alpha's second row.
+const iotaRepeat = 'Наставен Кадар row 9, column "Професори", line 3';
+
 describe('a later teaching row of a course', () => {
   test('is ignored, neither planned nor checked, and the first row is planned', () => {
     // A name no staff row carries, which a teaching row the import reads
-    // reports (unresolved_staff_text).
+    // blocks (unmatched_staff_name).
     const dataset = withAssignment(parityDataset(), {
-      id: 9,
+      id: 10,
       course_name: courseNames.alpha,
       professors: 'Prof. Nobody Alpha',
       assistants: null,
@@ -85,7 +102,7 @@ describe('a later teaching row of a course', () => {
     ).toEqual([
       ['professor', 1],
       ['professor', 2],
-      ['assistant', 1],
+      ['assistant', 3],
     ]);
   });
 
@@ -105,7 +122,7 @@ describe('a later teaching row of a course', () => {
         ],
       ],
       [
-        [9],
+        [10],
         [
           { collection: 'courses', ids: [1] },
           { collection: 'teaching_assignments', ids: [1] },
@@ -115,8 +132,9 @@ describe('a later teaching row of a course', () => {
     expect(summaryOf(thirdAlphaRow()).fixes).toEqual({
       duplicate_assignment: [
         'Наставен Кадар row 3 (used: row 2)',
-        'Наставен Кадар row 10 (used: row 2)',
+        'Наставен Кадар row 11 (used: row 2)',
       ],
+      repeated_staff_name: [iotaRepeat],
     });
   });
 
@@ -153,7 +171,7 @@ describe('an availability of TRUE without a name', () => {
     expect(links).not.toContain(compositeKey(3, '2018'));
     expect(links).not.toContain(compositeKey(4, '2023'));
     expect(links).toContain(compositeKey(3, '2023'));
-    expect(summaryOf(dataset).fixes).toEqual({
+    expect(summaryOf(withoutRepeat(dataset)).fixes).toEqual({
       unlinked_availability: [
         'Предмети (Export) row 4, column "2018-available"',
         'Предмети (Export) row 5, column "2023-available"',
@@ -203,6 +221,7 @@ describe('a formula pattern cell', () => {
     expect(summary.warnings).toMatchObject({ formula_pattern_cell: 1 });
     expect(summary.fixes).toEqual({
       formula_pattern_cell: ['Слушатели row 2, column "2024/2025"'],
+      repeated_staff_name: ['Наставен Кадар row 8, column "Професори", line 3'],
     });
     expect(JSON.stringify(summary)).not.toContain('Formula');
   });
@@ -233,8 +252,9 @@ describe('the fixes of the summary', () => {
     expect(summary.fixes).toEqual({
       duplicate_assignment: [
         'Наставен Кадар row 3 (used: row 2)',
-        'Наставен Кадар row 10 (used: row 2)',
+        'Наставен Кадар row 11 (used: row 2)',
       ],
+      repeated_staff_name: [iotaRepeat],
       unlinked_availability: [
         'Предмети (Export) row 4, column "2018-available"',
       ],
@@ -265,7 +285,7 @@ describe('the fixes of the summary', () => {
   });
 
   test('are empty without a rule fix, and the summary keeps every existing key', () => {
-    const summary = summaryOf(parityDataset());
+    const summary = summaryOf(withoutRepeat(parityDataset()));
 
     expect(summary.fixes).toEqual({});
     expect(Object.keys(summary)).toEqual([

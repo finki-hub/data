@@ -57,6 +57,17 @@ export const courseNames = {
   zeta: 'Zeta Course',
 } as const;
 
+// The names of the synthetic staff rows; the teaching cells list them.
+export const staffNames = {
+  active: 'Synthetic Staff Active',
+  inactive: 'Synthetic Staff Inactive',
+  minimal: 'Synthetic Staff Minimal',
+} as const;
+
+// The texts of the two statuses that replace names in a teaching cell.
+const allProfessors = 'Сите професори';
+const inactiveCourse = '(неактивиран предмет)';
+
 /** A name whose `+` makes the unescaped default enrollment pattern invalid. */
 export const metacharacterCourseName = 'C++ Course';
 
@@ -68,7 +79,7 @@ const makeCourse = (
 ): SyntheticRow => ({
   id,
   name,
-  professors_override: null,
+  typed_professors: null,
   available_2023: null,
   available_2018: null,
   tags: null,
@@ -76,6 +87,7 @@ const makeCourse = (
   credits_2023: null,
   name_2018_override: null,
   credits_2018: null,
+  export_assistants: null,
   ...values,
 });
 
@@ -193,7 +205,7 @@ const makeCourses = (): readonly SyntheticRow[] => [
     credits_2018: 6,
   }),
   makeCourse(2, courseNames.beta, {
-    professors_override: 'Prof. Beta Override',
+    typed_professors: staffNames.active,
     available_2023: true,
     available_2018: true,
     tags: '',
@@ -203,7 +215,7 @@ const makeCourses = (): readonly SyntheticRow[] => [
     credits_2018: 0,
   }),
   makeCourse(3, courseNames.gamma, {
-    professors_override: 'Prof. Gamma Override',
+    typed_professors: staffNames.minimal,
     available_2023: true,
     available_2018: false,
     tags: 'synthetic;gamma',
@@ -214,6 +226,7 @@ const makeCourses = (): readonly SyntheticRow[] => [
     name_2023: '',
   }),
   makeCourse(5, courseNames.epsilon, {
+    typed_professors: allProfessors,
     available_2023: true,
     available_2018: true,
     tags: 'synthetic;epsilon',
@@ -229,7 +242,7 @@ const makeCourses = (): readonly SyntheticRow[] => [
     credits_2023: 0,
   }),
   makeCourse(7, courseNames.theta, {
-    professors_override: '',
+    typed_professors: '',
     available_2023: true,
     available_2018: true,
     name_2023: 'Theta Course',
@@ -453,12 +466,15 @@ const makeCourseEquivalencies = (): readonly SyntheticRow[] => [
   { id: 10, course_2023: null, course_2018: null, course_2013: 'Ancient Only' },
 ];
 
+// One staff name per line. Alpha's second row and the orphan row are
+// never read; Beta's and Epsilon's rows are superseded by their typed
+// export cells.
 const makeTeachingAssignments = (): readonly SyntheticRow[] => [
   {
     id: 1,
     course_name: courseNames.alpha,
-    professors: 'Prof. Zed Alpha, Prof. Abe Alpha',
-    assistants: 'Asst. Alpha One; Asst. Alpha Two',
+    professors: `${staffNames.minimal}\n${staffNames.active}`,
+    assistants: staffNames.inactive,
   },
   {
     id: 2,
@@ -481,8 +497,8 @@ const makeTeachingAssignments = (): readonly SyntheticRow[] => [
   {
     id: 5,
     course_name: courseNames.zeta,
-    professors: '',
-    assistants: 'Asst. Zeta',
+    professors: allProfessors,
+    assistants: staffNames.minimal,
   },
   {
     id: 6,
@@ -493,14 +509,20 @@ const makeTeachingAssignments = (): readonly SyntheticRow[] => [
   {
     id: 7,
     course_name: courseNames.theta,
-    professors: 'Prof. Theta',
-    assistants: 'Asst. Theta',
+    professors: staffNames.minimal,
+    assistants: staffNames.active,
   },
   {
     id: 8,
     course_name: courseNames.iota,
-    professors: 'Prof. Iota',
-    assistants: 'Asst. Iota',
+    professors: `${staffNames.active}\n${staffNames.inactive}\n${staffNames.active}`,
+    assistants: staffNames.minimal,
+  },
+  {
+    id: 9,
+    course_name: courseNames.delta,
+    professors: inactiveCourse,
+    assistants: inactiveCourse,
   },
 ];
 
@@ -566,7 +588,7 @@ const makeMoodleUsers = (): readonly SyntheticRow[] => [
 const makeStaff = (): readonly SyntheticRow[] => [
   {
     id: 1,
-    name: 'Synthetic Staff Active',
+    name: staffNames.active,
     active: true,
     title: 'Prof.',
     position: 'Professor',
@@ -578,7 +600,7 @@ const makeStaff = (): readonly SyntheticRow[] => [
   },
   {
     id: 2,
-    name: 'Synthetic Staff Inactive',
+    name: staffNames.inactive,
     active: false,
     title: 'Asst.',
     position: 'Assistant',
@@ -590,7 +612,7 @@ const makeStaff = (): readonly SyntheticRow[] => [
   },
   {
     id: 3,
-    name: 'Synthetic Staff Minimal',
+    name: staffNames.minimal,
     active: true,
     title: 'Prof.',
     position: 'Professor',

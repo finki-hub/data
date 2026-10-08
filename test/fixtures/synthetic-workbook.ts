@@ -20,8 +20,9 @@ import {
   type SyntheticRow,
 } from './synthetic-data.js';
 
-// Staff rows whose names are the complete labels the synthetic assignment
-// texts use, so the migration links some role rows and retains others.
+// Staff rows beyond the dataset's own, which the parity files publish. No
+// teaching cell of the dataset names them; the two Alpha names are the
+// staff the teaching-cell refusal tests list (test/import-teaching.test.ts).
 // Each has the title, position and email staff.json requires.
 const labelledStaff = [
   'Prof. Zed Alpha',

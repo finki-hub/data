@@ -79,7 +79,7 @@ describe('workbook readers', () => {
     const spec = {
       fields: [
         requiredField('name', 'name'),
-        literalField('professors', 'professors_override', 'text'),
+        literalField('professors', 'typed_professors', 'text'),
       ],
       key: 'courses',
       source: { kind: 'rows', sheet: 'Synthetic courses' },
@@ -87,11 +87,11 @@ describe('workbook readers', () => {
 
     expect(readRows(workbook, spec, spec.source)).toEqual([
       {
-        item: { name: courseOne, professors_override: null },
+        item: { name: courseOne, typed_professors: null },
         place: { row: 2, sheet: 'Synthetic courses' },
       },
       {
-        item: { name: courseTwo, professors_override: 'Manual Professor' },
+        item: { name: courseTwo, typed_professors: 'Manual Professor' },
         place: { row: 3, sheet: 'Synthetic courses' },
       },
     ]);
@@ -173,14 +173,23 @@ describe('workbook readers', () => {
     expect(sourceSheets).not.toContain('Индекси');
   });
 
-  test('reads the professors override literally, and no calculated column', () => {
+  test('reads typed professors literally and the assistants as shown, and no other calculated column', () => {
     const courses = specOf('courses');
+    const fieldOf = (target: string) =>
+      courses?.fields.find((spec) => spec.target === target);
 
-    expect(
-      courses?.fields.find(({ target }) => target === 'professors_override'),
-    ).toMatchObject({ sourceMode: 'literal' });
+    expect(fieldOf('typed_professors')).toMatchObject({
+      kind: 'text',
+      source: 'professors',
+      sourceMode: 'literal',
+    });
+    expect(fieldOf('export_assistants')).toEqual({
+      kind: 'text',
+      source: 'assistants',
+      target: 'export_assistants',
+    });
     expect(courses?.fields.map(({ target }) => target)).not.toContain(
-      'professors',
+      'professors_override',
     );
     expect(
       specOf('student_council')?.fields.map(({ target }) => target),
@@ -373,6 +382,7 @@ describe('the up-front check of a workbook file', () => {
       duplicate_pattern: 1,
       orphan_assignment: 1,
       orphan_pattern: 1,
+      superseded_assignment: 2,
     });
   });
 });
@@ -442,14 +452,19 @@ describe('values the relational columns cannot hold', () => {
       '- [unstorable] Предмети - 2018 row 8, curriculum_entries.name: 390 characters, max 255',
     );
 
+    // A teaching cell becomes staff links, never a stored text: a long
+    // line no staff row carries blocks, but is no unstorable value.
     const labelled = {
       ...base,
       teaching_assignments: base.teaching_assignments.map((row) =>
-        row.id === 3 ? { ...row, professors: long } : row,
+        row.id === 7 ? { ...row, professors: long } : row,
       ),
     };
 
     expect(unstorableOf(labelled).values).toEqual([]);
+    expect(planImport(contentOf(labelled)).blockers).toMatchObject([
+      { code: 'unmatched_staff_name', ids: [6] },
+    ]);
   });
 
   test('counts characters, not UTF-16 units, and leaves text columns unbounded', () => {

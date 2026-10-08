@@ -193,7 +193,6 @@ describe('the export operation', () => {
       warnings: [
         'equivalency_without_course',
         'equivalency_entry_unresolved',
-        'assignment_review_label',
         'council_member_unresolved',
       ],
     });

@@ -8,8 +8,9 @@ import { nonEmpty } from './labels.js';
 
 // What a refusal line may name: the sheet and row of every row read and
 // the rows the check read them into. A line quotes course and curriculum
-// names, curriculum codes, 2018 labels, credits and availabilities only,
-// never a staff or student value.
+// names, curriculum codes, 2018 labels, credits, availabilities and the
+// Inactive text only, never a staff or student value (a teaching case
+// names its cell and lines).
 export type RefusalContext = {
   readonly places: WorkbookPlaces;
   readonly rows: WorkbookRows;
@@ -59,6 +60,10 @@ export const rowsAt = (
 
 export const courseRow = (id: number, { rows }: RefusalContext) =>
   rows.courses[id - 1];
+
+// The lines of a teaching cell a case concerns: "line 3", "lines 3, 5".
+export const linesText = (lines: readonly number[]): string =>
+  `${pluralText(lines.length, 'line', 'lines')} ${listText(lines.map(String))}`;
 
 // A course by its row, then its name: Предмети (Export) row 2 «Alpha Course».
 export const courseRowNamed = (id: number, context: RefusalContext): string =>

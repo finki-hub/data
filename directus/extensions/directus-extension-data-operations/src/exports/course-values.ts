@@ -2,6 +2,14 @@ import type { Resolver, Row, RowContext } from './types.js';
 
 import { codeLevel } from './curriculum-code.js';
 import { unresolved } from './errors.js';
+import {
+  type AssignmentRole,
+  assignmentRoles,
+  assistantsText,
+  type CourseStatus,
+  courseStatuses,
+  professorsText,
+} from './teaching-values.js';
 import { idOf, pathValue, textOf } from './values.js';
 
 // The resolvers of courses.json. Each one reads the course row and its
@@ -12,16 +20,6 @@ import { idOf, pathValue, textOf } from './values.js';
 // published source, never a code constant.
 // Anything they cannot resolve unambiguously is refused with ids only;
 // nothing is guessed.
-
-// Joins the labels of one course's professors or assistants. The
-// workbook import links an assignment text to staff rows only when
-// this join gives the text back (`staffListSeparator` of src/import/
-// preflight-staff.ts, pinned equal by a test).
-export const labelSeparator = ', ';
-
-export const assignmentRoles = ['professor', 'assistant'] as const;
-
-type Role = (typeof assignmentRoles)[number];
 
 const courseId = ({ row }: RowContext): string => String(idOf(row['id']));
 
@@ -113,11 +111,29 @@ const byPosition = (left: Row, right: Row): number =>
 
 const knownRoles: ReadonlySet<unknown> = new Set(assignmentRoles);
 
-export const isRole = (value: unknown): value is Role => knownRoles.has(value);
+export const isRole = (value: unknown): value is AssignmentRole =>
+  knownRoles.has(value);
 
-// The course's assignment rows of a role in `sort` order (unsorted rows
-// last), then id; a row without a known role is refused.
-const assigned = (context: RowContext, role: Role): readonly Row[] => {
+const knownStatuses: ReadonlySet<unknown> = new Set(courseStatuses);
+
+const isStatus = (value: unknown): value is CourseStatus =>
+  knownStatuses.has(value);
+
+// The course's status; a value outside the vocabulary is refused.
+const statusOf = (context: RowContext): CourseStatus => {
+  const status = context.row['status'];
+  return isStatus(status)
+    ? status
+    : unresolved(`Course ${courseId(context)}: invalid status`);
+};
+
+// The staff names of the course's links of a role, in `sort` order
+// (unsorted links last), then id. A link without a known role or without
+// a staff name is refused.
+const namesOf = (
+  context: RowContext,
+  role: AssignmentRole,
+): readonly string[] => {
   const rows = relatedRows(context, 'assignments');
   const unknown = rows.find((row) => !isRole(row['role']));
   if (unknown !== undefined) {
@@ -125,34 +141,40 @@ const assigned = (context: RowContext, role: Role): readonly Row[] => {
       `Assignment ${String(idOf(unknown['id']))} of course ${courseId(context)} has no role`,
     );
   }
-  return rows.filter((row) => row['role'] === role).toSorted(byPosition);
-};
-
-// Each row's display_override when set, else its staff member's name,
-// joined in order; null without a row.
-const labelsOf = (context: RowContext, role: Role): null | string => {
-  const rows = assigned(context, role);
-  if (rows.length === 0) {
-    return null;
-  }
   return rows
+    .filter((row) => row['role'] === role)
+    .toSorted(byPosition)
     .map(
       (row) =>
-        textOf(row['display_override']) ??
         textOf(pathValue(row, 'staff.name')) ??
         unresolved(
-          `Assignment ${String(idOf(row['id']))} of course ${courseId(context)} has no label`,
+          `Assignment ${String(idOf(row['id']))} of course ${courseId(context)} has no staff name`,
         ),
-    )
-    .join(labelSeparator);
+    );
 };
 
-// professors: the course's professors_override when set, else its
-// professor assignments.
-export const professors: Resolver = (context) =>
-  textOf(context.row['professors_override']) ?? labelsOf(context, 'professor');
+// professors: the text of All professors or Inactive, else the professor
+// names; an Active course without one is refused (readiness blocks it
+// first, course_without_professor). The links of a role the status
+// replaces are not read.
+export const professors: Resolver = (context) => {
+  const status = statusOf(context);
+  const names = status === 'active' ? namesOf(context, 'professor') : [];
+  return (
+    professorsText(status, names) ??
+    unresolved(`Course ${courseId(context)}: professor missing`)
+  );
+};
 
-export const assistants: Resolver = (context) => labelsOf(context, 'assistant');
+// assistants: the Inactive text, else the assistant names; null without
+// one, so the key is left out.
+export const assistants: Resolver = (context) => {
+  const status = statusOf(context);
+  return assistantsText(
+    status,
+    status === 'inactive' ? [] : namesOf(context, 'assistant'),
+  );
+};
 
 // The course's count of a published academic year (a key row of the
 // published-year rule): exactly one count row must exist, a missing count

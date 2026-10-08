@@ -5,7 +5,8 @@ import type { CourseRow, WorkbookRows } from './workbook-rows.js';
 import { type Finding, finding } from './findings.js';
 import { metacharacterPattern, nonEmpty } from './labels.js';
 import { currentOf, legacyOf } from './preflight-course-links.js';
-import { duplicateAssignment, rulesOf } from './preflight-course-values.js';
+import { rulesOf } from './preflight-course-values.js';
+import { teachingOf } from './preflight-teaching.js';
 
 // A course without a name violates the required courses.name; a name with
 // metacharacters matches its default pattern differently than it reads.
@@ -34,25 +35,28 @@ const candidateOf = (
   const current = currentOf(course, indexes);
   const legacy = legacyOf(course, name, indexes);
   const rules = rulesOf(course, { academicYears, indexes, name });
+  const teaching = teachingOf(course, name, indexes);
   return {
     candidate: {
       current: current.value,
       id: course.id,
       legacy: legacy.value,
       rules: rules.value,
+      teaching: teaching.value,
     },
     findings: [
       ...nameFindings(course, name),
       ...current.findings,
       ...legacy.findings,
-      ...duplicateAssignment(course, name, indexes),
+      ...teaching.findings,
       ...rules.findings,
     ],
   };
 };
 
-// One candidate decision set per course: its 2023 and 2018 entry and its
-// enrollment rule per academic year, each with its precedence recorded.
+// One candidate decision set per course: its 2023 and 2018 entry, its
+// enrollment rule per academic year, each with its precedence recorded,
+// and its teaching status and staff links.
 export const courseCandidates = (
   rows: WorkbookRows,
   context: CourseContext,

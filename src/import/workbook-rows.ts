@@ -13,17 +13,19 @@ const flag = z.boolean().nullable();
 // ordinal as its id (1 for the first row read), so a finding names it by
 // sheet and row. The columns copied as they are (every staff, room,
 // student, Discord, dean's office and Moodle user column, and the course
-// name, tags and professors override) are read from the workbook data
-// directly (plan-content.ts).
+// name and tags) are read from the workbook data directly
+// (plan-content.ts).
 const courseRow = z.object({
   available_2018: flag,
   available_2023: flag,
   credits_2018: integer,
   credits_2023: integer,
+  export_assistants: text,
   id,
   name: text,
   name_2018_override: text,
   name_2023: text,
+  typed_professors: text,
 });
 const staffRow = z.object({ id, name: text });
 const studentRow = z.object({ id, index_number: text });

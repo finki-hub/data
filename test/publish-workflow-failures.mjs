@@ -1,19 +1,15 @@
 import assert from 'node:assert/strict';
 
 import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
-import { assignmentRoles } from '../directus/extensions/directus-extension-data-operations/src/exports/course-values.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { assignmentRoles } from '../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
 import { ruleSeedingFlowId } from '../src/flows/add-enrollment-rules.js';
 import { markPendingFlowId } from '../src/flows/mark-pending.js';
 import { prepareAssetsFlowId } from '../src/flows/prepare-public-assets.js';
 import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../src/flows/snapshot-import.js';
 import { validateReadinessFlowId } from '../src/flows/validate-readiness.js';
-import {
-  countDifferences,
-  createRows,
-  installedCounts,
-} from './fixture-seed.mjs';
+import { countDifferences, installedCounts } from './fixture-seed.mjs';
 import { readOnlyBucket, trigger } from './publish-flow-helpers.mjs';
 import {
   assertCounts,
@@ -34,24 +30,19 @@ import {
   waitForStatus,
 } from './relational/automatic-processing-helpers.mjs';
 import { withRestrictedUser } from './relational/data-model-helpers.mjs';
-import {
-  get,
-  patch,
-  remove,
-  status,
-} from './relational/history-index-helpers.mjs';
+import { get, patch, status } from './relational/history-index-helpers.mjs';
 import { callAs, runFlow } from './relational/operations-helpers.mjs';
 import { runImport } from './relational/snapshot-import-helpers.mjs';
 
 // The failure scenarios of the complete workflow suite. Each one fails in
-// a real way on the fixture (a malformed CSV, an unresolved link, a
-// pattern that does not compile, a caller without the permission, a
+// a real way on the fixture (a malformed CSV, an Active course without a
+// professor, a pattern that does not compile, a caller without the permission, a
 // read-only bucket) and checks that the active snapshot and every
 // published object stayed as they were, then recovers through the
 // supported path. The races (a restart, edits and deletes during a run)
 // are in publish-workflow-races.mjs.
 
-const [professor] = assignmentRoles;
+const [professor, assistant] = assignmentRoles;
 const operationFlows = [
   snapshotFlowId,
   publishAssetsFlowId,
@@ -122,24 +113,35 @@ export const refusesMalformedImport = async (context) => {
   );
 };
 
-// A published assignment row with neither staff nor label: readiness
-// blocks courses.json before any upload; removing the row lets it
+// An Active course whose professor links all became assistant links:
+// readiness blocks courses.json before any upload
+// (course_without_professor); making them professors again lets it
 // publish.
-export const blocksUnresolvedLink = async (context) => {
+export const blocksCourseWithoutProfessor = async (context) => {
   const { state, target } = context;
   const course = state.seeded.courses[1];
-  const [row] = await createRows(target, 'teaching_assignments', [
-    { course: course.id, role: professor, sort: 9 },
-  ]);
+  const rows = await get(
+    target,
+    `/items/teaching_assignments?fields=id&limit=-1&filter[course][_eq]=${course.id}&filter[role][_eq]=${professor}`,
+  );
+  const ids = rows.map(({ id }) => id);
+  assert.ok(ids.length > 0, 'the seeded course has a professor link');
+  const relabel = (role) =>
+    Promise.all(
+      ids.map((id) =>
+        patch(target, `/items/teaching_assignments/${id}`, { role }),
+      ),
+    );
+  await relabel(assistant);
   try {
     await settle(target);
     await refusedPublication(context, {
       code: notPrepared,
-      label: 'unresolved link',
-      reason: 'assignment_unresolved',
+      label: 'course without a professor',
+      reason: 'course_without_professor',
     });
   } finally {
-    await remove(target, `/items/teaching_assignments/${row}`);
+    await relabel(professor);
   }
   await settle(target);
   await publishes(context);

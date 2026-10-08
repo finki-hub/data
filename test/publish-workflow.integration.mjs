@@ -11,7 +11,7 @@ import {
   extendsYear,
 } from './publish-workflow-extensions.mjs';
 import {
-  blocksUnresolvedLink,
+  blocksCourseWithoutProfessor,
   failsInvalidPattern,
   refusesMalformedImport,
   refusesWithoutPermission,
@@ -87,8 +87,8 @@ const steps = [
     refusesMalformedImport,
   ],
   [
-    'blocks publication on an unresolved assignment link before any upload',
-    blocksUnresolvedLink,
+    'blocks publication on an Active course without a professor before any upload',
+    blocksCourseWithoutProfessor,
   ],
   [
     'fails the counts on an invalid pattern without installing, blocks publication, then recovers',

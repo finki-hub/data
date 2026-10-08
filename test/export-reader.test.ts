@@ -87,7 +87,7 @@ describe('the native query of an export read', () => {
 
   test('adds no deep query to a read of plain fields, and none to an aggregate', () => {
     expect(readQuery(courses.rows)).toEqual({
-      fields: ['id', 'name', 'tags', 'professors_override'],
+      fields: ['id', 'name', 'tags', 'status'],
       limit: -1,
       sort: ['id'],
     });

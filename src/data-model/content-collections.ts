@@ -1,5 +1,9 @@
 import type { ModelCollection, ModelScalarKind } from '../schema.js';
 
+import {
+  assignmentRoles,
+  courseStatuses,
+} from '../../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
 import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
 // The content the one-time workbook import fills and Studio edits
@@ -7,11 +11,15 @@ import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 // equivalencies, assignments, council and dean's office rows beside them.
 // The Moodle users are declared with the Moodle collections.
 
-export const assignmentRoles = ['professor', 'assistant'] as const;
-
 const roleChoices = labelledChoices(assignmentRoles, {
   assistant: 'Assistant',
   professor: 'Professor',
+});
+
+const statusChoices = labelledChoices(courseStatuses, {
+  active: 'Active',
+  all_professors: 'All professors',
+  inactive: 'Inactive',
 });
 
 export const courseTemplate = '{{name}}';
@@ -30,7 +38,11 @@ export const contentCollections: readonly ModelCollection[] = [
     displayTemplate: courseTemplate,
     fields: [
       required('name'),
-      scalar('professors_override', 'text'),
+      enumField('status', statusChoices, {
+        defaultValue: 'active',
+        nullable: false,
+      }),
+      scalar('professors_override', 'text', { note: 'Not published.' }),
       scalar('tags', 'string'),
     ],
     hidden: false,
@@ -134,16 +146,12 @@ export const contentCollections: readonly ModelCollection[] = [
           fields: ['course', 'role'],
           template: '{{course.name}} ({{role}})',
         },
-        note: 'The staff member; a label no staff row carries stays in display_override.',
         template: staffTemplate,
       }),
       enumField('role', roleChoices),
       scalar('sort', 'integer'),
-      // `text`, not `string`: an unresolved imported label is the whole
-      // professors or assistants cell of the workbook, an unbounded text.
-      scalar('display_override', 'text', {
-        note: 'Literal label shown instead of the staff name, or the imported label no staff row carries.',
-      }),
+      // Neither the import nor courses.json uses it.
+      scalar('display_override', 'text', { note: 'Not published.' }),
     ],
     hidden: false,
     icon: 'co_present',

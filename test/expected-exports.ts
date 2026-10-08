@@ -29,31 +29,12 @@ export type PublicFileName = (typeof publicFileNames)[number];
 
 export type PublicRow = Readonly<Record<string, string>>;
 
-// The professors texts of the assignment-text-<n> cases, in case order:
-// the parity dataset with the first assignment row's text replaced.
-export const assignmentTexts = [
-  'Prof. Zed Alpha, Prof. Abe Alpha',
-  'Prof. Zed Alpha; Prof. Abe Alpha',
-  'Prof. Zed Alpha;Prof. Abe Alpha',
-  'Prof. Zed Alpha\nProf. Abe Alpha',
-  'Prof. Zed Alpha,Prof. Abe Alpha',
-  'Prof. Zed Alpha ,  Prof. Abe Alpha',
-  ' Prof. Zed Alpha, Prof. Abe Alpha',
-  'Prof. Zed Alpha ',
-] as const;
-
 // The cases that hold all four public files.
 const fullCases = ['parity', 'synthetic'] as const;
 
 // The cases whose rooms, staff and students equal parity's: each holds
 // its courses.json alone and takes the other three from parity.
-const coursesCases = [
-  'renamed-current',
-  'unmatched-legacy',
-  ...assignmentTexts.map(
-    (_, index) => `assignment-text-${String(index + 1)}` as const,
-  ),
-] as const;
+const coursesCases = ['renamed-current', 'unmatched-legacy'] as const;
 
 export type ExportCase =
   (typeof coursesCases)[number] | (typeof fullCases)[number];

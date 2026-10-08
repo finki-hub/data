@@ -229,7 +229,7 @@ describe('the Needs review views', () => {
         .map(({ code }) => code),
     ).toEqual([]);
     expect(issueCounts).toMatchObject({
-      assignment_review_label: 7,
+      assignment_review_label: 1,
       assignment_role_missing: 2,
       assignment_unresolved: 2,
       entry_needs_mapping: 2,

@@ -8,7 +8,7 @@ import type {
 import type { ReadinessCheck } from './types.js';
 
 import { domainLabel } from '../coordination/domains.js';
-import { assignmentCheck } from './assignment-checks.js';
+import { assignmentCheck, professorCheck } from './assignment-checks.js';
 import { unlinkedMember } from './curriculum-checks.js';
 import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
 import { keyOrderEntries } from './key-order.js';
@@ -138,17 +138,23 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     review: reviewViews.unlinkedMembers,
     source: counted(unlinkedMember, 'equivalency'),
   }),
+  // No plain filter lists an Active course without a professor link (an
+  // O2M `_none`), so the entry links the course page.
+  blocker({
+    code: 'course_without_professor',
+    description: 'Active course without a professor',
+    page: 'courses',
+    source: checkedBy(professorCheck),
+  }),
   warning({
     code: 'assignment_order_ambiguous',
-    description:
-      'Two published assignment rows share a position; their ids order them',
+    description: 'Two assignment rows share a position; their ids order them',
     page: 'teaching_assignments',
     source: assignments,
   }),
   warning({
     code: 'assignment_review_label',
-    description:
-      'A published assignment row shows a literal label without a staff member',
+    description: 'An assignment row has a display label but no staff member',
     page: 'teaching_assignments',
     review: reviewViews.assignmentLabelOnly,
     source: assignments,
@@ -162,8 +168,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
   }),
   blocker({
     code: 'assignment_unresolved',
-    description:
-      'A published assignment row has neither a staff member nor a label',
+    description: 'An assignment row has neither a staff member nor a label',
     page: 'teaching_assignments',
     review: reviewViews.assignmentUnresolved,
     source: assignments,

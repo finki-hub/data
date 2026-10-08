@@ -89,7 +89,7 @@ const defaultViews: readonly TabularPreset[] = [
   // curriculum links.
   defaultView(
     'courses',
-    ['name', 'tags', 'curricula', 'assignments'],
+    ['name', 'status', 'tags', 'curricula', 'assignments'],
     ['name'],
   ),
   defaultView(

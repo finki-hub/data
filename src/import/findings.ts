@@ -8,35 +8,42 @@ import type { SheetCell } from '../workbook-values.js';
 // code, sheet, rows and course (src/import/refusal-text.ts).
 
 // Cases that refuse the import before its first write: a relationship
-// with more than one candidate, a row the model cannot hold (such as a
-// curriculum code that gives no level), and a value the published files
-// carry that no relational row could hold as the workbook states it. The
-// operator corrects the workbook and imports again. What a rule can fix is
-// no blocker: the import fixes it and warns (ruleFixCodes).
+// with more than one candidate (such as a teaching line several staff rows
+// carry), a row the model cannot hold (such as a curriculum code that
+// gives no level, or a teaching line no staff row carries), and a value
+// the published files carry that no relational row could hold as the
+// workbook states it. The operator corrects the workbook and imports
+// again. What a rule can fix is no blocker: the import fixes it and warns
+// (ruleFixCodes).
 export const blockerCodes = [
   'ambiguous_course_name',
   'ambiguous_curriculum_2018',
   'ambiguous_curriculum_2023',
   'ambiguous_legacy_equivalency',
+  'ambiguous_staff_name',
   'ambiguous_student_index',
   'curriculum_code_without_level',
   'duplicate_role_row',
+  'inactive_course_assistants',
   'invalid_regex',
   'invalid_source_row',
   'missing_override_target',
   'unlinked_generation_values',
   'unmatched_curriculum_2018_label',
   'unmatched_curriculum_2023_label',
+  'unmatched_staff_name',
 ] as const;
 
 // Rows no published file ever used, left out of the import and counted: a
-// teaching or pattern row naming no course, a pattern of a year the
-// workbook does not list, and the earlier of several patterns of one
-// course and year (the last one applies).
+// teaching or pattern row naming no course, the teaching row of a course
+// whose export row has typed professors (the export row wins), a pattern
+// of a year the workbook does not list, and the earlier of several
+// patterns of one course and year (the last one applies).
 export const skippedCodes = [
   'duplicate_pattern',
   'orphan_assignment',
   'orphan_pattern',
+  'superseded_assignment',
   'unknown_academic_year',
 ] as const;
 
@@ -44,7 +51,6 @@ export const skippedCodes = [
 // fixes.
 export const warningCodes = [
   'ambiguous_equivalency_entry',
-  'ambiguous_staff_label',
   'duplicate_assignment',
   'duplicate_course_name',
   'duplicate_equivalency',
@@ -54,20 +60,22 @@ export const warningCodes = [
   'formula_pattern_cell',
   'label_metacharacters',
   'orphan_equivalency',
+  'repeated_staff_name',
   'unlinked_availability',
   'unmatched_council_index',
   'unmatched_equivalency_entry',
   'unreferenced_rows',
-  'unresolved_staff_text',
 ] as const;
 
 // The warnings of what the import fixes by rule, never in the workbook:
 // a later teaching row of a course is ignored (the first is used), an
-// availability of TRUE without a name links nothing, and a formula
-// pattern cell is not read. The summary places each case (fixes).
+// availability of TRUE without a name links nothing, a formula pattern
+// cell is not read, and a name listed again in one teaching cell is
+// linked once. The summary places each case (fixes).
 export const ruleFixCodes = [
   'duplicate_assignment',
   'formula_pattern_cell',
+  'repeated_staff_name',
   'unlinked_availability',
 ] as const satisfies ReadonlyArray<(typeof warningCodes)[number]>;
 
@@ -88,12 +96,16 @@ export type PartRows = {
 
 // What else a case involves, never a value: the rows of other parts it
 // concerns (such as the curriculum rows a name matches), the curriculum
-// generation of a case about one generation's values, and the place of a
+// generation of a case about one generation's values, the place of a
 // cell no row was read from (sheet, row and column header of a formula
-// pattern cell, whose ids are empty).
+// pattern cell, whose ids are empty), and the field of the row's cell a
+// teaching case concerns with its lines (1 for the first; none when the
+// case is the whole cell).
 type CaseDetail = {
   readonly cell?: SheetCell;
+  readonly field?: string;
   readonly generation?: '2018' | '2023';
+  readonly lines?: readonly number[];
   readonly related?: readonly PartRows[];
 };
 

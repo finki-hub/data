@@ -10,7 +10,6 @@ import { exportDefinitions } from '../directus/extensions/directus-extension-dat
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import { storeReader } from '../src/projection/memory-reader.js';
 import {
-  assignmentTexts,
   expectedData,
   expectedKeys,
   expectedRows,
@@ -24,6 +23,7 @@ import {
   forbiddenPrivateFields,
   makeSyntheticDataset,
   privateSentinels,
+  staffNames,
 } from './fixtures/synthetic-data.js';
 import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
 import { codes, planOf, withCourse } from './import-plan-helpers.js';
@@ -41,6 +41,7 @@ import {
   unmatchedLabel,
   unmatchedLegacy,
   withLinkedLabel,
+  withValues,
   workbookStore,
 } from './relational-export-helpers.js';
 
@@ -189,7 +190,7 @@ describe('parity with the committed public files', () => {
       '2018-credits': '0',
       '2023-channel': '0',
       channel: 'TRUE',
-      professors: 'Prof. Beta Override',
+      professors: staffNames.active,
     });
     expect(courseNamed(assets, courseNames.zeta)).toMatchObject({
       '2018-channel': '0',
@@ -201,7 +202,7 @@ describe('parity with the committed public files', () => {
       '2023-code',
     );
     expect(courseNamed(assets, courseNames.alpha)?.['professors']).toBe(
-      'Prof. Zed Alpha, Prof. Abe Alpha',
+      `${staffNames.minimal}\n${staffNames.active}`,
     );
     expect(assets.rooms.map((room) => room['floor'])).toEqual(['0', '2', '-1']);
     expect(assets.staff.map((row) => row['active'])).toContain('0');
@@ -279,7 +280,10 @@ describe('the cases where the committed files differ from what the import writes
     );
     await expect(
       expectedCourse('parity', courseNames.alpha),
-    ).resolves.toHaveProperty('professors', 'Prof. Zed Alpha, Prof. Abe Alpha');
+    ).resolves.toHaveProperty(
+      'professors',
+      `${staffNames.minimal}\n${staffNames.active}`,
+    );
   });
 
   test.each([
@@ -364,29 +368,6 @@ describe('the cases where the committed files differ from what the import writes
       await expect(publishedData(store)).resolves.toEqual(
         await expectedData(expected),
       );
-    },
-  );
-
-  test.each(
-    assignmentTexts.map((text, index) => ({
-      expected: `assignment-text-${String(index + 1)}` as const,
-      text,
-    })),
-  )(
-    'republishes the assignment text $text exactly although every part names a staff row',
-    async ({ expected, text }) => {
-      const base = parityDataset();
-      const store = await importedStore({
-        ...base,
-        teaching_assignments: base.teaching_assignments.map((row) =>
-          row.id === 1 ? { ...row, professors: text } : row,
-        ),
-      });
-
-      await expect(publishedData(store)).resolves.toEqual(
-        await expectedData(expected),
-      );
-      await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
     },
   );
 });
@@ -523,73 +504,66 @@ describe('year configuration', () => {
 describe('relation values resolved on read', () => {
   test('publishes a renamed staff member and a renamed entry without any rebuild, the level from the new code', async () => {
     const store = await importedStore();
-    edit(store, 'staff', renamed('name', 'Prof. Theta', 'Prof. Theta Renamed'));
+    const renamedStaff = `${staffNames.minimal} Renamed`;
+    edit(store, 'staff', renamed('name', staffNames.minimal, renamedStaff));
     edit(
       store,
       'curriculum_entries',
       renamed('code', 'F23L2S007', 'F23L4S007'),
     );
-    const theta = courseNamed(await projected(store), courseNames.theta);
+    const assets = await projected(store);
 
-    expect(theta).toMatchObject({
+    expect(courseNamed(assets, courseNames.theta)).toMatchObject({
       '2023-code': 'F23L4S007',
       '2023-level': '4',
-      professors: 'Prof. Theta Renamed',
+      professors: renamedStaff,
     });
+    // Every course linking the staff member shows the new name.
+    expect(
+      [courseNames.alpha, courseNames.gamma, courseNames.iota].map((name) =>
+        JSON.stringify(courseNamed(assets, name)).includes(renamedStaff),
+      ),
+    ).toEqual([true, true, true]);
+    expect(
+      JSON.stringify(assets.courses).replaceAll(renamedStaff, ''),
+    ).not.toContain(staffNames.minimal);
   });
 
-  test('orders labels by sort then id, prefers a display label and yields to the professors override', async () => {
+  test('joins the staff names of a role by line breaks in drag order, then id, and never reads an override', async () => {
     const store = edit(
       await importedStore(),
       'teaching_assignments',
       (rows) => [
         ...rows,
+        { course: 7, id: 500, role: 'professor', sort: 0, staff: 5 },
+        { course: 7, id: 501, role: 'professor', sort: null, staff: 4 },
         {
           course: 7,
-          display_override: 'Visiting Lecturer',
-          id: 500,
-          role: 'professor',
-          sort: 0,
-          staff: null,
-        },
-        {
-          course: 7,
-          display_override: 'Shown Instead',
-          id: 501,
-          role: 'assistant',
-          sort: null,
-          staff: 5,
-        },
-        {
-          course: 2,
-          display_override: 'Hidden By Override',
+          display_override: 'Never Shown',
           id: 502,
-          role: 'professor',
-          sort: 1,
-          staff: null,
+          role: 'assistant',
+          sort: 2,
+          staff: 2,
         },
       ],
     );
-    const assets = await projected(store);
-
-    expect(courseNamed(assets, courseNames.theta)).toMatchObject({
-      assistants: 'Asst. Theta, Shown Instead',
-      professors: 'Visiting Lecturer, Prof. Theta',
-    });
-    expect(courseNamed(assets, courseNames.beta)?.['professors']).toBe(
-      'Prof. Beta Override',
+    withValues(
+      store,
+      { collection: 'courses', id: 7 },
+      { professors_override: 'Never Shown' },
     );
+    const theta = courseNamed(await projected(store), courseNames.theta);
+
+    expect(theta).toMatchObject({
+      assistants: `${staffNames.active}\n${staffNames.inactive}`,
+      professors: `Prof. Abe Alpha\n${staffNames.minimal}\nProf. Zed Alpha`,
+    });
+    expect(JSON.stringify(theta)).not.toContain('Never Shown');
   });
 
   test.each([
-    [
-      { display_override: null, staff: null },
-      'Assignment 500 of course 7 has no label',
-    ],
-    [
-      { display_override: 'Label', role: null },
-      'Assignment 500 of course 7 has no role',
-    ],
+    [{ staff: null }, 'Assignment 500 of course 7 has no staff name'],
+    [{ role: null }, 'Assignment 500 of course 7 has no role'],
   ])('refuses the assignment %j', async (change, message) => {
     const store = edit(
       await importedStore(),
@@ -601,7 +575,7 @@ describe('relation values resolved on read', () => {
           id: 500,
           role: 'assistant',
           sort: 9,
-          staff: null,
+          staff: 2,
           ...change,
         },
       ],
@@ -951,7 +925,7 @@ describe('the keys a consumer requires', () => {
 
     expect(
       assets.courses.flatMap(
-        missingOf(['name', '2023-available', '2018-available']),
+        missingOf(['name', 'professors', '2023-available', '2018-available']),
       ),
     ).toEqual([]);
     expect(

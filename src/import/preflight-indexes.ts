@@ -1,4 +1,5 @@
 import type {
+  AssignmentRow,
   EquivalencyRow,
   PatternRow,
   WorkbookRows,
@@ -8,6 +9,7 @@ import { type CurriculumIndex, indexCurriculum } from './curriculum-labels.js';
 import { indexLabels, type LabelIndex, nonEmpty } from './labels.js';
 
 export type Indexes = {
+  readonly assignmentRows: ReadonlyMap<number, AssignmentRow>;
   readonly assignments: LabelIndex;
   readonly courses: LabelIndex;
   readonly current: CurriculumIndex;
@@ -21,16 +23,6 @@ export type Indexes = {
 
 export const patternKey = (course: string, year: string): string =>
   `${course}\u{0}${year}`;
-
-// The teaching row the import uses for a course name: the first row naming
-// it, as the spreadsheet's VLOOKUP did. A later row is neither planned nor
-// checked (preflight-links.ts) and is reported as a rule fix
-// (duplicateAssignment).
-export const usedAssignment = (
-  name: null | string,
-  indexes: Pick<Indexes, 'assignments'>,
-): number | undefined =>
-  name === null ? undefined : indexes.assignments.get(name)?.[0];
 
 // Every label lookup of the check, keyed by the exact label; the two
 // curriculum sheets with the code of each row.
@@ -46,6 +38,9 @@ export const buildIndexes = (rows: WorkbookRows): Indexes => {
     patterns.set(key, [...(patterns.get(key) ?? []), row]);
   }
   return {
+    assignmentRows: new Map(
+      rows.teaching_assignments.map((row) => [row.id, row]),
+    ),
     assignments: indexLabels(rows.teaching_assignments, (row) =>
       nonEmpty(row.course_name),
     ),

@@ -197,6 +197,7 @@ describe('the readiness-check registry', () => {
       active_snapshot_edited: 'warning/snapshot',
       assignment_unresolved: 'blocker/check',
       council_member_unresolved: 'warning/count',
+      course_without_professor: 'blocker/check',
       enrollment_count_missing: 'blocker/check',
       enrollments_failed: 'blocker/status',
       enrollments_pending: 'blocker/status',
@@ -438,11 +439,9 @@ describe('readiness derived from the registry', () => {
     const answer = await readinessAction(exportDefinitions, deps(store));
 
     expect(answer.reviews).toEqual({
-      // The imported fixture keeps six assignment labels without staff, an
-      // unmatched council index, two equivalency labels without an entry (a
-      // generation-scoped review, follow-up 51) and three equivalencies
-      // without a course.
-      assignment_review_label: 'Assignments shown by their label only',
+      // The imported fixture keeps an unmatched council index, two
+      // equivalency labels without an entry (a generation-scoped review,
+      // follow-up 51) and three equivalencies without a course.
       council_member_unresolved: 'Council members without a student',
       entry_needs_mapping: 'Needs mapping',
       equivalency_entry_unresolved: 'Equivalency labels without an entry',

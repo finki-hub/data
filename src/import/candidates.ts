@@ -1,18 +1,19 @@
-import type { assignmentRoles } from '../data-model/content-collections.js';
+import type { CourseStatus } from '../../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
 import type { LinkCandidate } from './labels.js';
+import type { Origin } from './planned.js';
+import type { TeachingLink } from './teaching-cells.js';
 
 // The decisions the up-front check takes for every workbook row that
 // links to another by label; the planners (plan.ts) write exactly these.
 
-// The staff rows a professor or assistant text points at, in the order the
-// text lists them: linked only when `unique`; `ambiguous` carries the ids
-// in contention and links none; `unresolved` keeps the text as display
-// text; `none` is an empty text.
-export type StaffCandidate = {
-  readonly resolution: 'ambiguous' | 'none' | 'unique' | 'unresolved';
-  readonly role: (typeof assignmentRoles)[number];
-  readonly staff: readonly number[];
-  readonly text: null | string;
+// The teaching of a course: its status and its staff links, professors
+// then assistants in cell order, read from `source`, the cells of its
+// export row with typed professors or of its first Наставен Кадар row
+// (null without either: Active, linking nobody).
+export type TeachingCandidate = {
+  readonly links: readonly TeachingLink[];
+  readonly source: null | Origin;
+  readonly status: CourseStatus;
 };
 
 // The enrollment rule of a course and academic year: the last pattern the
@@ -39,14 +40,10 @@ export type CourseCandidate = {
   readonly id: number;
   readonly legacy: LegacyCandidate;
   readonly rules: readonly RuleCandidate[];
+  readonly teaching: TeachingCandidate;
 };
 
 export type Candidates = {
-  readonly assignments: ReadonlyArray<{
-    readonly course: LinkCandidate;
-    readonly id: number;
-    readonly staff: readonly StaffCandidate[];
-  }>;
   readonly council: ReadonlyArray<{
     readonly id: number;
     readonly student: LinkCandidate;

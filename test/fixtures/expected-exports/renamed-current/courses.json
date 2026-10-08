@@ -1,7 +1,7 @@
 [
   {
     "name": "Alpha Course",
-    "professors": "Prof. Zed Alpha, Prof. Abe Alpha",
+    "professors": "Synthetic Staff Minimal\nSynthetic Staff Active",
     "2025/2026": "2",
     "2024/2025": "2",
     "2023/2024": "1",
@@ -21,7 +21,7 @@
     "2018-available": "FALSE",
     "channel": "TRUE",
     "tags": "synthetic;alpha",
-    "assistants": "Asst. Alpha One; Asst. Alpha Two",
+    "assistants": "Synthetic Staff Inactive",
     "2023-name": "Alpha Course (2023)",
     "2023-code": "F23L1W001",
     "2023-level": "1",
@@ -46,7 +46,7 @@
   },
   {
     "name": "Beta Course",
-    "professors": "Prof. Beta Override",
+    "professors": "Synthetic Staff Active",
     "2025/2026": "0",
     "2024/2025": "2",
     "2023/2024": "0",
@@ -65,7 +65,6 @@
     "2023-available": "TRUE",
     "2018-available": "TRUE",
     "channel": "TRUE",
-    "assistants": "Asst. Beta Assigned",
     "2023-name": "Beta Course",
     "2023-code": "F23L2W002",
     "2023-level": "2",
@@ -86,7 +85,7 @@
   },
   {
     "name": "Gamma Course",
-    "professors": "Prof. Gamma Override",
+    "professors": "Synthetic Staff Minimal",
     "2025/2026": "0",
     "2024/2025": "0",
     "2023/2024": "0",
@@ -116,6 +115,7 @@
   },
   {
     "name": "Delta Course",
+    "professors": "(неактивиран предмет)",
     "2025/2026": "0",
     "2024/2025": "0",
     "2023/2024": "0",
@@ -133,11 +133,12 @@
     "2011/2012": "0",
     "2023-available": "FALSE",
     "2018-available": "FALSE",
-    "channel": "FALSE"
+    "channel": "FALSE",
+    "assistants": "(неактивиран предмет)"
   },
   {
     "name": "Epsilon Course",
-    "professors": "Prof. Epsilon",
+    "professors": "Сите професори",
     "2025/2026": "0",
     "2024/2025": "0",
     "2023/2024": "1",
@@ -189,6 +190,7 @@
   },
   {
     "name": "Zeta Course",
+    "professors": "Сите професори",
     "2025/2026": "0",
     "2024/2025": "0",
     "2023/2024": "0",
@@ -207,7 +209,7 @@
     "2023-available": "FALSE",
     "2018-available": "FALSE",
     "channel": "FALSE",
-    "assistants": "Asst. Zeta",
+    "assistants": "Synthetic Staff Minimal",
     "2023-name": "Zeta Course",
     "2023-semester": "6",
     "2023-credits": "0",
@@ -219,7 +221,7 @@
   },
   {
     "name": "Theta Course",
-    "professors": "Prof. Theta",
+    "professors": "Synthetic Staff Minimal",
     "2025/2026": "0",
     "2024/2025": "0",
     "2023/2024": "0",
@@ -238,7 +240,7 @@
     "2023-available": "TRUE",
     "2018-available": "TRUE",
     "channel": "TRUE",
-    "assistants": "Asst. Theta",
+    "assistants": "Synthetic Staff Active",
     "2023-name": "Theta Course",
     "2023-code": "F23L2S007",
     "2023-level": "2",
@@ -256,7 +258,7 @@
   },
   {
     "name": "Iota 2.0 Course",
-    "professors": "Prof. Iota",
+    "professors": "Synthetic Staff Active\nSynthetic Staff Inactive",
     "2025/2026": "0",
     "2024/2025": "0",
     "2023/2024": "0",
@@ -275,7 +277,7 @@
     "2023-available": "TRUE",
     "2018-available": "FALSE",
     "channel": "FALSE",
-    "assistants": "Asst. Iota",
+    "assistants": "Synthetic Staff Minimal",
     "2023-name": "Synthetic Label Without Entry",
     "2023-credits": "6"
   }

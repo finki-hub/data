@@ -208,14 +208,16 @@ run the one-time import (below) in place of step 4.
    course after its row (a curriculum code by its cell instead); the table
    below says what to change for each code. The dry run exits with code 1
    when the workbook cannot be read. The lines quote course and curriculum
-   names, curriculum codes, 2018 labels, credits and availabilities only,
-   never a staff or student value; names, codes and labels stand between
+   names, curriculum codes, 2018 labels, credits, availabilities and the
+   Inactive text only, never a staff or student value (a teaching case
+   names its cell and line numbers); names, codes and labels stand between
    « and », so a stray space in a cell shows. For example:
 
    ```text
-   Import dry run blocked: 2 cases
+   Import dry run blocked: 3 cases
    - [ambiguous_curriculum_2023] Предмети (Export) row 3 «Beta Course»: 2023 name «Beta Course» matches Предмети - 2023 rows 6, 9; codes: row 6 «F23L2W002», row 9 «F23L2W009»
    - [unlinked_generation_values] Предмети (Export) row 4 «Gamma Course»: 2018 name empty; 2018 credits 6, 2018 available TRUE
+   - [unmatched_staff_name] Наставен Кадар row 7, column "Професори" «Theta Course»: lines 2, 4 not found in Кадар (Export)
    ```
 
    What to change in the workbook, per code:
@@ -226,15 +228,18 @@ run the one-time import (below) in place of step 4.
    | `ambiguous_course_name` | Give each course its own name. |
    | `ambiguous_curriculum_2018`, `ambiguous_curriculum_2023` | Give each subject its own name; when the rows list one subject, give every row its code. |
    | `ambiguous_legacy_equivalency` | Make the 2018 names of the equivalency rows agree, or fill in the course's 2018-name to choose one. |
+   | `ambiguous_staff_name` | Give each of the named `Кадар (Export)` rows its own name, and write the intended one on the line. |
    | `ambiguous_student_index` | Correct the index, or keep one student row for it. |
    | `curriculum_code_without_level` | Correct the code to start with `F`, the generation's two digits, `L` and the level, such as `F18L3W055`, or clear it. |
    | `duplicate_role_row` | Delete the repeated rows. |
+   | `inactive_course_assistants` | Clear the course's `Асистенти` cell, or write staff names in its professors cell to keep the course active. |
    | `invalid_regex` | Correct the pattern. For the default pattern, add a valid pattern for each year without one, or rename the course. |
    | `invalid_source_row` | Fill in the missing cell, or delete the row. |
    | `missing_override_target` | Correct the 2018-name to the name of a 2018 subject, or clear it. |
    | `unlinked_generation_values` | Fill in that generation's name, or clear the credits. |
    | `unmatched_curriculum_2018_label` | Correct the 2018 name in the equivalency sheet, or fill in the course's 2018-name. |
    | `unmatched_curriculum_2023_label` | Correct the 2023 name to the name of a 2023 subject. |
+   | `unmatched_staff_name` | Write each line as the exact name of a `Кадар (Export)` row, one name per line, or add that staff member. |
 
 2. Run the one-time import against the empty project (steps 1 to 3 of
    [Fresh setup](#fresh-setup) first; the import runs setup itself):
@@ -266,9 +271,11 @@ Directus untouched:
   relationship with more than one candidate (a course name two courses
   carry, a curriculum name matching curriculum rows of different subjects,
   a council index two students share, two different 2018 labels for one
-  course), a row the model cannot hold (a course without a name, a pattern
-  that is no Unicode regular expression, a repeated council or dean's
-  office row, a curriculum code that gives no level), and the values the
+  course, a teaching line several staff rows carry), a row the model
+  cannot hold (a course without a name, a pattern that is no Unicode
+  regular expression, a repeated council or dean's office row, a
+  curriculum code that gives no level, a teaching line no staff row
+  carries, an Inactive course with assistants), and the values the
   published files carry that no relational row could hold: credits of a
   generation without its name (`unlinked_generation_values`), a curriculum
   name, 2018 override or 2018 equivalency label that matches no curriculum
@@ -297,8 +304,10 @@ Directus untouched:
   course imports as FALSE.
 - Rows no published file ever used are skipped, and the summary counts
   them per kind: a `Наставен Кадар` or `Слушатели` row naming no course
-  (`orphan_assignment`, `orphan_pattern`), a pattern of a year the sheet
-  does not head (`unknown_academic_year`), and the earlier patterns of a
+  (`orphan_assignment`, `orphan_pattern`), the `Наставен Кадар` rows of a
+  course whose `Предмети (Export)` professors cell is typed
+  (`superseded_assignment`, not read), a pattern of a year the sheet does
+  not head (`unknown_academic_year`), and the earlier patterns of a
   course and year, of which the last one applies (`duplicate_pattern`).
 - What a rule can fix, the import fixes (the workbook file stays as it
   is) and counts as a warning. The summary's `fixes` lists the place of
@@ -312,21 +321,23 @@ Directus untouched:
     nothing and publishes FALSE, as above (`unlinked_availability`);
   - a formula in a `Слушатели` pattern cell is not read, and that course
     and year take the default `<name>-<year>` pattern
-    (`formula_pattern_cell`; the column is the year).
+    (`formula_pattern_cell`; the column is the year);
+  - a staff name listed again in one teaching cell is linked once
+    (`repeated_staff_name`; the place names the cell and the line).
 
   ```json
   "fixes": {
     "duplicate_assignment": ["Наставен Кадар row 3 (used: row 2)"],
     "formula_pattern_cell": ["Слушатели row 2, column \"2024/2025\""],
+    "repeated_staff_name": ["Наставен Кадар row 22, column \"Професори\", line 3"],
     "unlinked_availability": ["Предмети (Export) row 4, column \"2018-available\""]
   }
   ```
 - Everything else is imported as the workbook holds it, and what deserves
   a look in Studio is counted under `warnings`. Readiness counts some of
-  these again afterwards (a teaching text that names no single staff
-  member, an equivalency label that matches no entry, a council index no
-  student carries); others only the import counts (curriculum rows no
-  course names, `unreferenced_rows`).
+  these again afterwards (an equivalency label that matches no entry, a
+  council index no student carries); others only the import counts
+  (curriculum rows no course names, `unreferenced_rows`).
 
 The codes both summaries print (declared in `src/import/findings.ts`; a
 rule fix is a warning whose places `fixes` lists):
@@ -337,21 +348,24 @@ rule fix is a warning whose places `fixes` lists):
 | `ambiguous_curriculum_2018` | refuses | A course's 2018 name (its override or its equivalency label) matches several 2018 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
+| `ambiguous_staff_name` | refuses | A line of a teaching cell names a staff name several `Кадар (Export)` rows carry; the line places the cell and names the rows. |
 | `ambiguous_student_index` | refuses | Several students carry the index of a council row. |
 | `curriculum_code_without_level` | refuses | A curriculum row, linked or not, has a non-empty code that does not start with `F`, two digits, `L` and a digit, so it gives no level (the database refuses such a code as well); the line places it by sheet, row and column `Код`. |
 | `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
+| `inactive_course_assistants` | refuses | A professors cell of `(неактивиран предмет)` with an assistants cell that is neither empty nor the same text. |
 | `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, or the `<name>-<year>` default) is no Unicode regular expression. |
 | `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
 | `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
 | `unlinked_generation_values` | refuses | A course has credits of a generation but no name of that generation (an availability alone is a rule fix or no case). |
 | `unmatched_curriculum_2018_label` | refuses | The 2018 label of a course's first equivalency row matches no 2018 curriculum row. |
 | `unmatched_curriculum_2023_label` | refuses | A course's 2023 name matches no 2023 curriculum row. |
+| `unmatched_staff_name` | refuses | A line of a teaching cell matches no `Кадар (Export)` name exactly (no trimming); the line places the cell and the lines. |
 | `duplicate_pattern` | skipped | An earlier pattern of a course and year; the last one applies. |
 | `orphan_assignment` | skipped | A `Наставен Кадар` row naming no course. |
 | `orphan_pattern` | skipped | A `Слушатели` pattern row naming no course. |
+| `superseded_assignment` | skipped | A `Наставен Кадар` row of a course whose `Предмети (Export)` professors cell is typed; it is not read. |
 | `unknown_academic_year` | skipped | A pattern of a year the `Слушатели` sheet does not head. |
 | `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation that carry different codes, or one without a code; the member keeps the label without an entry. |
-| `ambiguous_staff_label` | warning | A teaching text names a staff name several staff rows carry; the text stays display text and links no staff. |
 | `duplicate_assignment` | warning | A second or later `Наставен Кадар` row names a course; it is ignored, and the first row is used (rule fix). |
 | `duplicate_course_name` | warning | Several courses share one name. |
 | `duplicate_equivalency` | warning | Several equivalency rows name one course, with no conflicting 2018 label. |
@@ -361,11 +375,11 @@ rule fix is a warning whose places `fixes` lists):
 | `formula_pattern_cell` | warning | A `Слушатели` pattern cell holds a formula; it is not read, and that course and year take the default pattern (rule fix). |
 | `label_metacharacters` | warning | A course name holds a regular-expression or `LIKE` metacharacter, so its default `<name>-<year>` pattern matches differently than it reads. |
 | `orphan_equivalency` | warning | An equivalency row whose 2023 label names no course; it is imported without a course. |
+| `repeated_staff_name` | warning | A staff name listed again in one teaching cell; it is linked once (rule fix). |
 | `unlinked_availability` | warning | A course has an availability of TRUE of a generation but no name of that generation; it links nothing and publishes FALSE (rule fix). |
 | `unmatched_council_index` | warning | A council index no student carries; the member is imported, labelled by the index. |
 | `unmatched_equivalency_entry` | warning | An equivalency label matches no curriculum row of its generation; the member keeps the label without an entry. |
 | `unreferenced_rows` | warning | Curriculum rows no course names; they are imported as entries without a course link. |
-| `unresolved_staff_text` | warning | A teaching text that is neither one staff name nor a list of distinct staff names joined by `, `; it stays display text. |
 
 It then refuses, before its first write, a project in which any application
 collection (every collection the import fills, the relational collections,
@@ -380,10 +394,10 @@ its coordination status row, is accepted. On an accepted project it:
    reference set to the id Directus answered for the row it names (see
    [What the workbook fills](#what-the-workbook-fills)): the academic years,
    curriculum generations and study programs; the staff, rooms, students,
-   Discord channels, dean's office and Moodle users; the courses; the
-   curriculum entries with their program states; the course links; the
-   enrollment rules; the teaching role rows; the equivalencies with their
-   members; the council.
+   Discord channels, dean's office and Moodle users; the courses with
+   their status; the curriculum entries with their program states; the
+   course links; the enrollment rules; the staff links; the equivalencies
+   with their members; the council.
 
 The import reads the layout of the 2026-10-08 export, and an older export
 stops before Directus is contacted (exit code 1, `Import failed: Слушатели
@@ -582,13 +596,13 @@ relational rows straight from them:
 
 | Sheet | Relational rows |
 | --- | --- |
-| `Предмети (Export)` | `courses` (name, tags, `professors_override`); the 2023 and 2018 name, credits and availability of each course become its `course_curricula` links (a name that matches several listings of one subject links the first) |
+| `Предмети (Export)` | `courses` (name, tags); the 2023 and 2018 name, credits and availability of each course become its `course_curricula` links (a name that matches several listings of one subject links the first); a `professors` cell typed over the formula, with the `assistants` the row shows, is the course's teaching instead of its `Наставен Кадар` row (below) |
 | `Кадар (Export)` | `staff` |
 | `Простории (Export)` | `rooms` |
 | `Индекси - Година`, `Индекси - Други` | `students` |
 | `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included; `Ниво` is not read, because the level is the digit after `L` in the code |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row; one label column per generation, headed `Предмет (<generation code>)`. The column of a label-only generation (2013) may be missing and then reads as empty; a missing column of a generation with a curriculum, a header that names no known generation, or a filled cell under an empty header stops the import (exit code 1) |
-| `Наставен Кадар` | `teaching_assignments` role rows (course, staff or label, role, order) |
+| `Наставен Кадар` | the course's **Status** and its `teaching_assignments` staff links: one per line naming a `Кадар (Export)` row exactly, professors then assistants in cell order (`sort`); a professors cell of exactly `Сите професори` gives All professors, of exactly `(неактивиран предмет)` Inactive (its assistants cell empty or the same text) |
 | `Слушатели` | `academic_years` from the labels heading its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
 | `Дискорд` | `discord_channels`, one row per channel pair |
 | `ФСС` | `student_council`, linked to the student of its index |
@@ -609,19 +623,20 @@ under its own header, so the one-time import fills the same fields as a
 snapshot. A row without `ID_new`, an account only the old Moodle instance
 shows, is imported with its `ID_old`.
 
-Values the import cannot relate unambiguously but can keep (a teaching text
-that names no single staff member, an equivalency label that matches no
-single subject, a council index that matches no student) are kept as literal
-labels and counted by readiness. Nothing is guessed: an ambiguity a
-published value depends on, and every value the published files carry that
-no relational row could hold, refuses the import instead (exit code 3). The
-exceptions: an availability of TRUE or FALSE of a generation a course has
-no name for holds no value, so the import links nothing and `courses.json`
-publishes FALSE for that availability, as for an empty cell; a second or
-later teaching row of a course is ignored and the first is used; a formula
-pattern cell is not read. Each of these but FALSE is a rule fix, a warning
-placed under `fixes`. Only rows no published file ever used are left out,
-and the import counts them (see
+Values the import cannot relate unambiguously but can keep (an equivalency
+label that matches no single subject, a council index that matches no
+student) are kept as literal labels and counted by readiness. Nothing is
+guessed: an ambiguity a published value depends on, every value the
+published files carry that no relational row could hold, and every
+teaching line that names no single staff row, refuses the import instead
+(exit code 3). The exceptions: an availability of TRUE or FALSE of a
+generation a course has no name for holds no value, so the import links
+nothing and `courses.json` publishes FALSE for that availability, as for
+an empty cell; a second or later teaching row of a course is ignored and
+the first is used; a formula pattern cell is not read; a staff name
+listed again in one teaching cell is linked once. Each of these but FALSE
+is a rule fix, a warning placed under `fixes`. Only rows no published file
+ever used are left out, and the import counts them (see
 [One-time workbook import](#one-time-workbook-import)).
 
 ### Editable, derived and bookkeeping collections
@@ -663,9 +678,9 @@ database guards the table:
   setup never resets it.
 
 A course holds only what `courses.json` publishes from it directly (name,
-tags, `professors_override`); its curriculum lives in its links, its staff
-in its role rows, and a council member is named by the linked student (its
-index labels an unlinked one).
+tags, status); its curriculum lives in its links, its staff in its staff
+links, and a council member is named by the linked student (its index
+labels an unlinked one).
 
 ### Academic years, curriculum generations and study programs
 
@@ -697,7 +712,7 @@ generation first; narrow it to one generation with Studio's native filter on
 ### Forms and relationships
 
 A course is the entry point: its form shows its curriculum links and
-equivalency members, its staff assignments and `professors_override`, the
+equivalency members, its status and staff links, the
 Moodle history entries mapped to it per academic year, and its enrollment
 rules and derived counts. A history entry's form shows its exact label and
 review state (`needs_mapping`, `mapped`, `ignored`, with a reason), its
@@ -710,8 +725,12 @@ mappings, and the users carrying it (the derived index, read-only).
   refuse a link, state or member whose generation differs.
 - Rows added in a related list are shown as placeholders until the parent
   is saved (Directus behaviour).
-- **Professors** of `courses.json` are `professors_override` when set, else
-  the course's professor assignments in order; see [Publishing](#publishing).
+- **Status** decides what `courses.json` publishes as professors and
+  assistants: Active the names of the course's staff links in their drag
+  order, All professors `Сите професори` as professors (assistants still
+  from the links), Inactive `(неактивиран предмет)` as both. A new course
+  starts Active, and publishing is blocked while an Active course has no
+  professor; see [Publishing](#publishing).
 - **Available** on a curriculum link is on or off, never empty; a new link
   starts on.
 - The **Code** of a curriculum entry gives its level, the digit after `L`
@@ -1043,15 +1062,17 @@ with a curriculum and their blocks), `study_program_unsorted` and
 `study_program_sort_shared` (the same for the published programs of one
 generation and their state keys), `enrollment_count_missing` (a course and
 published year without a count row), `enrollment_rule_missing` (without a
-rule, so it is never counted), `assignment_role_missing`,
-`assignment_unresolved` (a published assignment with neither a staff member
-nor a display label). Today's warnings:
-`assignment_review_label` (an unresolved imported label published as text),
-`assignment_order_ambiguous` (two rows of one course and role at one
-position; the id decides their order), `mapping_without_rule` (mappings
-nothing counts), `mapped_entry_awaiting_review`, `entry_needs_mapping`
-(Moodle lines nobody mapped, administrative ones included),
-`equivalency_without_course`, `equivalency_entry_unresolved` (an
+rule, so it is never counted), `course_without_professor` (an Active
+course without a professor link to a staff member, whose professors
+`courses.json` cannot publish), `assignment_role_missing`,
+`assignment_unresolved` (an assignment with neither a staff member nor a
+display label). Today's warnings: `assignment_review_label` (an
+assignment with a display label but no staff member; no label is
+published), `assignment_order_ambiguous` (two rows of one course and role
+at one position; the id decides their order), `mapping_without_rule`
+(mappings nothing counts), `mapped_entry_awaiting_review`,
+`entry_needs_mapping` (Moodle lines nobody mapped, administrative ones
+included), `equivalency_without_course`, `equivalency_entry_unresolved` (an
 equivalency with a member label of a generation with a curriculum linked
 to no entry of that generation), `council_member_unresolved` (a council
 membership linked to no student), `snapshot_staged`,
@@ -1083,6 +1104,7 @@ states the fact only. What to do:
 | `snapshot_import_failed` | Run **Data / Import Moodle snapshot** again. |
 | `enrollment_count_missing` | Add the course's rule for that year (`enrollment_rule_missing`), or let the pending count run; a missing count is never published as 0. |
 | `enrollment_rule_missing` | Run **Add enrollment rules** for the year or the course. |
+| `course_without_professor` | Add a professor to the course's **Teaching staff**, or set its **Status** to All professors or Inactive. |
 | `entry_needs_mapping` | Map the entry, or mark it `ignored` with a reason. |
 | `mapping_without_rule` | Add the enrollment rule of the mapped course and year. |
 | `academic_year_unsorted`, `curriculum_generation_unsorted`, `study_program_unsorted` | Give the published row a `sort`. |
@@ -1102,14 +1124,15 @@ is kept. The views are generated from `exports/review-views.ts` and
 | **Mapped entries awaiting review** | `moodle_course_entries` | `mapped_entry_awaiting_review` | entries still `needs_mapping` with a mapping, and its course and year |
 | **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
 | **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
-| **Assignments without staff or label**, **Assignments shown by their label only**, **Assignments without a known role** | `teaching_assignments` | `assignment_unresolved`, `assignment_review_label`, `assignment_role_missing` | the published rows each check counts (a professor row that `professors_override` replaces counts nowhere) |
+| **Assignments without staff or label**, **Assignments shown by their label only**, **Assignments without a known role** | `teaching_assignments` | `assignment_unresolved`, `assignment_review_label`, `assignment_role_missing` | the rows each check counts (a professor row of a course with `professors_override` set counts nowhere) |
 | **Council members without a student** | `student_council` | `council_member_unresolved` | memberships without a student |
 | **Published academic years / curriculum generations / study programs without a sort** | the key source's collection | `academic_year_unsorted` and the like | published rows without a position; a program shows its generation and name |
 
 The checks no plain filter can list (a missing row, a duplicate) link
 their collection page instead: today `enrollment_count_missing`,
-`enrollment_rule_missing`, `mapping_without_rule`, the three
-`*_sort_shared` blockers and `assignment_order_ambiguous`.
+`enrollment_rule_missing`, `course_without_professor`,
+`mapping_without_rule`, the three `*_sort_shared` blockers and
+`assignment_order_ambiguous`.
 
 Curriculum views show the generation and filter through the
 `curriculum_generations` relation, so a new generation's rows appear in
@@ -1201,8 +1224,8 @@ authorized cutover, after taking a snapshot of the current public objects
 Today's declared files are `courses.json`, `rooms.json`, `staff.json` and
 `students.json`, with the key allowlists, omission rules, ordering and
 string representations the public consumers already read. A file also
-declares the keys its consumers read on every row: `name` and every
-`<code>-available` of `courses.json`; `name`, `title`, `position` and
+declares the keys its consumers read on every row: `name`, `professors`
+and every `<code>-available` of `courses.json`; `name`, `title`, `position` and
 `email` of `staff.json`; `name`, `type` and `location` of `rooms.json`. A
 row without one, or with an empty one (an empty text is omitted), refuses
 the preparation before anything is uploaded, with `EXPORT_INVALID_PAYLOAD`
@@ -1300,12 +1323,15 @@ outcome, never a column or a Flow step. `GET
 
 How `courses.json` projects the relational rows into its existing keys:
 
-- `professors` is `professors_override` when set, else the course's
-  professor assignments in `sort` (then id) order, each its
-  `display_override` or its staff member's name, joined with `, ` (so the
-  import links a workbook text to staff rows only when that join gives
-  the text back: a list separated by `;`, a line break or a bare `,`, or
-  with padding, stays one literal review row); `assistants` likewise.
+- `professors` and `assistants` follow the course's `status`. Active:
+  the staff names of the course's professor links, and of its assistant
+  links, each in `sort` (then id) order, joined by line breaks; an Active
+  course without a professor refuses the preparation, and readiness
+  blocks it first (`course_without_professor`). All professors:
+  `Сите професори` as professors, assistants from the links. Inactive:
+  `(неактивиран предмет)` as both. `assistants` is left out without an
+  assistant link. The links of a role the status replaces are kept and
+  not published.
 - The curriculum keys come from published rows: every published
   `curriculum_generations` row with a curriculum adds `<code>-available`
   (newest first by `sort`; the link's availability, FALSE for a course
@@ -1326,8 +1352,10 @@ How `courses.json` projects the relational rows into its existing keys:
   year. A new year adds its key once published, and readiness then blocks
   until every course has its count.
 - Anything the projection cannot resolve (a missing count, two links of one
-  generation, an assignment without a role or a label) refuses the
-  preparation with ids only; nothing is guessed.
+  generation, an assignment without a role or a staff name, an Active
+  course without a professor, a status outside its three values) refuses
+  the preparation with ids only (`Course 12: professor missing`); nothing
+  is guessed.
 
 Relation values are resolved on read, so renaming a staff member or a
 curriculum entry shows in the next preparation without any rebuild.
@@ -1415,7 +1443,7 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 | `SNAPSHOT_IMPORT_FAILED`, `SNAPSHOT_PROMOTION_FAILED` | An unexpected fault; the Directus log names the database object. | Read the log, then import again. |
 | `EXPORT_NOT_READY` | Readiness has blockers (`Not ready: source revision <n>, blockers: <code> <count>, …`). | Clear the blockers (the **Readiness** panel links their records), then publish. |
 | `EXPORT_UNSTABLE_PREPARATION` | The source or the accepted calculation moved while the files were prepared, or since the claim. | Publish again once the edits and calculations have settled. |
-| `EXPORT_UNRESOLVED` | The projection cannot resolve a value: a missing count, two links of one generation, an assignment without a role or a label. | Correct the rows the ids name. |
+| `EXPORT_UNRESOLVED` | The projection cannot resolve a value: a missing count, two links of one generation, an assignment without a role or a staff name, an Active course without a professor (`Course 12: professor missing`), a course status outside its three values. | Correct the rows the ids name. |
 | `EXPORT_INVALID_PAYLOAD` with `required key <key> missing` | A row of the named file lacks a key its consumers read on every row, or holds it empty (see [Publishing](#publishing)). | Fill in that value of the row. |
 | `EXPORT_INVALID_READ`, `EXPORT_INVALID_PAYLOAD`, `EXPORT_INVALID_DEFINITION` | A read answered another shape, a file row breaks its definition, or the export definitions or readiness registry are inconsistent. | A code or schema fault: run `npm run setup`, and report the message if it stays. |
 | `PUBLICATION_NOT_CLAIMED` | `busy`: another run holds the claim; `upstream_dirty`: the calculations are pending; `nothing_pending`: publication is current. | Wait; wait for the calculations; mark publication pending (**Recalculate**) to publish the current files again. |

@@ -152,12 +152,17 @@ describe('import command', () => {
         duplicate_pattern: 1,
         orphan_assignment: 1,
         orphan_pattern: 1,
+        superseded_assignment: 2,
       },
     });
     expect(summary.warnings).toMatchObject({ unmatched_council_index: 1 });
     expect([summary.blockers, summary.fixes, summary.unstorable]).toEqual([
       {},
-      {},
+      {
+        repeated_staff_name: [
+          'Наставен Кадар row 8, column "Професори", line 3',
+        ],
+      },
       {},
     ]);
     expect(run.requests.created).toBe(0);
@@ -180,6 +185,7 @@ describe('import command', () => {
     expect(summary.warnings).toMatchObject({ duplicate_assignment: 1 });
     expect(summary.fixes).toEqual({
       duplicate_assignment: ['Наставен Кадар row 3 (used: row 2)'],
+      repeated_staff_name: ['Наставен Кадар row 9, column "Професори", line 3'],
     });
     expect(
       Object.keys(z.record(z.string(), z.unknown()).parse(JSON.parse(line))),

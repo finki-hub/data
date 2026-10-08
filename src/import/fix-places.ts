@@ -9,7 +9,7 @@ import {
   relatedIds,
   type RuleFixCode,
 } from './findings.js';
-import { headerOf } from './refusal-places.js';
+import { headerOf, linesText } from './refusal-places.js';
 
 // Where each rule fix of the import applies, for the summary's `fixes`:
 // `<sheet> row N[, column "X"][, line L][ (used: row M)]`, from the
@@ -51,6 +51,15 @@ const placers: Readonly<Record<RuleFixCode, Placer>> = {
           sheet: cell.sheet,
           text: sheetPlace(cell.sheet, cell.row, cell.column),
         },
+  // The teaching cell, and the lines that repeat a name.
+  repeated_staff_name: ({ collection, field, ids, lines }, places) => {
+    const row = rowOf(collection, ids[0], places);
+    if (row === null || field === undefined) {
+      return null;
+    }
+    const cell = sheetPlace(row.sheet, row.row, headerOf(collection, field));
+    return { ...row, text: `${cell}, ${linesText(lines ?? [])}` };
+  },
   // The course's availability cell of that generation.
   unlinked_availability: ({ generation, ids }, places) => {
     const row = rowOf('courses', ids[0], places);

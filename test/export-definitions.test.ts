@@ -457,11 +457,12 @@ describe('the keys a consumer requires', () => {
   test('requires exactly the keys the consumers read on every row', () => {
     expect(requiredOf(courses)).toEqual([
       'name',
+      'professors',
       'published_generations available',
     ]);
     expect(requiredOf(staff)).toEqual(['name', 'title', 'position', 'email']);
     expect(requiredOf(rooms)).toEqual(['name', 'type', 'location']);
-    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(9);
+    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(10);
   });
 
   test("refuses a courses.json row without a published generation's availability", () => {
@@ -474,7 +475,11 @@ describe('the keys a consumer requires', () => {
       },
       rows: [{}, {}],
     });
-    const row = { name: 'Course', '2023-available': 'FALSE' };
+    const row = {
+      name: 'Course',
+      professors: 'Сите професори',
+      '2023-available': 'FALSE',
+    };
 
     expect(() =>
       validateFile(courses, [{ ...row, '2018-available': 'TRUE' }, row], shape),

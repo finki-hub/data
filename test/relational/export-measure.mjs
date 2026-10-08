@@ -126,13 +126,7 @@ const assignmentsOf = (courseIds, staffIds) =>
       { ...base, role: 'professor', sort: 1, staff: staffAt(0) },
       { ...base, role: 'professor', sort: 2, staff: staffAt(7) },
       { ...base, role: 'assistant', sort: 1, staff: staffAt(13) },
-      {
-        ...base,
-        display_override: `Asst. Synthetic Review ${pad(index)}`,
-        role: 'assistant',
-        sort: 2,
-        staff: null,
-      },
+      { ...base, role: 'assistant', sort: 2, staff: staffAt(19) },
     ];
   });
 

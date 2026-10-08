@@ -256,13 +256,22 @@ const blocksFailedImport = async ({ state, target }) => {
   assert.ok(!after.warnings.includes('snapshot_never_promoted'));
 };
 
+// The staff member Theta's professors cell names, who also teaches other
+// courses, and the new name.
+const thetaProfessor = 'Synthetic Staff Minimal';
+const thetaRenamed = `${thetaProfessor} Renamed`;
+
+// A published row with the new staff name read as the old one.
+const asBeforeRename = (row) =>
+  JSON.parse(JSON.stringify(row).split(thetaRenamed).join(thetaProfessor));
+
 const followsRenames = async ({ state, target }) => {
   const [staff] = await get(
     target,
-    `/items/staff?fields=id&filter[name][_eq]=${encodeURIComponent('Prof. Theta')}`,
+    `/items/staff?fields=id&filter[name][_eq]=${encodeURIComponent(thetaProfessor)}`,
   );
   await patch(target, `/items/staff/${staff.id}`, {
-    name: 'Prof. Theta Renamed',
+    name: thetaRenamed,
   });
   const [entry] = await get(
     target,
@@ -280,17 +289,21 @@ const followsRenames = async ({ state, target }) => {
   const rows = JSON.parse(courses.body);
   const before = JSON.parse(state.local[0].body);
   const renamed = rows.find((row) => row.name === theta);
-  assert.equal(renamed.professors, 'Prof. Theta Renamed');
+  assert.equal(renamed.professors, thetaRenamed);
   assert.equal(renamed['2023-code'], 'F23L4S007');
   assert.equal(renamed['2023-level'], '4');
+  // Every other course changes only where it names the staff member.
+  assert.ok(
+    rows.some((row) => row.name !== theta && row.assistants === thetaRenamed),
+  );
   assert.deepEqual(
-    rows.filter((row) => row.name !== theta),
+    rows.filter((row) => row.name !== theta).map(asBeforeRename),
     before.filter((row) => row.name !== theta),
   );
   // The staff member's own row changes staff.json too; rooms and students
   // do not change.
   const staffRows = JSON.parse(local[2].body);
-  assert.ok(staffRows.some((row) => row.name === 'Prof. Theta Renamed'));
+  assert.ok(staffRows.some((row) => row.name === thetaRenamed));
   assert.notEqual(local[2].sha256, state.local[2].sha256);
   for (const index of [1, 3]) {
     assert.equal(local[index].sha256, state.local[index].sha256);

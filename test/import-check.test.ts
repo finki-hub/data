@@ -93,6 +93,7 @@ describe('the finding codes', () => {
     expect([...ruleFixCodes]).toEqual([
       'duplicate_assignment',
       'formula_pattern_cell',
+      'repeated_staff_name',
       'unlinked_availability',
     ]);
     expect(warningCodes).toEqual(expect.arrayContaining([...ruleFixCodes]));
@@ -100,8 +101,20 @@ describe('the finding codes', () => {
       'duplicate_pattern',
       'orphan_assignment',
       'orphan_pattern',
+      'superseded_assignment',
       'unknown_academic_year',
     ]);
+    // A teaching line no staff row or several carry, and assistants of an
+    // Inactive course, block; the old literal-text codes are gone.
+    expect(blockerCodes).toEqual(
+      expect.arrayContaining([
+        'ambiguous_staff_name',
+        'inactive_course_assistants',
+        'unmatched_staff_name',
+      ]),
+    );
+    expect(all).not.toContain('unresolved_staff_text');
+    expect(all).not.toContain('ambiguous_staff_label');
   });
 });
 
@@ -175,73 +188,130 @@ describe('curriculum candidates resolve as the committed files publish them', ()
   });
 });
 
-describe('staff, rule and council candidates', () => {
-  test('links staff only through complete labels of an unambiguous delimited text, in the order it names them', () => {
+// A staff link of a teaching cell.
+const link = (role: string, staff: number, line: number) => ({
+  line,
+  role,
+  staff,
+});
+
+describe('teaching candidates', () => {
+  test('decides the status and staff links of every course from its typed export row, else its first teaching row', () => {
     const dataset = makeSyntheticDataset();
-    const { candidates, findings } = checkOf({
+    const { candidates } = checkOf(dataset);
+    const teachingOf = (name: string) =>
+      courseCandidate(dataset, candidates.courses, name).teaching;
+
+    expect(teachingOf(courseNames.alpha)).toEqual({
+      links: [
+        link('professor', 3, 1),
+        link('professor', 1, 2),
+        link('assistant', 2, 1),
+      ],
+      source: { id: 1, source: 'teaching_assignments' },
+      status: 'active',
+    });
+    // Typed export cells win: Beta's teaching row 3 is not read.
+    expect(teachingOf(courseNames.beta)).toEqual({
+      links: [link('professor', 1, 1)],
+      source: { id: 2, source: 'courses' },
+      status: 'active',
+    });
+    expect(teachingOf(courseNames.epsilon)).toMatchObject({
+      links: [],
+      source: { id: 5, source: 'courses' },
+      status: 'all_professors',
+    });
+    expect(teachingOf(courseNames.zeta)).toEqual({
+      links: [link('assistant', 3, 1)],
+      source: { id: 5, source: 'teaching_assignments' },
+      status: 'all_professors',
+    });
+    expect(teachingOf(courseNames.delta)).toEqual({
+      links: [],
+      source: { id: 9, source: 'teaching_assignments' },
+      status: 'inactive',
+    });
+    // Theta's empty typed cell is no typed cell.
+    expect(teachingOf(courseNames.theta).source).toEqual({
+      id: 7,
+      source: 'teaching_assignments',
+    });
+  });
+
+  test('reports the teaching cells of every course it reads, never of a row it skips or ignores', () => {
+    const { findings } = checkOf(makeSyntheticDataset());
+    const teaching = findings.filter(
+      ({ collection }) => collection === 'teaching_assignments',
+    );
+
+    // Rows 3 and 4 are superseded by typed export cells, row 2 is a later
+    // row of Alpha and row 6 names no course: their unmatched names are not
+    // checked.
+    // The findings come sorted by code, part and row.
+    expect(teaching.map(({ code, ids }) => [code, ids[0]])).toEqual([
+      ['duplicate_assignment', 2],
+      ['orphan_assignment', 6],
+      ['repeated_staff_name', 8],
+      ['superseded_assignment', 3],
+      ['superseded_assignment', 4],
+    ]);
+    expect(teaching.find(({ code }) => code === 'repeated_staff_name')).toEqual(
+      {
+        code: 'repeated_staff_name',
+        collection: 'teaching_assignments',
+        field: 'professors',
+        ids: [8],
+        lines: [3],
+        related: [{ collection: 'courses', ids: [8] }],
+      },
+    );
+    expect(
+      teaching.find(({ code }) => code === 'superseded_assignment'),
+    ).toEqual({
+      code: 'superseded_assignment',
+      collection: 'teaching_assignments',
+      ids: [3],
+      related: [{ collection: 'courses', ids: [2] }],
+    });
+  });
+
+  test('blocks an ambiguous staff name and names the staff rows in contention', () => {
+    const dataset = makeSyntheticDataset();
+    const { findings } = checkOf({
       ...dataset,
       staff: [
         ...dataset.staff,
-        staffRow(4, 'Prof. Zed Alpha'),
-        staffRow(5, 'Prof. Abe Alpha'),
-        staffRow(6, 'Asst. Alpha One; Asst. Alpha Two'),
-        staffRow(7, thetaProfessor),
-        { ...staffRow(8, thetaProfessor), active: false },
+        staffRow(4, thetaProfessor),
+        { ...staffRow(5, thetaProfessor), active: false },
       ],
+      teaching_assignments: dataset.teaching_assignments.map((row) =>
+        row.id === 7 ? { ...row, assistants: thetaProfessor } : row,
+      ),
     });
-    const staffOf = (id: number) =>
-      candidates.assignments.find((row) => row.id === id)?.staff;
 
-    expect(staffOf(1)).toEqual([
+    expect(
+      findings.filter(({ code }) => code === 'ambiguous_staff_name'),
+    ).toEqual([
       {
-        resolution: 'unique',
-        role: 'professor',
-        staff: [4, 5],
-        text: 'Prof. Zed Alpha, Prof. Abe Alpha',
+        code: 'ambiguous_staff_name',
+        collection: 'teaching_assignments',
+        field: 'assistants',
+        ids: [7],
+        lines: [1],
+        related: [
+          { collection: 'courses', ids: [7] },
+          { collection: 'staff', ids: [4, 5] },
+        ],
       },
-      {
-        resolution: 'unique',
-        role: 'assistant',
-        staff: [6],
-        text: 'Asst. Alpha One; Asst. Alpha Two',
-      },
-    ]);
-    expect(staffOf(7)?.[0]).toEqual({
-      resolution: 'ambiguous',
-      role: 'professor',
-      staff: [7, 8],
-      text: thetaProfessor,
-    });
-    expect(shapes(findings, 'ambiguous_staff_label')).toEqual([
-      { collection: 'teaching_assignments', ids: [7] },
     ]);
     expect(shapes(findings, 'duplicate_staff_name')).toEqual([
-      { collection: 'staff', ids: [7, 8] },
+      { collection: 'staff', ids: [4, 5] },
     ]);
   });
+});
 
-  test('reports the staff text of every imported teaching row, never of a row it skips or ignores', () => {
-    const { candidates, findings } = checkOf(makeSyntheticDataset());
-    const textsOf = (id: number) =>
-      candidates.assignments
-        .find((row) => row.id === id)
-        ?.staff.map(({ resolution, role, text }) => [role, text, resolution]);
-
-    expect(textsOf(5)).toEqual([
-      ['professor', null, 'none'],
-      ['assistant', 'Asst. Zeta', 'unresolved'],
-    ]);
-    // Row 2, Alpha's second teaching row, is ignored: no candidate, and
-    // its texts are not checked.
-    expect(textsOf(2)).toBeUndefined();
-    expect(
-      shapes(findings, 'unresolved_staff_text').map(({ ids }) => ids[0]),
-    ).toEqual([1, 1, 3, 3, 4, 5, 7, 7, 8, 8]);
-    expect(shapes(findings, 'orphan_assignment')).toEqual([
-      { collection: 'teaching_assignments', ids: [6] },
-    ]);
-  });
-
+describe('rule and council candidates', () => {
   test('seeds one rule per course and year with the last pattern, else the name-year default', () => {
     const dataset = makeSyntheticDataset();
     const { candidates } = checkOf(dataset);
@@ -356,9 +426,15 @@ describe('cases that refuse the import', () => {
     expect(codes(plan.skipped)).toEqual([
       'orphan_assignment',
       'orphan_pattern',
+      'superseded_assignment',
+      'superseded_assignment',
     ]);
     expect(codes(plan.warnings)).toEqual(
-      expect.arrayContaining(['orphan_equivalency', 'unmatched_council_index']),
+      expect.arrayContaining([
+        'orphan_equivalency',
+        'repeated_staff_name',
+        'unmatched_council_index',
+      ]),
     );
   });
 
@@ -405,6 +481,8 @@ describe('cases that refuse the import', () => {
       'duplicate_pattern',
       'orphan_assignment',
       'orphan_pattern',
+      'superseded_assignment',
+      'superseded_assignment',
     ]);
   });
 
@@ -573,6 +651,8 @@ describe('rows the import skips and warnings', () => {
       ['duplicate_pattern', 'course_enrollment_patterns', [1]],
       ['orphan_assignment', 'teaching_assignments', [6]],
       ['orphan_pattern', 'course_enrollment_patterns', [4]],
+      ['superseded_assignment', 'teaching_assignments', [3]],
+      ['superseded_assignment', 'teaching_assignments', [4]],
     ]);
   });
 

@@ -99,16 +99,18 @@ const keepsEdits = async ({ directus, target }) => {
   assert.equal(edited.name, 'Publish (edited)');
 };
 
-// 260 courses (two batches of the rule seeding), an older published year
-// with a mapped rule per course, a new unpublished year without rules,
-// one Moodle user with two history lines and a mapping of one line to the
-// first course in the new year.
+// 260 courses (two batches of the rule seeding), All professors so that
+// courses.json needs no staff link, an older published year with a mapped
+// rule per course, a new unpublished year without rules, one Moodle user
+// with two history lines and a mapping of one line to the first course in
+// the new year.
 const seedRows = async (target) => {
   const courses = await createMany(
     target,
     'courses',
     Array.from({ length: courseCount }, (_, index) => ({
       name: `Synthetic Operations Course ${String(index + 1).padStart(3, '0')}`,
+      status: 'all_professors',
     })),
   );
   const [older, newer] = await createMany(target, 'academic_years', [
@@ -250,7 +252,7 @@ const seedsYear = async ({ state, t, target }) => {
 const seedsCourse = async ({ state, t, target }) => {
   const run = flowAs(target, target.token);
   const [course] = await createMany(target, 'courses', [
-    { name: 'Synthetic Operations New Course' },
+    { name: 'Synthetic Operations New Course', status: 'all_professors' },
   ]);
   state.courses.push(course);
   await post(target, '/items/course_enrollment_rules', {
