@@ -1,4 +1,4 @@
-import type { ModelRelation } from '../schema.js';
+import type { ModelRelation } from '../schema-relations.js';
 import type { ExistingRelation } from './directus-schema.js';
 
 import {

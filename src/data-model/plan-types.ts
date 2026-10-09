@@ -1,8 +1,8 @@
+import type { ModelRelation } from '../schema-relations.js';
 import type {
   ModelCollection,
   ModelEnumField,
   ModelField,
-  ModelRelation,
   ModelRelationAlias,
 } from '../schema.js';
 import type { ChoiceMeta } from './field-payloads.js';

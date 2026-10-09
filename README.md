@@ -67,18 +67,22 @@ again.
 
 A few things are code-owned and kept in step on every rerun:
 
-- The choices of every enumerated field (their labels and the
-  server-enforced rule that only they may be stored) are declared once with
-  the field (`src/data-model/*-collections.ts`). When an installed field's
-  choices, labels or rule differ, setup rewrites exactly those three meta
-  keys (`options`, `display_options`, `validation`, merged: a placeholder or
-  any other option stays) and reports the field as `aligned`, while the keys
-  Studio owns (note, width, group, sort, conditions) are never sent. Before
-  that it reads the field's distinct stored values, and when one of them is
-  no longer a declared choice it refuses (exit code 2) and changes nothing,
-  one line per field (`- Field teaching_assignments.role: 1 value outside
-  declared choices: "lecturer"`): change or clear those values in Studio,
-  then run setup again.
+- The choices of every enumerated field (their labels and, for a closed
+  dropdown, the server-enforced rule that only they may be stored) are
+  declared once with the field (`src/data-model/*-collections.ts`). When an
+  installed field's choices, labels or rule differ, setup rewrites exactly
+  those three meta keys (`options`, `display_options`, `validation`,
+  merged: a placeholder or any other option stays) and reports the field as
+  `aligned`, while the keys Studio owns (note, width, group, sort,
+  conditions) are never sent. Before that it reads the field's distinct
+  stored values, and when one of them is no longer a declared choice it
+  refuses (exit code 2) and changes nothing, one line per field
+  (`- Field teaching_assignments.role: 1 value outside declared choices:
+  "lecturer"`): change or clear those values in Studio, then run setup
+  again. A dropdown that allows other values (see
+  [Forms and relationships](#forms-and-relationships)) has no rule: setup
+  realigns its choices and clears any earlier rule without reading its
+  values, and never refuses it.
 - Every managed Flow family is registered once in `src/flows/registry.ts`;
   setup installs them in one loop and reports `created` and `skipped` per
   family under `flows.families`.
@@ -206,7 +210,10 @@ run the one-time import (below) in place of step 4.
    refuse the workbook it exits with code 3: the first stderr line counts
    the cases, and every later line names one case as
    `- [<code>] <place>: <fact>`. A value no column can hold has the code
-   `unstorable` and is placed by sheet, row and column, never quoted. A
+   `unstorable` and is placed by sheet, row and column, never quoted: a
+   value too long for its column, an empty required cell, an integer out of
+   range, or a value outside the choices of a closed dropdown
+   (`outside declared choices`). A
    blocking case is placed by the sheet and row it concerns, with the
    course after its row (a curriculum code by its cell instead); the table
    below says what to change for each code. The dry run exits with code 1
@@ -227,7 +234,7 @@ run the one-time import (below) in place of step 4.
 
    | Code | Change |
    | --- | --- |
-   | `unstorable` | Shorten the value, fill in the required cell, or bring the integer into range. |
+   | `unstorable` | Shorten the value, fill in the required cell, bring the integer into range, or write one of the field's choices. |
    | `ambiguous_course_name` | Give each course its own name. |
    | `ambiguous_curriculum_2018`, `ambiguous_curriculum_2023` | Give each subject its own name; when the rows list one subject, give every row its code. |
    | `ambiguous_legacy_equivalency` | Make the 2018 names of the equivalency rows agree, or fill in the course's 2018-name to choose one. |
@@ -269,7 +276,8 @@ Directus untouched:
   student value: each value the column it is written to cannot hold (a
   string over 255 characters, a pattern mapping's pattern over 2048 bytes,
   an integer out of range, an empty required value such as a staff
-  member's title, position or email or a room's type), named by its
+  member's title, position or email or a room's type, a value outside the
+  choices of a closed dropdown), named by its
   sheet, row and column and never quoted, and each
   case below, named by its code, sheet and rows. The cases are a
   relationship with more than one candidate (a course name two courses
@@ -860,6 +868,16 @@ for**, and the users carrying it (the last two derived and read-only).
 - **Title**, **Position** and **Email** of a staff member and **Type** of a
   room are required, because `staff.json` and `rooms.json` carry them on
   every row; see [Publishing](#publishing).
+- A staff member's **Position**, a room's **Type** and **Location** and a
+  curriculum entry's **State** in a study program are dropdowns of the
+  values the workbook holds today (`src/data-model/choice-lists.ts`), each
+  shown and published exactly as written, in Macedonian. Each also takes
+  another value (Other in the dropdown), stored and published as typed,
+  so no existing value becomes invalid: a qualified state such as
+  `задолжителен (4 г.)` stays as it is. Such a value is never checked,
+  so a typo is published as typed. A closed dropdown, such as a course's
+  **Status** or a teaching link's role, accepts only its choices: Directus
+  refuses any other value (400 `FAILED_VALIDATION`).
 - **First seen** of a history line is the time the history index created
   it; no later run changes it, also when a later snapshot carries the line
   again. A line created any other way, such as over the API, has none. A
@@ -1764,7 +1782,7 @@ definition.
 | Dashboard actions | **Run operation** panels (Studio); the defaults in `src/data-model/operations-dashboard.ts` | Publish, Recalculate, Import Moodle snapshot |
 | Collection roles (editable sources) | `coordination/collection-roles.ts` | `courses`, `curriculum_entries`, `moodle_course_mappings`, ... |
 | Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, History line matching, Publication, Publish, Automatic processing |
-| Choices of an enumerated field | the field, in `src/data-model/*-collections.ts` | the statuses of a course |
+| Choices of an enumerated field | the field, in `src/data-model/*-collections.ts`; the lists that allow other values in `src/data-model/choice-lists.ts` | the statuses of a course; staff positions |
 | Scraper columns | `snapshot/contract.ts` (`snapshotFieldTable`) | the 38 headers of `profiles.csv` |
 
 Code paths in the table that do not start with `src/` are relative to

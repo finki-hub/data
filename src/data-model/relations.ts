@@ -1,8 +1,7 @@
+import type { CompositeKey, ModelRelation } from '../schema-relations.js';
 import type {
-  CompositeKey,
   ModelCollection,
   ModelCollectionKey,
-  ModelRelation,
   ModelRelationAlias,
   OnDelete,
 } from '../schema.js';

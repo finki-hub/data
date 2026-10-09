@@ -1,8 +1,12 @@
-import type { ModelCollectionKey, ModelField } from '../schema.js';
+import type {
+  ModelCollectionKey,
+  ModelEnumField,
+  ModelField,
+  Scalar,
+} from '../schema.js';
 
 import { patternMappingMaxBytes } from '../../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import { findModelCollection } from '../data-model/collections.js';
-import { enumMaxLength } from '../data-model/field-payloads.js';
 import {
   isRef,
   type Origin,
@@ -11,8 +15,9 @@ import {
   type PlannedValue,
 } from './planned.js';
 
-// A Directus string column is varchar(255), an enum column varchar(64);
-// integers are PostgreSQL int4.
+// A Directus string column is varchar(255), and so is an allow-other enum
+// column; a closed enum column holds only its choices. Integers are
+// PostgreSQL int4.
 const maxStringLength = 255;
 const minInteger = -2_147_483_648;
 const maxInteger = 2_147_483_647;
@@ -53,6 +58,18 @@ const tooManyBytes = (value: string, limit: number): null | string => {
     : null;
 };
 
+// A closed enum takes only its declared choices: Directus would refuse
+// another value by the field's rule partway through the import. An
+// allow-other enum takes any text its varchar(255) column holds.
+const enumProblem = (field: ModelEnumField, value: Scalar): null | string => {
+  if (field.allowOther === true) {
+    return typeof value === 'string' ? tooLong(value, maxStringLength) : null;
+  }
+  return field.choices.some((choice) => choice.value === value)
+    ? null
+    : 'outside declared choices';
+};
+
 // Why the column of the field cannot hold the value, as a fact about the
 // value, or null when it can.
 const unstorable = (
@@ -66,14 +83,14 @@ const unstorable = (
   if (isRef(value) || field.kind === 'm2o') {
     return null;
   }
+  if (field.kind === 'enum') {
+    return enumProblem(field, value);
+  }
   if (typeof value === 'string' && maxBytes !== undefined) {
     return tooManyBytes(value, maxBytes);
   }
   if (typeof value === 'string' && field.kind === 'string') {
     return tooLong(value, maxStringLength);
-  }
-  if (typeof value === 'string' && field.kind === 'enum') {
-    return tooLong(value, enumMaxLength);
   }
   if (typeof value === 'number' && field.kind === 'integer') {
     return Number.isSafeInteger(value) &&

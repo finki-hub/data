@@ -1,4 +1,5 @@
-import type { CompositeKey, ModelCollection } from '../schema.js';
+import type { CompositeKey } from '../schema-relations.js';
+import type { ModelCollection } from '../schema.js';
 
 import {
   countedLineSources,

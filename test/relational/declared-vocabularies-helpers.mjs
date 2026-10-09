@@ -25,10 +25,11 @@ export const liveMeta = async (target, collection, field) => {
   return meta;
 };
 
-// Writes an earlier vocabulary into an installed enum field, as an older
-// version of this project (or a Studio user) would have left it: the
-// given values, unlabelled, in the dropdown, the labels display and the
-// server rule, with a Studio note and width beside them.
+// Writes an earlier, closed vocabulary into an installed enum field, as an
+// older version of this project (or a Studio user) would have left it: the
+// given values, unlabelled, in the dropdown (no other value allowed), the
+// labels display and the server rule, with a Studio note and width beside
+// them.
 export const driftEnum = async (target, { collection, field, values }) => {
   const declared = declaredEnum(collection, field);
   const choices = values.map((value) => ({ text: value, value }));
@@ -38,7 +39,7 @@ export const driftEnum = async (target, { collection, field, values }) => {
     meta: {
       display_options: { ...meta.display_options, choices },
       note: 'Synthetic Studio note',
-      options: { ...meta.options, choices },
+      options: { ...meta.options, allowOther: false, choices },
       validation: declared.nullable
         ? { _or: [{ [field]: { _null: true } }, membership] }
         : membership,

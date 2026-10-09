@@ -46,14 +46,15 @@ const quoted = (values: readonly string[]): string =>
 
 // Every realignment whose field holds a value the declaration no longer
 // accepts becomes a refusal: Directus enforces the rule on every later
-// write of such a row, so setup changes nothing and names the values.
+// write of such a row, so setup changes nothing and names the values. An
+// allow-other field accepts every value, so its values are not read.
 export const outOfSetRefusals = async (
   request: DirectusRequest,
   plan: InstallPlan,
 ): Promise<readonly Refusal[]> => {
   const refusals: Refusal[] = [];
   for (const action of plan.fields) {
-    if (action.kind !== 'realign-choices') {
+    if (action.kind !== 'realign-choices' || action.field.allowOther === true) {
       continue;
     }
     const outside = valuesOutside(

@@ -33,8 +33,8 @@ import {
   toRelationPayload,
 } from '../src/data-model/relations.js';
 import { DirectusRequestError } from '../src/directus-request.js';
+import { type CompositeKey } from '../src/schema-relations.js';
 import {
-  type CompositeKey,
   type ModelCollection,
   type ModelField,
   type ModelRelationField,

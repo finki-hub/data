@@ -1,10 +1,11 @@
 import type { ModelCollection } from '../schema.js';
 
+import { programStates } from './choice-lists.js';
 import {
   curriculumEntryTemplate,
   equivalencyTemplate,
 } from './content-collections.js';
-import { m2o, scalar } from './fields.js';
+import { enumField, m2o, scalar } from './fields.js';
 
 // Curriculum generations and their study programs are rows added in
 // Studio, never a code list: a new generation or program is a new row,
@@ -126,7 +127,8 @@ export const generationCollections: readonly ModelCollection[] = [
         onDelete: 'NO ACTION',
         template: programTemplate,
       }),
-      scalar('state', 'string', {
+      enumField('state', programStates, {
+        allowOther: true,
         note: 'The state of the entry in the program, as the curriculum sheet wrote it.',
       }),
     ],

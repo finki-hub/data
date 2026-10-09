@@ -195,8 +195,8 @@ const fieldValue = (
     : `Синтетички ${field} ${index} "🏫"`;
 };
 
-// Rows of a model collection from its declared scalar fields, `count` of
-// them.
+// Rows of a model collection from its declared scalar fields and its
+// allow-other enums (strings outside their choices), `count` of them.
 export const modelRows = (
   collection: ModelCollectionKey,
   count: number,
@@ -206,7 +206,9 @@ export const modelRows = (
     throw new Error(`The model declares no collection ${collection}`);
   }
   const fields = model.fields.filter(
-    ({ kind }) => kind !== 'm2o' && kind !== 'enum',
+    (field) =>
+      field.kind !== 'm2o' &&
+      (field.kind !== 'enum' || field.allowOther === true),
   );
   return Array.from({ length: count }, (_, index) =>
     Object.fromEntries(

@@ -177,7 +177,11 @@ export type ModelScalarField = ModelFieldBase & {
 // Studio shows for it. Setup keeps both in step on an installed project.
 export type EnumChoice = { readonly label: string; readonly value: string };
 
+// `allowOther`: the choices are today's values, not a rule. The dropdown
+// also takes a new value, stored and shown as typed, in a varchar(255)
+// column with no server rule, so no stored value is ever outside the set.
 export type ModelEnumField = ModelFieldBase & {
+  readonly allowOther?: true;
   readonly choices: readonly EnumChoice[];
   readonly defaultValue?: string;
   readonly kind: 'enum';
@@ -229,25 +233,4 @@ export type ModelCollection = {
   readonly note?: string;
   readonly singleton: boolean;
   readonly sort: number;
-};
-
-export type ModelRelation = {
-  readonly alias: ModelRelationAlias | null;
-  readonly collection: ModelCollectionKey;
-  readonly field: string;
-  // The other relation of a junction collection, or null.
-  readonly junction: null | string;
-  readonly nullable: boolean;
-  readonly onDelete: OnDelete;
-  readonly related: ModelCollectionKey;
-  readonly sortField: null | string;
-};
-
-// `nullsNotDistinct`: two rows with NULL in the same key columns collide.
-export type CompositeKey = {
-  readonly collection: ModelCollectionKey;
-  readonly columns: readonly string[];
-  readonly kind: 'index' | 'unique';
-  readonly name: string;
-  readonly nullsNotDistinct?: true;
 };

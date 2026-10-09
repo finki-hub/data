@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ExportDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
+import type { ModelCollectionKey } from '../src/schema.js';
 
 import { defaultYearPattern } from '../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
 import { codeLevel } from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-code.js';
@@ -17,6 +18,7 @@ import {
   requiredFields,
   snapshotFields,
 } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
+import { findModelCollection } from '../src/data-model/collections.js';
 import { workbookGenerations } from '../src/import/generations.js';
 import {
   curriculumPlan,
@@ -79,6 +81,22 @@ const fixtureRows = (
   const rows = stressRows(size.users, { declaration, labels, offset: 0 });
   return { labels, lines: stressLines(size.users, labels), rows };
 };
+
+// The columns a created row must fill: every required field but a
+// relation and one with a default.
+const requiredColumns = (collection: ModelCollectionKey): readonly string[] =>
+  (findModelCollection(collection)?.fields ?? []).flatMap((field) =>
+    field.kind === 'm2o' || field.nullable || field.defaultValue !== undefined
+      ? []
+      : [field.field],
+  );
+
+// The required columns some row leaves empty.
+const emptyRequired = (
+  rows: ReadonlyArray<Readonly<Record<string, unknown>>>,
+  columns: readonly string[],
+): readonly string[] =>
+  columns.filter((name) => rows.some((row) => (row[name] ?? null) === null));
 
 const column = (
   declaration: SnapshotDeclaration,
@@ -426,6 +444,11 @@ describe('the expected files follow the export registry', () => {
 
       expect(rows).toHaveLength(12);
       expect(rows.every((row) => Object.keys(row).length > 0)).toBeTruthy();
+      // Required allow-other enums (a staff position, a room type) too.
+      expect({
+        collection,
+        empty: emptyRequired(rows, requiredColumns(collection)),
+      }).toEqual({ collection, empty: [] });
     }
   });
 });

@@ -1,7 +1,7 @@
+import type { ModelRelation } from '../src/schema-relations.js';
 import type {
   ModelCollection,
   ModelField,
-  ModelRelation,
   ModelRelationAlias,
 } from '../src/schema.js';
 

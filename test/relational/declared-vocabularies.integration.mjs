@@ -47,10 +47,10 @@ import { count, get, patch, post, remove } from './history-index-helpers.mjs';
 
 // The declared vocabularies on a live project: setup installs every Flow
 // family through one loop and keeps enum choices in step (refusing a
-// stored value outside them), the one-time import seeds the academic years
-// its workbook names, the published flag of a year decides its key in
-// courses.json, and a mapping in an unpublished year neither blocks nor
-// warns.
+// stored value outside a closed list, never one of an allow-other list),
+// the one-time import seeds the academic years its workbook names, the
+// published flag of a year decides its key in courses.json, and a mapping
+// in an unpublished year neither blocks nor warns.
 
 const nothingToResume = () => Promise.resolve();
 const laterYear = '2026/2027';
@@ -207,6 +207,64 @@ const refusesOutOfSet = async ({ directus, target }) => {
     'FAILED_VALIDATION',
   );
   assert.equal(declaredEnum(coursesCollection, statusField).choices.length, 3);
+};
+
+// A synthetic staff member holding the position.
+const staffWith = (position) => ({
+  active: true,
+  email: 'synthetic.position@staff.example',
+  name: 'Synthetic Position Staff',
+  position,
+  title: 'Synthetic title',
+});
+
+// staff.position as a closed dropdown of an earlier vocabulary, holding a
+// value outside it: setup realigns it without reading its values, clears
+// the rule and keeps the Studio note and width, and an unlisted value is
+// stored as typed again.
+const realignsAllowOther = async ({ directus, target }) => {
+  const kept = await post(target, '/items/staff', staffWith('Synthetic One'));
+  await driftEnum(target, {
+    collection: 'staff',
+    field: 'position',
+    values: ['Доцент'],
+  });
+  assert.equal(
+    await refusedCreate(target, 'staff', staffWith('Synthetic Two')),
+    'FAILED_VALIDATION',
+  );
+  const recorder = recording(directus);
+  const summary = await installDataModel(recorder.request);
+  assert.equal(summary.fields.aligned, 1);
+  assert.equal(summary.fields.refused, 0);
+  assert.deepEqual(recorder.mutations(), [
+    { method: 'PATCH', pathname: '/fields/staff/position' },
+  ]);
+  assert.ok(
+    recorder.calls.every(({ pathname }) => !pathname.startsWith('/items/')),
+  );
+  const meta = await liveMeta(target, 'staff', 'position');
+  const declared = declaredChoices('staff', 'position');
+  assert.equal(meta.note, 'Synthetic Studio note');
+  assert.equal(meta.width, 'full');
+  assert.deepEqual(meta.options.choices, declared.options.choices);
+  assert.equal(meta.options.allowOther, true);
+  assert.deepEqual(meta.display_options, declared.display_options);
+  assert.equal(meta.validation, null);
+  const created = await post(
+    target,
+    '/items/staff',
+    staffWith('Synthetic Two'),
+  );
+  assert.equal(created.data.position, 'Synthetic Two');
+  const stored = await get(
+    target,
+    `/items/staff/${kept.data.id}?fields=position`,
+  );
+  assert.equal(stored.position, 'Synthetic One');
+  for (const id of [kept.data.id, created.data.id]) {
+    await remove(target, `/items/staff/${id}`);
+  }
 };
 
 // A generated workbook whose listener sheet heads a 16th, later year.
@@ -391,6 +449,10 @@ test('declares vocabularies, years, readiness checks and Flow families once', as
         await t.test(
           'refuses to realign a field holding a value outside its choices',
           () => refusesOutOfSet(context),
+        );
+        await t.test(
+          'realigns an allow-other enum holding an unlisted value and clears its rule',
+          () => realignsAllowOther(context),
         );
         await t.test(
           'imports a workbook with a 16th academic year and counts every course in it',

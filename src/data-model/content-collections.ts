@@ -1,10 +1,15 @@
-import type { ModelCollection, ModelScalarKind } from '../schema.js';
+import type {
+  EnumChoice,
+  ModelCollection,
+  ModelScalarKind,
+} from '../schema.js';
 
 import {
   assignmentRoles,
   courseStatuses,
   teachingTexts,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
+import { roomLocations, roomTypes, staffPositions } from './choice-lists.js';
 import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
 // The content the one-time workbook import fills and Studio edits
@@ -38,6 +43,10 @@ export const equivalencyTemplate = '{{course.name}}';
 const required = (field: string, kind: ModelScalarKind = 'string') =>
   scalar(field, kind, { nullable: false });
 
+// A required dropdown of today's values that also takes a new one.
+const requiredChoice = (field: string, choices: readonly EnumChoice[]) =>
+  enumField(field, choices, { allowOther: true, nullable: false });
+
 export const contentCollections: readonly ModelCollection[] = [
   {
     collection: 'courses',
@@ -65,7 +74,7 @@ export const contentCollections: readonly ModelCollection[] = [
       required('name'),
       required('active', 'boolean'),
       required('title'),
-      required('position'),
+      requiredChoice('position', staffPositions),
       required('email'),
       scalar('cabinet', 'string'),
       scalar('profile', 'text'),
@@ -83,8 +92,8 @@ export const contentCollections: readonly ModelCollection[] = [
     displayTemplate: '{{location}} / {{name}}',
     fields: [
       required('name'),
-      required('type'),
-      required('location'),
+      requiredChoice('type', roomTypes),
+      requiredChoice('location', roomLocations),
       scalar('description', 'text'),
       scalar('floor', 'integer'),
       scalar('capacity', 'integer'),

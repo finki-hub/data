@@ -29,7 +29,7 @@ type FieldMetaPayload = {
   readonly sort: number;
   readonly special?: readonly string[];
   readonly translations?: readonly FieldTranslation[];
-  readonly validation?: Readonly<Record<string, unknown>>;
+  readonly validation?: null | Readonly<Record<string, unknown>>;
   readonly width: 'full' | 'half';
 };
 
@@ -72,11 +72,13 @@ const validationRule = (
 // offers them and as the labels display shows them, and the server-enforced
 // membership rule. Setup writes exactly these keys when it realigns an
 // installed field; every other meta key (note, width, group, sort,
-// conditions, placeholder) belongs to Studio.
+// conditions, placeholder) belongs to Studio. An allow-other field has no
+// rule (null clears an earlier one), and its display shows a value outside
+// the choices as stored, not title-cased.
 export type ChoiceMeta = {
   readonly display_options: Readonly<Record<string, unknown>>;
   readonly options: Readonly<Record<string, unknown>>;
-  readonly validation: Readonly<Record<string, unknown>>;
+  readonly validation: null | Readonly<Record<string, unknown>>;
 };
 
 export const enumChoiceMeta = (field: ModelEnumField): ChoiceMeta => {
@@ -84,12 +86,15 @@ export const enumChoiceMeta = (field: ModelEnumField): ChoiceMeta => {
     text: label,
     value,
   }));
+  const allowOther = field.allowOther === true;
   return {
-    display_options: { choices },
-    options: { allowNone: field.nullable, allowOther: false, choices },
-    validation: validationRule(field, {
-      _in: field.choices.map(({ value }) => value),
-    }),
+    display_options: allowOther ? { choices, format: false } : { choices },
+    options: { allowNone: field.nullable, allowOther, choices },
+    validation: allowOther
+      ? null
+      : validationRule(field, {
+          _in: field.choices.map(({ value }) => value),
+        }),
   };
 };
 
@@ -140,6 +145,8 @@ const scalarPayload = (field: ModelScalarField, sort: number): FieldPayload => {
   };
 };
 
+// A closed enum column is varchar(64); an allow-other one keeps the
+// default varchar(255) of a string column.
 const enumPayload = (field: ModelEnumField, sort: number): FieldPayload => ({
   field: field.field,
   meta: {
@@ -153,7 +160,7 @@ const enumPayload = (field: ModelEnumField, sort: number): FieldPayload => ({
       default_value: field.defaultValue,
     }),
     is_nullable: field.nullable,
-    max_length: enumMaxLength,
+    ...(field.allowOther !== true && { max_length: enumMaxLength }),
   },
   type: 'string',
 });
