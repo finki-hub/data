@@ -7,44 +7,23 @@ import { scalar } from './fields.js';
 // (Task 10). `import_state` itself is declared beside `publication_state`
 // in operations-collections.ts, which labels every field of the singleton.
 export const snapshotImportFields = [
-  scalar('import_file', 'string', {
-    note: 'Directus file id of the private CSV the last import staged.',
-    readOnly: true,
-  }),
-  scalar('import_token', 'string', {
-    note: 'Internal guard of the running import or promotion.',
-    readOnly: true,
-  }),
-  scalar('import_rows', 'integer', {
-    note: 'Rows of the staged snapshot.',
-    readOnly: true,
-  }),
-  scalar('import_fingerprint', 'string', {
-    note: 'sha256 fingerprint of the staged snapshot; the promotion must name it.',
-    readOnly: true,
-  }),
-  scalar('import_warnings', 'text', {
-    note: 'Flags of the staged snapshot, for example history lines the index cannot hold (row numbers only).',
-    readOnly: true,
-  }),
-  scalar('import_error', 'text', {
-    note: 'Code and message of the last failed import or promotion (row numbers and counts only).',
-    readOnly: true,
-  }),
+  scalar('import_file', 'string', { readOnly: true }),
+  scalar('import_token', 'string', { readOnly: true }),
+  scalar('import_rows', 'integer', { readOnly: true }),
+  scalar('import_fingerprint', 'string', { readOnly: true }),
+  scalar('import_warnings', 'text', { readOnly: true }),
+  scalar('import_error', 'text', { readOnly: true }),
   scalar('import_started_at', 'timestamp', { readOnly: true }),
   scalar('import_finished_at', 'timestamp', { readOnly: true }),
   scalar('import_backup_file', 'string', {
-    note: 'Directus file id of the private CSV backup of the Moodle users the last promotion replaced; kept until deleted by hand.',
+    note: 'Kept until deleted by hand.',
     readOnly: true,
   }),
   scalar('import_backup_rows', 'integer', { readOnly: true }),
   scalar('import_backup_fingerprint', 'string', { readOnly: true }),
-  scalar('import_promoted_rows', 'integer', {
-    note: 'Rows of the snapshot the last completed promotion made active; later imports never change it.',
-    readOnly: true,
-  }),
+  scalar('import_promoted_rows', 'integer', { readOnly: true }),
   scalar('import_promoted_fingerprint', 'string', {
-    note: 'sha256 fingerprint of the snapshot the last completed promotion made active; active rows that no longer match it were changed outside the snapshot workflow.',
+    note: 'Active rows that no longer match it were changed outside the snapshot import.',
     readOnly: true,
   }),
   scalar('import_promoted_at', 'timestamp', { readOnly: true }),

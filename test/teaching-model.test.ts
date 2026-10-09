@@ -2,8 +2,10 @@ import { describe, expect, test } from 'vitest';
 
 import { teachingTexts } from '../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
 import { schemaConstraints } from '../directus/extensions/directus-extension-data-operations/src/migrations.js';
+import { contentCollections } from '../src/data-model/content-collections.js';
 import { toFieldPayload } from '../src/data-model/field-payloads.js';
 import { toCollectionPayload } from '../src/data-model/install.js';
+import { referenceCollections } from '../src/data-model/reference-collections.js';
 import {
   aliasesFor,
   compositeKeys,
@@ -85,6 +87,28 @@ describe('the course status', () => {
   });
 });
 
+describe('the content collections', () => {
+  test('carry no collection note, while a declared one is still written', () => {
+    expect(
+      [...contentCollections, ...referenceCollections]
+        .filter(
+          (collection) =>
+            collection.note !== undefined ||
+            Object.hasOwn(toCollectionPayload(collection).meta, 'note'),
+        )
+        .map(({ collection }) => collection),
+    ).toEqual([]);
+
+    const staging = findCollection('moodle_import_rows');
+
+    expect(staging.note).toBeTypeOf('string');
+    expect(toCollectionPayload(staging).meta).toHaveProperty(
+      'note',
+      staging.note,
+    );
+  });
+});
+
 describe('the staff links of a course', () => {
   test('require a course, a staff member and a role, and have no display text', () => {
     expect(
@@ -157,19 +181,6 @@ describe('the staff links of a course', () => {
     expect(aliasOf('staff', 'assignments')).toMatchObject({
       alias: { fields: ['course', 'role'], label: 'Teaches' },
     });
-  });
-
-  test('carry no collection note beside the label, while a declared one is still written', () => {
-    const links = findCollection('teaching_assignments');
-    const courses = findCollection('courses');
-
-    expect(links.note).toBeUndefined();
-    expect(toCollectionPayload(links).meta).not.toHaveProperty('note');
-    expect(courses.note).toBeTypeOf('string');
-    expect(toCollectionPayload(courses).meta).toHaveProperty(
-      'note',
-      courses.note,
-    );
   });
 
   test('are unique per course, staff member and role in SQL', () => {

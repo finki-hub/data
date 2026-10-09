@@ -236,7 +236,7 @@ describe('the history line form', () => {
       fieldPresentations
         .filter(({ collection }) => collection === 'moodle_course_entries')
         .map(({ field }) => field),
-    ).toEqual(['memberships']);
+    ).toEqual([]);
   });
 
   test('lists the courses and years the line is counted for, open and read-only', () => {

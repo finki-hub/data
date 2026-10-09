@@ -12,10 +12,6 @@ import {
 } from './operations-vocabularies.js';
 import { snapshotImportFields } from './snapshot-fields.js';
 
-// The note of a retry counter: whose transactions ran again.
-const retriesNote = (run: string): string =>
-  `Transaction retries of ${run} (deadlock or serialization failure).`;
-
 // The coordination singleton's fields, labelled below.
 const dataOperationsFields = [
   scalar('requested_revision', 'integer', {
@@ -33,7 +29,6 @@ const dataOperationsFields = [
   scalar('finished_at', 'timestamp'),
   scalar('last_run_retries', 'integer', {
     defaultValue: 0,
-    note: retriesNote('the last completed run'),
     nullable: false,
     readOnly: true,
   }),
@@ -47,15 +42,11 @@ const dataOperationsFields = [
     note: publicationStateNote,
     nullable: false,
   }),
-  scalar('publication_outcomes', 'json', {
-    note: 'One outcome per declared public file of the last publication that recorded one, keyed by filename: uploaded, failed or skipped, its failure code, the bytes written and the source revision attempted.',
-    readOnly: true,
-  }),
+  scalar('publication_outcomes', 'json', { readOnly: true }),
   // Coordination status written by the finki-hub-data-coordinate
   // operation and the source-invalidation trigger.
   scalar('source_revision', 'integer', {
     defaultValue: 0,
-    note: 'Incremented by the source-invalidation trigger inside every source transaction.',
     nullable: false,
     readOnly: true,
   }),
@@ -64,20 +55,13 @@ const dataOperationsFields = [
   scalar('claim_fingerprint', 'string', { readOnly: true }),
   scalar('claim_started_at', 'timestamp', { readOnly: true }),
   scalar('claim_heartbeat_at', 'timestamp', {
-    note: 'Heartbeat of the running job; a stale claim is released as abandoned.',
+    note: 'A stale heartbeat releases the claim as abandoned.',
     readOnly: true,
   }),
-  scalar('claim_pages', 'json', {
-    note: 'Pages planned under the current claim: token, first and last source id, row count.',
-    readOnly: true,
-  }),
-  scalar('claim_staged', 'json', {
-    note: 'Page tokens staged so far under the current claim.',
-    readOnly: true,
-  }),
+  scalar('claim_pages', 'json', { readOnly: true }),
+  scalar('claim_staged', 'json', { readOnly: true }),
   scalar('claim_retries', 'integer', {
     defaultValue: 0,
-    note: retriesNote('the current claim'),
     nullable: false,
     readOnly: true,
   }),
@@ -87,18 +71,11 @@ const dataOperationsFields = [
   scalar('last_failed_fingerprint', 'string', { readOnly: true }),
   scalar('last_error_retries', 'integer', {
     defaultValue: 0,
-    note: retriesNote('the last failed or discarded run'),
     nullable: false,
     readOnly: true,
   }),
-  scalar('calculation_fingerprint', 'string', {
-    note: 'Flow-graph fingerprint of the last accepted calculation.',
-    readOnly: true,
-  }),
-  scalar('publication_fingerprint', 'string', {
-    note: 'Flow-graph fingerprint of the last accepted publication.',
-    readOnly: true,
-  }),
+  scalar('calculation_fingerprint', 'string', { readOnly: true }),
+  scalar('publication_fingerprint', 'string', { readOnly: true }),
   ...snapshotImportFields,
   ...automaticProcessingFields,
 ];
@@ -206,7 +183,6 @@ export const operationsCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'functions',
     label: { plural: 'Enrollment counts', singular: 'Enrollment count' },
-    note: 'Derived enrollment counts; rewritten by the calculation Flows, never edited by hand.',
     singleton: false,
     sort: 22,
   },
@@ -217,7 +193,6 @@ export const operationsCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'settings_suggest',
     label: { plural: 'Data operations', singular: 'Data operations' },
-    note: 'Private coordination singleton for derivation, import and publication status.',
     singleton: true,
     sort: 23,
   },

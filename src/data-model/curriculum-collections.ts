@@ -16,19 +16,14 @@ export const curriculumCollections: readonly ModelCollection[] = [
     fields: [
       scalar('label', 'string', {
         label: 'Year',
-        note: 'Academic year label such as 2025/2026.',
         nullable: false,
         unique: true,
       }),
-      published('the year', {
-        condition: 'readiness then requires a count per course',
-        detail: "key: label; value: each course's enrollment count",
-      }),
+      published(),
     ],
     hidden: false,
     icon: 'calendar_month',
     label: { plural: 'Academic years', singular: 'Academic year' },
-    note: 'Academic years referenced by enrollment counts and Moodle mappings.',
     singleton: false,
     sort: 14,
   },
@@ -36,9 +31,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
     collection: 'curriculum_entries',
     displayTemplate: curriculumEntryTemplate,
     fields: [
-      generationReference(
-        'Only a generation with a curriculum takes entries; the database refuses the others.',
-      ),
+      generationReference(),
       scalar('name', 'string', { label: 'Name', nullable: false }),
       scalar('catalog_order', 'integer', { label: 'Catalog order' }),
       scalar('url', 'text', { label: 'Link' }),
@@ -48,12 +41,14 @@ export const curriculumCollections: readonly ModelCollection[] = [
       }),
       scalar('semester', 'integer', { label: 'Semester' }),
       scalar('prerequisites', 'text', { label: 'Prerequisites' }),
-      scalar('channel', 'boolean', { label: 'Has a Discord channel' }),
+      scalar('channel', 'boolean', {
+        label: 'Has a Discord channel',
+        note: "Published as channel. Independent of the course's Discord channel.",
+      }),
     ],
     hidden: false,
     icon: 'menu_book',
     label: { plural: 'Curriculum entries', singular: 'Curriculum entry' },
-    note: "One row per row of a generation's curriculum sheet, including orphans and duplicates; its study-program states are rows of its own.",
     singleton: false,
     sort: 15,
   },
@@ -83,9 +78,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
         nullable: false,
         template: curriculumEntryTemplate,
       }),
-      generationReference(
-        'Must match the generation of the linked curriculum entry.',
-      ),
+      generationReference(),
       scalar('credits', 'integer', { label: 'Credits' }),
       scalar('available', 'boolean', {
         defaultValue: true,
@@ -96,7 +89,6 @@ export const curriculumCollections: readonly ModelCollection[] = [
     hidden: true,
     icon: 'link',
     label: { plural: 'Curriculum links', singular: 'Curriculum link' },
-    note: 'Links a course to at most one curriculum entry per generation; credits and availability live on the link.',
     singleton: false,
     sort: 16,
   },

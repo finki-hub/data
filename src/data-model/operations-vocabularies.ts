@@ -23,7 +23,7 @@ export const publicationChoices = labelledChoices(
 );
 
 // What each publication state means, in the labels Studio shows.
-export const publicationStateNote = `${stateLabels.completed}: every declared file uploaded; ${stateLabels.partial}: some; ${stateLabels.failed}: none. Per-file outcomes in publication_outcomes.`;
+export const publicationStateNote = `${stateLabels.completed}: every file uploaded; ${stateLabels.partial}: some; ${stateLabels.failed}: none.`;
 
 // A claim domain shows the label its declaration gives it.
 export const claimChoices: readonly EnumChoice[] = claimDomains.map(

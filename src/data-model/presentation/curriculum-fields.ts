@@ -65,13 +65,13 @@ export const curriculumFieldPresentations: readonly FieldPresentation[] = [
   // entry's generation, each with its state on the junction row. The
   // program and entry of a junction row are set by the list itself.
   // Studio's M2M drawer also shows the program's own fields, so the note
-  // says whose fields they are (the key guard keeps a published code).
+  // says they edit the program.
   {
     collection: 'curriculum_entries',
     field: 'program_states',
     meta: {
       conditions: [lockedWithoutGeneration],
-      note: "Study programs of the entry's generation, each with its state for this entry; locked until a generation is set. Fields below State: the study program itself, for its whole generation; a published program keeps its code.",
+      note: "Programs of the entry's generation; locked until a generation is set. The fields below State edit the program itself.",
       options: {
         ...baselineOptions('curriculum_entries', 'program_states'),
         filter: generationFilter,

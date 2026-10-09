@@ -45,7 +45,7 @@ export const mappingCollections: readonly ModelCollection[] = [
           field: 'pattern_mappings',
           fields: ['pattern', 'year_pattern', 'only_in_year'],
           label: patternMappings.plural,
-          note: 'A new course gets <name>- with the default year pattern. Renaming the course keeps its mappings; add the new name as an alternative when Moodle uses it.',
+          note: 'A new course gets <name>- with the default year pattern. A renamed course keeps its mappings; a new Moodle name needs its own pattern.',
           template: '{{pattern}}',
         },
         label: 'Course',
@@ -63,7 +63,7 @@ export const mappingCollections: readonly ModelCollection[] = [
       scalar('year_pattern', 'text', {
         defaultValue: defaultYearPattern,
         label: 'Year pattern',
-        note: 'Regular expression run on the whole line. Group start or end captures the year the academic year starts or ends, in 2 or 4 digits; 2 digits mean 20xx. The line counts in start/start+1. A line where it finds no such year is not counted.',
+        note: 'Group start or end captures the year the academic year starts or ends, in 2 or 4 digits (2 digits mean 20xx). A line without such a year is not counted.',
       }),
       // Deleting the academic year deletes its only-in-year mappings: a
       // mapping without a year and without a year pattern is refused.
@@ -75,7 +75,7 @@ export const mappingCollections: readonly ModelCollection[] = [
           template: patternMappingTemplate,
         },
         label: 'Only in year',
-        note: "Set: the pattern counts its lines only in this year and replaces this course's all-years mappings in that year. Year pattern is then cleared.",
+        note: "Counts the pattern only in this year, in place of the course's all-years mappings there.",
         onDelete: 'CASCADE',
         template: academicYearTemplate,
       }),

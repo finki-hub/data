@@ -18,38 +18,20 @@ const programTemplate = '{{name}} ({{generation.code}})';
 
 // A generation reference: required, and a generation that still has
 // entries, links, programs or members cannot be deleted.
-export const generationReference = (note: string) =>
+export const generationReference = () =>
   m2o('generation', 'curriculum_generations', {
     label: 'Generation',
-    note,
     nullable: false,
     onDelete: 'NO ACTION',
     template: generationTemplate,
   });
 
-type Publication = {
-  // What publishing requires or implies.
-  readonly condition?: string;
-  // What publishing adds besides the subject's keys.
-  readonly detail?: string;
-};
-
-// The `published` flag of a row that reaches courses.json: one note shape
-// for every key source, `Adds <subject> to courses.json[ (<detail>)][;
-// <condition>].` An unpublished row stays out by the flag's default.
-export const published = (
-  subject: string,
-  { condition, detail }: Publication = {},
-) =>
+// The `published` flag of a row that reaches courses.json, the same on
+// every key source; an unpublished row stays out by the flag's default.
+export const published = () =>
   scalar('published', 'boolean', {
     defaultValue: false,
     label: 'Published',
-    note: [
-      `Adds ${subject} to courses.json`,
-      detail === undefined ? '' : ` (${detail})`,
-      condition === undefined ? '' : `; ${condition}`,
-      '.',
-    ].join(''),
     nullable: false,
   });
 
@@ -60,7 +42,7 @@ export const generationCollections: readonly ModelCollection[] = [
     fields: [
       scalar('code', 'string', {
         label: 'Code',
-        note: 'Short code such as 2023. It prefixes the public keys of the generation in courses.json (2023-name, 2023-state-kn).',
+        note: "Prefixes the generation's keys in courses.json, such as 2023-name.",
         nullable: false,
         unique: true,
       }),
@@ -68,17 +50,14 @@ export const generationCollections: readonly ModelCollection[] = [
       scalar('has_curriculum', 'boolean', {
         defaultValue: false,
         label: 'Has a curriculum',
-        note: 'Set for a generation with curriculum entries; a label-only generation (such as 2013) names equivalency members only.',
+        note: 'Off for a generation known only from equivalency labels, such as 2013.',
         nullable: false,
       }),
-      published('the generation', {
-        detail: 'availability key; key block when it has a curriculum',
-      }),
+      published(),
     ],
     hidden: false,
     icon: 'timeline',
     label: { plural: 'Generations', singular: 'Generation' },
-    note: 'Curriculum generations.',
     singleton: false,
     sort: 26,
   },
@@ -100,19 +79,16 @@ export const generationCollections: readonly ModelCollection[] = [
       }),
       scalar('code', 'string', {
         label: 'Code',
-        note: 'Short code such as kn, unique within the generation. courses.json names the state key after the generation code and this code, such as 2023-state-kn.',
+        note: "Names the program's state key in courses.json, such as 2023-state-kn.",
         nullable: false,
       }),
       scalar('name', 'string', { label: 'Name', nullable: false }),
       scalar('description', 'text', { label: 'Description' }),
-      published("the program's state key", {
-        condition: 'requires a published generation',
-      }),
+      published(),
     ],
     hidden: false,
     icon: 'workspaces',
     label: { plural: 'Study programs', singular: 'Study program' },
-    note: 'Study programs, one row per program and generation.',
     singleton: false,
     sort: 27,
   },
@@ -134,7 +110,6 @@ export const generationCollections: readonly ModelCollection[] = [
       }),
       m2o('program', 'study_programs', {
         label: 'Study program',
-        note: "A program of the entry's generation; the database refuses another.",
         nullable: false,
         onDelete: 'NO ACTION',
         template: programTemplate,
@@ -142,13 +117,11 @@ export const generationCollections: readonly ModelCollection[] = [
       enumField('state', programStates, {
         allowOther: true,
         label: 'State',
-        note: 'The state of the entry in the program, as the curriculum sheet wrote it.',
       }),
     ],
     hidden: true,
     icon: 'fact_check',
     label: { plural: 'Program states', singular: 'Program state' },
-    note: 'The state of a curriculum entry in each study program of its generation, edited from the entry form.',
     singleton: false,
     sort: 28,
   },
@@ -170,12 +143,9 @@ export const generationCollections: readonly ModelCollection[] = [
         nullable: false,
         template: equivalencyTemplate,
       }),
-      generationReference(
-        'One member per generation of an equivalency; a linked entry must be of this generation.',
-      ),
+      generationReference(),
       scalar('label', 'string', {
         label: 'Label',
-        note: 'Literal label from the imported equivalency sheet.',
         readOnly: true,
       }),
       m2o('entry', 'curriculum_entries', {
@@ -186,14 +156,12 @@ export const generationCollections: readonly ModelCollection[] = [
           template: '{{generation.code}}: {{label}}',
         },
         label: 'Curriculum entry',
-        note: 'The curriculum entry the label names, when it names exactly one of that generation.',
         template: curriculumEntryTemplate,
       }),
     ],
     hidden: false,
     icon: 'join_inner',
     label: { plural: 'Equivalency members', singular: 'Equivalency member' },
-    note: 'Members of a course equivalency: one literal label per generation, linked to its curriculum entry when unambiguous.',
     singleton: false,
     sort: 29,
   },

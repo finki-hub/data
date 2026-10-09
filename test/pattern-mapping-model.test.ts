@@ -107,15 +107,15 @@ describe('the pattern mappings collection', () => {
     ]);
   });
 
-  test('carries the notes of section 6 on its fields and on the course list', () => {
+  test('carries its short notes on its fields and on the course list', () => {
     expect(
       ['pattern', 'year_pattern', 'only_in_year'].map(
         (field) => findField(collection, field).note,
       ),
     ).toEqual([
       'Regular expression tested against each history line; ^ matches the start of the line.',
-      'Regular expression run on the whole line. Group start or end captures the year the academic year starts or ends, in 2 or 4 digits; 2 digits mean 20xx. The line counts in start/start+1. A line where it finds no such year is not counted.',
-      "Set: the pattern counts its lines only in this year and replaces this course's all-years mappings in that year. Year pattern is then cleared.",
+      'Group start or end captures the year the academic year starts or ends, in 2 or 4 digits (2 digits mean 20xx). A line without such a year is not counted.',
+      "Counts the pattern only in this year, in place of the course's all-years mappings there.",
     ]);
 
     const courseList = aliasOf('courses');
@@ -128,7 +128,7 @@ describe('the pattern mappings collection', () => {
     expect(
       courseList === undefined ? null : toAliasPayload(courseList, 1).meta.note,
     ).toBe(
-      'A new course gets <name>- with the default year pattern. Renaming the course keeps its mappings; add the new name as an alternative when Moodle uses it.',
+      'A new course gets <name>- with the default year pattern. A renamed course keeps its mappings; a new Moodle name needs its own pattern.',
     );
     expect(aliasOf('academic_years')).toMatchObject({
       field: 'pattern_mappings',
