@@ -106,23 +106,11 @@ const missingCells = (finding: Finding, context: RefusalContext): string => {
   return finding.collection === 'student_council' ? 'index' : 'required value';
 };
 
-const invalidRegex: Line = (finding, context) => {
-  const id = firstId(finding);
-  const fallback = `${nonEmpty(courseRow(id, context)?.name) ?? ''}-<year>`;
-  const patterns = relatedIds(finding, 'course_enrollment_patterns');
-  return placed(courseRowNamed(id, context), [
-    ...(patterns.length === 0
-      ? []
-      : [
-          `pattern not a valid regular expression: ${rowsAt('course_enrollment_patterns', patterns, context)}`,
-        ]),
-    ...(relatedIds(finding, 'courses').length === 0
-      ? []
-      : [
-          `default pattern ${quoted(fallback)} not a valid regular expression (years without a pattern in ${sheetOf('course_enrollment_patterns')})`,
-        ]),
+// The typed patterns of a course that are no regular expression.
+const invalidRegex: Line = (finding, context) =>
+  placed(courseRowNamed(firstId(finding), context), [
+    `pattern not a valid regular expression: ${rowsAt('course_enrollment_patterns', relatedIds(finding, 'course_enrollment_patterns'), context)}`,
   ]);
-};
 
 // Credits of a generation without its name, and an availability of TRUE
 // beside them.

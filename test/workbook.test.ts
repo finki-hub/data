@@ -605,7 +605,7 @@ describe('academic years of the enrollment sheet', () => {
     );
   });
 
-  test('plans a workbook with a 16th year with a rule for every year and no unknown-year finding', async () => {
+  test('plans a workbook with a 16th year, deciding its typed cell like any other, and no unknown-year finding', async () => {
     const dataset = withCourse(parityDataset(), courseNames.alpha, {});
     const withLater = {
       ...dataset,
@@ -619,7 +619,8 @@ describe('academic years of the enrollment sheet', () => {
         },
       ],
     };
-    const plan = planImport(await readBack(withLater, sixteenYears));
+    const content = await readBack(withLater, sixteenYears);
+    const plan = planImport(content);
     const years = plan.collections.find(
       ({ collection }) => collection === 'academic_years',
     )?.rows;
@@ -629,11 +630,19 @@ describe('academic years of the enrollment sheet', () => {
     expect(countByCode(plan.skipped)).not.toHaveProperty(
       'unknown_academic_year',
     );
+    // It matches what Alpha's standard mapping counts in that year, no
+    // line, so it is skipped.
     expect(
-      plan.collections.find(
-        ({ collection }) => collection === 'course_enrollment_rules',
-      )?.rows,
-    ).toHaveLength(withLater.courses.length * sixteenYears.length);
+      plan.skipped
+        .filter(({ code }) => code === 'redundant_pattern')
+        .map(({ ids }) => ids),
+    ).toEqual([
+      [
+        content.data.course_enrollment_patterns.findIndex(
+          (row) => row['academic_year'] === laterYear,
+        ) + 1,
+      ],
+    ]);
   });
 });
 

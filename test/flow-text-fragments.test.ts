@@ -127,11 +127,11 @@ describe('Flow descriptions', () => {
   test('state one more fact after what a manual Flow does', () => {
     expect(
       flowDescription({
-        does: 'Creates missing enrollment rules for an academic year, a course or one pair',
-        note: 'Existing rules are skipped',
+        does: 'Uploads every declared public file to storage location "s3", serially',
+        note: 'Outcome: completed, partial or failed',
       }),
     ).toBe(
-      'Creates missing enrollment rules for an academic year, a course or one pair. Existing rules are skipped.',
+      'Uploads every declared public file to storage location "s3", serially. Outcome: completed, partial or failed.',
     );
     expect(
       flowDescription({

@@ -77,7 +77,6 @@ export const schemaConstraints: Migration = {
     'CREATE INDEX IF NOT EXISTS "moodle_pattern_mappings_course_only_in_year_index" ON "moodle_pattern_mappings" ("course", "only_in_year")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_counted_lines_entry_course_year_mapping_unique" ON "moodle_counted_lines" ("entry", "course", "academic_year", "pattern_mapping") NULLS NOT DISTINCT',
     'CREATE UNIQUE INDEX IF NOT EXISTS "data_operation_matches_claim_page_entry_mapping_unique" ON "data_operation_matches" ("claim_token", "page_token", "entry", "pattern_mapping")',
-    'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollment_rules_course_academic_year_unique" ON "course_enrollment_rules" ("course", "academic_year")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollments_course_academic_year_unique" ON "course_enrollments" ("course", "academic_year")',
     `DO $$
 BEGIN

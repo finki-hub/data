@@ -141,9 +141,9 @@ describe('the one-time workbook import', () => {
     );
     expect(summary.rows).toMatchObject({
       course_curricula: 12,
-      course_enrollment_rules: 8 * academicYears.length,
       courses: 8,
       curriculum_generations: 3,
+      moodle_pattern_mappings: 10,
       student_council: 4,
       study_programs: 15,
     });
@@ -308,7 +308,7 @@ describe('the rows the import writes', () => {
     expect(rowsIn(fake.store, 'moodle_users')).toHaveLength(501);
   });
 
-  test('seeds the academic years the workbook names, a later one included, with their rules', async () => {
+  test('seeds the academic years the workbook names, a later one included, which needs no mapping of its own', async () => {
     const years = ['2026/2027', ...academicYears];
     const fake = fakeImportDirectus(emptyStore());
 
@@ -323,8 +323,11 @@ describe('the rows the import writes', () => {
         sort: years.length - index,
       })),
     );
-    expect(rowsIn(fake.store, 'course_enrollment_rules')).toHaveLength(
-      rowsIn(fake.store, 'courses').length * years.length,
+    // The all-years mappings count the later year too.
+    expect(rowsIn(fake.store, 'moodle_pattern_mappings')).toHaveLength(
+      planned().find(
+        ({ collection }) => collection === 'moodle_pattern_mappings',
+      )?.rows.length ?? 0,
     );
     expect(
       projected(fake.store, 'curriculum_generations', [

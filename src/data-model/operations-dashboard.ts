@@ -8,8 +8,7 @@ import {
   runOperationPanelId,
   type StatusSection,
 } from '../../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
-import { ruleSeedingFlowId } from '../flows/add-enrollment-rules.js';
-import { rulesId } from '../flows/flow-template.js';
+import { dashboardId } from '../flows/flow-template.js';
 import { markPendingFlowId } from '../flows/mark-pending.js';
 import { publishAssetsFlowId } from '../flows/publish-public-assets.js';
 import { snapshotFlowId } from '../flows/snapshot-import.js';
@@ -21,7 +20,7 @@ import { snapshotFlowId } from '../flows/snapshot-import.js';
 // action is a Run operation panel added in Studio for any installed
 // Data / or Publish / Flow; no code changes.
 
-export const operationsDashboardId = rulesId('d0');
+export const operationsDashboardId = dashboardId('d0');
 
 const operationsDashboard = {
   color: null,
@@ -45,14 +44,13 @@ type PanelDeclaration = {
 };
 
 const runPanel = (
-  panel: Omit<PanelDeclaration, 'height' | 'options' | 'type' | 'width' | 'y'>,
+  panel: Omit<PanelDeclaration, 'height' | 'options' | 'type' | 'y'>,
   flow: string,
 ): PanelDeclaration => ({
   ...panel,
   height: 12,
   options: { flow: { collection: 'directus_flows', key: flow } },
   type: runOperationPanelId,
-  width: 13,
   y: 1,
 });
 
@@ -65,15 +63,17 @@ const statusPanel = (
   type: dataStatusPanelId,
 });
 
-// Publish, Recalculate, Import snapshot and Add enrollment rules in the
-// first row, the status below.
+// Publish, Recalculate and Import snapshot in the first row, as wide as
+// the status rows below. The ids keep their suffixes: d4 held the retired
+// Add enrollment rules panel.
 export const defaultPanels: readonly PanelDeclaration[] = [
   runPanel(
     {
       icon: 'cloud_upload',
-      id: rulesId('d1'),
+      id: dashboardId('d1'),
       name: 'Publish',
       note: 'Publishes every declared public file.',
+      width: 17,
       x: 1,
     },
     publishAssetsFlowId,
@@ -81,38 +81,30 @@ export const defaultPanels: readonly PanelDeclaration[] = [
   runPanel(
     {
       icon: 'update',
-      id: rulesId('d2'),
+      id: dashboardId('d2'),
       name: 'Recalculate',
       note: 'Marks domains pending; also retries a failed calculation.',
-      x: 14,
+      width: 18,
+      x: 18,
     },
     markPendingFlowId,
   ),
   runPanel(
     {
       icon: 'upload_file',
-      id: rulesId('d3'),
+      id: dashboardId('d3'),
       name: 'Import Moodle snapshot',
       note: 'Replaces the active Moodle snapshot with a private CSV.',
-      x: 27,
+      width: 17,
+      x: 36,
     },
     snapshotFlowId,
-  ),
-  runPanel(
-    {
-      icon: 'playlist_add',
-      id: rulesId('d4'),
-      name: 'Add enrollment rules',
-      note: 'Seeds the missing rules of a new academic year or course.',
-      x: 40,
-    },
-    ruleSeedingFlowId,
   ),
   statusPanel(
     {
       height: 32,
       icon: 'monitor_heart',
-      id: rulesId('d5'),
+      id: dashboardId('d5'),
       name: 'Calculations and published files',
       note: 'Shows calculation domains and published files.',
       width: 26,
@@ -125,7 +117,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
     {
       height: 32,
       icon: 'fact_check',
-      id: rulesId('d6'),
+      id: dashboardId('d6'),
       name: 'Readiness',
       note: 'Shows readiness checks with one Studio link each.',
       width: 26,
@@ -138,7 +130,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
     {
       height: 14,
       icon: 'key',
-      id: rulesId('d7'),
+      id: dashboardId('d7'),
       name: 'Published keys',
       note: 'Shows the rows whose flags decide the public keys.',
       width: 52,

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { assignmentRoles } from '../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
-import { ruleSeedingFlowId } from '../src/flows/add-enrollment-rules.js';
 import { markPendingFlowId } from '../src/flows/mark-pending.js';
 import { prepareAssetsFlowId } from '../src/flows/prepare-public-assets.js';
 import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
@@ -46,7 +45,6 @@ const [professor, assistant] = assignmentRoles;
 const operationFlows = [
   snapshotFlowId,
   publishAssetsFlowId,
-  ruleSeedingFlowId,
   markPendingFlowId,
   prepareAssetsFlowId,
   validateReadinessFlowId,

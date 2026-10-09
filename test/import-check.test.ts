@@ -10,11 +10,7 @@ import {
   warningCodes,
 } from '../src/import/findings.js';
 import { planImport } from '../src/import/plan.js';
-import {
-  expectedCouncil,
-  expectedEnrollments,
-  expectedRows,
-} from './expected-exports.js';
+import { expectedCouncil, expectedRows } from './expected-exports.js';
 import {
   academicYears,
   courseNames,
@@ -39,10 +35,6 @@ import {
 } from './import-plan-helpers.js';
 
 const thetaProfessor = 'Prof. Theta';
-
-// The rules of a course, each with the course.
-const courseRules = ({ id, rules }: CourseCandidate) =>
-  rules.map((rule) => ({ ...rule, course: id }));
 
 // The name of a candidate's course row: a candidate carries the row's
 // ordinal, its position in the dataset from 1.
@@ -70,19 +62,6 @@ const courseCandidate = (
 // (unique in the dataset). An empty curriculum code is published as no key.
 const codeOf = (row: SyntheticRow | undefined): unknown =>
   row?.['code'] === '' ? null : (row?.['code'] ?? null);
-
-// How many raw histories a rule's pattern matches, compiled once in
-// Unicode mode and tested against the whole history: each Moodle user
-// counts once however often the history lists the line.
-const matchingHistories = (
-  rulePattern: string,
-  histories: readonly unknown[],
-): number => {
-  const matcher = new RegExp(rulePattern, 'u');
-  return histories.filter(
-    (history) => typeof history === 'string' && matcher.test(history),
-  ).length;
-};
 
 const syntheticCourses = await expectedRows('synthetic', 'courses');
 const publishedCourses = new Map(
@@ -327,8 +306,8 @@ describe('teaching candidates', () => {
   });
 });
 
-describe('rule and council candidates', () => {
-  test('seeds one rule per course and year with the last pattern, else the name-year default', () => {
+describe('typed pattern and council candidates', () => {
+  test('records the typed pattern of every course and year, the last of its rows, else none', () => {
     const dataset = makeSyntheticDataset();
     const { candidates } = checkOf(dataset);
     const alpha = courseCandidate(
@@ -338,54 +317,26 @@ describe('rule and council candidates', () => {
     );
 
     for (const course of candidates.courses) {
-      expect(course.rules.map(({ academicYear }) => academicYear)).toEqual([
+      expect(course.patterns.map(({ academicYear }) => academicYear)).toEqual([
         ...academicYears,
       ]);
     }
 
-    expect(alpha.rules[0]).toEqual({
+    expect(alpha.patterns[0]).toEqual({
       academicYear: '2025/2026',
       overrides: [1, 2],
       pattern: 'Alpha Honors-2025/2026',
-      source: 'override',
       valid: true,
     });
-    expect(alpha.rules[1]).toEqual({
+    expect(alpha.patterns[1]).toEqual({
       academicYear: '2024/2025',
       overrides: [],
-      pattern: 'Alpha Course-2024/2025',
-      source: 'default',
+      pattern: null,
       valid: true,
     });
   });
 
-  // The committed enrollments count line by line. A rule tested the whole
-  // history: Theta's typed pattern spans a line break and counts 2 that
-  // way, and Iota's unescaped default "Iota 2.0 Course-2022/2023" matches
-  // the "Iota 2X0 Course-2022/2023" line, 1 user.
-  test('the rules count the committed enrollments but where a rule matched across lines or unescaped', async () => {
-    const dataset = makeSyntheticDataset();
-    const { candidates } = checkOf(dataset);
-    const histories = dataset.moodle_users.map((user) => user['Courses']);
-    const rules = candidates.courses.flatMap(courseRules);
-    const counts = Object.fromEntries(
-      rules.map(({ academicYear, course, pattern }) => [
-        `${String(course)}/${academicYear}`,
-        matchingHistories(pattern, histories),
-      ]),
-    );
-
-    expect(Object.keys(counts)).toHaveLength(
-      dataset.courses.length * academicYears.length,
-    );
-    expect(counts).toEqual({
-      ...(await expectedEnrollments('synthetic')),
-      '7/2021/2022': 2,
-      '8/2022/2023': 1,
-    });
-  });
-
-  test('falls back to the default when the last pattern row supplies no pattern', () => {
+  test('records no typed pattern when the last pattern row supplies none', () => {
     const base = uniqueDataset();
     const dataset = {
       ...base,
@@ -402,17 +353,36 @@ describe('rule and council candidates', () => {
     const { candidates, findings } = checkOf(dataset);
 
     expect(
-      courseCandidate(dataset, candidates.courses, courseNames.alpha).rules[1],
+      courseCandidate(dataset, candidates.courses, courseNames.alpha)
+        .patterns[1],
     ).toEqual({
       academicYear: '2024/2025',
       overrides: [4],
-      pattern: 'Alpha Course-2024/2025',
-      source: 'default',
+      pattern: null,
       valid: true,
     });
     expect(shapes(findings, 'invalid_source_row')).toEqual([
       { collection: 'course_enrollment_patterns', ids: [4] },
     ]);
+  });
+
+  // Its standard mapping escapes the name (defaultPattern), so the name is
+  // no pattern of its own.
+  test('imports a course whose name is no regular expression without a finding', () => {
+    const base = uniqueDataset();
+    const dataset = withMetacharacterCourse(base);
+    const course = courseCandidate(
+      dataset,
+      checkOf(dataset).candidates.courses,
+      metacharacterCourseName,
+    );
+
+    expect(codes(findingsOf(planOf(dataset)))).toEqual(
+      codes(findingsOf(planOf(base))),
+    );
+    expect(
+      course.patterns.every(({ pattern, valid }) => pattern === null && valid),
+    ).toBeTruthy();
   });
 
   test('links council members through the one student of an index, whose name the committed council file carries', async () => {
@@ -549,7 +519,7 @@ describe('cases that refuse the import', () => {
     });
   });
 
-  test('blocks a course name or pattern that is not a valid unicode regular expression', () => {
+  test('blocks a typed pattern that is not a valid unicode regular expression without its line breaks', () => {
     const dataset = withMetacharacterCourse(uniqueDataset());
     const { candidates, findings } = checkOf({
       ...dataset,
@@ -561,30 +531,40 @@ describe('cases that refuse the import', () => {
           academic_year: '2020/2021',
           pattern: String.raw`Beta\-2020`,
         },
+        // Compiles only without its pasted line break, as its mapping holds
+        // it.
+        {
+          id: 10,
+          course_name: courseNames.beta,
+          academic_year: '2019/2020',
+          pattern: 'Beta{1,\n2}-2019',
+        },
       ],
     });
+    const beta = courseCandidate(dataset, candidates.courses, courseNames.beta);
 
-    expect(shapes(findings, 'invalid_regex')).toEqual([
-      { collection: 'courses', ids: [2] },
-      { collection: 'courses', ids: [9] },
+    expect(
+      findings
+        .filter(({ code }) => code === 'invalid_regex')
+        .map(({ collection, ids, related }) => ({ collection, ids, related })),
+    ).toEqual([
+      {
+        collection: 'courses',
+        ids: [2],
+        related: [{ collection: 'course_enrollment_patterns', ids: [4] }],
+      },
     ]);
     expect(
-      courseCandidate(
-        dataset,
-        candidates.courses,
-        metacharacterCourseName,
-      ).rules.every(({ valid }) => !valid),
-    ).toBeTruthy();
-    expect(
-      courseCandidate(dataset, candidates.courses, courseNames.beta).rules.find(
-        ({ academicYear }) => academicYear === '2020/2021',
-      ),
-    ).toMatchObject({
+      beta.patterns.find(({ academicYear }) => academicYear === '2020/2021'),
+    ).toEqual({
+      academicYear: '2020/2021',
       overrides: [4],
       pattern: String.raw`Beta\-2020`,
-      source: 'override',
       valid: false,
     });
+    expect(
+      beta.patterns.find(({ academicYear }) => academicYear === '2019/2020'),
+    ).toMatchObject({ overrides: [5], valid: true });
   });
 
   test('blocks an ambiguous course name only where a row references it', () => {
@@ -706,12 +686,9 @@ describe('rows the import skips and warnings', () => {
     ).toEqual([['course_enrollment_patterns', [5]]]);
   });
 
-  test('warns about metacharacters, orphan equivalencies and curriculum rows no course names', () => {
+  test('warns about orphan equivalencies and curriculum rows no course names', () => {
     const findings = findingsOf(planOf(uniqueDataset()));
 
-    expect(shapes(findings, 'label_metacharacters')).toEqual([
-      { collection: 'courses', ids: [8] },
-    ]);
     expect(
       shapes(findings, 'orphan_equivalency').map(({ ids }) => ids),
     ).toEqual([[2], [8], [9]]);

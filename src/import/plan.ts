@@ -1,6 +1,7 @@
 import type { SheetCell } from '../workbook-values.js';
 import type { WorkbookContent } from '../workbook.js';
 
+import { planAcademicYears } from './academic-years.js';
 import { planTeachingAssignments } from './assignments.js';
 import { planCourseCurricula } from './course-links.js';
 import { planCurriculumEntries, planProgramStates } from './curricula.js';
@@ -24,7 +25,6 @@ import {
 } from './plan-content.js';
 import { type PlannedCollection } from './planned.js';
 import { preflight } from './preflight.js';
-import { planAcademicYears, planEnrollmentRules } from './rules.js';
 import { type UnstorableValue, unstorableValues } from './storable.js';
 import { workbookRows } from './workbook-rows.js';
 
@@ -51,8 +51,8 @@ export type ImportPlan = {
   readonly warnings: readonly Finding[];
 };
 
-// A formula pattern cell is not read, so its course and year take the
-// default rule: a rule fix, placed by its cell.
+// A formula pattern cell is not read, so its course and year fall back to
+// the course's all-years mappings: a rule fix, placed by its cell.
 const formulaCellFinding = (cell: SheetCell): Finding =>
   detailed(finding('formula_pattern_cell', 'course_enrollment_patterns', []), {
     cell,
@@ -62,9 +62,9 @@ const formulaCellFinding = (cell: SheetCell): Finding =>
 // share, before anything reaches Directus, and the plan of the parsed
 // workbook. The seeds come first, then the content rows, the courses with
 // their status, the curriculum entries and their program states, the
-// course links, the enrollment rules, the pattern mappings (proven against
-// the Moodle histories here, src/import/pattern-mappings.ts), the teaching
-// role rows, the equivalencies with their members and the council.
+// course links, the pattern mappings (proven against the Moodle histories
+// here, src/import/pattern-mappings.ts), the teaching role rows, the
+// equivalencies with their members and the council.
 export const planImport = ({
   academicYears,
   data,
@@ -112,10 +112,6 @@ export const planImport = ({
     {
       collection: 'course_curricula',
       rows: planCourseCurricula(candidates.courses, rows.courses),
-    },
-    {
-      collection: 'course_enrollment_rules',
-      rows: planEnrollmentRules(candidates.courses),
     },
     { collection: 'moodle_pattern_mappings', rows: patterns.rows },
     {

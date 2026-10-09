@@ -4,7 +4,6 @@ import { z } from 'zod';
 
 import type { DirectusRequest } from '../src/directus-request.js';
 
-import { enrollmentRuleFlows } from '../src/flows/add-enrollment-rules.js';
 import {
   familyId,
   flowFamilyCodes,
@@ -38,9 +37,8 @@ const installedFlowIds = [
   // Task 15: the publish family, the child before its parent.
   '1502',
   '1501',
-  // Task 16: the rule seeding family, the batch child before its parent.
-  '1602',
-  '1601',
+  // Batch 1, step 17: the rule seeding family of Task 16 (1602, 1601) is
+  // removed with the enrollment rules.
   '1301',
   '1303',
   '1302',
@@ -83,23 +81,32 @@ const retiredRunnerIds = [
   ...idsIn('13', ['61', '65'], ['71', '78']),
 ];
 
+// What batch 1 step 17 removed with the enrollment rules: the rule seeding
+// family (Task 16), its two Flows and every operation they held then (the
+// first steps 1611 and 1621 were retired earlier, below).
+const ruleSeedingIds = idsIn(
+  '16',
+  ['01', '02'],
+  ['12', '19'],
+  ['22', '28'],
+  ['31', '33'],
+);
+
 // The 171 operation ids the fixture held before Task 15, sorted and
 // hashed.
 const operationIdsSha256 =
   '6858e870a5fb769ab5e64a027b3d56deb9364915d519cdf3161a950b08173ee8';
 
 // What Task 15 added: every operation of the publish family, and the
-// schedule's enrollment route and unknown-domain branch. What Task 16
-// added: every operation of the rule seeding family. What batch 1 step 15
-// added: every operation of the matching family.
+// schedule's enrollment route and unknown-domain branch. What batch 1 step
+// 15 added: every operation of the matching family. (Task 16 added the
+// rule seeding family, which step 17 removed.)
 const addedOperationIds = new Set([
   ...publishFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
   familyId('13', '3a'),
   familyId('13', '4a'),
   familyId('13', '49'),
-  ...[...enrollmentRuleFlows, ...matchingFlows].flatMap(({ operations }) =>
-    operations.map(({ id }) => id),
-  ),
+  ...matchingFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
 ]);
 
 // The two steps each manual Flow of families 10, 13 and 14 started with
@@ -128,17 +135,18 @@ const removedOperationIds = [
 
 // Every removed Flow and step, never reused: the ones above, the two
 // steps each manual Flow of families 15 and 16 started with until
-// 2026-10-03 (added after Task 15, so not pinned), and the runners. A
-// project installed earlier keeps them, and setup creates Flows and
-// operations under these fixed ids, so a template that reused one would
-// fail there with RECORD_NOT_UNIQUE.
+// 2026-10-03 (added after Task 15, so not pinned), the runners and the
+// rule seeding family. A project installed earlier keeps them, and setup
+// creates Flows and operations under these fixed ids, so a template that
+// reused one would fail there with RECORD_NOT_UNIQUE.
 const retiredOperationIds = [
   ...removedOperationIds,
   familyId('15', '11'),
   familyId('15', '12'),
-  familyId('16', '11'),
-  familyId('16', '21'),
+  anyFamilyId('16', '11'),
+  anyFamilyId('16', '21'),
   ...retiredRunnerIds,
+  ...ruleSeedingIds,
 ];
 
 // A Trigger Flow target that names no Flow but a template of its payload.
@@ -258,14 +266,15 @@ describe('the Flow family registry', () => {
       .flatMap(idsOf)
       .filter((id) => retiredOperationIds.includes(id));
 
-    expect(new Set(retiredOperationIds).size).toBe(128);
+    expect(new Set(retiredOperationIds).size).toBe(148);
     expect(ruleFamilyOperationIds).toHaveLength(77);
+    expect(ruleSeedingIds).toHaveLength(20);
     expect(reused).toEqual([]);
     // No template carries a retired family code.
     expect(
       flowTemplates()
         .flatMap(idsOf)
-        .filter((id) => ['11', '12'].includes(codeOf(id))),
+        .filter((id) => ['11', '12', '16'].includes(codeOf(id))),
     ).toEqual([]);
   });
 

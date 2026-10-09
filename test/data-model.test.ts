@@ -141,8 +141,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(27);
-    expect(new Set(dataModelCollectionKeys).size).toBe(27);
+    expect(dataModelCollectionKeys).toHaveLength(26);
+    expect(new Set(dataModelCollectionKeys).size).toBe(26);
     expect(dataModelCollectionKeys.slice(0, 9)).toEqual([
       'courses',
       'staff',
@@ -351,7 +351,6 @@ describe('domain keys', () => {
       'index moodle_pattern_mappings (course, only_in_year)',
       'unique moodle_counted_lines (entry, course, academic_year, pattern_mapping)',
       'unique data_operation_matches (claim_token, page_token, entry, pattern_mapping)',
-      'unique course_enrollment_rules (course, academic_year)',
       'unique course_enrollments (course, academic_year)',
     ]);
 
@@ -539,16 +538,12 @@ describe('curriculum generations and study programs as rows', () => {
 });
 
 describe('enumerations', () => {
-  test('declares the role, mode and operation states with their labels', () => {
+  test('declares the role and operation states with their labels', () => {
     expect(enumOf('teaching_assignments', 'role').choices).toEqual([
       { label: 'Professor', value: 'professor' },
       { label: 'Assistant', value: 'assistant' },
     ]);
     expect(enumOf('teaching_assignments', 'role').nullable).toBe(false);
-    expect(enumOf('course_enrollment_rules', 'mode').choices).toEqual([
-      { label: 'Mapped entries', value: 'mapped_entries' },
-      { label: 'Legacy regex', value: 'legacy_regex' },
-    ]);
     expect(enumOf('data_operations', 'import_state').defaultValue).toBe('idle');
     expect(enumOf('data_operations', 'publication_state').defaultValue).toBe(
       'idle',
@@ -723,7 +718,7 @@ describe('relations and aliases', () => {
     ).toEqual([]);
   });
 
-  test('exposes the course side of curricula, assignments, mappings, rules and counts', () => {
+  test('exposes the course side of curricula, assignments, mappings and counts', () => {
     expect(aliasesFor('courses').map(({ alias }) => alias.field)).toEqual([
       'equivalencies',
       'assignments',
@@ -731,7 +726,6 @@ describe('relations and aliases', () => {
       'history_mappings',
       'pattern_mappings',
       'counted_lines',
-      'enrollment_rules',
       'enrollments',
     ]);
     expect(aliasesFor('moodle_users').map(({ alias }) => alias.field)).toEqual([

@@ -477,7 +477,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
     expect(newCourse.issueCounts).toMatchObject({
       enrollment_count_missing: 15,
     });
-    // Enrollment rules no longer decide what is counted.
+    // No check of the removed enrollment rules is left.
     expect(
       Object.keys(newCourse.issueCounts).filter((code) =>
         code.includes('rule'),

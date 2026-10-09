@@ -10,8 +10,6 @@ import {
   defaultPanels,
   operationsDashboardId,
 } from '../../src/data-model/operations-dashboard.js';
-import { addedRuleMode } from '../../src/data-model/operations-vocabularies.js';
-import { ruleSeedingFlowId } from '../../src/flows/add-enrollment-rules.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { publishAssetsFlowId } from '../../src/flows/publish-public-assets.js';
@@ -27,7 +25,7 @@ import {
   withRestrictedUser,
 } from './data-model-helpers.mjs';
 import { engineFiles, restReader } from './export-projection-helpers.mjs';
-import { count, get, patch, post, remove } from './history-index-helpers.mjs';
+import { get, patch, post, remove } from './history-index-helpers.mjs';
 import { callAs, codeOf, keysDeep, runFlow } from './operations-helpers.mjs';
 
 // The Data operations dashboard on a live project (Task 16): setup
@@ -35,26 +33,17 @@ import { callAs, codeOf, keysDeep, runFlow } from './operations-helpers.mjs';
 // answers a bounded view, and the caller check refuses it and the
 // migrations endpoint without a signed-in user (401) or the admin flag
 // (403); the trigger endpoint refuses a run to a caller who cannot read
-// data_operations; "Data / Add enrollment rules" seeds the mapped rules of
-// a new year or course idempotently; every course is counted in the new
-// year at the next tick, which is public only once published. The
-// schedule stays active. Every row, user and role is synthetic and
-// removed.
+// data_operations; every course is counted in a new year at the next
+// tick, without any row added for the year, and the year is public only
+// once published. The schedule stays active. Every row, user and role is
+// synthetic and removed.
 
-const mapped = addedRuleMode;
-// A rule of the other stored mode, which the rule seeding keeps.
-const legacy = 'legacy_regex';
 const courseCount = 260;
 const line = 'Synthetic Operations Line';
 const unmappedLine = 'Synthetic Operations Unmapped Line';
 const newYear = '2093/2094';
 const oldYear = '2092/2093';
-const runFlows = [
-  publishAssetsFlowId,
-  markPendingFlowId,
-  snapshotFlowId,
-  ruleSeedingFlowId,
-];
+const runFlows = [publishAssetsFlowId, markPendingFlowId, snapshotFlowId];
 const forbiddenPayload = ['token', 'owner', 'fingerprint', 'process'];
 
 const bookmarkPattern = /bookmark=(?<id>\d+)$/u;
@@ -101,12 +90,11 @@ const keepsEdits = async ({ directus, target }) => {
   assert.equal(edited.name, 'Publish (edited)');
 };
 
-// 260 courses (two batches of the rule seeding), All professors so that
-// courses.json needs no staff link, an older published year with a mapped
-// rule per course, a new unpublished year without rules, one Moodle user
-// with two history lines and a mapping of one line to the first course in
-// the new year, and an equivalency without a course (a warning with a
-// Needs review bookmark).
+// 260 courses, All professors so that courses.json needs no staff link,
+// an older published year, a new unpublished year, one Moodle user with
+// two history lines and a mapping of one line to the first course in the
+// new year, and an equivalency without a course (a warning with a Needs
+// review bookmark).
 const seedRows = async (target) => {
   const courses = await createMany(
     target,
@@ -121,11 +109,6 @@ const seedRows = async (target) => {
     { label: oldYear, published: true, sort: 92 },
     { label: newYear, published: false, sort: 93 },
   ]);
-  await createMany(
-    target,
-    'course_enrollment_rules',
-    courses.map((course) => ({ academic_year: older, course, mode: mapped })),
-  );
   await post(target, '/items/moodle_users', {
     Courses: [line, unmappedLine].join('\n'),
     'Courses Count': 2,
@@ -144,12 +127,7 @@ const seedRows = async (target) => {
     course: courses[0],
     entry: entry.id,
   });
-  return {
-    courses,
-    mappings: await count(target, 'moodle_course_mappings'),
-    newYear: newer,
-    oldYear: older,
-  };
+  return { courses, newYear: newer, oldYear: older };
 };
 
 // The review link of a positive check opens its bookmark, and the
@@ -217,83 +195,6 @@ const refusesStrangers = async (target, plain) => {
 const guardsAccess = async ({ target }) => {
   await withRestrictedUser(target, (plain) => refusesStrangers(target, plain));
   await assertNoAccessResidue(target);
-};
-
-const seedsYear = async ({ state, t, target }) => {
-  const run = flowAs(target, target.token);
-  const refused = await run(ruleSeedingFlowId);
-  assert.equal(refused.status, 400);
-  assert.equal(codeOf(refused), 'RULES_SCOPE_INVALID');
-  const unknown = await run(ruleSeedingFlowId, { academic_year: 999_999 });
-  assert.equal(codeOf(unknown), 'RULES_SCOPE_UNKNOWN');
-  const year = await run(ruleSeedingFlowId, {
-    academic_year: { collection: 'academic_years', key: state.newYear },
-  });
-  assert.equal(year.status, 200, JSON.stringify(year.body));
-  const { batches, created, mode } = year.body;
-  assert.deepEqual(
-    { batches, created, mode },
-    {
-      batches: 2,
-      created: courseCount,
-      mode: mapped,
-    },
-  );
-  const rules = await get(
-    target,
-    `/items/course_enrollment_rules?fields=course,mode&limit=-1&filter[academic_year][_eq]=${state.newYear}`,
-  );
-  assert.equal(rules.length, courseCount);
-  assert.deepEqual(new Set(rules.map((rule) => rule.mode)), new Set([mapped]));
-  assert.equal(new Set(rules.map(({ course }) => course)).size, courseCount);
-  const rerun = await run(ruleSeedingFlowId, { academic_year: state.newYear });
-  assert.deepEqual([rerun.body.created, rerun.body.existing], [0, courseCount]);
-  t.diagnostic(
-    `new year: ${created} rules in ${batches} batches; rerun ${rerun.body.created}`,
-  );
-};
-
-// A new course with a legacy rule for the new year: the course run adds
-// the other year only and keeps the legacy rule; the pair run adds none.
-const seedsCourse = async ({ state, t, target }) => {
-  const run = flowAs(target, target.token);
-  const [course] = await createMany(target, 'courses', [
-    {
-      name: 'Synthetic Operations New Course',
-      pattern_mappings: [],
-      status: 'all_professors',
-    },
-  ]);
-  state.courses.push(course);
-  await post(target, '/items/course_enrollment_rules', {
-    academic_year: state.newYear,
-    course,
-    mode: legacy,
-    pattern: 'Synthetic Operations Pattern',
-  });
-  const added = await run(ruleSeedingFlowId, {
-    course: { collection: 'courses', key: course },
-  });
-  assert.deepEqual([added.body.created, added.body.existing], [1, 1]);
-  const rules = await get(
-    target,
-    `/items/course_enrollment_rules?fields=academic_year,mode,pattern&sort=academic_year&filter[course][_eq]=${course}`,
-  );
-  assert.deepEqual(rules, [
-    { academic_year: state.oldYear, mode: mapped, pattern: null },
-    {
-      academic_year: state.newYear,
-      mode: legacy,
-      pattern: 'Synthetic Operations Pattern',
-    },
-  ]);
-  const pair = await run(ruleSeedingFlowId, {
-    academic_year: state.oldYear,
-    course,
-  });
-  assert.equal(pair.body.created, 0);
-  assert.equal(await count(target, 'moodle_course_mappings'), state.mappings);
-  t.diagnostic(`new course: ${added.body.created} rule, legacy rule kept`);
 };
 
 // The rows of courses.json that carry the new year as a key.
@@ -403,9 +304,8 @@ test('installs the Data operations dashboard and guards every data operation', a
       await t.test('keeps Studio edits of the dashboard', () =>
         keepsEdits(context),
       );
-      await t.test(
-        'seeds courses, years, rules and one mapped history line',
-        () => seeds(context),
+      await t.test('seeds courses, years and one mapped history line', () =>
+        seeds(context),
       );
       await t.test(
         'follows the review link of a positive check to its bookmark and records',
@@ -414,14 +314,6 @@ test('installs the Data operations dashboard and guards every data operation', a
       await t.test(
         'refuses the status read, the migrations endpoint and every run to a refused caller',
         () => guardsAccess(context),
-      );
-      await t.test(
-        'adds one mapped rule per course for a new year, then nothing on a rerun',
-        () => seedsYear(context),
-      );
-      await t.test(
-        'adds the missing rules of a new course and keeps its legacy rule',
-        () => seedsCourse(context),
       );
       await t.test(
         'counts every course in the new year at the next tick and publishes the year only once opted in',

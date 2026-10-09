@@ -22,7 +22,7 @@ import { planned } from '../src/import/planned.js';
 
 // The planner's input for a few courses: their rows, their candidates
 // (a typed cell per given year, numbered in course and then year order,
-// the default elsewhere) and the Moodle users' histories.
+// none elsewhere) and the Moodle users' histories.
 
 const years = ['2025/2026', '2024/2025', '2023/2024', '2022/2023'];
 const newest = '2025/2026';
@@ -49,29 +49,17 @@ const courseRow = (id: number, name: string): CourseRow => ({
 
 const candidatesOf = (courses: readonly CourseSpec[]): CourseCandidate[] => {
   let row = 0;
-  return courses.map(({ cells = {}, name }, index) => ({
+  return courses.map(({ cells = {} }, index) => ({
     current: noLink,
     id: index + 1,
     legacy: { entry: noLink, equivalencies: noLink, source: 'none' },
-    rules: years.map((academicYear) => {
+    patterns: years.map((academicYear) => {
       const pattern = cells[academicYear];
       if (pattern === undefined) {
-        return {
-          academicYear,
-          overrides: [],
-          pattern: `${name}-${academicYear}`,
-          source: 'default',
-          valid: true,
-        } as const;
+        return { academicYear, overrides: [], pattern: null, valid: true };
       }
       row += 1;
-      return {
-        academicYear,
-        overrides: [row],
-        pattern,
-        source: 'override',
-        valid: true,
-      } as const;
+      return { academicYear, overrides: [row], pattern, valid: true };
     }),
     teaching: { links: [], source: null, status: 'active' },
   }));

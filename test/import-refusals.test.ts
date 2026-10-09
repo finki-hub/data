@@ -460,9 +460,8 @@ describe('the refusal lines', () => {
   test('name patterns that are no regular expression, and rows the model cannot hold', () => {
     const base = uniqueDataset();
 
-    expect(linesOf(withMetacharacterCourse(base))).toEqual([
-      '- [invalid_regex] Предмети (Export) row 10 «C++ Course»: default pattern «C++ Course-<year>» not a valid regular expression (years without a pattern in Слушатели)',
-    ]);
+    // A course name is no pattern: its standard mapping escapes it.
+    expect(linesOf(withMetacharacterCourse(base))).toEqual([]);
     expect(
       linesOf(
         withPatterns(base, [

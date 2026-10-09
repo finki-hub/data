@@ -73,7 +73,6 @@ const sha256 = (text: string): string =>
 const provenCollections: ReadonlySet<string> = new Set([
   'academic_years',
   'course_curricula',
-  'course_enrollment_rules',
   'course_enrollments',
   'course_equivalencies',
   'course_equivalency_members',
@@ -108,8 +107,14 @@ const provenCollections: ReadonlySet<string> = new Set([
 // trigger: with its candidate declaration added back, it hashes to the
 // earlier
 // 4279d689f0fd5ca0db9c7069636e1c687433ad473372859338a3948aa5c451d7.
+// Removing the enrollment rules (2026-10-09) removed their source, its arm
+// and its trigger, and the comment on whole-domain marks no longer names a
+// rule: with the source declaration added back after
+// moodle_course_mappings and that comment reverted, it hashes to the
+// earlier
+// fb51bf2ad9b6a504b7262b7eb20e75249582ab8f798156825086f7d00229022c.
 const provenSha256 =
-  'fb51bf2ad9b6a504b7262b7eb20e75249582ab8f798156825086f7d00229022c';
+  '36692985aecb5d66c28fd6c6c0ac280b7351164cfaa06e0ba909bef7c4c90883';
 
 // The statements the migration of a registry holds: the singleton row, its
 // index and the trigger function, then the triggers of every source (its
@@ -469,7 +474,7 @@ describe('source-invalidation migration', () => {
 
     expect(proven).toHaveLength(provenCollections.size);
     expect(sha256(golden)).toBe(provenSha256);
-    expect(goldenStatements).toHaveLength(24);
+    expect(goldenStatements).toHaveLength(23);
 
     for (const statement of goldenStatements) {
       expect(statement).not.toMatch(dropPattern);

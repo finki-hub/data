@@ -24,8 +24,8 @@ const opening = `-- Source invalidation: the correctness boundary of the FINKI H
 
 const closing = `--
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
--- a mapping or a rule to another course or year, and any DELETE, marks
--- the domain, whose next run recomputes every pair, so the old and the new
+-- a mapping to another course or year, and any DELETE, marks the domain,
+-- whose next run recomputes every pair, so the old and the new
 -- relationship are both covered. The history index and the enrollment
 -- counts also keep the revision of the last statement that touched their
 -- inputs (history_index_input_revision, enrollments_input_revision): a

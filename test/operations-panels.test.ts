@@ -71,7 +71,7 @@ import {
   installOperationsDashboard,
   operationsDashboardId,
 } from '../src/data-model/operations-dashboard.js';
-import { flowFamilyCodes } from '../src/flows/flow-template.js';
+import { dashboardCode, flowFamilyCodes } from '../src/flows/flow-template.js';
 import { snapshotImportFlow } from '../src/flows/snapshot-import.js';
 import { flowTemplates } from './registry-test-helpers.js';
 
@@ -626,6 +626,15 @@ describe('the status labels', () => {
   });
 });
 
+// The grid columns a row of panels covers, in order, a column once per
+// panel covering it.
+const gridColumns = (row: ReadonlyArray<{ width: number; x: number }>) =>
+  row
+    .flatMap(({ width, x }) =>
+      Array.from({ length: width }, (_, index) => x + index),
+    )
+    .toSorted((left, right) => left - right);
+
 describe('the Data operations dashboard', () => {
   test('declares the default panels once, each for an installed manual Flow or the status', () => {
     const templates = new Map(flowTemplates().map((flow) => [flow.id, flow]));
@@ -638,17 +647,27 @@ describe('the Data operations dashboard', () => {
       'Publish / Public assets',
       'Data / Mark pending',
       'Data / Import Moodle snapshot',
-      'Data / Add enrollment rules',
     ]);
     expect(new Set(defaultPanels.map(({ id }) => id)).size).toBe(
       defaultPanels.length,
     );
+    // The installed ids stay: the code of the retired enrollment-rules
+    // family, which no Flow family carries, and the panels' suffixes.
+    expect(Object.values(flowFamilyCodes)).not.toContain(dashboardCode);
+    expect(operationsDashboardId).toBe('6a1d9f0e-2b3c-4d5e-8f70-0000000016d0');
+    expect(defaultPanels.map(({ id }) => id.slice(-4))).toEqual([
+      '16d1',
+      '16d2',
+      '16d3',
+      '16d5',
+      '16d6',
+      '16d7',
+    ]);
     expect(
-      defaultPanels.every(
-        ({ id }) => id.slice(-4, -2) === flowFamilyCodes.rules,
+      defaultPanels.every(({ id }) =>
+        id.startsWith(operationsDashboardId.slice(0, -2)),
       ),
     ).toBeTruthy();
-    expect(operationsDashboardId.slice(-4, -2)).toBe(flowFamilyCodes.rules);
     expect(new Set(defaultPanels.map(({ type }) => type))).toEqual(
       new Set([dataStatusPanelId, runOperationPanelId]),
     );
@@ -659,6 +678,17 @@ describe('the Data operations dashboard', () => {
           : sectionsOf(options['sections']),
       ),
     ).toEqual([...statusSections]);
+  });
+
+  test('fills each panel row from column 1 to 52, without a gap or an overlap', () => {
+    const full = gridColumns([{ width: 52, x: 1 }]);
+
+    expect(
+      Map.groupBy(defaultPanels, ({ y }) => y)
+        .values()
+        .map((row) => gridColumns(row))
+        .toArray(),
+    ).toEqual([full, full, full]);
   });
 
   test('creates what is missing and never touches what exists', async () => {

@@ -65,12 +65,11 @@ export const folders: readonly Folder[] = [
     icon: 'settings_suggest',
     label: 'Operations',
     members: [
-      'course_enrollment_rules',
       'course_enrollments',
       'data_operations',
       'data_operation_matches',
     ],
-    note: 'Enrollment rules, derived counts and the private operation state.',
+    note: 'Derived enrollment counts and the private operation state.',
     sort: 5,
   },
 ];

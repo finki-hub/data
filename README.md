@@ -21,7 +21,7 @@ Contents:
 - [Data model and ownership](#data-model-and-ownership): what the workbook
   fills, what is edited and what is derived
 - [Day-to-day operation](#day-to-day-operation): automatic processing,
-  enrollment rules, readiness, the dashboard, publishing, Flow edits
+  enrollment counts, readiness, the dashboard, publishing, Flow edits
 - [Access](#access)
 - [Course-history search](#course-history-search)
 - [Branding](#branding)
@@ -36,7 +36,7 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, the **Search** bookmark and the **Unmapped history lines** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication, rule seeding and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, the **Search** bookmark and the **Unmapped history lines** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
@@ -233,7 +233,7 @@ run the one-time import (below) in place of step 4.
    | `curriculum_code_without_level` | Correct the code to start with `F`, the generation's two digits, `L` and the level, such as `F18L3W055`, or clear it. |
    | `duplicate_role_row` | Delete the repeated rows. |
    | `inactive_course_assistants` | Clear the course's `Асистенти` cell, or write staff names in its professors cell to keep the course active. |
-   | `invalid_regex` | Correct the pattern; a typed pattern must also compile without its line breaks. For the default pattern, add a valid pattern for each year without one, or rename the course. |
+   | `invalid_regex` | Correct the pattern so that it compiles without its line breaks. |
    | `invalid_source_row` | Fill in the missing cell, or delete the row. |
    | `missing_override_target` | Correct the 2018-name to the name of a 2018 subject, or clear it. |
    | `unlinked_generation_values` | Fill in that generation's name, or clear the credits. |
@@ -321,7 +321,7 @@ Directus untouched:
   - an availability of TRUE of a generation without its name links
     nothing and publishes FALSE, as above (`unlinked_availability`);
   - a formula in a `Слушатели` pattern cell is not read, and that course
-    and year take the default `<name>-<year>` pattern
+    and year fall to the course's all-years pattern mappings
     (`formula_pattern_cell`; the column is the year);
   - a staff name listed again in one teaching cell is linked once
     (`repeated_staff_name`; the place names the cell and the line);
@@ -362,7 +362,7 @@ rule fix is a warning whose places `fixes` lists):
 | `curriculum_code_without_level` | refuses | A curriculum row, linked or not, has a non-empty code that does not start with `F`, two digits, `L` and a digit, so it gives no level (the database refuses such a code as well); the line places it by sheet, row and column `Код`. |
 | `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
 | `inactive_course_assistants` | refuses | A professors cell of `(неактивиран предмет)` with an assistants cell that is neither empty nor the same text. |
-| `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, also without its line breaks, or the `<name>-<year>` default) is no Unicode regular expression. |
+| `invalid_regex` | refuses | A `Слушатели` pattern of a course is no Unicode regular expression once its line breaks are removed. A course name is no pattern: its own mapping escapes it. |
 | `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
 | `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
 | `unlinked_generation_values` | refuses | A course has credits of a generation but no name of that generation (an availability alone is a rule fix or no case). |
@@ -383,8 +383,7 @@ rule fix is a warning whose places `fixes` lists):
 | `duplicate_staff_name` | warning | Several staff rows share one name. |
 | `duplicate_student_index` | warning | Several students share one index. |
 | `equivalency_label_after_precedent` | warning | A course has no 2018 override, and its first equivalency row, which decides, has no 2018 label while a later one has, so the course gets no 2018 link. |
-| `formula_pattern_cell` | warning | A `Слушатели` pattern cell holds a formula; it is not read, and that course and year take the default pattern (rule fix). |
-| `label_metacharacters` | warning | A course name holds a regular-expression or `LIKE` metacharacter, so its default `<name>-<year>` pattern matches differently than it reads. |
+| `formula_pattern_cell` | warning | A `Слушатели` pattern cell holds a formula; it is not read, and that course and year fall to the course's all-years pattern mappings (rule fix). |
 | `newest_year_widened` | warning | The converted pattern mappings count more history lines in the newest workbook year of a course without a pattern cell in that year (rule fix). |
 | `orphan_equivalency` | warning | An equivalency row whose 2023 label names no course; it is imported without a course. |
 | `pattern_line_break` | warning | A `Слушатели` pattern cell holds a pasted line break; it is removed (rule fix). |
@@ -409,10 +408,10 @@ its coordination status row, is accepted. On an accepted project it:
    curriculum generations and study programs; the staff, rooms, students,
    Discord channels, dean's office and Moodle users; the courses with
    their status; the curriculum entries with their program states; the
-   course links; the enrollment rules; the pattern mappings; the staff
-   links; the equivalencies with their members; the council. Every course
-   is posted with an empty list of pattern mappings, so Directus adds no
-   default mapping: the import writes each course's mappings itself.
+   course links; the pattern mappings; the staff links; the equivalencies
+   with their members; the council. Every course is posted with an empty
+   list of pattern mappings, so Directus adds no default mapping: the
+   import writes each course's mappings itself.
 
 The import reads the layout of the 2026-10-08 export, and an older export
 stops before Directus is contacted (exit code 1, `Import failed: Слушатели
@@ -434,12 +433,12 @@ row 1, column 2: not an academic year`):
   (`Courses row 9, column "ID_new": repeats the id of row 4`).
 
 The academic years it writes are the ones the **Слушатели** sheet heads, in
-its order (published, the oldest sorting first), with one `legacy_regex`
-rule per course and year. The curriculum generations and study programs
-come from the curriculum sheets: each program column is headed by its
-program code on the first line (a second line, such as the duration, and a
-link are ignored); the generations with a curriculum sheet and their
-programs are published, the label-only 2013 generation is not.
+its order (published, the oldest sorting first); every course is counted in
+each of them. The curriculum generations and study programs come from the
+curriculum sheets: each program column is headed by its program code on
+the first line (a second line, such as the duration, and a link are
+ignored); the generations with a curriculum sheet and their programs are
+published, the label-only 2013 generation is not.
 
 From the **Слушатели** sheet and the Moodle histories of the **Courses**
 sheet it plans the **Pattern mappings** (see
@@ -510,8 +509,8 @@ malformed rows and replaces nothing atomically.
 
 **The replacement is total.** Every active Moodle user is replaced by the
 file's rows, including every edit made to a Moodle user in Studio since the
-last import. A private backup of the replaced rows is written first. Course
-mappings, history entries, enrollment rules and every other collection are
+last import. A private backup of the replaced rows is written first. Pattern
+and explicit mappings, history entries and every other collection are
 kept.
 
 1. Run `courses-scraper` normally to produce `profiles.csv`: the 38 headers
@@ -655,7 +654,7 @@ relational rows straight from them:
 | `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included; `Ниво` is not read, because the level is the digit after `L` in the code |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row; one label column per generation, headed `Предмет (<generation code>)`. The column of a label-only generation (2013) may be missing and then reads as empty; a missing column of a generation with a curriculum, a header that names no known generation, or a filled cell under an empty header stops the import (exit code 1) |
 | `Наставен Кадар` | the course's **Status** and its `teaching_assignments` staff links: one per line naming a `Кадар (Export)` row exactly, professors then assistants in cell order (`sort`); a professors cell of exactly `Сите професори` gives All professors, of exactly `(неактивиран предмет)` Inactive (its assistants cell empty or the same text) |
-| `Слушатели` | `academic_years` from the labels heading its year column groups; one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (they count nothing, see [Enrollment counts](#enrollment-counts)); and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import)) |
+| `Слушатели` | `academic_years` from the labels heading its year column groups, and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import) and [Enrollment counts](#enrollment-counts)) |
 | `Дискорд` | `discord_channels`, one row per channel pair |
 | `ФСС` | `student_council`, linked to the student of its index |
 | `Деканат` | `deans_office` |
@@ -701,8 +700,8 @@ database guards the table:
 - **Editable sources** (for example `courses`, `curriculum_entries`,
   `course_curricula`, `teaching_assignments`, `staff`, `rooms`,
   `students`, `student_council`, `course_equivalencies` and their members,
-  `moodle_course_entries`, `moodle_pattern_mappings`,
-  `moodle_course_mappings`, `course_enrollment_rules`): edited in Studio.
+  `moodle_course_entries`, `moodle_pattern_mappings` and
+  `moodle_course_mappings`): edited in Studio.
   Every statement on one marks the calculations that read it, and
   publication, pending inside its own transaction.
 - **Key sources** (`academic_years`, `curriculum_generations`,
@@ -801,7 +800,7 @@ generation first; narrow it to one generation with Studio's native filter on
 A course is the entry point: its form shows its curriculum links and
 equivalency members, its status and staff links, its **Pattern mappings**
 and its **Explicit mappings** of Moodle history lines per academic year,
-and its enrollment rules, derived counts and **Counted lines** (read-only).
+and its derived counts and **Counted lines** (read-only).
 A **History line**'s form shows its exact label and **First seen**, its
 **Explicit mappings**, the courses and academic years it is **Counted
 for**, and the users carrying it (the last two derived and read-only).
@@ -882,8 +881,8 @@ database transaction (the statement triggers of `npm run setup`), so a
 rolled-back edit marks nothing and a committed one is never missed, whether it
 came from Studio, the REST API, a native CSV import or SQL. A Moodle user
 marks the history index, the counts and publication; courses (every course is
-counted), entries, pattern and explicit mappings, rules and academic years mark
-the counts and publication; every other source collection marks publication.
+counted), entries, pattern and explicit mappings and academic years mark the
+counts and publication; every other source collection marks publication.
 The mark covers the whole domain, so a mapping moved to another course or
 year, or deleted, changes both the old and the new pair; a pair a deleted
 mapping alone counted is then counted as 0. Deleting an entry or editing its label
@@ -893,8 +892,8 @@ trigger cannot tell one column of that table from another; marking publication
 only for the tables a published file reads is an open decision. Each
 calculation also keeps the revision of the last statement that touched its
 inputs (`history_index_input_revision`, `enrollments_input_revision`; a Moodle
-user touches both, a course, entry, mapping, rule or academic year the
-counts): an edit of a room, staff member or any other publication-only
+user touches both, a course, entry, mapping or academic year the counts):
+an edit of a room, staff member or any other publication-only
 collection never discards a running calculation or retries a failed one.
 `source_revision` counts statements, not edits: deleting a parent row fires
 the trigger once per table its deletion cascades into.
@@ -1043,9 +1042,9 @@ like **Search**, and keeps an existing one as Studio leaves it.
 
 A new course gets its default pattern mapping in the same transaction
 (see the collections section above), so its own lines count from the next
-run; a renamed course keeps its mappings. The enrollment rules
-(`course_enrollment_rules`), which the one-time import still writes and
-**Add enrollment rules** still creates, take no part in counting.
+run; a renamed course keeps its mappings. A new academic year needs no row
+of its own: the all-years mappings count it as soon as it exists (see
+[An academic year](#an-academic-year)).
 
 **Data / Count enrollments** runs one count under the enrollments claim
 the schedule takes. It plans the history lines in pages of 250 by id
@@ -1195,9 +1194,8 @@ its default panels, once (a rerun creates a missing panel and never
 overwrites an edited one):
 
 - **Run operation** panels for Publish (**Publish / Public assets**),
-  Recalculate (**Data / Mark pending**), Import Moodle snapshot
-  (**Data / Import Moodle snapshot**) and Add enrollment rules
-  (**Data / Add enrollment rules**). A panel shows its Flow's own
+  Recalculate (**Data / Mark pending**) and Import Moodle snapshot
+  (**Data / Import Moodle snapshot**). A panel shows its Flow's own
   confirmation text and dialog fields (the snapshot's private CSV through
   an item picker of the private folder's files) and posts them to the native
   `POST /flows/trigger/:id`. Run is disabled while any data operation holds
@@ -1238,12 +1236,6 @@ overwrites an edited one):
   running domain or a pending calculation) or a run of the page is running:
   a run started in another tab shows at the next such poll or when the page
   is refreshed.
-
-**Add enrollment rules** creates the missing `mapped_entries` rules of an
-academic year (every course), a course (every year) or one pair, in batches
-of at most 250; see [Extending](#an-academic-year-and-its-rules). A run that
-fails in a later batch keeps the batches it created; run it again to add
-the rest.
 
 To put another operation on the dashboard, see
 [A dashboard action](#a-dashboard-action).
@@ -1491,8 +1483,6 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 | `PUBLICATION_PARTIAL`, `PUBLICATION_FAILED`, `PUBLISH_UPLOAD_FAILED`, `PUBLISH_FAILED` | Some or no declared files were uploaded (`Uploaded <n> of <m>; failed: …. First failure: …`); a file whose failure carries no code of its own is listed as `PUBLISH_FAILED`. | Correct the upload cause (bucket, credentials, network), then publish again. |
 | `PUBLICATION_CLAIM_FAILED`, `PUBLICATION_NOT_PREPARED`, `PREPARATION_REFUSED`, `PUBLICATION_LOOP_FAILED`, `PUBLISH_LOOP_FAILED`, `PUBLICATION_OUTCOMES_REFUSED`, `OUTCOMES_REFUSED`, `PUBLICATION_NOT_RECORDED` | A step of the publication failed; the relayed message names the child's code and message. `PREPARATION_REFUSED` is the publication's last failure when the preparation refused (its message is the `EXPORT_*` refusal, such as `Not ready: …`). | Correct what that message names, then publish again. |
 | `MARK_REFUSED` | The coordinator refused the mark (the message names why). | Correct the chosen domains, then run **Recalculate** again. |
-| `RULES_SCOPE_INVALID`, `RULES_SCOPE_UNKNOWN`, `RULES_READ_FAILED` | **Add enrollment rules** got no valid scope, a year or course that does not exist, or could not read the pairs. | Pick an existing academic year, course or pair. |
-| `RULES_BATCH_FAILED` | A batch failed (`Batches failed: <i>/<n> (<CODE>, <k> rules); rules created: <n>`); the batches before it stay. | Run it again: existing pairs are skipped. |
 
 ## Access
 
@@ -1720,7 +1710,6 @@ rules.
 | Snapshot import (staging and promotion, one Flow run) | 6.4 s | |
 | History index | 13 s | 10 s |
 | Enrollment counts, legacy family only (6,045 pairs, 1,573 pages) | 169 s | 162 s |
-| **Add enrollment rules** for one new year (403 mapped pairs), with 250 mappings added | 1.5 s | 0.9 s |
 | Enrollment counts, both families (6,448 pairs) | 180 s | 165 s |
 | Readiness | 0.6 s | |
 | Publication (`courses.json` 413 KB, the other files under 120 KB each) | 1.2 s | |
@@ -1759,10 +1748,9 @@ definition.
 | Published files and their keys | `exports/index.ts` and one definition module per file | `courses.json`, `rooms.json`, `staff.json`, `students.json` |
 | Keys the data decides | `exports/key-sources.ts` | `published_years`, `published_generations`, `published_programs` |
 | Readiness checks and their review views | `exports/readiness-registry.ts` | `enrollment_count_missing`, `course_without_professor`, ... |
-| Dashboard actions | **Run operation** panels (Studio); the defaults in `src/data-model/operations-dashboard.ts` | Publish, Recalculate, Import Moodle snapshot, Add enrollment rules |
+| Dashboard actions | **Run operation** panels (Studio); the defaults in `src/data-model/operations-dashboard.ts` | Publish, Recalculate, Import Moodle snapshot |
 | Collection roles (editable sources) | `coordination/collection-roles.ts` | `courses`, `curriculum_entries`, `moodle_course_mappings`, ... |
-| Rule modes | `rule-modes.ts` | `mapped_entries`, `legacy_regex` |
-| Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, History line matching, Publication, Publish, Enrollment rules, Automatic processing |
+| Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, History line matching, Publication, Publish, Automatic processing |
 | Choices of an enumerated field | the field, in `src/data-model/*-collections.ts` | the statuses of a course |
 | Scraper columns | `snapshot/contract.ts` (`snapshotFieldTable`) | the 38 headers of `profiles.csv` |
 
@@ -1771,25 +1759,25 @@ Code paths in the table that do not start with `src/` are relative to
 change there needs `npm run build:operations` (the compiled bundle is
 committed), a restart of Directus and, where said below, `npm run setup`.
 `npm test` checks the declarations against what derives from them (the
-export, readiness-registry, Flow-registry, collection-role and rule-mode
-tests, among others).
+export, readiness-registry, Flow-registry and collection-role tests, among
+others).
 
-### An academic year and its rules
+### An academic year
 
 1. Create the `academic_years` row (label such as `2026/2027`, a `sort`
-   above the newest year's). It is unpublished by default. The next run
-   counts every course in it, 0 until a line of the year counts: an
-   all-years pattern mapping counts the year's lines whose year its year
-   pattern reads.
-2. Map the year's Moodle history lines no mapping counts, in **Pattern
-   mappings** (a course's other name or year form) or **Explicit
-   mappings** (one line by hand).
+   above the newest year's). It is unpublished by default, and nothing
+   else is added for it: the next run counts every course in it, 0 until a
+   line of the year counts. An all-years pattern mapping counts the year's
+   lines whose year its year pattern reads.
+2. Once the counts are current, open **Unmapped history lines** on
+   **History lines**: the lines no mapping counts, newest **First seen**
+   first, so the lines of the latest snapshot are at the top. Count the
+   year's lines among them with a **Pattern mapping** (a course's other
+   name or year form, as an alternative or only in that year) or an
+   **Explicit mapping** (one line by hand); the next run counts them.
 3. Set `published`. `courses.json` gains exactly one key per course, the
    year's label, among the other year keys newest first; readiness blocks
    until every course has a count for it and its `sort` is unique.
-
-**Add enrollment rules** still creates rules for the year, which count
-nothing (see [Enrollment counts](#enrollment-counts)).
 
 ### A curriculum generation or study program
 
@@ -1946,28 +1934,16 @@ collection, its write guard. Then:
 A source collection is never public by being added: a published file reads
 it only through an export definition.
 
-### A rule mode
-
-The rule modes are declared in `rule-modes.ts` (value, label, description
-and whether a rule of the mode reads `pattern`); setup realigns the `mode`
-choices from it. No Flow counts a rule, so a mode changes no count.
-Retiring a mode fails to compile the code that takes it by name
-(`ruleMode('<mode>')`): the one-time import, which seeds every rule it
-reads from the workbook as `legacy_regex` (`seededMode` in
-`src/import/rules.ts`), and **Data / Add enrollment rules**, which creates
-`mapped_entries` rules (`addedRuleMode` in
-`src/data-model/operations-vocabularies.ts`). Setup refuses to realign
-`mode` while rows still hold the retired value.
-
 ### A managed Flow family
 
 A family is one entry of `flowFamilies` in `src/flows/registry.ts` under
 a code of its own. A new family therefore takes two edits:
 
 1. Add its two-digit code to `flowFamilyCodes` in
-   `src/flows/flow-template.ts`, a code no other family uses. The type of a
-   family code accepts only the declared ones, so a code that is not there
-   does not compile.
+   `src/flows/flow-template.ts`, a code no other family uses and no retired
+   one (11, 12 and 16; the dashboard's ids keep 16). The type of a family
+   code accepts only the declared ones, so a code that is not there does
+   not compile.
 2. Build the ids of its Flow templates and their operations from that code
    (`familyIds(flowFamilyCodes.<name>)`; every template id carries the
    family code), and add the family's `flowFamilies` entry: the code, a

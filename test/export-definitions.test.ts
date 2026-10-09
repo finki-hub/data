@@ -112,7 +112,6 @@ const filterPaths = (filter: unknown, prefix = ''): string[] => {
 const readable: Readonly<Record<string, null | readonly string[]>> = {
   academic_years: ['id', 'label', 'published', 'sort'],
   course_curricula: null,
-  course_enrollment_rules: ['academic_year', 'course', 'id'],
   course_enrollments: ['academic_year', 'count', 'course', 'id'],
   course_equivalencies: null,
   course_equivalency_members: ['entry', 'equivalency', 'generation', 'label'],

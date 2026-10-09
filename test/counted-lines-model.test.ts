@@ -165,7 +165,7 @@ describe('the counted lines', () => {
         (group) =>
           group.collection === 'courses' && group.field === 'enrollment',
       )?.members,
-    ).toEqual(['enrollment_rules', 'enrollments', 'counted_lines']);
+    ).toEqual(['enrollments', 'counted_lines']);
     expect(effectiveFieldMeta('courses', 'counted_lines')).toMatchObject({
       group: 'enrollment',
       readonly: true,

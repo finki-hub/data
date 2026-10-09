@@ -50,7 +50,8 @@ import { count, get, patch, post, remove } from './history-index-helpers.mjs';
 // family through one loop and keeps enum choices in step (refusing a
 // stored value outside them), the one-time import seeds the academic years
 // its workbook names, the published flag of a year decides its key in
-// courses.json, and a mapping without a rule only warns.
+// courses.json, and a mapping in an unpublished year neither blocks nor
+// warns.
 
 const nothingToResume = () => Promise.resolve();
 const laterYear = '2026/2027';
@@ -244,7 +245,17 @@ const importsSixteenYears = async ({ directus, state, t, target }) => {
   });
   const courses = await count(target, 'courses');
   assert.equal(written.academic_years, 16);
-  assert.equal(written.course_enrollment_rules, courses * 16);
+  // The later year's typed cell matches what the course's standard mapping
+  // counts there, no line, so it is skipped and no mapping is only in it.
+  const cell =
+    content.data.course_enrollment_patterns.findIndex(
+      (row) => row.academic_year === laterYear,
+    ) + 1;
+  assert.ok(
+    plan.skipped.some(
+      ({ code, ids }) => code === 'redundant_pattern' && ids.includes(cell),
+    ),
+  );
   assert.deepEqual(
     await get(
       target,
@@ -256,13 +267,20 @@ const importsSixteenYears = async ({ directus, state, t, target }) => {
       sort: 16 - index,
     })),
   );
+  assert.deepEqual(
+    await get(
+      target,
+      `/items/moodle_pattern_mappings?fields=id&filter[only_in_year][label][_eq]=${encodeURIComponent(laterYear)}&limit=-1`,
+    ),
+    [],
+  );
+  const settled = await settle(target, { limitMs: 180_000 });
+  // Every course is counted in the later year, with no row added for it.
   const later = await get(
     target,
-    `/items/course_enrollment_rules?fields=id,pattern&filter[academic_year][label][_eq]=${encodeURIComponent(laterYear)}&limit=-1`,
+    `/items/course_enrollments?fields=course&filter[academic_year][label][_eq]=${encodeURIComponent(laterYear)}&limit=-1`,
   );
   assert.equal(later.length, courses);
-  assert.ok(later.some(({ pattern }) => pattern === 'Synthetic Later Line'));
-  const settled = await settle(target, { limitMs: 180_000 });
   t.diagnostic(
     `imported ${JSON.stringify(written)}; settled after ${settled.elapsedMs} ms`,
   );
@@ -361,7 +379,6 @@ const keepsUnpublishedMapping = async ({ state, target }) => {
   await settle(target, { limitMs: 180_000 });
   const answer = await readiness(target);
   assert.equal(answer.ready, true, JSON.stringify(answer));
-  assert.ok(!Object.hasOwn(answer.issueCounts, 'mapping_without_rule'));
   assert.deepEqual(answer.blockers, []);
   assert.deepEqual(
     Object.keys(answer.issueCounts),
@@ -404,7 +421,7 @@ test('declares vocabularies, years, readiness checks and Flow families once', as
           () => refusesOutOfSet(context),
         );
         await t.test(
-          'imports a workbook with a 16th academic year and its rules',
+          'imports a workbook with a 16th academic year and counts every course in it',
           () => importsSixteenYears(context),
         );
         await t.test(

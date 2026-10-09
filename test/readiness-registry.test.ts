@@ -205,7 +205,7 @@ describe('the readiness-check registry', () => {
       history_index_pending: 'blocker/status',
       snapshot_import_failed: 'blocker/snapshot',
     });
-    // The enrollment rules no longer decide what is counted.
+    // No check of the removed enrollment rules is left.
     expect(declared.has('enrollment_rule_missing')).toBe(false);
     expect(declared.has('mapping_without_rule')).toBe(false);
   });

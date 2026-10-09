@@ -62,7 +62,6 @@ export const warningCodes = [
   'duplicate_student_index',
   'equivalency_label_after_precedent',
   'formula_pattern_cell',
-  'label_metacharacters',
   'newest_year_widened',
   'orphan_equivalency',
   'pattern_line_break',

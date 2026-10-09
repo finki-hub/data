@@ -154,7 +154,7 @@ const yearColumns = (
 
 // The academic years the enrollment sheet's column groups name, in sheet
 // order (newest first in the workbook): the one-time import seeds exactly
-// these years and one fallback rule per course and year.
+// these years, and every course is counted in each.
 export const readEnrollmentYears = (
   workbook: ExcelJS.Workbook,
   source: PatternSource,

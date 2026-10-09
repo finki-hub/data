@@ -122,11 +122,6 @@ const defaultViews: readonly TabularPreset[] = [
     ['entry'],
   ),
   defaultView(
-    'course_enrollment_rules',
-    ['course', 'academic_year', 'mode', 'pattern'],
-    ['course'],
-  ),
-  defaultView(
     'course_enrollments',
     ['course', 'academic_year', 'count', 'computed_at'],
     ['course'],

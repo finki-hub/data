@@ -58,15 +58,15 @@ const patternCourse = (
   row: CourseRow | undefined,
 ): PatternCourse => ({
   cells: new Map(
-    candidate.rules.flatMap((rule) =>
-      rule.source === 'override' && rule.valid
+    candidate.patterns.flatMap(({ academicYear, overrides, pattern, valid }) =>
+      pattern !== null && valid
         ? [
             [
-              rule.academicYear,
+              academicYear,
               {
-                academicYear: rule.academicYear,
-                pattern: withoutLineBreaks(rule.pattern),
-                row: rule.overrides.at(-1) ?? 0,
+                academicYear,
+                pattern: withoutLineBreaks(pattern),
+                row: overrides.at(-1) ?? 0,
               },
             ],
           ]
@@ -78,16 +78,14 @@ const patternCourse = (
 });
 
 const lineBreakFindings = (candidate: CourseCandidate): readonly Finding[] =>
-  candidate.rules.flatMap((rule) =>
-    rule.source === 'override' &&
-    rule.valid &&
-    withoutLineBreaks(rule.pattern) !== rule.pattern
+  candidate.patterns.flatMap(({ academicYear, overrides, pattern, valid }) =>
+    pattern !== null && valid && withoutLineBreaks(pattern) !== pattern
       ? [
           detailed(
             finding('pattern_line_break', 'course_enrollment_patterns', [
-              rule.overrides.at(-1) ?? 0,
+              overrides.at(-1) ?? 0,
             ]),
-            { academicYear: rule.academicYear },
+            { academicYear },
           ),
         ]
       : [],

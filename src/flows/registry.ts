@@ -1,6 +1,5 @@
 import type { DirectusRequest } from '../directus-request.js';
 
-import { enrollmentRuleFlows } from './add-enrollment-rules.js';
 import {
   type FlowFamilyCode,
   flowFamilyCodes,
@@ -27,11 +26,11 @@ export type FlowFamily = {
 };
 
 // Every managed Flow family in installation order: the history index,
-// the snapshot import, the history line matching, the publication
-// buttons, the publish Flows and the rule seeding of the dashboard before
-// automatic processing, whose dispatcher calls the matching Flow and whose
-// schedule runs last, so its first tick finds every child. A later family
-// is one entry here, before automatic processing.
+// the snapshot import, the history line matching, the publication buttons
+// and the publish Flows before automatic processing, whose dispatcher
+// calls the matching Flow and whose schedule runs last, so its first tick
+// finds every child. A later family is one entry here, before automatic
+// processing.
 export const flowFamilies: readonly FlowFamily[] = [
   {
     code: flowFamilyCodes.history,
@@ -57,11 +56,6 @@ export const flowFamilies: readonly FlowFamily[] = [
     code: flowFamilyCodes.publish,
     name: 'Publish',
     templates: publishFlows,
-  },
-  {
-    code: flowFamilyCodes.rules,
-    name: 'Enrollment rules',
-    templates: enrollmentRuleFlows,
   },
   {
     code: flowFamilyCodes.automation,

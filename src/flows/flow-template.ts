@@ -18,7 +18,6 @@ export const flowFamilyCodes = {
   matching: '17',
   publication: '14',
   publish: '15',
-  rules: '16',
   snapshot: '10',
 } as const;
 
@@ -58,10 +57,14 @@ export const publicationId = familyIds(flowFamilyCodes.publication);
 // Publish / One file).
 export const publishId = familyIds(flowFamilyCodes.publish);
 
-// The enrollment-rules family (Data / Add enrollment rules and its batch
-// child); the Data operations dashboard setup installs carries the same
-// code in its ids.
-export const rulesId = familyIds(flowFamilyCodes.rules);
+// The Data operations dashboard and its default panels keep the code of
+// the retired enrollment-rules family, 16, so their installed ids stay. No
+// Flow family carries it.
+export const dashboardCode = '16';
+
+// An id of the dashboard or one of its panels.
+export const dashboardId = (suffix: string): string =>
+  `${idPrefix}${dashboardCode}${suffix}`;
 
 // The storage writer every published file goes through: the existing
 // publish-json operation, one single-entry filename map per call.

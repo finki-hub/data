@@ -9,7 +9,11 @@ import {
 } from '../src/import/findings.js';
 import { fixPlaces } from '../src/import/fix-places.js';
 import { planImport } from '../src/import/plan.js';
-import { compositeKey } from '../src/import/planned.js';
+import {
+  compositeKey,
+  isRef,
+  type PlannedValue,
+} from '../src/import/planned.js';
 import { readWorkbookContent } from '../src/workbook.js';
 import {
   courseNames,
@@ -180,6 +184,10 @@ describe('an availability of TRUE without a name', () => {
   });
 });
 
+// The plan key a planned reference names, or null for a scalar.
+const refKey = (value: PlannedValue | undefined): null | string =>
+  value !== undefined && isRef(value) ? value.key : null;
+
 // The parity workbook with a formula in Alpha's empty 2024/2025 pattern
 // cell (Слушатели row 2, column G), whose result is no pattern the
 // dataset holds.
@@ -197,7 +205,7 @@ const withFormulaPattern = async () => {
 };
 
 describe('a formula pattern cell', () => {
-  test('is not read: its course and year take the default rule, and it is placed by its cell and year', async () => {
+  test("is not read: its course and year fall to the course's all-years mappings, and it is placed by its cell and year", async () => {
     const content = await withFormulaPattern();
     const plain = readWorkbookContent(
       await reloaded(syntheticWorkbook(parityDataset())),
@@ -212,11 +220,16 @@ describe('a formula pattern cell', () => {
     expect(content.data.course_enrollment_patterns).toEqual(
       plain.data.course_enrollment_patterns,
     );
+    expect(rowsIn(plan, 'moodle_pattern_mappings')).toEqual(
+      rowsIn(planImport(plain), 'moodle_pattern_mappings'),
+    );
     expect(
-      rowsIn(plan, 'course_enrollment_rules').find(
-        ({ key }) => key === compositeKey(1, '2024/2025'),
-      )?.record['pattern'],
-    ).toBe('Alpha Course-2024/2025');
+      rowsIn(plan, 'moodle_pattern_mappings').filter(
+        ({ record }) =>
+          refKey(record['course']) === '1' &&
+          refKey(record['only_in_year']) === '2024/2025',
+      ),
+    ).toEqual([]);
     expect(plan.blockers).toEqual([]);
     expect(summary.warnings).toMatchObject({ formula_pattern_cell: 1 });
     expect(summary.fixes).toEqual({

@@ -216,12 +216,6 @@ export const compositeKeys: readonly CompositeKey[] = [
   },
   ...mappingKeys,
   {
-    collection: 'course_enrollment_rules',
-    columns: ['course', 'academic_year'],
-    kind: 'unique',
-    name: 'course_enrollment_rules_course_academic_year_unique',
-  },
-  {
     collection: 'course_enrollments',
     columns: ['course', 'academic_year'],
     kind: 'unique',

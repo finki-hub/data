@@ -40,7 +40,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'enrollment',
     headerIcon: 'functions',
-    members: ['enrollment_rules', 'enrollments', 'counted_lines'],
+    members: ['enrollments', 'counted_lines'],
     sort: 5,
     start: 'open',
   },

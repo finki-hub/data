@@ -7,9 +7,6 @@ import { enumField, m2o, scalar } from './fields.js';
 import {
   claimChoices,
   importChoices,
-  modeChoices,
-  modeNote,
-  patternNote,
   publicationChoices,
   publicationStateNote,
 } from './operations-vocabularies.js';
@@ -20,38 +17,6 @@ const retriesNote = (run: string): string =>
   `Transaction retries of ${run} (deadlock or serialization failure).`;
 
 export const operationsCollections: readonly ModelCollection[] = [
-  {
-    collection: 'course_enrollment_rules',
-    displayTemplate: '{{course.name}} - {{academic_year.label}} ({{mode}})',
-    fields: [
-      m2o('course', 'courses', {
-        alias: {
-          field: 'enrollment_rules',
-          fields: ['academic_year', 'mode', 'pattern'],
-          template: '{{academic_year.label}} ({{mode}})',
-        },
-        nullable: false,
-        template: courseTemplate,
-      }),
-      m2o('academic_year', 'academic_years', {
-        alias: {
-          field: 'enrollment_rules',
-          fields: ['course', 'mode', 'pattern'],
-          template: '{{course.name}} ({{mode}})',
-        },
-        nullable: false,
-        template: academicYearTemplate,
-      }),
-      enumField('mode', modeChoices, { note: modeNote, nullable: false }),
-      scalar('pattern', 'text', { note: patternNote }),
-      scalar('review_note', 'text'),
-    ],
-    hidden: false,
-    icon: 'rule',
-    note: 'One active enrollment rule per course and academic year.',
-    singleton: false,
-    sort: 21,
-  },
   {
     collection: 'course_enrollments',
     displayTemplate: '{{course.name}} - {{academic_year.label}}: {{count}}',

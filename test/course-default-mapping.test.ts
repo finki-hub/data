@@ -118,7 +118,7 @@ describe('the import', () => {
     current: noLink,
     id: 1,
     legacy: { entry: noLink, equivalencies: noLink, source: 'none' },
-    rules: [],
+    patterns: [],
     teaching: { links: [], source: null, status: 'active' },
   };
 

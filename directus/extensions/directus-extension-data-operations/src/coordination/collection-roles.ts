@@ -132,11 +132,6 @@ const collectionRoles = [
     role: 'source',
   },
   {
-    collection: 'course_enrollment_rules',
-    invalidates: ['enrollments', 'publication'],
-    role: 'source',
-  },
-  {
     collection: 'moodle_history_memberships',
     guard: {
       hint: 'Source: moodle_users.Courses, moodle_course_entries, moodle_course_mappings; rebuilt by: Data / Process pending',

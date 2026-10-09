@@ -7,10 +7,6 @@ import {
   publicationStates,
   stateLabels,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
-import {
-  ruleMode,
-  ruleModes,
-} from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { labelledChoices } from './fields.js';
 
 // The vocabularies of the operations collections. The coordinator's own
@@ -18,25 +14,6 @@ import { labelledChoices } from './fields.js';
 // label of each state, which the dashboard shows too) are declared once in
 // the data-operations extension and imported here; setup keeps installed
 // fields in step with them.
-
-// The enrollment rule modes carry their labels in their one declaration
-// (rule-modes.ts), with what each does and whether it reads `pattern`.
-export const modeChoices: readonly EnumChoice[] = ruleModes.map(
-  ({ label, mode }) => ({ label, value: mode }),
-);
-
-const modeDoes = ({ description, mode }: (typeof ruleModes)[number]): string =>
-  `${mode} ${description}`;
-
-export const modeNote = `${ruleModes.map(modeDoes).join('; ')}.`;
-
-// The mode Add enrollment rules gives every rule it creates.
-export const addedRuleMode = ruleMode('mapped_entries').mode;
-
-export const patternNote = `Literal regular expression, as the workbook import or a hand edit recorded it; only used by ${ruleModes
-  .filter(({ usesPattern }) => usesPattern)
-  .map(({ mode }) => mode)
-  .join(', ')}.`;
 
 export const importChoices = labelledChoices(importStates, stateLabels);
 

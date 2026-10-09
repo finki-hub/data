@@ -17,7 +17,6 @@ import {
   academicYears,
   courseNames,
   makeSyntheticDataset,
-  thetaCrossNewlinePattern,
 } from './fixtures/synthetic-data.js';
 import {
   syntheticProgramHeaders,
@@ -82,7 +81,6 @@ describe('the order the import writes in', () => {
       'curriculum_entries',
       'curriculum_entry_program_states',
       'course_curricula',
-      'course_enrollment_rules',
       'moodle_pattern_mappings',
       'teaching_assignments',
       'course_equivalencies',
@@ -363,35 +361,7 @@ describe('course links', () => {
   });
 });
 
-describe('enrollment rules', () => {
-  test('seeds one legacy_regex rule per course and year, the last pattern of the workbook or the default recorded literally', () => {
-    const plan = planOf(makeSyntheticDataset());
-    const rules = rowsIn(plan, 'course_enrollment_rules');
-    const ruleOf = (id: number, year: string) =>
-      rules.find(({ key }) => key === compositeKey(id, year))?.record;
-
-    expect(rules).toHaveLength(8 * academicYears.length);
-    expect(ruleOf(1, '2025/2026')).toMatchObject({
-      academic_year: ref('academic_years', '2025/2026'),
-      course: course(1),
-      mode: 'legacy_regex',
-      pattern: 'Alpha Honors-2025/2026',
-    });
-    expect(ruleOf(1, '2025/2026')?.['review_note']).toBe(
-      'Import: workbook pattern, last of 2 for this course and year',
-    );
-    expect(ruleOf(7, '2021/2022')?.['pattern']).toBe(thetaCrossNewlinePattern);
-    expect(ruleOf(1, '2024/2025')).toMatchObject({
-      pattern: 'Alpha Course-2024/2025',
-    });
-    expect(ruleOf(1, '2024/2025')?.['review_note']).toBe(
-      'Import fallback: default pattern (course name-academic year), stored literally; no workbook pattern',
-    );
-    expect(ruleOf(8, '2025/2026')?.['pattern']).toBe(
-      'Iota 2.0 Course-2025/2026',
-    );
-  });
-
+describe('enrollment counts', () => {
   // The counts the enrollments run installs: the planned pattern mappings
   // matched line by line (src/projection/counts.ts), keyed by the course's
   // workbook id and the academic year.

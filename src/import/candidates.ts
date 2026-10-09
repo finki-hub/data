@@ -16,14 +16,14 @@ export type TeachingCandidate = {
   readonly status: CourseStatus;
 };
 
-// The enrollment rule of a course and academic year: the last pattern the
-// workbook names for them (every row naming one is in `overrides`), else
-// the `<name>-<year>` default.
-export type RuleCandidate = {
+// The typed Слушатели pattern of a course and academic year: the last
+// pattern the workbook names for them (every row naming one is in
+// `overrides`), as the cell holds it, or null when none does and the year
+// falls to the course's all-years mappings.
+export type PatternCandidate = {
   readonly academicYear: string;
   readonly overrides: readonly number[];
-  readonly pattern: string;
-  readonly source: 'default' | 'override';
+  readonly pattern: null | string;
   readonly valid: boolean;
 };
 
@@ -39,7 +39,7 @@ export type CourseCandidate = {
   readonly current: LinkCandidate;
   readonly id: number;
   readonly legacy: LegacyCandidate;
-  readonly rules: readonly RuleCandidate[];
+  readonly patterns: readonly PatternCandidate[];
   readonly teaching: TeachingCandidate;
 };
 

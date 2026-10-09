@@ -29,7 +29,7 @@ export const curriculumCollections: readonly ModelCollection[] = [
     ],
     hidden: false,
     icon: 'calendar_month',
-    note: 'Academic years referenced by enrollment rules, counts and Moodle mappings.',
+    note: 'Academic years referenced by enrollment counts and Moodle mappings.',
     singleton: false,
     sort: 14,
   },

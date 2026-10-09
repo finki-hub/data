@@ -9,8 +9,8 @@
 -- carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
--- a mapping or a rule to another course or year, and any DELETE, marks
--- the domain, whose next run recomputes every pair, so the old and the new
+-- a mapping to another course or year, and any DELETE, marks the domain,
+-- whose next run recomputes every pair, so the old and the new
 -- relationship are both covered. The history index and the enrollment
 -- counts also keep the revision of the last statement that touched their
 -- inputs (history_index_input_revision, enrollments_input_revision): a
@@ -47,7 +47,6 @@ BEGIN
     WHEN 'moodle_course_entries' THEN ARRAY['enrollments', 'publication']
     WHEN 'moodle_course_mappings' THEN ARRAY['enrollments', 'publication']
     WHEN 'moodle_pattern_mappings' THEN ARRAY['enrollments', 'publication']
-    WHEN 'course_enrollment_rules' THEN ARRAY['enrollments', 'publication']
     WHEN 'academic_years' THEN ARRAY['enrollments', 'publication']
     ELSE ARRAY['publication']
   END;
@@ -128,6 +127,4 @@ CREATE OR REPLACE TRIGGER "finki_hub_entry_label_invalidation" AFTER UPDATE OF "
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_course_mappings" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_pattern_mappings" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollment_rules" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;

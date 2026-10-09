@@ -7,7 +7,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { operationsDashboardId } from '../src/data-model/operations-dashboard.js';
-import { ruleSeedingFlowId } from '../src/flows/add-enrollment-rules.js';
 import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../src/flows/snapshot-import.js';
 import { runSetup } from '../src/setup.js';
@@ -67,9 +66,9 @@ import { s3TargetFrom } from './s3-target.js';
 // `npm run test:operations` (second half): the Data operations dashboard
 // in a real browser through the locally installed agent-browser CLI, on
 // the synthetic fixture and its local S3 bucket only. The session sees
-// Run wait (and say why) while the status cannot be read, seeds the
-// rules of a new year, imports a generated snapshot (the file chosen in
-// the Flow's own dialog) and finds the next Run's dialog empty, publishes,
+// Run wait (and say why) while the status cannot be read, imports a
+// generated snapshot (the file chosen in the Flow's own dialog) and finds
+// the next Run's dialog empty, publishes,
 // edits a relation in Studio's item form and publishes it, meets a failed
 // publication and retries it, sees a partial one file by file, adds a
 // panel for a new manual Flow without a rebuild, imports a malformed
@@ -201,21 +200,6 @@ const showsDashboard = async ({
   const settings = await textOf(admin, 'body');
   assert.ok(!settings.includes('Page Not Found'), 'the Flow settings open');
   await openDashboard(admin, target);
-};
-
-const seedsRules = async ({ admin, shot, state, target }) => {
-  await runFromPanel(admin, ruleSeedingFlowId, {
-    fill: () => pickItem(admin, state.yearLabel),
-  });
-  await waitUntil(
-    'the rule seeding answer',
-    finished(admin, ruleSeedingFlowId),
-  );
-  assert.equal(
-    await count(target, 'course_enrollment_rules'),
-    state.courses.length,
-  );
-  await shot(admin, '02-add-enrollment-rules.png');
 };
 
 // The import runs once: the dialog's Run pressed twice in a row (a real
@@ -377,7 +361,6 @@ const steps = [
     'lets Run wait and say why while the status cannot be read, then follow it again',
     waitsForStatus,
   ],
-  ['adds the rules of a new academic year from its panel', seedsRules],
   ['imports the generated snapshot chosen in the dialog, once', importsOnce],
   [
     'opens the next Run of the import empty, with no file and no acknowledgement',

@@ -141,7 +141,7 @@ describe('input revisions and interruptions', () => {
     await fail(
       fake,
       counts.token,
-      'Rule 4 has a pattern that does not compile',
+      'Pattern mapping 4: invalid regular expression (Unterminated group)',
     );
     fake.sourceWrite('rooms');
     fake.sourceWrite('discord_channels');

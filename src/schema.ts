@@ -130,7 +130,6 @@ export const assertNever = (value: never): never => {
 export type ModelCollectionKey =
   | 'academic_years'
   | 'course_curricula'
-  | 'course_enrollment_rules'
   | 'course_enrollments'
   | 'course_equivalencies'
   | 'course_equivalency_members'

@@ -69,7 +69,6 @@ const config = [
       'src/import/pattern-proof.ts',
       'src/workbook-enrollment-reader.ts',
       'test/curriculum-code.test.ts',
-      'test/import-check.test.ts',
     ],
     rules: {
       'no-new': 'off',

@@ -69,10 +69,6 @@ export const linkedRow = (link: LinkCandidate): null | number =>
     ? link.precedent
     : null;
 
-// Characters that change meaning inside a regular expression or a LIKE
-// pattern; a course name carrying one matches differently than it reads.
-export const metacharacterPattern = /[\\^$.*+?()[\]{}|%_]/u;
-
 export const isValidPattern = (pattern: string): boolean => {
   try {
     new RegExp(pattern, 'u');

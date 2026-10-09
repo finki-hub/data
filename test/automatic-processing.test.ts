@@ -204,7 +204,7 @@ describe('failures and changes during a run', () => {
       fail(
         fake,
         run.token,
-        'Rule 12 (course 3 / academic year 5) has a pattern that does not compile',
+        'Pattern mapping 12: invalid regular expression (Unterminated group)',
       ),
     ).resolves.toMatchObject({ domain: enrollments, failed: true });
 

@@ -192,7 +192,6 @@ const assertImported = async (target, context, summary) => {
     assert.equal(await count(target, collection), rows, collection);
   }
   assert.equal(await count(target, 'academic_years'), 15);
-  assert.equal(await count(target, 'course_enrollment_rules'), 8 * 15);
   assert.equal(
     await count(target, 'curriculum_entries'),
     context.data.curriculum_2023.length + context.data.curriculum_2018.length,

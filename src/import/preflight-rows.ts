@@ -9,7 +9,7 @@ import { courseLink, linkedRows } from './preflight-links.js';
 
 type RowCandidates = Omit<Candidates, 'courses'>;
 
-// A pattern row without a course, year or pattern cannot become a rule; a
+// A pattern row without a course, year or pattern cannot become a mapping; a
 // row naming no course, or else a year the workbook does not list, is
 // skipped (a row of a known course and year is decided with its course,
 // preflight-course-values.ts).
