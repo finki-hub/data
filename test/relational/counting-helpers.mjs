@@ -5,14 +5,15 @@ import {
   defaultYearPattern,
   resolveLines,
 } from '../../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
+import { dispatcherFlow } from '../../src/flows/count-enrollments.js';
 import { json, read, request } from './data-model-helpers.mjs';
-import { get, patch, post, trigger } from './history-index-helpers.mjs';
+import { act, get, patch, post, trigger } from './history-index-helpers.mjs';
 
 // Seeds, a synthetic driver Flow and read helpers of the counting fixture
-// suite (counting.integration.mjs). The installed "Data / Count
-// enrollments" and "Data / Match history lines" are operation-triggered
-// and cannot be reached over REST, so a synthetic manual Flow runs them
-// with a payload. Every row is invented.
+// suite (counting.integration.mjs and pattern-mapping-checks.mjs). The
+// installed "Data / Count enrollments" and "Data / Match history lines"
+// are operation-triggered and cannot be reached over REST, so a synthetic
+// manual Flow runs them with a payload. Every row is invented.
 
 const idPrefix = '9e4d826c-5b1a-4c0e-8f2d-0000000017';
 const syntheticId = (suffix) => `${idPrefix}${suffix}`;
@@ -139,6 +140,21 @@ export const drive = async (target, flow, payload) => {
   return outcome.body;
 };
 
+// Claims enrollments and runs the installed dispatcher under the claim,
+// as the schedule does.
+export const countRun = async (target) => {
+  const claim = await act(target, {
+    action: 'claim',
+    domain: 'enrollments',
+    retry: null,
+  });
+  assert.equal(claim.claimed, true, JSON.stringify(claim));
+  return drive(target, dispatcherFlow.id, {
+    claim: claim.token,
+    revision: claim.revision,
+  });
+};
+
 export const anonymousTrigger = async (target, id) => {
   const response = await request(
     target,
@@ -260,4 +276,12 @@ export const installedFromDatabase = async (target) => {
       course: row.course,
     })),
   };
+};
+
+// The SQL completion against the TypeScript rules over the same rows.
+export const assertEqualToResolver = async (target) => {
+  const installed = await installedFromDatabase(target);
+  const resolved = await resolvedFromDatabase(target);
+  assert.deepEqual(installed.counted, resolved.counted);
+  assert.deepEqual(installed.counts, resolved.counts);
 };

@@ -754,10 +754,13 @@ expression, and a year pattern without a group named `start` or `end`
 group named start or end`). The database refuses an empty or multi-line
 pattern or year pattern, a pattern over 2048 bytes, a year pattern over 512
 bytes, both or neither of Year pattern and Only in year, and a second
-mapping of a course with the same pattern, year pattern and year. Deleting
-an academic year deletes the mappings only in that year, and removing one
-from the year's Pattern mappings list deletes it. The enrollment counts
-follow the mappings (see [Enrollment counts](#enrollment-counts)).
+mapping of a course with the same pattern, year pattern and year. Studio's
+form cannot send both or neither; Directus 12.3.1 answers an API write
+that does with HTTP 500 naming `moodle_pattern_mappings_year_choice_check`,
+not a 400. Deleting an academic year deletes the mappings only in that
+year, and removing one from the year's Pattern mappings list deletes it.
+The enrollment counts follow the mappings (see
+[Enrollment counts](#enrollment-counts)).
 
 A course created in Studio, over the API or by a Flow that emits events
 gets its default mapping, its escaped name and `-` with the default year
@@ -900,10 +903,9 @@ the trigger once per table its deletion cascades into.
 
 **Completion is not instant.** A change reaches `course_enrollments` within
 one interval plus the run: on a small synthetic project, 13 to 15 seconds
-after an edit, of which the count run took about 0.2 seconds (measured with
-the retired rule families; to be measured again). An edit of a Moodle history
-needs two ticks, the
-index and then the counts. Nothing is pushed to an open page: refresh it.
+after an edit, of which the count run took about 0.1 seconds. An edit of a
+Moodle history needs two ticks, the index and then the counts. Nothing is
+pushed to an open page: refresh it.
 Fifty edits between two ticks cost one run. Larger projects take longer
 (see [Sizing](#sizing)).
 
@@ -1692,38 +1694,34 @@ requirements and the recovery of an interrupted rehearsal are under
 
 ## Sizing
 
-The enrollment counts rows below were measured with the retired rule
-families, before the counts matched history lines against pattern
-mappings; they are to be measured again with the stress scenario. The
-other rows still hold.
-
-Measured on a synthetic full-size project on a developer machine (single
-runs, repeated once: the run times within about ten percent, the wall
-times within one 15-second tick; not a benchmark): 30,000 Moodle users in
-a 41 MB CSV with 5,000 distinct history lines and 113,685 memberships, 400
-courses, 16 academic years, 640 curriculum entries and about 6,000 legacy
-rules.
+Measured with the stress scenario on a synthetic full-size project on a
+developer machine (single runs, repeated once: the run times within about
+ten percent, the wall times within one 15-second tick; not a benchmark):
+30,000 Moodle users in a 41 MB CSV with 5,000 distinct history lines and
+113,685 memberships, 400 courses with their default pattern mapping, 16
+academic years and 640 curriculum entries.
 
 | Step | Wall time | Of which the Flow run |
 | --- | --- | --- |
-| `npm run setup` on an empty project | 14 s | |
+| `npm run setup` on an empty project | 10.3 s | |
 | Snapshot import (staging and promotion, one Flow run) | 6.4 s | |
-| History index | 13 s | 10 s |
-| Enrollment counts, legacy family only (6,045 pairs, 1,573 pages) | 169 s | 162 s |
-| Enrollment counts, both families (6,448 pairs) | 180 s | 165 s |
-| Readiness | 0.6 s | |
-| Publication (`courses.json` 413 KB, the other files under 120 KB each) | 1.2 s | |
+| History index | 13.1 s | 10.9 s |
+| Enrollment counts by pattern mappings (6,448 course-years, 20 pages) | 7.7 s | 2.4 s |
+| Enrollment counts again, with 250 explicit mappings (6,448 course-years, 20 pages) | 13.3 s | 2.1 s |
+| Readiness | 0.5 s | |
+| Publication (`courses.json` 412 KB, the other files under 120 KB each) | 1.2 s | |
 
 Wall time runs from the start of the step until its result is in place.
 For the history index and the counts it includes the wait for the next
 15-second tick of the schedule; the last column is the run itself, where
 it was measured apart from the step.
 
-The Directus container peaked at 766 MiB during the legacy counts;
-PostgreSQL used about 350 MiB besides its page cache. Each readiness or
+The Directus container peaked at 616 MiB, during the history index;
+PostgreSQL used at most 364 MiB besides its page cache (sampled every
+250 ms), during the second count. Each readiness or
 preparation run hashes every active Moodle user once (to detect edits
 outside the snapshot workflow) besides reading the coordination status;
-that is included in the 0.6 s above. A count run now costs one Flow run
+that is included in the 0.5 s above. A count run costs one Flow run
 per page of 250 history lines (20 pages for 5,000 lines), each testing its
 lines against every pattern mapping. A parent delete during the install
 (see [Automatic processing](#automatic-processing)) changes the counts'
@@ -2058,7 +2056,7 @@ bucket name and any value naming `amazonaws.com` or
 | `npm run test:csv` | `test/directus-csv-import.integration.mjs`: creates a uniquely named hidden collection, imports generated Cyrillic, CJK and emoji text across CSV read boundaries through the native importer, checks every value and deletes the collection. It reads and changes nothing else. | nothing |
 | `npm run test:search` | `test/search.integration.mjs` and `test/search-relational.integration.mjs`: Search over generated users and the relational filters. | nothing |
 | `npm run test:relational` | Every `test/relational/*.integration.mjs` scenario in turn; `npm run test:relational -- --scenario <name>` runs one (an unknown name lists the known ones and exits 2). | optionally the containers, bound to the target before the first scenario (the database container only together with the Directus one): without them the restart and database-statistics subtests are reported as skipped |
-| `npm run test:relational -- --scenario stress` | The opt-in full-size run (`test/relational/stress.opt-in.mjs`, never part of the default run): the [Sizing](#sizing) figures, about 13 minutes. | both containers and the S3 variables |
+| `npm run test:relational -- --scenario stress` | The opt-in full-size run (`test/relational/stress.opt-in.mjs`, never part of the default run): the [Sizing](#sizing) figures, about 2 minutes. | both containers and the S3 variables |
 | `npm run test:operations` | The `operations` scenario, then `test/operations.browser.mjs`, which drives the dashboard in a real browser through the locally installed `agent-browser` CLI (it fails, never skips, without it). `OPERATIONS_BROWSER_SCREENSHOTS` names a directory for its screenshots (a temporary one otherwise). | the S3 variables |
 | `npm run test:s3` | `test/publish-flow.integration.mjs` (the publish Flows against the local bucket, including an injected storage failure) and `test/publish-workflow.integration.mjs` (the complete workflow from setup to publication, with the failure, restart, race and extension scenarios). | both containers and the S3 variables |
 | `npm run test:restore` | `test/restore.integration.mjs`: the backup and restore rehearsal below. | both containers, the S3 variables and the restore settings below |

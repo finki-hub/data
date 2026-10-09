@@ -26,17 +26,16 @@ import { installFlowFamily } from '../../src/flows/registry.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   anonymousTrigger,
+  assertEqualToResolver,
   countedLinesPath,
-  drive,
+  countRun,
   driverFlowId,
   enrollmentCounts,
   firstCounts,
   installDriverFlow,
-  installedFromDatabase,
   matchesPath,
   patternMappingsPath,
   removeAll,
-  resolvedFromDatabase,
   seedExplicit,
   seedMappings,
   seedUsers,
@@ -67,6 +66,11 @@ import {
   status,
 } from './history-index-helpers.mjs';
 import { installHistoryRunner } from './history-runner.mjs';
+import {
+  deletesADeselectedMapping,
+  refusesBothOrNeitherYear,
+  refusesInvalidPatterns,
+} from './pattern-mapping-checks.mjs';
 
 // The enrollment counts on a real database: "Data / Count enrollments"
 // plans the history lines, "Data / Match history lines" stages each page's
@@ -75,34 +79,14 @@ import { installHistoryRunner } from './history-runner.mjs';
 // count over the same rows (enrollment-lines.ts). A course created over
 // the API gets its default pattern mapping in the same transaction. The
 // Unmapped history lines bookmark and a user's history show the result.
+// The database and the pattern guard refuse a mapping they must refuse,
+// and a mapping removed from its year's list is deleted
+// (pattern-mapping-checks.mjs).
 
 const byKey = (left, right) => left.key.localeCompare(right.key);
 const capRefusal = /Page p0001: matches \d+, max 10000$/u;
 const capMappings = 84;
 const capLines = 120;
-
-// Claims enrollments and runs the installed dispatcher under the claim,
-// as the schedule does.
-const countRun = async (target) => {
-  const claim = await act(target, {
-    action: 'claim',
-    domain: 'enrollments',
-    retry: null,
-  });
-  assert.equal(claim.claimed, true, JSON.stringify(claim));
-  return drive(target, dispatcherFlow.id, {
-    claim: claim.token,
-    revision: claim.revision,
-  });
-};
-
-// The SQL completion against the TypeScript rules over the same rows.
-const assertEqualToResolver = async (target) => {
-  const installed = await installedFromDatabase(target);
-  const resolved = await resolvedFromDatabase(target);
-  assert.deepEqual(installed.counted, resolved.counted);
-  assert.deepEqual(installed.counts, resolved.counts);
-};
 
 // The matching family and the dispatcher are installed once, live exactly
 // as defined; the schedule is not installed, so the suite runs the
@@ -527,6 +511,18 @@ test('counts every course and academic year by pattern and explicit mappings', a
       await t.test(
         'removes the counted lines and staged matches of a deleted mapping',
         () => cascadesThroughTheGuards(target, state),
+      );
+      await t.test(
+        'refuses a pattern mapping with both or neither of year pattern and only in year',
+        () => refusesBothOrNeitherYear(target, state),
+      );
+      await t.test(
+        'refuses an invalid pattern or year pattern in the pattern guard',
+        () => refusesInvalidPatterns(target, state),
+      );
+      await t.test(
+        "deletes a mapping removed from its academic year's Pattern mappings list",
+        () => deletesADeselectedMapping(target, state),
       );
       await t.test('refuses anonymous triggers', () =>
         refusesAnonymousTriggers(target),
