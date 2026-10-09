@@ -427,7 +427,7 @@ describe('year configuration', () => {
     const before = await projected(store);
     edit(store, 'academic_years', (rows) => [
       ...rows,
-      { id: 99, label: '2026/2027', published: true, sort: 16 },
+      { id: 99, label: '2026/2027', published: true },
     ]);
     edit(store, 'course_enrollments', (rows) => [
       ...rows,
@@ -450,7 +450,7 @@ describe('year configuration', () => {
     const before = await projected(store);
     edit(store, 'academic_years', (rows) => [
       ...rows,
-      { id: 99, label: '2026/2027', sort: 16 },
+      { id: 99, label: '2026/2027' },
     ]);
     edit(store, 'course_enrollments', (rows) => [
       ...rows,
@@ -465,7 +465,7 @@ describe('year configuration', () => {
   test('refuses a published year whose label is another key of the file', async () => {
     const store = edit(await importedStore(), 'academic_years', (rows) => [
       ...rows,
-      { id: 98, label: 'tags', published: true, sort: 20 },
+      { id: 98, label: 'tags', published: true },
     ]);
 
     await expect(refusalOf(() => projected(store))).resolves.toEqual({
@@ -477,7 +477,7 @@ describe('year configuration', () => {
   test('refuses a published year labelled __proto__, a key a row object would drop', async () => {
     const store = edit(await importedStore(), 'academic_years', (rows) => [
       ...rows,
-      { id: 98, label: '__proto__', published: true, sort: 20 },
+      { id: 98, label: '__proto__', published: true },
     ]);
 
     await expect(refusalOf(() => projected(store))).resolves.toEqual({
@@ -647,9 +647,9 @@ describe('the curriculum level from the code', () => {
   });
 });
 
-// A generation 2028 added in Studio: two programs (CD sorts before ab),
-// an entry with a state in each, linked to course 1. Nothing is published
-// unless asked.
+// A generation 2028 added in Studio: two programs, CD created first with
+// the lower id, so only the code puts AB first; an entry with a state in
+// each, linked to course 1. Nothing is published unless asked.
 const withGeneration = (
   store: FakeStore,
   published: { generation: boolean; programs: readonly [boolean, boolean] },
@@ -662,26 +662,23 @@ const withGeneration = (
       id: 90,
       label: 'Curriculum 2028',
       published: published.generation,
-      sort: 4,
     },
   ]);
   edit(store, 'study_programs', (rows) => [
     ...rows,
     {
-      code: 'ab',
-      generation: 90,
-      id: 91,
-      name: 'AB',
-      published: published.programs[0],
-      sort: 2,
-    },
-    {
       code: 'cd',
       generation: 90,
-      id: 92,
+      id: 91,
       name: 'CD',
       published: published.programs[1],
-      sort: 1,
+    },
+    {
+      code: 'ab',
+      generation: 90,
+      id: 92,
+      name: 'AB',
+      published: published.programs[0],
     },
   ]);
   edit(store, 'curriculum_entries', (rows) => [
@@ -698,8 +695,8 @@ const withGeneration = (
   ]);
   edit(store, 'curriculum_entry_program_states', (rows) => [
     ...rows,
-    { entry: 950, id: 960, program: 91, state: 'A' },
-    { entry: 950, id: 961, program: 92, state: 'B' },
+    { entry: 950, id: 960, program: 91, state: 'B' },
+    { entry: 950, id: 961, program: 92, state: 'A' },
   ]);
   return edit(store, 'course_curricula', (rows) => [
     ...rows,
@@ -710,7 +707,6 @@ const withGeneration = (
       entry: 950,
       generation: 90,
       id: 970,
-      sort: 3,
     },
   ]);
 };
@@ -732,8 +728,8 @@ const generationKeys = [
   '2028-semester',
   '2028-channel',
   '2028-prerequisite',
-  '2028-state-cd',
   '2028-state-ab',
+  '2028-state-cd',
   '2028-credits',
 ];
 
@@ -798,7 +794,7 @@ describe('curriculum generations and study programs as rows', () => {
     );
   });
 
-  test('publishing the generation and both programs adds its availability key and block, states in program sort order, with no code change', async () => {
+  test('publishing the generation and both programs adds its availability key and block, states in program code order, with no code change', async () => {
     const baseline = await keysOf(coursesFile);
     const store = withGeneration(await importedStore(), {
       generation: true,

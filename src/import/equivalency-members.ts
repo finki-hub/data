@@ -23,7 +23,7 @@ const entryCandidates: Readonly<
 };
 
 // The label columns in sheet order (2023, 2018, 2013), each with its
-// generation; the order is the members' sort.
+// generation.
 const columns = [...workbookGenerations].toReversed();
 
 const entryOf = (
@@ -45,7 +45,7 @@ export const planEquivalencyMembers = (
 ): readonly PlannedRow[] =>
   rows.flatMap((row) => {
     const candidate = candidates.find(({ id }) => id === row.id);
-    return columns.flatMap(({ code, equivalencyColumn, sheet }, index) => {
+    return columns.flatMap(({ code, equivalencyColumn, sheet }) => {
       const label = row[equivalencyColumn];
       if (label === null || label === '') {
         return [];
@@ -59,7 +59,6 @@ export const planEquivalencyMembers = (
             equivalency: ref('course_equivalencies', row.id),
             generation: ref('curriculum_generations', code),
             label,
-            sort: index + 1,
           },
           { id: row.id, source: 'course_equivalencies' },
         ),

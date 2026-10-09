@@ -5,7 +5,6 @@ import type { FakeItem } from './store-test-helpers.js';
 import { unlinkedMember } from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-checks.js';
 import { definitionReads } from '../directus/extensions/directus-extension-data-operations/src/exports/definitions-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { keyOrderEntries } from '../directus/extensions/directus-extension-data-operations/src/exports/key-order.js';
 import {
   preparePublicFiles,
   readinessAction,
@@ -164,7 +163,6 @@ describe('the readiness-check registry', () => {
     );
 
     expect(scoped.map(({ code }) => code)).toEqual([
-      'study_program_unsorted',
       'equivalency_entry_unresolved',
     ]);
 
@@ -174,10 +172,6 @@ describe('the readiness-check registry', () => {
       expect(JSON.stringify(review?.filter)).not.toMatch(generationRowPattern);
     }
 
-    expect(views.get('study_program_unsorted')).toMatchObject({
-      bookmark: 'Published study programs without a sort',
-      fields: ['generation', 'code', 'name', 'sort', 'published'],
-    });
     expect(views.get('equivalency_entry_unresolved')?.filter).toEqual(
       unlinkedMember,
     );
@@ -192,8 +186,6 @@ describe('the readiness-check registry', () => {
     );
 
     expect(Object.fromEntries(declared)).toMatchObject({
-      academic_year_sort_shared: 'blocker/check',
-      academic_year_unsorted: 'blocker/count',
       active_snapshot_edited: 'warning/snapshot',
       council_member_unresolved: 'warning/count',
       course_without_professor: 'blocker/check',
@@ -227,43 +219,6 @@ describe('the readiness-check registry', () => {
     expect(
       readinessRegistry.find(({ code }) => code === 'course_without_professor'),
     ).toMatchObject({ page: 'courses', severity: 'blocker' });
-  });
-
-  test('derives two order blockers for every key source a definition places, linking its collection', () => {
-    expect(
-      keyOrderEntries.map(({ code, gates, page, severity, source }) => [
-        code,
-        page,
-        source.kind,
-        severity,
-        gates,
-      ]),
-    ).toEqual(
-      ['academic_year', 'curriculum_generation', 'study_program'].flatMap(
-        (row) => [
-          [`${row}_unsorted`, `${row}s`, 'count', 'blocker', ['courses.json']],
-          [
-            `${row}_sort_shared`,
-            `${row}s`,
-            'check',
-            'blocker',
-            ['courses.json'],
-          ],
-        ],
-      ),
-    );
-    expect(readinessRegistry).toEqual(
-      expect.arrayContaining([...keyOrderEntries]),
-    );
-    // The year blocker counts what the Task 23 entry counted.
-    expect(keyOrderEntries[0]?.source).toEqual({
-      aggregate: 'count',
-      field: 'id',
-      filter: {
-        _and: [{ published: { _eq: true } }, { sort: { _null: true } }],
-      },
-      kind: 'count',
-    });
   });
 
   test('scopes an entry to a generation only where its page records carry one', () => {
@@ -424,7 +379,7 @@ describe('readiness derived from the registry', () => {
     edit(
       store,
       'academic_years',
-      append([{ id: 99, label: '2026/2027', published: false, sort: 16 }]),
+      append([{ id: 99, label: '2026/2027', published: false }]),
     );
     edit(
       store,

@@ -79,9 +79,9 @@ export type WorkbookContent = {
   readonly studyPrograms: readonly ProgramSeed[];
 };
 
-// Refuses year groups the import could not sort: the import sorts each year
-// by its column group, so the groups must run newest first. Names the first
-// year out of that order.
+// Refuses year groups out of order: the import reads the first column
+// group as the newest workbook year (pattern-proof.ts), so the groups must
+// run newest first. Names the first year out of that order.
 const assertChronological = (sheet: string, years: readonly string[]): void => {
   for (const [index, year] of years.entries()) {
     const newer = years[index - 1];

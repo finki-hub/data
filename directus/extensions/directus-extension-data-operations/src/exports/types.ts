@@ -70,14 +70,10 @@ export type KeyedEntry = {
 
 // A read whose rows each name one public key, in read order: the key is
 // the text of the row's `key` field. A nested source's rows belong to a
-// block row of another source: `parent` holds that row's id. `title`
-// names a row for a person beside its key text (its label or name), in
-// the Needs review view of its order blockers.
+// block row of another source: `parent` holds that row's id.
 export type KeySource = SourceRead & {
   readonly key: string;
   readonly parent?: string;
-  readonly position: KeyPosition;
-  readonly title?: string;
 };
 
 // The closed vocabulary of key sources (key-sources.ts).
@@ -147,16 +143,6 @@ export type ValueRule = 'boolean' | 'number' | 'numeric_boolean' | 'text';
 type BlockLayouts = {
   readonly byKey: Readonly<Record<string, readonly BlockPart[]>>;
   readonly default: readonly BlockPart[];
-};
-
-// The field that places a key row among its siblings (the rows of one
-// parent, for a nested source) before the key text breaks a tie, and what
-// readiness calls such a row: a row without a position, or two siblings
-// sharing one, would move public keys silently, so each blocks
-// (`<row>_unsorted`, `<row>_sort_shared`; key-order.ts).
-type KeyPosition = {
-  readonly field: string;
-  readonly row: string;
 };
 
 // A read of rows related to the rows of a file, grouped by `by`: the field

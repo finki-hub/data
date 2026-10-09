@@ -69,9 +69,6 @@ export const generationCollections: readonly ModelCollection[] = [
       published('the generation', {
         detail: 'availability key; key block when it has a curriculum',
       }),
-      scalar('sort', 'integer', {
-        note: 'Chronological order: a later generation sorts higher. courses.json lists the published generations newest first.',
-      }),
     ],
     hidden: false,
     icon: 'timeline',
@@ -86,12 +83,11 @@ export const generationCollections: readonly ModelCollection[] = [
       m2o('generation', 'curriculum_generations', {
         alias: {
           field: 'programs',
-          fields: ['code', 'name', 'published', 'sort'],
+          fields: ['code', 'name', 'published'],
           template: '{{code}} - {{name}}',
         },
         nullable: false,
         onDelete: 'NO ACTION',
-        sortField: 'sort',
         template: generationTemplate,
       }),
       scalar('code', 'string', {
@@ -102,9 +98,6 @@ export const generationCollections: readonly ModelCollection[] = [
       scalar('description', 'text'),
       published("the program's state key", {
         condition: 'requires a published generation',
-      }),
-      scalar('sort', 'integer', {
-        note: 'Order of the state keys within the generation.',
       }),
     ],
     hidden: false,
@@ -157,7 +150,6 @@ export const generationCollections: readonly ModelCollection[] = [
           template: '{{generation.code}}: {{label}}',
         },
         nullable: false,
-        sortField: 'sort',
         template: equivalencyTemplate,
       }),
       generationReference(
@@ -176,7 +168,6 @@ export const generationCollections: readonly ModelCollection[] = [
         note: 'The curriculum entry the label names, when it names exactly one of that generation.',
         template: curriculumEntryTemplate,
       }),
-      scalar('sort', 'integer'),
     ],
     hidden: false,
     icon: 'join_inner',

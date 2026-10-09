@@ -69,18 +69,18 @@ const defaultViews: readonly TabularPreset[] = [
     ['course', 'generation', 'entry', 'credits', 'available'],
     ['course', 'generation'],
   ),
-  // Newest first, as courses.json lists the published years and
-  // generations.
-  defaultView('academic_years', ['label', 'published', 'sort'], ['-sort']),
+  // Newest first: a year's label and a generation's code sort as their
+  // dates do.
+  defaultView('academic_years', ['label', 'published'], ['-label']),
   defaultView(
     'curriculum_generations',
-    ['code', 'label', 'has_curriculum', 'published', 'sort'],
-    ['-sort'],
+    ['code', 'label', 'has_curriculum', 'published'],
+    ['-code'],
   ),
   defaultView(
     'study_programs',
-    ['generation', 'code', 'name', 'published', 'sort'],
-    ['generation', 'sort'],
+    ['generation', 'code', 'name', 'published'],
+    ['generation', 'code'],
   ),
   defaultView(
     'teaching_assignments',
@@ -98,7 +98,7 @@ const defaultViews: readonly TabularPreset[] = [
   defaultView(
     'course_equivalency_members',
     ['equivalency', 'generation', 'label', 'entry'],
-    ['equivalency', 'sort'],
+    ['equivalency', 'generation'],
   ),
   defaultView(
     'moodle_import_rows',

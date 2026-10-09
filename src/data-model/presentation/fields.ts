@@ -17,7 +17,6 @@ export const fieldPresentations: readonly FieldPresentation[] = [
       display_options: { labelOff: 'Not available', labelOn: 'Available' },
     },
   },
-  { collection: 'course_curricula', field: 'sort', meta: { hidden: true } },
   { collection: 'teaching_assignments', field: 'sort', meta: { hidden: true } },
   ...moodleFieldPresentations,
 ];

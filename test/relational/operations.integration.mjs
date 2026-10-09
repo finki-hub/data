@@ -106,8 +106,8 @@ const seedRows = async (target) => {
     })),
   );
   const [older, newer] = await createMany(target, 'academic_years', [
-    { label: oldYear, published: true, sort: 92 },
-    { label: newYear, published: false, sort: 93 },
+    { label: oldYear, published: true },
+    { label: newYear, published: false },
   ]);
   await post(target, '/items/moodle_users', {
     Courses: [line, unmappedLine].join('\n'),

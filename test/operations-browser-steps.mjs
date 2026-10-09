@@ -78,7 +78,7 @@ export const seedRows = async (
     })),
   );
   const [year] = await createMany(target, 'academic_years', [
-    { label: yearLabel, published: false, sort: 95 },
+    { label: yearLabel, published: false },
   ]);
   await createMany(target, 'course_equivalencies', [{ course: null }]);
   const directory = await mkdtemp(

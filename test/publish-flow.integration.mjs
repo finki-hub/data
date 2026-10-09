@@ -72,7 +72,7 @@ const storage = 'publish';
 const waitMs = 5_000;
 const byText = (left, right) => collator.compare(left, right);
 const nothingToResume = () => Promise.resolve();
-const unsortedYear = /academic_year_unsorted/u;
+const withoutProfessor = /course_without_professor/u;
 
 // The digests Publish / Prepare public assets answers for the current rows.
 const prepared = async (target) => {
@@ -304,17 +304,19 @@ const keepsContentType = async ({ s3, target }) => {
   assert.ok(files.every(({ type }) => type === 'application/json'));
 };
 
+// An Active course without a professor blocks courses.json, so the
+// publish Flow refuses before any upload.
 const refusesWhileBlocked = async ({ s3, state, t, target }) => {
-  const year = await post(target, '/items/academic_years', {
-    label: '2091/2092',
-    published: true,
+  const course = await post(target, '/items/courses', {
+    name: 'Synthetic Course Without Professor',
+    pattern_mappings: [],
   });
   try {
     await settle(target);
     const run = await trigger(target, publishAssetsFlowId);
     assert.equal(run.status, 409, JSON.stringify(run.body));
     assert.equal(errorOf(run.body).code, 'PUBLICATION_NOT_PREPARED');
-    assert.match(errorOf(run.body).message, unsortedYear);
+    assert.match(errorOf(run.body).message, withoutProfessor);
     t.diagnostic(`refusal: ${errorOf(run.body).message}`);
     const report = await observed({
       label: 'readiness blocker',
@@ -331,7 +333,7 @@ const refusesWhileBlocked = async ({ s3, state, t, target }) => {
       assert.equal(after[key]?.lastModified, state.objects[key].lastModified);
     }
   } finally {
-    await remove(target, `/items/academic_years/${year.data.id}`);
+    await remove(target, `/items/courses/${course.data.id}`);
   }
   await settle(target);
 };

@@ -56,6 +56,9 @@ const relationFields = (collection: string): readonly ModelRelationField[] =>
     field.kind === 'm2o' ? [field] : [],
   );
 
+const declaresField = (collection: string, name: string): boolean =>
+  findCollection(collection).fields.some(({ field }) => field === name);
+
 const enumOf = (collection: string, field: string) => {
   const found = findField(collection, field);
   if (found.kind !== 'enum') {
@@ -464,14 +467,7 @@ describe('curriculum generations and study programs as rows', () => {
 
     expect(
       findCollection('study_programs').fields.map(({ field }) => field),
-    ).toEqual([
-      'generation',
-      'code',
-      'name',
-      'description',
-      'published',
-      'sort',
-    ]);
+    ).toEqual(['generation', 'code', 'name', 'description', 'published']);
   });
 
   test('replace the flat state columns with state rows edited as a many-to-many from the entry', () => {
@@ -739,6 +735,36 @@ describe('relations and aliases', () => {
     ).toEqual(['memberships', 'mappings', 'counted_for']);
   });
 
+  test('keeps a drag order only on teaching links and history memberships, each on an integer field of its collection', () => {
+    const sorted = modelRelations.flatMap(({ collection, field, sortField }) =>
+      sortField === null ? [] : [{ collection, field, sortField }],
+    );
+
+    expect(
+      sorted.map(
+        ({ collection, field, sortField }) =>
+          `${collection}.${field}: ${sortField}`,
+      ),
+    ).toEqual([
+      'teaching_assignments.course: sort',
+      'moodle_history_memberships.moodle_user: sort',
+    ]);
+    expect(
+      sorted.map(
+        ({ collection, sortField }) => findField(collection, sortField).kind,
+      ),
+    ).toEqual(['integer', 'integer']);
+    expect(
+      [
+        'academic_years',
+        'curriculum_generations',
+        'study_programs',
+        'course_curricula',
+        'course_equivalency_members',
+      ].filter((collection) => declaresField(collection, 'sort')),
+    ).toEqual([]);
+  });
+
   test('keeps the links of imported equivalencies and council members nullable', () => {
     const mandatory = [
       ...relationFields('course_equivalencies'),
@@ -761,7 +787,7 @@ describe('relations and aliases', () => {
         junction_field: null,
         one_deselect_action: 'delete',
         one_field: 'curricula',
-        sort_field: 'sort',
+        sort_field: null,
       },
       related_collection: 'courses',
       schema: { on_delete: 'CASCADE' },

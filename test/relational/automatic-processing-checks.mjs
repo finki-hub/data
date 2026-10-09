@@ -359,7 +359,7 @@ const seedBulk = async (t, target, state) => {
   const bulkYears = await createMany(
     target,
     'academic_years',
-    labels.map((label, index) => ({ label, sort: 100 + index })),
+    labels.map((label) => ({ label })),
   );
   Object.assign(state, { bulkCourses, bulkYears });
   const history = [

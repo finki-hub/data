@@ -117,7 +117,7 @@ const seedCatalog = async (target, state) => {
   const yearIds = await createMany(
     target,
     'academic_years',
-    Object.values(years).map((label, index) => ({ label, sort: index + 1 })),
+    Object.values(years).map((label) => ({ label })),
   );
   for (const [index, key] of Object.keys(years).entries()) {
     state.years.set(key, yearIds[index]);

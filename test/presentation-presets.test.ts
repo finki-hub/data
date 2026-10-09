@@ -238,3 +238,36 @@ describe('presets', () => {
     );
   });
 });
+
+describe('the default views of the key sources and equivalency members', () => {
+  test('orders years and generations newest first by their text, programs by code and equivalency members by generation, with no sort column', () => {
+    expect(
+      [
+        'academic_years',
+        'curriculum_generations',
+        'study_programs',
+        'course_equivalency_members',
+      ].map((collection) => {
+        const view = defaultViewOf(collection)?.layout_query.tabular;
+        return [collection, view?.fields, view?.sort];
+      }),
+    ).toEqual([
+      ['academic_years', ['label', 'published'], ['-label']],
+      [
+        'curriculum_generations',
+        ['code', 'label', 'has_curriculum', 'published'],
+        ['-code'],
+      ],
+      [
+        'study_programs',
+        ['generation', 'code', 'name', 'published'],
+        ['generation', 'code'],
+      ],
+      [
+        'course_equivalency_members',
+        ['equivalency', 'generation', 'label', 'entry'],
+        ['equivalency', 'generation'],
+      ],
+    ]);
+  });
+});

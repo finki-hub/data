@@ -158,8 +158,8 @@ const seeds = async (target, state) => {
     state.ids.set(key, id);
     state.courses.set(id, key);
   }
-  for (const [key, label, sort] of seedYears) {
-    const id = await create(target, state, ['academic_years', { label, sort }]);
+  for (const [key, label] of seedYears) {
+    const id = await create(target, state, ['academic_years', { label }]);
     state.ids.set(key, id);
     state.years.set(id, key);
   }

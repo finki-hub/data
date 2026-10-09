@@ -19,9 +19,6 @@ export const curriculumCollections: readonly ModelCollection[] = [
         nullable: false,
         unique: true,
       }),
-      scalar('sort', 'integer', {
-        note: 'Chronological order: a later year sorts higher. courses.json lists the published years newest first.',
-      }),
       published('the year', {
         condition: 'readiness then requires a count per course',
         detail: "key: label; value: each course's enrollment count",
@@ -67,7 +64,6 @@ export const curriculumCollections: readonly ModelCollection[] = [
           template: '{{generation.code}}: {{entry.name}}',
         },
         nullable: false,
-        sortField: 'sort',
         template: courseTemplate,
       }),
       m2o('entry', 'curriculum_entries', {
@@ -84,7 +80,6 @@ export const curriculumCollections: readonly ModelCollection[] = [
       ),
       scalar('credits', 'integer'),
       scalar('available', 'boolean', { defaultValue: true, nullable: false }),
-      scalar('sort', 'integer'),
     ],
     hidden: true,
     icon: 'link',

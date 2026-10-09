@@ -162,13 +162,12 @@ export const buildsProject = async (context) => {
   await importsWorkbook(context);
   const years = await get(
     target,
-    '/items/academic_years?fields=id,label,sort&sort=sort&limit=-1',
+    '/items/academic_years?fields=id,label&sort=label&limit=-1',
   );
   const next = yearRows(years.map(({ label }) => label)).at(-1);
   await post(target, '/items/academic_years', {
     label: next.label,
     published: false,
-    sort: Math.max(...years.map(({ sort }) => sort ?? 0)) + 1,
   });
   const courses = await get(
     target,
@@ -178,7 +177,7 @@ export const buildsProject = async (context) => {
     courses: courses.map(({ id, name }, index) => ({ id, index, name })),
     years: await get(
       target,
-      '/items/academic_years?fields=id,label,published,sort&sort=sort&limit=-1',
+      '/items/academic_years?fields=id,label,published&sort=label&limit=-1',
     ),
   };
   const pairs = seeded.courses.length * seeded.years.length;

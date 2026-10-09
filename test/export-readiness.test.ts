@@ -34,7 +34,6 @@ import { planOf, withCourse } from './import-plan-helpers.js';
 import { readinessEntry } from './registry-test-helpers.js';
 import {
   edit,
-  generationIdOf,
   importedStore,
   parityDataset,
   renamedCurrent,
@@ -86,33 +85,6 @@ const without =
     rows.filter((row) => !drop(row));
 
 const recordText = /Synthetic|Prof\.|Asst\.|Course|@/u;
-
-// The course's columns set to the values.
-const withValues =
-  (course: number, values: Readonly<Record<string, unknown>>) =>
-  (rows: FakeItem[]): FakeItem[] =>
-    rows.map((row) => (row.id === course ? { ...row, ...values } : row));
-
-// The 2023 generation (page curriculum_generations) or its program of
-// the code (page study_programs) with the values set.
-type CurrentEdit = {
-  readonly code: string;
-  readonly page: string;
-  readonly values: Readonly<Record<string, unknown>>;
-};
-
-const withCurrentValues = (
-  store: FakeStore,
-  { code, page, values }: CurrentEdit,
-): FakeStore => {
-  const latest = generationIdOf(store, '2023');
-  const matches = (row: FakeItem) =>
-    row['code'] === code &&
-    (page === 'curriculum_generations' || row['generation'] === latest);
-  return edit(store, page, (rows) =>
-    rows.map((row) => (matches(row) ? { ...row, ...values } : row)),
-  );
-};
 
 // Iota without its imported 2023 credits and availability: only the 2023
 // name remains on the course.
@@ -374,86 +346,6 @@ describe('the registry decides every code once', () => {
   });
 });
 
-describe('the key order of courses.json', () => {
-  test.each([
-    {
-      blocker: 'curriculum_generation_unsorted',
-      code: '2023',
-      label: 'a published generation without a sort',
-      page: 'curriculum_generations',
-      values: { sort: null },
-    },
-    {
-      blocker: 'curriculum_generation_sort_shared',
-      code: '2023',
-      label: 'two published generations sharing a sort',
-      page: 'curriculum_generations',
-      values: { sort: 2 },
-    },
-    {
-      blocker: 'study_program_unsorted',
-      code: 'kn',
-      label: 'a published program without a sort',
-      page: 'study_programs',
-      values: { sort: null },
-    },
-    {
-      blocker: 'study_program_sort_shared',
-      code: 'ie',
-      label: 'two published programs of one generation sharing a sort',
-      page: 'study_programs',
-      values: { sort: 1 },
-    },
-  ])(
-    'blocks $label, whose keys would move silently',
-    async ({ blocker, ...change }) => {
-      const decision = await decide({
-        store: withCurrentValues(await importedStore(), change),
-      });
-
-      expect(decision.blockers).toEqual([blocker]);
-      expect(decision.issueCounts[blocker]).toBe(1);
-      expect(decision.links[blocker]).toBe(`/admin/content/${change.page}`);
-      expect(decision.blockedFiles).toEqual(['courses.json']);
-    },
-  );
-
-  test('blocks no generation or program that places no key, nor programs of two generations sharing a sort', async () => {
-    const store = await importedStore();
-    const labelOnly = generationIdOf(store, '2013');
-    // The label-only 2013 published with 2023's sort, a program of it
-    // without a sort and an unpublished 2023 program sharing kn's sort.
-    edit(
-      store,
-      'curriculum_generations',
-      withValues(labelOnly, { published: true, sort: 3 }),
-    );
-    edit(
-      store,
-      'study_programs',
-      append([
-        { code: 'xx', generation: labelOnly, id: 98, published: true },
-        {
-          code: 'yy',
-          generation: generationIdOf(store, '2023'),
-          id: 99,
-          published: false,
-          sort: 1,
-        },
-      ]),
-    );
-    const decision = await decide({ store });
-
-    expect(decision.ready).toBeTruthy();
-    expect(decision.issueCounts).toMatchObject({
-      curriculum_generation_sort_shared: 0,
-      curriculum_generation_unsorted: 0,
-      study_program_sort_shared: 0,
-      study_program_unsorted: 0,
-    });
-  });
-});
-
 describe('the enrollment and curriculum checks of courses.json', () => {
   test('blocks an exported course and year without a count row', async () => {
     const counted = await decide({
@@ -490,7 +382,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
       store: edit(
         await importedStore(),
         'academic_years',
-        append([{ id: 99, label: '2026/2027', published: true, sort: 16 }]),
+        append([{ id: 99, label: '2026/2027', published: true }]),
       ),
     });
 
@@ -505,55 +397,11 @@ describe('the enrollment and curriculum checks of courses.json', () => {
       store: edit(
         await importedStore(),
         'academic_years',
-        append([{ id: 99, label: '2026/2027', published: false, sort: 16 }]),
+        append([{ id: 99, label: '2026/2027', published: false }]),
       ),
     });
 
     expect(decision.ready).toBeTruthy();
-  });
-
-  test('blocks a published year without a sort, which has no place among the year keys', async () => {
-    const decision = await decide({
-      store: edit(
-        await importedStore(),
-        'academic_years',
-        withValues(1, { sort: null }),
-      ),
-    });
-
-    expect(decision.blockers).toEqual(['academic_year_unsorted']);
-    expect(decision.issueCounts['academic_year_unsorted']).toBe(1);
-    expect(decision.links['academic_year_unsorted']).toBe(
-      '/admin/content/academic_years',
-    );
-  });
-
-  test('blocks two published years that share a sort, whose keys have no order, but not an unpublished one', async () => {
-    const shared = await decide({
-      store: edit(
-        await importedStore(),
-        'academic_years',
-        withValues(2, { sort: 15 }),
-      ),
-    });
-
-    expect(shared.blockers).toEqual(['academic_year_sort_shared']);
-    expect(shared.issueCounts['academic_year_sort_shared']).toBe(1);
-    expect(shared.links['academic_year_sort_shared']).toBe(
-      '/admin/content/academic_years',
-    );
-    expect(shared.blockedFiles).toEqual(['courses.json']);
-
-    const unpublished = await decide({
-      store: edit(
-        await importedStore(),
-        'academic_years',
-        append([{ id: 99, label: '2026/2027', published: false, sort: 15 }]),
-      ),
-    });
-
-    expect(unpublished.issueCounts['academic_year_sort_shared']).toBe(0);
-    expect(unpublished.ready).toBeTruthy();
   });
 
   test.each([

@@ -23,7 +23,12 @@ import {
   settle,
   wallClock,
 } from './relational/automatic-processing-helpers.mjs';
-import { patch, remove, status } from './relational/history-index-helpers.mjs';
+import {
+  collator,
+  patch,
+  remove,
+  status,
+} from './relational/history-index-helpers.mjs';
 
 // The extension scenarios of the complete workflow suite: a new academic
 // year and a new curriculum generation with two programs are rows, never
@@ -98,9 +103,10 @@ export const extendsYear = async (context) => {
     gained.every((keys) => keys.length === 1 && keys[0] === year.label),
   );
   const counts = await installedCounts(target, state.seeded);
+  // The newest other published year: YYYY/YYYY labels sort as their dates.
   const newest = state.seeded.years
     .filter(({ id, published }) => published && id !== year.id)
-    .toSorted((left, right) => right.sort - left.sort)[0];
+    .toSorted((left, right) => collator.compare(right.label, left.label))[0];
   for (const row of after) {
     const course = state.seeded.courses.findIndex(
       ({ name }) => name === row.name,
@@ -129,13 +135,13 @@ export const extendsGeneration = async (context) => {
   const code = String(
     Math.max(...state.seeded.generations.map((row) => Number(row.code))) + 5,
   );
-  const sort = Math.max(...state.seeded.generations.map((row) => row.sort)) + 1;
   const [generation] = await createRows(target, 'curriculum_generations', [
-    { code, has_curriculum: true, label: `Synthetic Curriculum ${code}`, sort },
+    { code, has_curriculum: true, label: `Synthetic Curriculum ${code}` },
   ]);
+  // Created in reverse code order: the state keys follow the code.
   const programRows = [
-    { code: 'ab', generation, name: 'Synthetic AB', sort: 2 },
-    { code: 'cd', generation, name: 'Synthetic CD', sort: 1 },
+    { code: 'cd', generation, name: 'Synthetic CD' },
+    { code: 'ab', generation, name: 'Synthetic AB' },
   ];
   const programIds = await createRows(target, 'study_programs', programRows);
   const curriculum = await seedCurriculum(target, {
@@ -173,7 +179,7 @@ export const extendsGeneration = async (context) => {
   assert.ok(declared.length > 0);
   assert.ok(declared.every((key) => key.startsWith(`${code}-`)));
   assert.ok(
-    declared.indexOf(`${code}-state-cd`) < declared.indexOf(`${code}-state-ab`),
+    declared.indexOf(`${code}-state-ab`) < declared.indexOf(`${code}-state-cd`),
   );
   const gained = gainedKeys(before, publishedRows(state.objects, coursesFile));
   const union = new Set(gained.flat());

@@ -27,7 +27,7 @@ const alignedCourseLink = {
   meta: {
     one_deselect_action: 'delete',
     one_field: 'curricula',
-    sort_field: 'sort',
+    sort_field: null,
   },
   related_collection: 'courses',
   schema: { on_delete: 'CASCADE' },
@@ -138,18 +138,18 @@ describe('installDataModel over a Studio edit', () => {
 describe('installDataModel relation alignment', () => {
   test.each([
     ['delete rule', { schema: { on_delete: 'NO ACTION' } }],
-    ['sort field', { meta: { one_field: 'curricula', sort_field: null } }],
+    ['sort field', { meta: { one_field: 'curricula', sort_field: 'sort' } }],
     [
       'deselect action',
       {
         meta: {
           one_deselect_action: 'nullify',
           one_field: 'curricula',
-          sort_field: 'sort',
+          sort_field: null,
         },
       },
     ],
-    ['reverse alias', { meta: { one_field: null, sort_field: 'sort' } }],
+    ['reverse alias', { meta: { one_field: null, sort_field: null } }],
     ['foreign key', { schema: null }],
   ])(
     'realigns a relation whose %s diverges with the full relation payload',
@@ -183,7 +183,7 @@ describe('installDataModel relation alignment', () => {
       meta: {
         one_deselect_action: 'delete',
         one_field: 'other_links',
-        sort_field: 'sort',
+        sort_field: null,
       },
     });
 

@@ -315,14 +315,8 @@ describe('the rows the import writes', () => {
     await importInto(fake, planOf(parityDataset(), years).collections);
 
     expect(
-      projected(fake.store, 'academic_years', ['label', 'published', 'sort']),
-    ).toEqual(
-      years.map((label, index) => ({
-        label,
-        published: true,
-        sort: years.length - index,
-      })),
-    );
+      projected(fake.store, 'academic_years', ['label', 'published']),
+    ).toEqual(years.map((label) => ({ label, published: true })));
     // The all-years mappings count the later year too.
     expect(rowsIn(fake.store, 'moodle_pattern_mappings')).toHaveLength(
       planned().find(

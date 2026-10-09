@@ -60,8 +60,8 @@ describe('the synthetic directories through the export engine', () => {
 const referenceKeys = await expectedKeys('courses');
 
 // The academic_years rows of the fifteen synthetic years as the published
-// key source reads them (published, oldest sorting 1), in reverse order to
-// show the engine orders them itself.
+// key source reads them, in reverse order to show the engine orders them
+// itself.
 const syntheticYears: readonly string[] = academicYears;
 
 const publishedYearRows = (labels: readonly string[] = syntheticYears) =>
@@ -69,7 +69,6 @@ const publishedYearRows = (labels: readonly string[] = syntheticYears) =>
     .map((label) => ({
       id: 100 + syntheticYears.indexOf(label),
       label,
-      sort: syntheticYears.length - syntheticYears.indexOf(label),
     }))
     .toReversed();
 
@@ -79,16 +78,15 @@ const publishedYearRows = (labels: readonly string[] = syntheticYears) =>
 // sources never read it), in reverse order to show the engine orders
 // them itself.
 const generationRows = [
-  { code: '2018', id: 2, sort: 2 },
-  { code: '2023', id: 3, sort: 3 },
+  { code: '2018', id: 2 },
+  { code: '2023', id: 3 },
 ];
 
 const programRows = syntheticPrograms
-  .map(({ code, generation, sort }, index) => ({
+  .map(({ code, generation }, index) => ({
     code,
     generation: generation === '2023' ? 3 : 2,
     id: 10 + index,
-    sort,
   }))
   .toReversed();
 
@@ -122,13 +120,13 @@ describe('published-year keys of the relational courses definition', () => {
     ).toEqual(referenceKeys.filter((label) => label !== '2019/2020'));
   });
 
-  test('list the newer label first when two published years share a sort', () => {
+  test('list the year keys by label, newest first, whatever order the rows come in', () => {
     const keys = fileKeys(coursesDefinition, {
       keyRows: {
         published_years: [
-          { id: 1, label: '2024/2025', sort: 2 },
-          { id: 2, label: '2025/2026', sort: 2 },
-          { id: 3, label: '2023/2024', sort: 1 },
+          { id: 1, label: '2024/2025' },
+          { id: 2, label: '2025/2026' },
+          { id: 3, label: '2023/2024' },
         ],
       },
     });
@@ -146,7 +144,7 @@ describe('published-year keys of the relational courses definition', () => {
         ...curriculumKeyRows,
         published_years: [
           ...publishedYearRows(),
-          { id: 99, label: '2026/2027', sort: 16 },
+          { id: 99, label: '2026/2027' },
         ],
       },
     });
@@ -183,11 +181,11 @@ describe('generation keys of the relational courses definition', () => {
 
   test('add a newly published generation with two published programs with no code change', () => {
     const keys = keysWith(
-      [...generationRows, { code: '2028', id: 4, sort: 4 }],
+      [...generationRows, { code: '2028', id: 4 }],
       [
         ...programRows,
-        { code: 'ab', generation: 4, id: 91, sort: 2 },
-        { code: 'cd', generation: 4, id: 92, sort: 1 },
+        { code: 'cd', generation: 4, id: 91 },
+        { code: 'ab', generation: 4, id: 92 },
       ],
     );
     const reference = referenceKeys;
@@ -203,8 +201,8 @@ describe('generation keys of the relational courses definition', () => {
       '2028-semester',
       '2028-channel',
       '2028-prerequisite',
-      '2028-state-cd',
       '2028-state-ab',
+      '2028-state-cd',
       '2028-credits',
       ...reference.slice(assistants),
     ]);
@@ -214,8 +212,8 @@ describe('generation keys of the relational courses definition', () => {
     'follow the default layout for a published generation coded %s, a name every object inherits',
     (code) => {
       const keys = keysWith(
-        [...generationRows, { code, id: 4, sort: 4 }],
-        [...programRows, { code: 'ab', generation: 4, id: 91, sort: 1 }],
+        [...generationRows, { code, id: 4 }],
+        [...programRows, { code: 'ab', generation: 4, id: 91 }],
       );
 
       expect(keys.filter((key) => key.startsWith(`${code}-`))).toEqual(

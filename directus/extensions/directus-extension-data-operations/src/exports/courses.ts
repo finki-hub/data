@@ -47,7 +47,7 @@ const entryFields: readonly BlockField[] = [
 ];
 
 // The state-key rule: `<generation>-state-<program>` for every published
-// program of the generation, in program sort order.
+// program of the generation, in program code order.
 const states: NestedKeys = {
   infix: 'state',
   nested: 'published_programs',

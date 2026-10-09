@@ -107,15 +107,12 @@ describe('the builder reads the declarations themselves', () => {
 
   it('takes the generations and programs from the seeds the import declares', () => {
     expect(declarations.generations).toEqual(
-      workbookGenerations.map(
-        ({ code, has_curriculum, label, published, sort }) => ({
-          code,
-          has_curriculum,
-          label,
-          published,
-          sort,
-        }),
-      ),
+      workbookGenerations.map(({ code, has_curriculum, label, published }) => ({
+        code,
+        has_curriculum,
+        label,
+        published,
+      })),
     );
     expect(declarations.programs).toEqual(syntheticPrograms);
   });
@@ -256,8 +253,7 @@ describe('the years, generations and programs follow the model and the created r
 
     expect(extra?.published).toBe(false);
     expect(extra?.label).toBe('2026/2027');
-    expect(new Set(rows.map(({ sort }) => sort)).size).toBe(rows.length);
-    expect(Math.max(...rows.map(({ sort }) => sort))).toBe(extra?.sort);
+    expect(new Set(rows.map(({ label }) => label)).size).toBe(rows.length);
   });
 
   it('follows a test-only model year into the rows and the history labels', () => {
@@ -291,8 +287,8 @@ describe('the years, generations and programs follow the model and the created r
       { code: '2028', has_curriculum: true, id: 9 },
     ];
     const programs = [
-      { generation: 9, id: 91, sort: 2 },
-      { generation: 9, id: 92, sort: 1 },
+      { generation: 9, id: 92 },
+      { generation: 9, id: 91 },
     ];
     const plan = curriculumPlan(generations, programs, courses);
 
@@ -306,7 +302,7 @@ describe('the years, generations and programs follow the model and the created r
     );
 
     expect(programsOfStates).toEqual(new Set([91, 92]));
-    expect(plan[0]?.states.map(({ program }) => program)).toEqual([92, 91]);
+    expect(plan[0]?.states.map(({ program }) => program)).toEqual([91, 92]);
 
     // Each code gives a level (1 to 3), so the curriculum guard accepts it.
     const entryCodes = plan.map(({ entry }) => String(entry['code']));
@@ -386,15 +382,15 @@ describe('the expected files follow the export registry', () => {
     if (coursesDefinition === undefined) return;
     const years = yearRows(declarations.years)
       .filter(({ published }) => published)
-      .map(({ label, sort }, id) => ({ id, label, sort }));
+      .map(({ label }, id) => ({ id, label }));
     const before = expectedFiles([coursesDefinition], {
       published_years: years,
     })[0]?.keys;
     const after = expectedFiles([coursesDefinition], {
-      published_generations: [{ code: '2028', id: 9, sort: 4 }],
+      published_generations: [{ code: '2028', id: 9 }],
       published_programs: [
-        { code: 'cd', generation: 9, id: 92, sort: 1 },
-        { code: 'ab', generation: 9, id: 91, sort: 2 },
+        { code: 'cd', generation: 9, id: 91 },
+        { code: 'ab', generation: 9, id: 92 },
       ],
       published_years: years,
     })[0]?.keys;
@@ -407,8 +403,8 @@ describe('the expected files follow the export registry', () => {
       '2028-semester',
       '2028-channel',
       '2028-prerequisite',
-      '2028-state-cd',
       '2028-state-ab',
+      '2028-state-cd',
       '2028-credits',
     ]);
     expect(

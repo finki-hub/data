@@ -39,7 +39,6 @@ import {
 } from './declared-vocabularies-helpers.mjs';
 import {
   engineFiles,
-  errorOf,
   prepare,
   readiness,
   restReader,
@@ -259,13 +258,9 @@ const importsSixteenYears = async ({ directus, state, t, target }) => {
   assert.deepEqual(
     await get(
       target,
-      '/items/academic_years?fields=label,published,sort&sort=-sort&limit=-1',
+      '/items/academic_years?fields=label,published&sort=-label&limit=-1',
     ),
-    sixteenYears.map((label, index) => ({
-      label,
-      published: true,
-      sort: 16 - index,
-    })),
+    sixteenYears.map((label) => ({ label, published: true })),
   );
   assert.deepEqual(
     await get(
@@ -334,34 +329,11 @@ const followsPublished = async ({ t, target }) => {
   );
 };
 
-// Two published years sharing a sort have no newest-first key order: a
-// blocker that holds back courses.json until the sort is corrected.
-const blocksSharedSort = async ({ target }) => {
-  await setYear(target, laterYear, { sort: 15 });
-  const shared = await readiness(target);
-  assert.equal(shared.ready, false);
-  assert.equal(shared.issueCounts.academic_year_sort_shared, 1);
-  assert.deepEqual(shared.blockers, ['academic_year_sort_shared']);
-  assert.deepEqual(shared.blockedFiles, ['courses.json']);
-  assert.equal(
-    shared.links.academic_year_sort_shared,
-    '/admin/content/academic_years',
-  );
-  const run = await prepare(target);
-  assert.equal(run.status, 409, JSON.stringify(run.body));
-  assert.equal(errorOf(run.body).code, 'EXPORT_NOT_READY');
-  await setYear(target, laterYear, { sort: 16 });
-  const restored = await readiness(target);
-  assert.equal(restored.ready, true, JSON.stringify(restored));
-  assert.equal(restored.issueCounts.academic_year_sort_shared, 0);
-};
-
 // An explicit mapping in an unpublished year is counted there and warns
 // about nothing; the files still prepare without the year.
 const keepsUnpublishedMapping = async ({ state, target }) => {
   const year = await post(target, '/items/academic_years', {
     label: '2027/2028',
-    sort: 17,
   });
   assert.equal(year.data.published, false);
   const entry = await post(target, `/items/${entries}`, {
@@ -427,9 +399,6 @@ test('declares vocabularies, years, readiness checks and Flow families once', as
         await t.test(
           'publishes exactly one more key per course for a published year',
           () => followsPublished(context),
-        );
-        await t.test('blocks two published years that share a sort', () =>
-          blocksSharedSort(context),
         );
         await t.test(
           'neither blocks nor warns on a mapping of an unpublished year and prepares the files',

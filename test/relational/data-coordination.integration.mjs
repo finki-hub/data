@@ -294,14 +294,14 @@ const recordsSourceStatements = async (target, state) => {
   ]);
   const yearA = await create(target, state, [
     'academic_years',
-    { label: '2031/2032', sort: 1 },
+    { label: '2031/2032' },
   ]);
   report = await status(target);
   assert.equal(report.revisions.source, 3);
   assert.deepEqual(report.dirty, ['enrollments', 'publication']);
   const yearB = await create(target, state, [
     'academic_years',
-    { label: '2032/2033', sort: 2 },
+    { label: '2032/2033' },
   ]);
   const userId = await create(target, state, [
     'moodle_users',
@@ -476,7 +476,7 @@ const refusesStaleCompletion = async (target, state) => {
   assert.equal(claim.revision, 10);
   const yearC = await create(target, state, [
     'academic_years',
-    { label: '2033/2034', sort: 3 },
+    { label: '2033/2034' },
   ]);
   Object.assign(state, { yearC });
   const error = await refused(

@@ -74,7 +74,6 @@ describe('the memory store of an import plan', () => {
     expect(generation).toMatchObject({
       has_curriculum: false,
       published: false,
-      sort: null,
     });
     expect(link).toMatchObject({ available: true, credits: null, entry: null });
 

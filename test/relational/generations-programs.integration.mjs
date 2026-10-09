@@ -40,7 +40,7 @@ import { get, patch } from './history-index-helpers.mjs';
 // Task 25 on the fixture: curriculum generations and study programs are
 // rows. A generated workbook import seeds them; the public files stay the
 // committed parity files until a new generation and its programs are
-// published, whose sorts readiness keeps unique; the database guards
+// published, whose state keys follow the program code; the database guards
 // refuse every row that names the wrong generation, an entry code that
 // gives no level and a new code of a published row.
 
@@ -77,7 +77,7 @@ const importsWorkbook = async ({ context, t, target }) => {
   assert.deepEqual(
     await get(
       target,
-      '/items/curriculum_generations?fields=code,label,has_curriculum,published,sort&sort=sort',
+      '/items/curriculum_generations?fields=code,label,has_curriculum,published&sort=code',
     ),
     [
       {
@@ -85,39 +85,35 @@ const importsWorkbook = async ({ context, t, target }) => {
         has_curriculum: false,
         label: 'Curriculum 2013',
         published: false,
-        sort: 1,
       },
       {
         code: '2018',
         has_curriculum: true,
         label: 'Curriculum 2018',
         published: true,
-        sort: 2,
       },
       {
         code: '2023',
         has_curriculum: true,
         label: 'Curriculum 2023',
         published: true,
-        sort: 3,
       },
     ],
   );
   const programs = await get(
     target,
-    '/items/study_programs?fields=generation.code,code,name,published,sort&sort=-generation,sort&limit=-1',
+    '/items/study_programs?fields=generation.code,code,name,published&sort=-generation,id&limit=-1',
   );
+  // Newest generation first, each in the column order of its sheet.
   assert.deepEqual(
     programs.map((row) => [
       row.generation.code,
-      row.sort,
       row.code,
       row.name,
       row.published,
     ]),
-    syntheticPrograms.map(({ code, generation, name, sort }) => [
+    syntheticPrograms.map(({ code, generation, name }) => [
       generation,
-      sort,
       code,
       name,
       true,
@@ -201,35 +197,6 @@ const readsStatesWhole = async (target, link) => {
   );
 };
 
-// A published generation or program without a sort, or sharing one with
-// a sibling, blocks courses.json until the sort is corrected.
-const blocksMovedKeys = async (target, { ab, generation }) => {
-  const generationPath = `/items/curriculum_generations/${generation}`;
-  const programPath = `/items/study_programs/${ab}`;
-  const changes = [
-    [generationPath, { sort: null }, 4, 'curriculum_generation_unsorted'],
-    [generationPath, { sort: 3 }, 4, 'curriculum_generation_sort_shared'],
-    [programPath, { sort: null }, 2, 'study_program_unsorted'],
-    [programPath, { sort: 1 }, 2, 'study_program_sort_shared'],
-  ];
-  for (const [pathname, values, sort, code] of changes) {
-    await patch(target, pathname, values);
-    const blocked = await readiness(target);
-    assert.deepEqual(
-      [blocked.blockers, blocked.blockedFiles, blocked.issueCounts[code]],
-      [[code], [coursesFile], 1],
-      code,
-    );
-    assert.equal(
-      blocked.links[code],
-      `/admin/content/${pathname.split('/', 3)[2]}`,
-    );
-    await patch(target, pathname, { sort });
-  }
-  const restored = await readiness(target);
-  assert.equal(restored.ready, true, JSON.stringify(restored.blockers));
-};
-
 // Unpublished rows add nothing; published ones add exactly their keys.
 const publishesOnlyWhenPublished = async ({ context, target }) => {
   const [course] = await get(
@@ -275,8 +242,8 @@ const publishesOnlyWhenPublished = async ({ context, target }) => {
     `${newGeneration}-level`,
     `${newGeneration}-semester`,
     `${newGeneration}-channel`,
-    `${newGeneration}-state-cd`,
     `${newGeneration}-state-ab`,
+    `${newGeneration}-state-cd`,
     `${newGeneration}-credits`,
   ]);
   const keys = Object.keys(first);
@@ -284,7 +251,6 @@ const publishesOnlyWhenPublished = async ({ context, target }) => {
     keys.indexOf(`${newGeneration}-available`) < keys.indexOf('2023-available'),
   );
   assert.equal(first[`${newGeneration}-state-cd`], 'B');
-  await blocksMovedKeys(target, context.added);
   // Unpublishing one program removes exactly its state key.
   await patch(target, `/items/study_programs/${ab}`, { published: false });
   const narrowed = await liveFiles(target);
@@ -488,7 +454,7 @@ test('manages curriculum generations and study programs as rows on the fixture',
             () => matchesCommitted(scenario),
           );
           await t.test(
-            'a new generation and its programs publish nothing until both are published, then exactly their keys, in an order readiness keeps',
+            'a new generation and its programs publish nothing until both are published, then exactly their keys, in program code order',
             () => publishesOnlyWhenPublished(scenario),
           );
           await t.test(

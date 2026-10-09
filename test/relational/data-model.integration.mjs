@@ -142,7 +142,7 @@ const realignsDetachedRelation = async (target, directus, state) => {
     on_delete: 'NO ACTION',
     one_deselect_action: 'delete',
     one_field: null,
-    sort_field: 'sort',
+    sort_field: null,
   });
   const recorder = recording(directus);
   const summary = await installDataModel(recorder.request);
@@ -163,7 +163,7 @@ const realignsDetachedRelation = async (target, directus, state) => {
     on_delete: 'CASCADE',
     one_deselect_action: 'delete',
     one_field: 'curricula',
-    sort_field: 'sort',
+    sort_field: null,
   });
   const again = recording(directus);
   await installDataModel(again.request);
@@ -201,16 +201,11 @@ const keepsDuplicateStudentIndexes = async (target) => {
 // 2023 with a curriculum.
 const createGenerations = async (target) => {
   const ids = {};
-  for (const [code, sort] of [
-    ['2013', 1],
-    ['2018', 2],
-    ['2023', 3],
-  ]) {
+  for (const code of ['2013', '2018', '2023']) {
     const row = await createItem(target, 'curriculum_generations', {
       code,
       has_curriculum: code !== '2013',
       label: `Curriculum ${code}`,
-      sort,
     });
     ids[code] = row.data.id;
   }
@@ -288,12 +283,10 @@ const guardsCurriculumLinks = async (target, state) => {
 const guardsEnrollmentCounts = async (target, state) => {
   const year = await createItem(target, 'academic_years', {
     label: '2025/2026',
-    sort: 1,
   });
   assert.equal(
     await rejectedItem(target, 'academic_years', {
       label: '2025/2026',
-      sort: 2,
     }),
     'RECORD_NOT_UNIQUE',
   );

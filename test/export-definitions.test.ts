@@ -110,7 +110,7 @@ const filterPaths = (filter: unknown, prefix = ''): string[] => {
 // columns (null allows every field the other rules allow). A dot path is
 // checked at every collection it passes through.
 const readable: Readonly<Record<string, null | readonly string[]>> = {
-  academic_years: ['id', 'label', 'published', 'sort'],
+  academic_years: ['id', 'label', 'published'],
   course_curricula: null,
   course_enrollments: ['academic_year', 'count', 'course', 'id'],
   course_equivalencies: null,
@@ -118,13 +118,13 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   courses: null,
   curriculum_entries: null,
   curriculum_entry_program_states: ['entry', 'program', 'state'],
-  curriculum_generations: ['code', 'has_curriculum', 'id', 'published', 'sort'],
+  curriculum_generations: ['code', 'has_curriculum', 'id', 'published'],
   moodle_course_mappings: ['academic_year', 'course'],
   rooms: null,
   staff: null,
   student_council: ['id', 'student'],
   students: ['id', 'index_number', 'name'],
-  study_programs: ['code', 'generation', 'id', 'published', 'sort'],
+  study_programs: ['code', 'generation', 'id', 'published'],
   teaching_assignments: null,
 };
 
@@ -182,8 +182,15 @@ const privateReadsOf = ([label, read]: readonly [string, SourceRead]) => {
   ].map((problem) => `${label}: ${problem}`);
 };
 
+// A sort path's leading `-` (descending).
+const descending = /^-/u;
+
 const missingPathsOf = ([label, read]: readonly [string, SourceRead]) =>
-  [...read.fields, ...filterPaths(read.filter)]
+  [
+    ...read.fields,
+    ...filterPaths(read.filter),
+    ...read.sort.map((path) => path.replace(descending, '')),
+  ]
     .filter((path) => !pathExists(read.collection, path))
     .map((path) => `${label}: ${path}`);
 
@@ -468,8 +475,8 @@ describe('the keys a consumer requires', () => {
     const shape = fileShape(courses, {
       keyRows: {
         published_generations: [
-          { code: '2018', id: 2, sort: 1 },
-          { code: '2023', id: 1, sort: 2 },
+          { code: '2018', id: 2 },
+          { code: '2023', id: 1 },
         ],
       },
       rows: [{}, {}],

@@ -432,13 +432,13 @@ row 1, column 2: not an academic year`):
   snapshot import requires; the refusal names the cell, never the id
   (`Courses row 9, column "ID_new": repeats the id of row 4`).
 
-The academic years it writes are the ones the **Слушатели** sheet heads, in
-its order (published, the oldest sorting first); every course is counted in
-each of them. The curriculum generations and study programs come from the
-curriculum sheets: each program column is headed by its program code on
-the first line (a second line, such as the duration, and a link are
-ignored); the generations with a curriculum sheet and their programs are
-published, the label-only 2013 generation is not.
+The academic years it writes are the ones the **Слушатели** sheet heads,
+all published; every course is counted in each of them. The curriculum
+generations and study programs come from the curriculum sheets: each
+program column is headed by its program code on the first line (a second
+line, such as the duration, and a link are ignored); the generations with
+a curriculum sheet and their programs are published, the label-only 2013
+generation is not.
 
 From the **Слушатели** sheet and the Moodle histories of the **Courses**
 sheet it plans the **Pattern mappings** (see
@@ -706,9 +706,9 @@ database guards the table:
   publication, pending inside its own transaction.
 - **Key sources** (`academic_years`, `curriculum_generations`,
   `study_programs`): editable sources by their role, like the collections
-  above, whose `published` flag, key text, `sort` and parent decide the
-  public keys. Which fields those are is not part of the role: it is
-  derived from the key-source declarations in
+  above, whose `published` flag, key text and parent decide the public
+  keys. Which fields those are is not part of the role: it is derived from
+  the key-source declarations in
   `directus/extensions/directus-extension-data-operations/src/exports/key-sources.ts`
   (see [A key or a new published file](#a-key-or-a-new-published-file)),
   which also decide the database guard that keeps the key text of a
@@ -775,12 +775,18 @@ old name: when Moodle uses the new name, add it as an alternative, such as
 
 These are rows managed in Studio, never a code list:
 
-- `academic_years` (`label` such as `2025/2026`, `sort`, `published`).
+- `academic_years` (`label` such as `2025/2026`, `published`).
 - `curriculum_generations` (`code` such as `2023`, `label`,
-  `has_curriculum`, false for a label-only generation, `published`,
-  `sort`).
+  `has_curriculum`, false for a label-only generation, `published`).
 - `study_programs`, one row per program per generation (`generation`,
-  `code` such as `kn`, `name`, `description`, `published`, `sort`).
+  `code` such as `kn`, `name`, `description`, `published`).
+
+Their order follows the key text: years and generations newest first by
+label and code, programs by generation, then code. Their Studio pages list
+them so, and `courses.json` places their keys in that order (see
+[Publishing](#publishing)). A form's list of curriculum links, programs or
+equivalency members has no drag order; it lists the rows in creation
+order.
 
 A new row never adds a public key by itself: a year, generation or program
 reaches `courses.json` only once its `published` flag is set (a program
@@ -1112,17 +1118,10 @@ answers counts, codes and links, never a record.
 Today's blockers: `history_index_*` and `enrollments_*` (`pending`,
 `running`, `failed`, from the coordinator status),
 `snapshot_import_running`, `snapshot_import_failed`,
-`academic_year_unsorted` (a published year
-without a sort, which has no place among the year keys),
-`academic_year_sort_shared` (two published years with one sort, whose keys
-have no newest-first order), `curriculum_generation_unsorted` and
-`curriculum_generation_sort_shared` (the same for the published generations
-with a curriculum and their blocks), `study_program_unsorted` and
-`study_program_sort_shared` (the same for the published programs of one
-generation and their state keys), `enrollment_count_missing` (a course and
-published year without a count row), `course_without_professor` (an Active
-course without a professor link, whose professors `courses.json` cannot
-publish). Today's warnings: `equivalency_without_course`,
+`enrollment_count_missing` (a course and published year without a count
+row), `course_without_professor` (an Active course without a professor
+link, whose professors `courses.json` cannot publish). Today's warnings:
+`equivalency_without_course`,
 `equivalency_entry_unresolved` (an
 equivalency with a member label of a generation with a curriculum linked
 to no entry of that generation), `council_member_unresolved` (a council
@@ -1155,27 +1154,24 @@ states the fact only. What to do:
 | `snapshot_import_failed` | Run **Data / Import Moodle snapshot** again. |
 | `enrollment_count_missing` | Let the pending count run, which counts every course and year; a missing count is never published as 0. |
 | `course_without_professor` | Add a professor to the course's **Teaching staff**, or set its **Status** to All professors or Inactive. |
-| `academic_year_unsorted`, `curriculum_generation_unsorted`, `study_program_unsorted` | Give the published row a `sort`. |
-| `academic_year_sort_shared`, `curriculum_generation_sort_shared`, `study_program_sort_shared` | Give each published row its own `sort` (a program within its generation). |
 
 Every registry entry that declares a review view gets one shared Studio
 bookmark on the collection of its records, and the **Readiness** panel of
 the dashboard links the check to that bookmark. `npm run setup` creates the
 bookmarks that are missing and never changes one that exists, so a check
 declared later gets its view on the next setup, and a Studio edit of a view
-is kept. The views are generated from `exports/review-views.ts` and
-`exports/key-order.ts` of the data-operations extension; today:
+is kept. The views are generated from `exports/review-views.ts` of the
+data-operations extension; today:
 
 | Bookmark | Collection | Check | Lists |
 | --- | --- | --- | --- |
 | **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
 | **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
 | **Council members without a student** | `student_council` | `council_member_unresolved` | memberships without a student |
-| **Published academic years / curriculum generations / study programs without a sort** | the key source's collection | `academic_year_unsorted` and the like | published rows without a position; a program shows its generation and name |
 
 The checks no plain filter can list (a missing row, a duplicate) link
-their collection page instead: today `enrollment_count_missing`,
-`course_without_professor` and the three `*_sort_shared` blockers.
+their collection page instead: today `enrollment_count_missing` and
+`course_without_professor`.
 
 Curriculum views show the generation and filter through the
 `curriculum_generations` relation, so a new generation's rows appear in
@@ -1372,7 +1368,7 @@ How `courses.json` projects the relational rows into its existing keys:
   not published.
 - The curriculum keys come from published rows: every published
   `curriculum_generations` row with a curriculum adds `<code>-available`
-  (newest first by `sort`; the link's availability, FALSE for a course
+  (newest first by code; the link's availability, FALSE for a course
   without a link of that generation, so every course carries it) and a
   block `<code>-name`,
   `-code`, `-level` (the digit after `L` in the entry's code, left out
@@ -1381,14 +1377,14 @@ How `courses.json` projects the relational rows into its existing keys:
   with its credits before its states, the order today's file has), valued
   from the course's curriculum link of that generation and its entry; a
   state key `<code>-state-<program>` exists for every published study
-  program of the generation, in program `sort` order, valued by the entry's
+  program of the generation, in program code order, valued by the entry's
   state row of that program. `channel` is true when a linked entry of a
   published generation has its channel.
 - The year keys follow the published-year rule: one per published academic
-  year, keyed by its label, newest first (`sort` descending, then the label
-  descending), valued by the course's `course_enrollments` count of that
-  year. A new year adds its key once published, and readiness then blocks
-  until every course has its count.
+  year, keyed by its label, newest first (the label descending), valued by
+  the course's `course_enrollments` count of that year. A new year adds its
+  key once published, and readiness then blocks until every course has its
+  count.
 - Anything the projection cannot resolve (a missing count, two links of one
   generation, an assignment without a role or a staff name, an Active
   course without a professor, a status outside its three values) refuses
@@ -1762,11 +1758,11 @@ others).
 
 ### An academic year
 
-1. Create the `academic_years` row (label such as `2026/2027`, a `sort`
-   above the newest year's). It is unpublished by default, and nothing
-   else is added for it: the next run counts every course in it, 0 until a
-   line of the year counts. An all-years pattern mapping counts the year's
-   lines whose year its year pattern reads.
+1. Create the `academic_years` row (label such as `2026/2027`). It is
+   unpublished by default, and nothing else is added for it: the next run
+   counts every course in it, 0 until a line of the year counts. An
+   all-years pattern mapping counts the year's lines whose year its year
+   pattern reads.
 2. Once the counts are current, open **Unmapped history lines** on
    **History lines**: the lines no mapping counts, newest **First seen**
    first, so the lines of the latest snapshot are at the top. Count the
@@ -1775,13 +1771,13 @@ others).
    **Explicit mapping** (one line by hand); the next run counts them.
 3. Set `published`. `courses.json` gains exactly one key per course, the
    year's label, among the other year keys newest first; readiness blocks
-   until every course has a count for it and its `sort` is unique.
+   until every course has a count for it.
 
 ### A curriculum generation or study program
 
 1. Create the `curriculum_generations` row (`code`, `label`,
-   `has_curriculum`, `sort`), then its `study_programs` rows (`generation`,
-   `code`, `name`, `description`, `sort`). Both stay unpublished.
+   `has_curriculum`), then its `study_programs` rows (`generation`, `code`,
+   `name`, `description`). Both stay unpublished.
 2. Create the generation's `curriculum_entries` and their program states
    (the program picker offers only the generation's programs). A code
    starts with `F`, two digits (the generation's), `L` and the level, as in
@@ -1794,8 +1790,8 @@ others).
    show the new rows too. No bookmark and no setup rerun is needed.
 3. Publish the generation: `courses.json` gains its `<code>-available` key
    and its block, laid out like 2023 (states before credits), newest first
-   by `sort`. Publish each program: it adds its `<code>-state-<program>` key
-   in program `sort` order. Unpublishing removes the keys again.
+   by code. Publish each program: it adds its `<code>-state-<program>` key
+   in program code order. Unpublishing removes the keys again.
 
 ### A key or a new published file
 
@@ -1827,10 +1823,9 @@ closed list): an entry `{ keys: 'published_years', rule, value }` puts one
 key per row of that source at its position. `published_years` is every
 academic year whose `published` flag is set, newest first, keyed by its
 label; `published_generations` and `published_programs` key the curriculum
-blocks. Each source declares the field that places its rows (`sort`, among
-the programs of one generation for a program): readiness blocks a keyed
-row without a sort (`<row>_unsorted`) and two siblings sharing one
-(`<row>_sort_shared`), so no key moves silently.
+blocks. A source orders its keys by their own text, which is unique, so the
+order is total: generations newest first by code, the programs of one
+generation by code. Consumers read keys by name.
 
 A generic engine (`exports/engine.ts`) reads each definition's sources
 through the Directus ItemsService (system rights after the operation's own

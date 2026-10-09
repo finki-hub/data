@@ -21,7 +21,6 @@ type WorkbookGeneration = {
   readonly published: boolean;
   // Its curriculum sheet, or null for a label-only generation.
   readonly sheet: EntrySource | null;
-  readonly sort: number;
 };
 
 // The generations of the workbook, oldest first: 2018 and 2023 carry a
@@ -35,7 +34,6 @@ export const workbookGenerations: readonly WorkbookGeneration[] = [
     label: 'Curriculum 2013',
     published: false,
     sheet: null,
-    sort: 1,
   },
   {
     code: '2018',
@@ -44,7 +42,6 @@ export const workbookGenerations: readonly WorkbookGeneration[] = [
     label: 'Curriculum 2018',
     published: true,
     sheet: 'curriculum_2018',
-    sort: 2,
   },
   {
     code: '2023',
@@ -53,7 +50,6 @@ export const workbookGenerations: readonly WorkbookGeneration[] = [
     label: 'Curriculum 2023',
     published: true,
     sheet: 'curriculum_2023',
-    sort: 3,
   },
 ];
 
@@ -134,13 +130,12 @@ export type ProgramSeed = {
   readonly code: string;
   readonly generation: string;
   readonly name: string;
-  readonly sort: number;
 };
 
 const sheets: readonly EntrySource[] = ['curriculum_2023', 'curriculum_2018'];
 
 // The study programs of the workbook: each program column's header mapped
-// through the closed mapping, named by the header and sorted by column.
+// through the closed mapping and named by the header, in column order.
 // An unknown header, or one heading a column the import reads as another
 // program, fails the import before anything is written.
 export const workbookPrograms = (
@@ -159,7 +154,6 @@ export const workbookPrograms = (
         code,
         generation: generationOfSheet(sheet),
         name: header,
-        sort: index + 1,
       };
     }),
   );
@@ -169,8 +163,8 @@ export const programKey = (generation: string, code: string): string =>
 
 // The three workbook generations.
 export const planGenerations = (): readonly PlannedRow[] =>
-  workbookGenerations.map(({ code, has_curriculum, label, published, sort }) =>
-    planned(code, { code, has_curriculum, label, published, sort }),
+  workbookGenerations.map(({ code, has_curriculum, label, published }) =>
+    planned(code, { code, has_curriculum, label, published }),
   );
 
 // The workbook's programs, published, one per generation and code.
@@ -183,6 +177,5 @@ export const planPrograms = (
       generation: ref('curriculum_generations', seed.generation),
       name: seed.name,
       published: true,
-      sort: seed.sort,
     }),
   );

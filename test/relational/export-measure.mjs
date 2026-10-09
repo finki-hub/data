@@ -151,7 +151,7 @@ export const seedRealistic = async (target, scale = 1) => {
   );
   const programs = await get(
     target,
-    '/items/study_programs?fields=id,generation&sort=sort&limit=-1',
+    '/items/study_programs?fields=id,generation&sort=id&limit=-1',
   );
   const generationOf = (code) => generations.find((row) => row.code === code);
   const programsOf = (generation) =>
@@ -201,7 +201,6 @@ export const seedRealistic = async (target, scale = 1) => {
       credits: 6,
       entry: current[index],
       generation: currentGeneration.id,
-      sort: 1,
     })),
     ...legacyIndexes.map((index, position) => ({
       available: index % 3 === 0,
@@ -209,7 +208,6 @@ export const seedRealistic = async (target, scale = 1) => {
       credits: index % 9 === 0 ? 0 : 6,
       entry: legacy[position],
       generation: legacyGeneration.id,
-      sort: 2,
     })),
   ];
   await createAll(target, 'course_curricula', links);

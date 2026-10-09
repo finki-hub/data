@@ -102,21 +102,18 @@ describe('seeds', () => {
         has_curriculum: false,
         label: 'Curriculum 2013',
         published: false,
-        sort: 1,
       },
       {
         code: '2018',
         has_curriculum: true,
         label: 'Curriculum 2018',
         published: true,
-        sort: 2,
       },
       {
         code: '2023',
         has_curriculum: true,
         label: 'Curriculum 2023',
         published: true,
-        sort: 3,
       },
     ]);
     expect(recordsIn(plan, 'study_programs')).toHaveLength(15);
@@ -125,7 +122,6 @@ describe('seeds', () => {
       generation: generation('2018'),
       name: 'КН',
       published: true,
-      sort: 1,
     });
     expect(recordsIn(plan, 'academic_years').map(({ label }) => label)).toEqual(
       [...academicYears],
@@ -133,31 +129,30 @@ describe('seeds', () => {
     expect(recordsIn(plan, 'academic_years')[0]).toEqual({
       label: '2025/2026',
       published: true,
-      sort: 15,
     });
   });
 
   test('maps each program header to its code, in column order, and refuses an unknown or misplaced header', () => {
     expect(
-      syntheticPrograms.map(({ code, generation: of, name, sort }) =>
-        [of, sort, code, name].join(' '),
+      syntheticPrograms.map(({ code, generation: of, name }) =>
+        [of, code, name].join(' '),
       ),
     ).toEqual([
-      '2023 1 kn КН',
-      '2023 2 siis СИИС',
-      '2023 3 pit ПИТ',
-      '2023 4 imb ИМБ',
-      '2023 5 ki КИ',
-      '2023 6 ie ИЕ',
-      '2023 7 ssp ССП',
-      '2023 8 seis SEIS',
-      '2018 1 kn КН',
-      '2018 2 siis СИИС',
-      '2018 3 pit ПИТ',
-      '2018 4 imb ИМБ',
-      '2018 5 ki КИ',
-      '2018 6 ke КЕ',
-      '2018 7 seis SEIS',
+      '2023 kn КН',
+      '2023 siis СИИС',
+      '2023 pit ПИТ',
+      '2023 imb ИМБ',
+      '2023 ki КИ',
+      '2023 ie ИЕ',
+      '2023 ssp ССП',
+      '2023 seis SEIS',
+      '2018 kn КН',
+      '2018 siis СИИС',
+      '2018 pit ПИТ',
+      '2018 imb ИМБ',
+      '2018 ki КИ',
+      '2018 ke КЕ',
+      '2018 seis SEIS',
     ]);
     expect(() =>
       workbookPrograms({
@@ -312,7 +307,6 @@ describe('course links', () => {
       credits: 6,
       entry: entry2023(1),
       generation: generation('2023'),
-      sort: 1,
     });
     expect(linkOf(1, '2018')).toEqual({
       available: false,
@@ -320,7 +314,6 @@ describe('course links', () => {
       credits: 6,
       entry: entry2018(1),
       generation: generation('2018'),
-      sort: 2,
     });
     expect(linkOf(2, '2018')).toMatchObject({
       available: true,
@@ -408,20 +401,17 @@ describe('equivalencies and their members', () => {
       equivalency: ref('course_equivalencies', 1),
       generation: generation('2023'),
       label: courseNames.alpha,
-      sort: 1,
     });
     expect(memberOf(1, '2018')).toMatchObject({
       entry: entry2018(1),
       label: 'Alpha Legacy',
-      sort: 2,
     });
     expect(memberOf(1, '2013')).toMatchObject({
       entry: null,
       label: 'Alpha Ancient',
-      sort: 3,
     });
     expect(memberOf(9, '2023')).toBeUndefined();
-    expect(memberOf(9, '2013')).toMatchObject({ entry: null, sort: 3 });
+    expect(memberOf(9, '2013')).toMatchObject({ entry: null });
   });
 
   test('keeps a label that names several entries or none as a member without an entry, its label literal', () => {
@@ -439,17 +429,14 @@ describe('equivalencies and their members', () => {
       equivalency: ref('course_equivalencies', 1),
       generation: generation('2018'),
       label: 'Alpha Legacy',
-      sort: 2,
     });
     expect(memberOf(3, '2023')).toMatchObject({
       entry: null,
       label: 'Alpha Course (2023)',
-      sort: 1,
     });
     expect(memberOf(3, '2018')).toMatchObject({
       entry: null,
       label: 'Alpha Legacy Decoy',
-      sort: 2,
     });
     expect(memberOf(1, '2023')?.['entry']).toEqual(entry2023(3));
   });

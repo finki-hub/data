@@ -200,7 +200,6 @@ const importsAndMaps = async ({ state, target }) => {
   });
   const year = await createItem(target, 'academic_years', {
     label: yearLabel,
-    sort: 94,
   });
   await createItem(target, 'moodle_course_mappings', {
     academic_year: year.data.id,

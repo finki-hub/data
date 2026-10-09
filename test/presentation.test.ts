@@ -501,7 +501,7 @@ describe('field presentation', () => {
     expect(assignments?.fields).toEqual(['role', 'staff']);
     expect(assignments?.sort).toBe('sort');
     expect(programs?.fields).toEqual(['code', 'name', 'published']);
-    expect(programs?.sort).toBe('sort');
+    expect(programs?.sort).toBeUndefined();
     expect(history?.fields).toEqual([
       'entry',
       'entry.counted_for.course',
@@ -640,7 +640,7 @@ describe('the Needs review bookmarks', () => {
       collection,
     }));
 
-    expect(scoped.length).toBeGreaterThan(1);
+    expect(scoped.length).toBeGreaterThan(0);
     expect(bookmarks).toEqual(expect.arrayContaining(scoped));
     expect(
       reviewPresets().filter(({ filter }) =>

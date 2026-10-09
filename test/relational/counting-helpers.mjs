@@ -41,11 +41,11 @@ export const seedUsers = [
   ['u8', 'Counting Delta-2082/2083/Z'],
 ];
 
-// key, label, sort
+// key, label
 export const seedYears = [
-  ['y1', '2081/2082', 81],
-  ['y2', '2082/2083', 82],
-  ['y3', '2083/2084', 83],
+  ['y1', '2081/2082'],
+  ['y2', '2082/2083'],
+  ['y3', '2083/2084'],
 ];
 
 // course, pattern, year pattern or only-in-year year

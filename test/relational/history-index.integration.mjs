@@ -157,7 +157,7 @@ const seedsHistories = async (target, state) => {
   ]);
   const year = await create(target, state, [
     'academic_years',
-    { label: '2031/2032', sort: 1 },
+    { label: '2031/2032' },
   ]);
   Object.assign(state, { course, users, year });
   const report = await status(target);

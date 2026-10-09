@@ -189,15 +189,11 @@ const installsStudioMetadata = async (target) => {
 // assignment read back through the course.
 const editsCourseThroughRelations = async (target, state) => {
   const generations = {};
-  for (const [code, sort] of [
-    ['2018', 1],
-    ['2023', 2],
-  ]) {
+  for (const code of ['2018', '2023']) {
     const row = await createItem(target, 'curriculum_generations', {
       code,
       has_curriculum: true,
       label: `Curriculum ${code}`,
-      sort,
     });
     generations[code] = row.data.id;
   }
@@ -244,7 +240,6 @@ const editsCourseThroughRelations = async (target, state) => {
     credits: 6,
     entry: entry2018.data.id,
     generation: generations['2018'],
-    sort: 1,
   });
   // An assignment needs its course, role and staff member only.
   const assignment = await createItem(target, 'teaching_assignments', {

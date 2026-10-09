@@ -8,11 +8,7 @@ import { exportDefinitions } from '../directus/extensions/directus-extension-dat
 import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { storeReader } from '../src/projection/memory-reader.js';
-import {
-  edit,
-  generationIdOf,
-  importedStore,
-} from './relational-export-helpers.js';
+import { edit, importedStore } from './relational-export-helpers.js';
 
 // The Needs review views against the counts they explain: over synthetic
 // stores, a view lists exactly the records its entry counts (for a
@@ -50,45 +46,10 @@ const append =
   (rows: readonly FakeItem[]) =>
   (existing: FakeItem[]): FakeItem[] => [...existing, ...rows];
 
-// Every counted record kind at least once: a published year, generation
-// and program without a sort, and a council member and an equivalency
-// with an empty link.
+// Every counted record kind at least once: a council member and an
+// equivalency with an empty link.
 const everyIssue = async (): Promise<FakeStore> => {
   const store = await importedStore();
-  const legacy = generationIdOf(store, '2018');
-  edit(
-    store,
-    'academic_years',
-    append([{ id: 99, label: '2090/2091', published: true, sort: null }]),
-  );
-  edit(
-    store,
-    'curriculum_generations',
-    append([
-      {
-        code: '2088',
-        has_curriculum: true,
-        id: 9,
-        label: 'Curriculum 2088',
-        published: true,
-        sort: null,
-      },
-    ]),
-  );
-  edit(
-    store,
-    'study_programs',
-    append([
-      {
-        code: 'zz',
-        generation: legacy,
-        id: 99,
-        name: 'Synthetic Program',
-        published: true,
-        sort: null,
-      },
-    ]),
-  );
   edit(
     store,
     'student_council',

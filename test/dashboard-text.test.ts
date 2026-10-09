@@ -214,11 +214,8 @@ describe('the readiness tooltips and the Run panel option', () => {
     expect(described.get('history_index_failed')).toBe(
       'Moodle history index failed: derived rows behind the source revision',
     );
-    expect(described.get('academic_year_unsorted')).toBe(
-      'Published academic year without a sort; keys unplaced in courses.json',
-    );
-    expect(described.get('study_program_sort_shared')).toBe(
-      'Published study programs sharing a sort within a generation; key order undefined in courses.json',
+    expect(described.get('enrollment_count_missing')).toBe(
+      'Course without a count row for a published academic year',
     );
     expect(
       readinessRegistry.filter(({ description }) =>

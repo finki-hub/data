@@ -494,21 +494,21 @@ describe('values the relational columns cannot hold', () => {
 });
 
 describe('study programs of the curriculum sheets', () => {
-  test('are read from the first line of the program headers, named by it and sorted in column order', async () => {
+  test('are read from the first line of the program headers, named by it, in column order', async () => {
     const content = await readBack(lifecycleDataset());
 
     expect(
       content.studyPrograms
         .filter(({ generation }) => generation === '2018')
-        .map(({ code, name, sort }) => [sort, code, name]),
+        .map(({ code, name }) => [code, name]),
     ).toEqual([
-      [1, 'kn', 'КН'],
-      [2, 'siis', 'СИИС'],
-      [3, 'pit', 'ПИТ'],
-      [4, 'imb', 'ИМБ'],
-      [5, 'ki', 'КИ'],
-      [6, 'ke', 'КЕ'],
-      [7, 'seis', 'SEIS'],
+      ['kn', 'КН'],
+      ['siis', 'СИИС'],
+      ['pit', 'ПИТ'],
+      ['imb', 'ИМБ'],
+      ['ki', 'КИ'],
+      ['ke', 'КЕ'],
+      ['seis', 'SEIS'],
     ]);
     expect(content.studyPrograms).toHaveLength(15);
   });

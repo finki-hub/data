@@ -231,7 +231,6 @@ const promotesFirstSnapshot = async (target, state) => {
   });
   const year = await createItem(target, 'academic_years', {
     label: '2033/2034',
-    sort: 1,
   });
   const [entry] = await get(
     target,

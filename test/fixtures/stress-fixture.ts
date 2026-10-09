@@ -39,7 +39,6 @@ type GenerationSeed = {
   readonly has_curriculum: boolean;
   readonly label: string;
   readonly published: boolean;
-  readonly sort: number;
 };
 
 type Declarations = {
@@ -53,12 +52,11 @@ type Declarations = {
 export const declarations: Declarations = {
   definitions: exportDefinitions,
   generations: workbookGenerations.map(
-    ({ code, has_curriculum, label, published, sort }) => ({
+    ({ code, has_curriculum, label, published }) => ({
       code,
       has_curriculum,
       label,
       published,
-      sort,
     }),
   ),
   programs: syntheticPrograms,
@@ -69,7 +67,6 @@ export const declarations: Declarations = {
 type YearRow = {
   readonly label: string;
   readonly published: boolean;
-  readonly sort: number;
 };
 
 const yearPattern = /^(?<start>\d{4})\/(?<end>\d{4})$/u;
@@ -84,8 +81,8 @@ const yearParts = (label: string): readonly [number, number] => {
   return [start, end];
 };
 
-// The model's years, published, newest with the highest sort, and the
-// year after the newest one, unpublished, sorted after them all.
+// The model's years, published, and the year after the newest one,
+// unpublished.
 export const yearRows = (years: readonly string[]): readonly YearRow[] => {
   if (years.length === 0) {
     throw new Error('The model declares no academic year');
@@ -96,16 +93,8 @@ export const yearRows = (years: readonly string[]): readonly YearRow[] => {
     if (parts[0] > start) [start, end] = parts;
   }
   return [
-    ...years.map((label, index) => ({
-      label,
-      published: true,
-      sort: years.length - index,
-    })),
-    {
-      label: `${start + 1}/${end + 1}`,
-      published: false,
-      sort: years.length + 1,
-    },
+    ...years.map((label) => ({ label, published: true })),
+    { label: `${start + 1}/${end + 1}`, published: false },
   ];
 };
 
@@ -129,7 +118,6 @@ type CreatedGeneration = {
 type CreatedProgram = {
   readonly generation: number;
   readonly id: number;
-  readonly sort: number;
 };
 
 type PlannedEntry = {
@@ -165,7 +153,7 @@ export const curriculumPlan = (
         if ((index + position) % 5 === 4) return [];
         const own = programs
           .filter((program) => program.generation === generation.id)
-          .toSorted((left, right) => left.sort - right.sort);
+          .toSorted((left, right) => left.id - right.id);
         return [
           {
             course: course.id,
@@ -182,7 +170,6 @@ export const curriculumPlan = (
               course: course.id,
               credits: index % 7 === 0 ? null : 6,
               generation: generation.id,
-              sort: position + 1,
             },
             states: own.flatMap((program, offset) => {
               const state = states[(index + offset) % states.length] ?? null;

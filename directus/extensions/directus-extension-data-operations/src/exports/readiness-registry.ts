@@ -11,7 +11,6 @@ import { domainLabel } from '../coordination/domains.js';
 import { professorCheck } from './assignment-checks.js';
 import { unlinkedMember } from './curriculum-checks.js';
 import { enrollmentCheck } from './enrollment-checks.js';
-import { keyOrderEntries } from './key-order.js';
 import { notCurrentCalculations } from './readiness-facts.js';
 import {
   councilWithoutStudent,
@@ -24,11 +23,11 @@ import {
 // aggregate that counts it). `ready` is true exactly when every blocker
 // counts zero; blockers hold back the files they gate, warnings nothing.
 // An entry with a `review` gets its Needs review bookmark from setup and
-// the dashboard links it there (review-views.ts, key-order.ts); an entry
-// whose records no plain filter can list (a missing row, a duplicate)
-// links its page. A description is the dashboard tooltip of the code: a
-// short fact about the records it counts, without a trailing period; README
-// ("Readiness and Needs review views") says what to do about each.
+// the dashboard links it there (review-views.ts); an entry whose records
+// no plain filter can list (a missing row, a duplicate) links its page.
+// A description is the dashboard tooltip of the code: a short fact about
+// the records it counts, without a trailing period; README ("Readiness
+// and Needs review views") says what to do about each.
 
 const status: ReadinessSource = { kind: 'status' };
 const snapshot: ReadinessSource = { kind: 'snapshot' };
@@ -101,10 +100,6 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     page: 'data_operations',
     source: snapshot,
   }),
-  // A published year, generation or program without its position, or
-  // sharing one with a sibling (academic_year_unsorted,
-  // academic_year_sort_shared and the like), from the key sources.
-  ...keyOrderEntries,
   blocker({
     code: 'enrollment_count_missing',
     description: 'Course without a count row for a published academic year',

@@ -68,20 +68,19 @@ export const withoutNewGeneration = (row) =>
     Object.entries(row).filter(([key]) => !key.startsWith(`${newGeneration}-`)),
   );
 
-// The new generation and two programs, the second sorting first; an entry
-// with a state in each, and a link of the course: nothing published.
+// The new generation and two programs, created in reverse code order; an
+// entry with a state in each, and a link of the course: nothing published.
 export const addGeneration = async (target, course) => {
   const [generation] = await created(target, '/items/curriculum_generations', [
     {
       code: newGeneration,
       has_curriculum: true,
       label: `Curriculum ${newGeneration}`,
-      sort: 4,
     },
   ]);
-  const programs = await created(target, '/items/study_programs', [
-    { code: 'ab', generation: generation.id, name: 'Synthetic AB', sort: 2 },
-    { code: 'cd', generation: generation.id, name: 'Synthetic CD', sort: 1 },
+  const [cd, ab] = await created(target, '/items/study_programs', [
+    { code: 'cd', generation: generation.id, name: 'Synthetic CD' },
+    { code: 'ab', generation: generation.id, name: 'Synthetic AB' },
   ]);
   const [entry] = await created(target, '/items/curriculum_entries', [
     {
@@ -96,8 +95,8 @@ export const addGeneration = async (target, course) => {
     target,
     '/items/curriculum_entry_program_states',
     [
-      { entry: entry.id, program: programs[0].id, state: 'A' },
-      { entry: entry.id, program: programs[1].id, state: 'B' },
+      { entry: entry.id, program: ab.id, state: 'A' },
+      { entry: entry.id, program: cd.id, state: 'B' },
     ],
   );
   const [link] = await created(target, '/items/course_curricula', [
@@ -107,12 +106,11 @@ export const addGeneration = async (target, course) => {
       credits: 6,
       entry: entry.id,
       generation: generation.id,
-      sort: 3,
     },
   ]);
   return {
-    ab: programs[0].id,
-    cd: programs[1].id,
+    ab: ab.id,
+    cd: cd.id,
     entry: entry.id,
     generation: generation.id,
     link: link.id,

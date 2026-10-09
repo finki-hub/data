@@ -59,7 +59,7 @@ const sorted = (values) => values.toSorted((a, b) => collator.compare(a, b));
 // class without a representative fails the scenario, so a new kind of
 // source names its payload here.
 const payloads = {
-  academic_years: { label: '2091/2092', sort: 1 },
+  academic_years: { label: '2091/2092' },
   moodle_course_entries: { label: 'Synthetic Roles Entry' },
   moodle_users: { Name: 'Synthetic Roles User' },
   rooms: {

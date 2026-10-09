@@ -18,7 +18,6 @@ type GenerationSpec = {
   readonly generation: '2018' | '2023';
   readonly link: (candidate: CourseCandidate) => LinkCandidate;
   readonly sheet: EntrySource;
-  readonly sort: number;
   readonly values: (row: CourseRow) => PlannedRecord;
 };
 
@@ -27,7 +26,6 @@ const generationSpecs: readonly GenerationSpec[] = [
     generation: '2023',
     link: (candidate) => candidate.current,
     sheet: 'curriculum_2023',
-    sort: 1,
     values: (row) => ({
       available: row.available_2023 ?? false,
       credits: row.credits_2023,
@@ -37,7 +35,6 @@ const generationSpecs: readonly GenerationSpec[] = [
     generation: '2018',
     link: (candidate) => candidate.legacy.entry,
     sheet: 'curriculum_2018',
-    sort: 2,
     values: (row) => ({
       available: row.available_2018 ?? false,
       credits: row.credits_2018,
@@ -73,7 +70,6 @@ export const planCourseCurricula = (
                 course: ref('courses', candidate.id),
                 entry: ref('curriculum_entries', entryKey(spec.sheet, entry)),
                 generation: ref('curriculum_generations', spec.generation),
-                sort: spec.sort,
               },
               { id: candidate.id, source: 'courses' },
             ),
