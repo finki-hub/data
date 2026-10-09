@@ -233,7 +233,7 @@ run the one-time import (below) in place of step 4.
    | `curriculum_code_without_level` | Correct the code to start with `F`, the generation's two digits, `L` and the level, such as `F18L3W055`, or clear it. |
    | `duplicate_role_row` | Delete the repeated rows. |
    | `inactive_course_assistants` | Clear the course's `Асистенти` cell, or write staff names in its professors cell to keep the course active. |
-   | `invalid_regex` | Correct the pattern. For the default pattern, add a valid pattern for each year without one, or rename the course. |
+   | `invalid_regex` | Correct the pattern; a typed pattern must also compile without its line breaks. For the default pattern, add a valid pattern for each year without one, or rename the course. |
    | `invalid_source_row` | Fill in the missing cell, or delete the row. |
    | `missing_override_target` | Correct the 2018-name to the name of a 2018 subject, or clear it. |
    | `unlinked_generation_values` | Fill in that generation's name, or clear the credits. |
@@ -264,9 +264,10 @@ Directus untouched:
 - Everything the import could not write as the workbook states it stops
   with exit code 3, all of it reported in one run and never by a staff or
   student value: each value the column it is written to cannot hold (a
-  string over 255 characters, an integer out of range, an empty required
-  value such as a staff member's title, position or email or a room's
-  type), named by its sheet, row and column and never quoted, and each
+  string over 255 characters, a pattern mapping's pattern over 2048 bytes,
+  an integer out of range, an empty required value such as a staff
+  member's title, position or email or a room's type), named by its
+  sheet, row and column and never quoted, and each
   case below, named by its code, sheet and rows. The cases are a
   relationship with more than one candidate (a course name two courses
   carry, a curriculum name matching curriculum rows of different subjects,
@@ -323,12 +324,20 @@ Directus untouched:
     and year take the default `<name>-<year>` pattern
     (`formula_pattern_cell`; the column is the year);
   - a staff name listed again in one teaching cell is linked once
-    (`repeated_staff_name`; the place names the cell and the line).
+    (`repeated_staff_name`; the place names the cell and the line);
+  - a pasted line break in a `Слушатели` pattern cell is removed
+    (`pattern_line_break`; the column is the year);
+  - the converted pattern mappings (below) count more lines than the
+    course's own name in the newest workbook year, for a course without a
+    pattern cell in that year (`newest_year_widened`; the place is that
+    year's cell of the course).
 
   ```json
   "fixes": {
     "duplicate_assignment": ["Наставен Кадар row 3 (used: row 2)"],
     "formula_pattern_cell": ["Слушатели row 2, column \"2024/2025\""],
+    "newest_year_widened": ["Слушатели row 69, column \"2026/2027\""],
+    "pattern_line_break": ["Слушатели row 18, column \"2024/2025\""],
     "repeated_staff_name": ["Наставен Кадар row 22, column \"Професори\", line 3"],
     "unlinked_availability": ["Предмети (Export) row 4, column \"2018-available\""]
   }
@@ -353,7 +362,7 @@ rule fix is a warning whose places `fixes` lists):
 | `curriculum_code_without_level` | refuses | A curriculum row, linked or not, has a non-empty code that does not start with `F`, two digits, `L` and a digit, so it gives no level (the database refuses such a code as well); the line places it by sheet, row and column `Код`. |
 | `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
 | `inactive_course_assistants` | refuses | A professors cell of `(неактивиран предмет)` with an assistants cell that is neither empty nor the same text. |
-| `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, or the `<name>-<year>` default) is no Unicode regular expression. |
+| `invalid_regex` | refuses | An enrollment pattern of a course (from `Слушатели`, also without its line breaks, or the `<name>-<year>` default) is no Unicode regular expression. |
 | `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
 | `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
 | `unlinked_generation_values` | refuses | A course has credits of a generation but no name of that generation (an availability alone is a rule fix or no case). |
@@ -361,8 +370,10 @@ rule fix is a warning whose places `fixes` lists):
 | `unmatched_curriculum_2023_label` | refuses | A course's 2023 name matches no 2023 curriculum row. |
 | `unmatched_staff_name` | refuses | A line of a teaching cell matches no `Кадар (Export)` name exactly (no trimming); the line places the cell and the lines. |
 | `duplicate_pattern` | skipped | An earlier pattern of a course and year; the last one applies. |
+| `merged_pattern` | skipped | A `Слушатели` pattern cell converted into an all-years pattern mapping of its course. |
 | `orphan_assignment` | skipped | A `Наставен Кадар` row naming no course. |
 | `orphan_pattern` | skipped | A `Слушатели` pattern row naming no course. |
+| `redundant_pattern` | skipped | A `Слушатели` pattern cell that matches exactly the history lines its course's own name counts in its year. |
 | `superseded_assignment` | skipped | A `Наставен Кадар` row of a course whose `Предмети (Export)` professors cell is typed; it is not read. |
 | `unknown_academic_year` | skipped | A pattern of a year the `Слушатели` sheet does not head. |
 | `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation that carry different codes, or one without a code; the member keeps the label without an entry. |
@@ -374,7 +385,9 @@ rule fix is a warning whose places `fixes` lists):
 | `equivalency_label_after_precedent` | warning | A course has no 2018 override, and its first equivalency row, which decides, has no 2018 label while a later one has, so the course gets no 2018 link. |
 | `formula_pattern_cell` | warning | A `Слушатели` pattern cell holds a formula; it is not read, and that course and year take the default pattern (rule fix). |
 | `label_metacharacters` | warning | A course name holds a regular-expression or `LIKE` metacharacter, so its default `<name>-<year>` pattern matches differently than it reads. |
+| `newest_year_widened` | warning | The converted pattern mappings count more history lines in the newest workbook year of a course without a pattern cell in that year (rule fix). |
 | `orphan_equivalency` | warning | An equivalency row whose 2023 label names no course; it is imported without a course. |
+| `pattern_line_break` | warning | A `Слушатели` pattern cell holds a pasted line break; it is removed (rule fix). |
 | `repeated_staff_name` | warning | A staff name listed again in one teaching cell; it is linked once (rule fix). |
 | `unlinked_availability` | warning | A course has an availability of TRUE of a generation but no name of that generation; it links nothing and publishes FALSE (rule fix). |
 | `unmatched_council_index` | warning | A council index no student carries; the member is imported, labelled by the index. |
@@ -396,8 +409,10 @@ its coordination status row, is accepted. On an accepted project it:
    curriculum generations and study programs; the staff, rooms, students,
    Discord channels, dean's office and Moodle users; the courses with
    their status; the curriculum entries with their program states; the
-   course links; the enrollment rules; the staff links; the equivalencies
-   with their members; the council.
+   course links; the enrollment rules; the pattern mappings; the staff
+   links; the equivalencies with their members; the council. Every course
+   is posted with an empty list of pattern mappings, so Directus adds no
+   default mapping: the import writes each course's mappings itself.
 
 The import reads the layout of the 2026-10-08 export, and an older export
 stops before Directus is contacted (exit code 1, `Import failed: Слушатели
@@ -425,6 +440,43 @@ come from the curriculum sheets: each program column is headed by its
 program code on the first line (a second line, such as the duration, and a
 link are ignored); the generations with a curriculum sheet and their
 programs are published, the label-only 2013 generation is not.
+
+From the **Слушатели** sheet and the Moodle histories of the **Courses**
+sheet it plans the **Pattern mappings** (see
+[Editable, derived and bookkeeping collections](#editable-derived-and-bookkeeping-collections)):
+
+1. Every course gets its own mapping: its name with every
+   regular-expression metacharacter escaped, then `-`, with the default
+   year pattern `(?<start>\d{4})/(?<end>\d{4})`.
+2. Every pattern cell, its line breaks removed, starts as a mapping only in
+   its year. A cell that matches exactly the history lines the course's own
+   mapping counts in that year, or that matches none where the own mapping
+   counts none, is skipped (`redundant_pattern`).
+3. The other cells become all-years mappings where every year keeps its
+   lines (`merged_pattern`). Cells of one course whose text differs only in
+   the year, such as `Мрежна безбедност-2024/2025` and
+   `Мрежна безбедност-2023/2024`, become one alternative: the text before
+   the year (`Мрежна безбедност-`), or else the text with the year as a
+   digit class (`Курс-\d{4}/\d{4}/Z`). Its year pattern is the form in
+   which its history lines write the year, such as
+   `(?<start>\d{4})-(?<end>\d{4})` for `Компјутерски компоненти 2019-2020`.
+   A course has one all-years mapping per year pattern, its alternatives
+   joined with `|`, its own name first; an alternative another one covers
+   is left out. A conversion that changes another year's lines, or that
+   leaves the course with as many mappings, is not made, and the cell stays
+   a mapping only in its year. Cells left over with different texts that
+   need the same new year pattern are tried together.
+4. The newest workbook year of a course without a pattern cell in it is not
+   compared, because the spreadsheet had no cell for it yet: a conversion
+   may count more lines there (`newest_year_widened`).
+5. Before anything is written, the mappings must count exactly the lines
+   the sheet counts for every other course and year (a typed cell, else
+   the course's own name), and at least those in the newest year.
+   Otherwise the import stops with exit code 1:
+
+   ```text
+   Import failed: pattern conversion "<course>" <year>: line set mismatch
+   ```
 
 It runs no Flow and never publishes.
 
@@ -603,7 +655,7 @@ relational rows straight from them:
 | `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included; `Ниво` is not read, because the level is the digit after `L` in the code |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row; one label column per generation, headed `Предмет (<generation code>)`. The column of a label-only generation (2013) may be missing and then reads as empty; a missing column of a generation with a curriculum, a header that names no known generation, or a filled cell under an empty header stops the import (exit code 1) |
 | `Наставен Кадар` | the course's **Status** and its `teaching_assignments` staff links: one per line naming a `Кадар (Export)` row exactly, professors then assistants in cell order (`sort`); a professors cell of exactly `Сите професори` gives All professors, of exactly `(неактивиран предмет)` Inactive (its assistants cell empty or the same text) |
-| `Слушатели` | `academic_years` from the labels heading its year column groups, and one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)) |
+| `Слушатели` | `academic_years` from the labels heading its year column groups; one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)); and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import)) |
 | `Дискорд` | `discord_channels`, one row per channel pair |
 | `ФСС` | `student_council`, linked to the student of its index |
 | `Деканат` | `deans_office` |
@@ -649,10 +701,10 @@ database guards the table:
 - **Editable sources** (for example `courses`, `curriculum_entries`,
   `course_curricula`, `teaching_assignments`, `staff`, `rooms`,
   `students`, `student_council`, `course_equivalencies` and their members,
-  `moodle_course_entries`, `moodle_course_mappings`,
-  `course_enrollment_rules`): edited in Studio. Every statement on one marks
-  the calculations that read it, and publication, pending inside its own
-  transaction.
+  `moodle_course_entries`, `moodle_pattern_mappings`,
+  `moodle_course_mappings`, `course_enrollment_rules`): edited in Studio.
+  Every statement on one marks the calculations that read it, and
+  publication, pending inside its own transaction.
 - **Key sources** (`academic_years`, `curriculum_generations`,
   `study_programs`): editable sources by their role, like the collections
   above, whose `published` flag, key text, `sort` and parent decide the
@@ -681,6 +733,42 @@ A course holds only what `courses.json` publishes from it directly (name,
 tags, status); its curriculum lives in its links, its staff in its staff
 links, and a council member is named by the linked student (its index
 labels an unlinked one).
+
+A **Pattern mapping** counts the Moodle history lines its **Pattern** (a
+Unicode regular expression, tested against each line on its own) matches
+for its course. It has exactly one of:
+
+- a **Year pattern**, for all years: run on the whole line, its group
+  `start` or `end` captures the year the academic year starts or ends, in 2
+  or 4 digits (2 digits mean 20xx), and the line counts in
+  `<start>/<start+1>`. A new mapping's Year pattern starts as
+  `(?<start>\d{4})/(?<end>\d{4})`, which reads lines such as
+  `Математика 1-2025/2026/Z`; the default only prefills the form.
+- **Only in year**: the pattern counts its lines in that year only, and
+  replaces the course's all-years mappings in that year. Choosing it hides
+  Year pattern and saves it empty.
+
+Directus refuses a pattern or year pattern that is no Unicode regular
+expression, and a year pattern without a group named `start` or `end`
+(400 `INVALID_PAYLOAD`, such as `Invalid pattern mapping: year_pattern: no
+group named start or end`). The database refuses an empty or multi-line
+pattern or year pattern, a pattern over 2048 bytes, a year pattern over 512
+bytes, both or neither of Year pattern and Only in year, and a second
+mapping of a course with the same pattern, year pattern and year. Deleting
+an academic year deletes the mappings only in that year, and removing one
+from the year's Pattern mappings list deletes it. The enrollment counts
+still come from the rules
+([legacy rules](#enrollment-counts-from-legacy-rules)); `npm run
+compare:live` counts by the pattern mappings.
+
+A course created in Studio, over the API or by a Flow that emits events
+gets its default mapping, its escaped name and `-` with the default year
+pattern, as a row of its own in the same transaction; a mapping added in
+the same form is created beside it. A course created with an explicitly
+empty list (`pattern_mappings: []`, as the import posts it) gets none.
+Renaming a course keeps its mappings, because Moodle's older lines keep the
+old name: when Moodle uses the new name, add it as an alternative, such as
+`Old name-|New name-`.
 
 ### Academic years, curriculum generations and study programs
 
@@ -712,11 +800,11 @@ generation first; narrow it to one generation with Studio's native filter on
 ### Forms and relationships
 
 A course is the entry point: its form shows its curriculum links and
-equivalency members, its status and staff links, its **Explicit mappings**
-of Moodle history lines per academic year, and its enrollment rules and
-derived counts. A **History line**'s form shows its exact label and
-**First seen**, its **Explicit mappings**, and the users carrying it (the
-derived index, read-only).
+equivalency members, its status and staff links, its **Pattern mappings**
+and its **Explicit mappings** of Moodle history lines per academic year,
+and its enrollment rules and derived counts. A **History line**'s form
+shows its exact label and **First seen**, its **Explicit mappings**, and
+the users carrying it (the derived index, read-only).
 
 - The curriculum entry picker of a course link and the program picker of an
   entry's program states offer only rows of the chosen generation (the
@@ -2199,9 +2287,12 @@ WORKBOOK_PATH=finki-hub.xlsx npm run compare:live
 1. It reads the workbook and runs the import's own check. A workbook the
    import would refuse stops it as the dry run stops (exit code 3).
 2. It holds the planned rows in memory as a fresh import would write them
-   and runs the export engine over them, as publishing does. Counts are not
-   derived there: every count is 0, so the year keys of `courses.json` are
-   not compared and are listed under `notCompared`.
+   and runs the export engine over them, as publishing does. The counts are
+   derived there from the planned pattern mappings: each history line of
+   the Moodle users is tested on its own, and a course's count in a
+   published year is the number of distinct users holding a line counted
+   for it. The year keys of `courses.json` are compared (`notCompared` is
+   empty).
 3. It fetches `courses.json`, `staff.json` and `rooms.json` from
    `https://assets.finki-hub.com/` into memory, 30 s at most per file.
    `students.json` is never fetched.

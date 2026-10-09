@@ -54,6 +54,17 @@ export const recordId = (
   ids.set(key, id);
 };
 
+// The body of a planned row. A course is posted with an empty list of
+// pattern mappings, so the new-course hook
+// (ext/course-default-mapping.ts) adds no default mapping: the plan writes
+// every course's mappings itself, its default included. Planned records
+// stay scalar.
+export const postedRecord = (
+  collection: string,
+  record: Readonly<Record<string, Scalar>>,
+): Readonly<Record<string, unknown>> =>
+  collection === 'courses' ? { ...record, pattern_mappings: [] } : record;
+
 type WriteOptions = {
   readonly batchSize: number;
   // Hears the rows Directus confirmed, batch by batch.
@@ -76,7 +87,9 @@ export const writePlan = async (
       const answered = await createRows(
         request,
         collection,
-        batch.map(({ record }) => resolved(collection, record, created)),
+        batch.map(({ record }) =>
+          postedRecord(collection, resolved(collection, record, created)),
+        ),
       );
       confirmed(answered.length);
       for (const [index, row] of batch.entries()) {

@@ -119,7 +119,10 @@ const seeds = (context) =>
     const doomed = await createRows(
       target,
       'courses',
-      [1, 2, 3].map((index) => ({ name: `Synthetic Doomed Course ${index}` })),
+      [1, 2, 3].map((index) => ({
+        name: `Synthetic Doomed Course ${index}`,
+        pattern_mappings: [],
+      })),
     );
     await createRows(
       target,

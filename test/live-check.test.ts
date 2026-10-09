@@ -16,7 +16,6 @@ import {
 import { runLiveCheck } from '../src/live-check/run.js';
 import { expectedRows } from './expected-exports.js';
 import {
-  academicYears,
   courseNames,
   type SyntheticDataset,
 } from './fixtures/synthetic-data.js';
@@ -562,11 +561,42 @@ describe('npm run compare:live', () => {
     const report = output.parse(JSON.parse(check.stdout[0] ?? ''));
 
     expect(report.workbook).toBe(workbook);
+    // The year keys are compared: the projection counts through the
+    // planned pattern mappings, line by line. The committed parity counts
+    // come from the rules, which tested whole histories, so two differ:
+    // Theta's typed pattern spans a line break and can no longer match one
+    // line, and Iota's standard mapping escapes the "." of its name, so
+    // "Iota 2X0 Course-2022/2023" no longer counts.
     expect(report['courses.json']).toEqual({
-      differingValues: 0,
+      differingValues: 2,
       duplicateKeys: { live: [], projected: [] },
-      keys: {},
-      notCompared: academicYears.toSorted().toReversed(),
+      keys: {
+        '2021/2022': {
+          differs: [
+            {
+              course: courseNames.theta,
+              live: '2',
+              projected: '0',
+              year: '2021/2022',
+            },
+          ],
+          liveOnly: [],
+          projectedOnly: [],
+        },
+        '2022/2023': {
+          differs: [
+            {
+              course: courseNames.iota,
+              live: '1',
+              projected: '0',
+              year: '2022/2023',
+            },
+          ],
+          liveOnly: [],
+          projectedOnly: [],
+        },
+      },
+      notCompared: [],
       onlyLive: [],
       onlyProjected: [],
       rows: { live: 8, matched: 8, projected: 8 },
@@ -610,8 +640,9 @@ describe('npm run compare:live', () => {
     const text = check.stdout.join('\n');
     const report = output.parse(JSON.parse(text));
 
+    // The professors text, and the two counts of the test above.
     expect(report['courses.json']).toMatchObject({
-      differingValues: 1,
+      differingValues: 3,
       keys: {
         professors: {
           differs: ['Alpha Course'],

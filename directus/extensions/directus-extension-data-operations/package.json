@@ -20,6 +20,8 @@
       { "type": "operation", "name": "finki-hub-data-coordinate", "source": { "app": "src/app.ts", "api": "src/coordinate.ts" } },
       { "type": "hook", "name": "finki-hub-data-recovery", "source": "src/recovery.ts" },
       { "type": "hook", "name": "finki-hub-write-guard", "source": "src/write-guard.ts" },
+      { "type": "hook", "name": "finki-hub-pattern-guard", "source": "src/pattern-guard.ts" },
+      { "type": "hook", "name": "finki-hub-course-default-mapping", "source": "src/course-default-mapping.ts" },
       { "type": "operation", "name": "finki-hub-snapshot-import", "source": { "app": "src/snapshot-import-app.ts", "api": "src/snapshot-import.ts" } },
       { "type": "operation", "name": "finki-hub-snapshot-promote", "source": { "app": "src/snapshot-promote-app.ts", "api": "src/snapshot-promote.ts" } },
       { "type": "operation", "name": "finki-hub-exports", "source": { "app": "src/exports-app.ts", "api": "src/exports-operation.ts" } },

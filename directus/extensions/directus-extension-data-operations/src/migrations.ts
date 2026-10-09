@@ -17,11 +17,48 @@ const migrationNamePattern = /^[a-z][a-z0-9-]{0,63}$/u;
 export const isMigrationName = (name: string | undefined): name is string =>
   name !== undefined && migrationNamePattern.test(name);
 
+// A CHECK constraint added once, by name.
+const checkConstraint = (table: string, name: string, condition: string) =>
+  `DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '${name}') THEN
+    ALTER TABLE "${table}" ADD CONSTRAINT "${name}" CHECK (${condition});
+  END IF;
+END
+$$`;
+
+// The most UTF-8 bytes a pattern mapping's texts hold; the import refuses
+// a planned text over them before it writes anything (`unstorable`).
+export const patternMappingMaxBytes = {
+  pattern: 2_048,
+  year_pattern: 512,
+} as const;
+
+// A pattern mapping holds a pattern of one line and exactly one of a year
+// pattern (one line) and a year.
+export const patternMappingChecks = [
+  checkConstraint(
+    'moodle_pattern_mappings',
+    'moodle_pattern_mappings_pattern_check',
+    String.raw`"pattern" <> '' AND "pattern" !~ '[\r\n]' AND octet_length("pattern") <= ${String(patternMappingMaxBytes.pattern)}`,
+  ),
+  checkConstraint(
+    'moodle_pattern_mappings',
+    'moodle_pattern_mappings_year_choice_check',
+    '("year_pattern" IS NULL) <> ("only_in_year" IS NULL)',
+  ),
+  checkConstraint(
+    'moodle_pattern_mappings',
+    'moodle_pattern_mappings_year_pattern_check',
+    String.raw`"year_pattern" IS NULL OR ("year_pattern" <> '' AND "year_pattern" !~ '[\r\n]' AND octet_length("year_pattern") <= ${String(patternMappingMaxBytes.year_pattern)})`,
+  ),
+];
+
 // Composite domain keys, join indexes, the curriculum generation and code
 // guards (curriculum-guards.ts), the key guards of published key rows
-// (key-guards.ts) and the write guards of the derived, candidate and
-// staging tables (from the collection-role registry) that the Directus
-// schema API cannot express.
+// (key-guards.ts), the pattern mapping CHECKs and the write guards of the
+// derived, candidate and staging tables (from the collection-role
+// registry) that the Directus schema API cannot express.
 // Every statement is idempotent and is executed on its own inside one
 // transaction; statements carry no bindings.
 export const schemaConstraints: Migration = {
@@ -35,6 +72,8 @@ export const schemaConstraints: Migration = {
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_history_memberships_moodle_user_entry_unique" ON "moodle_history_memberships" ("moodle_user", "entry")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_course_mappings_entry_course_academic_year_unique" ON "moodle_course_mappings" ("entry", "course", "academic_year")',
     'CREATE INDEX IF NOT EXISTS "moodle_course_mappings_course_academic_year_index" ON "moodle_course_mappings" ("course", "academic_year")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_pattern_mappings_course_pattern_unique" ON "moodle_pattern_mappings" ("course", "pattern", "year_pattern", "only_in_year") NULLS NOT DISTINCT',
+    'CREATE INDEX IF NOT EXISTS "moodle_pattern_mappings_course_only_in_year_index" ON "moodle_pattern_mappings" ("course", "only_in_year")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollment_rules_course_academic_year_unique" ON "course_enrollment_rules" ("course", "academic_year")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollments_course_academic_year_unique" ON "course_enrollments" ("course", "academic_year")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "data_operation_results_claim_page_course_year_unique" ON "data_operation_results" ("claim_token", "page_token", "course", "academic_year")',
@@ -45,6 +84,7 @@ BEGIN
   END IF;
 END
 $$`,
+    ...patternMappingChecks,
     ...curriculumGuardStatements(),
     ...keyGuardStatements(),
     ...writeGuardStatements(),

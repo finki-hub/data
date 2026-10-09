@@ -93,14 +93,18 @@ describe('the finding codes', () => {
     expect([...ruleFixCodes]).toEqual([
       'duplicate_assignment',
       'formula_pattern_cell',
+      'newest_year_widened',
+      'pattern_line_break',
       'repeated_staff_name',
       'unlinked_availability',
     ]);
     expect(warningCodes).toEqual(expect.arrayContaining([...ruleFixCodes]));
     expect([...skippedCodes]).toEqual([
       'duplicate_pattern',
+      'merged_pattern',
       'orphan_assignment',
       'orphan_pattern',
+      'redundant_pattern',
       'superseded_assignment',
       'unknown_academic_year',
     ]);
@@ -423,9 +427,12 @@ describe('cases that refuse the import', () => {
     const plan = planOf(uniqueDataset());
 
     expect(plan.blockers).toEqual([]);
+    // Alpha's one typed 2025/2026 cell counts what its standard mapping
+    // counts that year.
     expect(codes(plan.skipped)).toEqual([
       'orphan_assignment',
       'orphan_pattern',
+      'redundant_pattern',
       'superseded_assignment',
       'superseded_assignment',
     ]);

@@ -82,6 +82,7 @@ describe('the order the import writes in', () => {
       'curriculum_entry_program_states',
       'course_curricula',
       'course_enrollment_rules',
+      'moodle_pattern_mappings',
       'teaching_assignments',
       'course_equivalencies',
       'course_equivalency_members',

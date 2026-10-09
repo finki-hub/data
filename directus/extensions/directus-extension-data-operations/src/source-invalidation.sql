@@ -44,6 +44,7 @@ BEGIN
     WHEN 'moodle_users' THEN ARRAY['history_index', 'enrollments', 'publication']
     WHEN 'moodle_course_entries' THEN ARRAY['enrollments', 'publication']
     WHEN 'moodle_course_mappings' THEN ARRAY['enrollments', 'publication']
+    WHEN 'moodle_pattern_mappings' THEN ARRAY['enrollments', 'publication']
     WHEN 'course_enrollment_rules' THEN ARRAY['enrollments', 'publication']
     WHEN 'academic_years' THEN ARRAY['enrollments', 'publication']
     ELSE ARRAY['publication']
@@ -123,6 +124,8 @@ CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE
 CREATE OR REPLACE TRIGGER "finki_hub_entry_label_invalidation" AFTER UPDATE OF "label" ON "moodle_course_entries" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_course_mappings" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
+;
+CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_pattern_mappings" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollment_rules" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;

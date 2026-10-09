@@ -203,6 +203,7 @@ const editsCourseThroughRelations = async (target, state) => {
   }
   const course = await createItem(target, 'courses', {
     name: 'Synthetic Presentation Course',
+    pattern_mappings: [],
   });
   const entry2018 = await createItem(target, 'curriculum_entries', {
     code: 'F18L1W001',

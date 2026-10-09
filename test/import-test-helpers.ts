@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import type { ImportIo, SetupReport } from '../src/import-workbook.js';
 
+import { withDefaultMapping } from '../directus/extensions/directus-extension-data-operations/src/course-default-mapping.js';
+import { patternMappingCreate } from '../directus/extensions/directus-extension-data-operations/src/pattern-guard.js';
 import {
   dataModelCollectionKeys,
   findModelCollection,
@@ -50,6 +52,31 @@ const withColumns = (
   ),
   ...item,
 });
+
+const itemRecord = z.record(z.string(), z.unknown());
+
+// The create filters of the data-operations bundle, as Directus runs them
+// on every posted row before it writes it: the new-course hook (which
+// drops the import's empty list of pattern mappings) and the pattern
+// guard. Nested rows are not modelled: a course that still names pattern
+// mappings fails the fake.
+const filtersOnCreate: Readonly<Record<string, (payload: unknown) => unknown>> =
+  {
+    courses: withDefaultMapping,
+    moodle_pattern_mappings: patternMappingCreate,
+  };
+
+const filtered = (
+  collection: string,
+  item: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> => {
+  const filter = filtersOnCreate[collection];
+  const row = filter === undefined ? item : itemRecord.parse(filter(item));
+  if (Object.hasOwn(row, 'pattern_mappings')) {
+    throw new Error(`fake: nested pattern mappings of a ${collection} row`);
+  }
+  return row;
+};
 
 export type ImportFake = {
   readonly calls: RecordedCall[];
@@ -119,7 +146,7 @@ export const fakeImportDirectus = (
     }
     const filled = itemsBody
       .parse(bodyOf(init))
-      .map((item) => withColumns(collection, item));
+      .map((item) => withColumns(collection, filtered(collection, item)));
     return items.request(pathname, { ...init, body: JSON.stringify(filled) });
   };
   const setup = async (): Promise<SetupReport> => {

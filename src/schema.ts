@@ -127,9 +127,8 @@ export const assertNever = (value: never): never => {
   throw new TypeError(`Unexpected collection source: ${String(value)}`);
 };
 
-// Every collection of the Directus model: the content the workbook import
-// fills and Studio edits maintain, then the relational, Moodle, operations
-// and coordination collections.
+// Every collection of the Directus model: the workbook content, then the
+// relational, Moodle, operations and coordination collections.
 export type ModelCollectionKey =
   | 'academic_years'
   | 'course_curricula'
@@ -149,6 +148,7 @@ export type ModelCollectionKey =
   | 'moodle_course_mappings'
   | 'moodle_history_memberships'
   | 'moodle_import_rows'
+  | 'moodle_pattern_mappings'
   | 'moodle_users'
   | 'rooms'
   | 'staff'
@@ -198,11 +198,9 @@ export type ModelRelationAlias = {
   readonly template: string;
 };
 
-// What a delete of the related row does to this row: delete it with the
-// related row, clear the link, or refuse the delete while the row exists
-// (NO ACTION, PostgreSQL's foreign_key_violation; Directus 12.3.1 does not
-// translate database errors of a delete, so it answers a 500 naming the
-// constraint).
+// What a delete of the related row does to this row: delete it too, clear
+// the link, or refuse the delete (NO ACTION: Directus 12.3.1 answers the
+// foreign_key_violation with a 500 naming the constraint).
 export type OnDelete = 'CASCADE' | 'NO ACTION' | 'SET NULL';
 
 export type ModelRelationField = ModelFieldBase & {
@@ -247,9 +245,11 @@ export type ModelRelation = {
   readonly sortField: null | string;
 };
 
+// `nullsNotDistinct`: two rows with NULL in the same key columns collide.
 export type CompositeKey = {
   readonly collection: ModelCollectionKey;
   readonly columns: readonly string[];
   readonly kind: 'index' | 'unique';
   readonly name: string;
+  readonly nullsNotDistinct?: true;
 };

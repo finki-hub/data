@@ -109,7 +109,7 @@ const seedCatalog = async (target, state) => {
   const courseIds = await createMany(
     target,
     'courses',
-    Object.values(courses).map((name) => ({ name })),
+    Object.values(courses).map((name) => ({ name, pattern_mappings: [] })),
   );
   for (const [index, key] of Object.keys(courses).entries()) {
     state.courses.set(key, courseIds[index]);

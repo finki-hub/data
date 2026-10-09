@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { defaultYearPattern } from '../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { planned, type PlannedCollection, ref } from '../src/import/planned.js';
@@ -7,12 +8,14 @@ import { publicRows } from '../src/live-check/fetch.js';
 import { projectedCounts } from '../src/projection/counts.js';
 import { storeReader } from '../src/projection/memory-reader.js';
 import {
+  type MemoryRow,
   memoryStore,
   type MemoryStore,
+  storedRow,
   withRows,
 } from '../src/projection/memory-store.js';
-import { isYearLabel } from '../src/workbook-enrollment-reader.js';
-import { asData, expectedData, type PublicRow } from './expected-exports.js';
+import { asData, expectedData } from './expected-exports.js';
+import { courseNames } from './fixtures/synthetic-data.js';
 import { planOf } from './import-plan-helpers.js';
 import {
   engineAssets,
@@ -46,20 +49,6 @@ const links: PlannedCollection = {
   ],
 };
 const smallPlan = [generations, courses, links];
-
-const withoutYearKeys = (rows: readonly PublicRow[]) =>
-  rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).filter(([key]) => !isYearLabel(key)),
-    ),
-  );
-
-// Every year value of the rows.
-const yearValues = (rows: readonly PublicRow[]) =>
-  rows
-    .flatMap((row) => Object.entries(row))
-    .filter(([key]) => isYearLabel(key))
-    .map(([, value]) => value);
 
 describe('the memory store of an import plan', () => {
   test('numbers each collection from 1 in plan order', () => {
@@ -129,7 +118,7 @@ describe('the memory store of an import plan', () => {
     );
   });
 
-  test('publishes the parity files apart from the counts, which are 0', async () => {
+  test('publishes the parity files, counting by the planned pattern mappings line by line', async () => {
     const plan = planOf(parityDataset());
     const store = memoryStore(plan.collections);
     const counts = projectedCounts(store);
@@ -140,21 +129,105 @@ describe('the memory store of an import plan', () => {
     const expected = await expectedData('parity');
     const published = (name: 'courses' | 'rooms' | 'staff') =>
       asData(name, publicRows.parse(files[name]));
+    // The committed counts come from the rules, which tested whole
+    // histories: Theta's typed pattern spans a line break, and Iota's
+    // standard mapping escapes the "." of its name, so both count 0.
+    const perLine = new Map<string, Readonly<Record<string, string>>>([
+      [courseNames.iota, { '2022/2023': '0' }],
+      [courseNames.theta, { '2021/2022': '0' }],
+    ]);
 
-    expect(withoutYearKeys(published('courses'))).toEqual(
-      withoutYearKeys(expected.courses),
-    );
-    expect(new Set(yearValues(published('courses')))).toEqual(new Set(['0']));
-    expect(yearValues(published('courses'))).toHaveLength(
-      yearValues(expected.courses).length,
+    expect(published('courses')).toEqual(
+      asData(
+        'courses',
+        expected.courses.map((row) => ({
+          ...row,
+          ...perLine.get(row['name'] ?? ''),
+        })),
+      ),
     );
     expect(published('staff')).toEqual(expected.staff);
     expect(published('rooms')).toEqual(expected.rooms);
   });
 });
 
+// One course, two published years and an unpublished one, three users,
+// and the course's mappings: its standard all-years mapping, and an
+// only-in-year mapping that replaces it in 2024/2025.
+const seamStore = (): MemoryStore => ({
+  items: new Map<string, readonly MemoryRow[]>([
+    [
+      'academic_years',
+      [
+        ['2025/2026', true],
+        ['2024/2025', true],
+        ['2023/2024', false],
+      ].map(([label, published], index) =>
+        storedRow('academic_years', { label, published }, index + 1),
+      ),
+    ],
+    ['courses', [storedRow('courses', { name: 'Seam Course' }, 4)]],
+    [
+      'moodle_pattern_mappings',
+      [
+        storedRow(
+          'moodle_pattern_mappings',
+          {
+            course: 4,
+            only_in_year: null,
+            pattern: 'Seam Course-',
+            year_pattern: defaultYearPattern,
+          },
+          1,
+        ),
+        storedRow(
+          'moodle_pattern_mappings',
+          {
+            course: 4,
+            only_in_year: 2,
+            pattern: 'Seam Lab',
+            year_pattern: null,
+          },
+          2,
+        ),
+      ],
+    ],
+    [
+      'moodle_users',
+      [
+        'Seam Course-2025/2026/Z\nSeam Course-2023/2024/Z',
+        'Seam Course-2025/2026/L\r\nSeam Course-2024/2025/Z',
+        'Seam Lab 2024\nSeam Course-2025/2026/Z',
+      ].map((Courses, index) =>
+        storedRow('moodle_users', { Courses }, index + 1),
+      ),
+    ],
+  ]),
+});
+
 describe('the count seam', () => {
-  test('counts 0 for every course in every published academic year, not derived', () => {
+  test('counts the distinct users of the lines the mappings count, per course and published academic year', () => {
+    const counts = projectedCounts(seamStore());
+
+    expect(counts.derived).toBeTruthy();
+    expect(
+      counts.rows.map(({ academic_year, count, course, id }) => ({
+        academic_year,
+        count,
+        course,
+        id,
+      })),
+    ).toEqual([
+      { academic_year: 1, count: 3, course: 4, id: 1 },
+      { academic_year: 2, count: 1, course: 4, id: 2 },
+    ]);
+    expect(counts.rows[0]).toMatchObject({
+      computed_at: null,
+      computed_revision: null,
+    });
+  });
+
+  test('counts every course in every published academic year of an import plan', () => {
     const plan = planOf(parityDataset());
     const store = memoryStore(plan.collections);
     const years = rowsIn(store, 'academic_years');
@@ -167,12 +240,9 @@ describe('the count seam', () => {
         ),
       ),
     );
-    const courseRows = rowsIn(store, 'courses');
 
-    expect(counts.derived).toBe(false);
-    expect(counts.rows).toHaveLength(courseRows.length * (years.length - 1));
-    expect(new Set(counts.rows.map(({ count }) => count))).toEqual(
-      new Set([0]),
+    expect(counts.rows).toHaveLength(
+      rowsIn(store, 'courses').length * (years.length - 1),
     );
     expect(
       new Set(counts.rows.map(({ academic_year }) => academic_year)),
@@ -180,9 +250,5 @@ describe('the count seam', () => {
     expect(new Set(counts.rows.map(({ id }) => id)).size).toBe(
       counts.rows.length,
     );
-    expect(counts.rows[0]).toMatchObject({
-      computed_at: null,
-      computed_revision: null,
-    });
   });
 });

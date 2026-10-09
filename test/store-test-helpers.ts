@@ -82,37 +82,49 @@ const asItem = (parsed: unknown): FakeItem => {
   return { ...parsed, id: 0 };
 };
 
+type UniqueKey = {
+  readonly columns: readonly string[];
+  readonly nullsNotDistinct: boolean;
+};
+
 // The domain keys the database enforces: the unique scalar columns the
 // model declares and the composite unique keys the constraints migration
 // creates. A create landing on a taken key fails the way the database
-// would, RECORD_NOT_UNIQUE.
-const uniqueKeysOf = (collection: string): ReadonlyArray<readonly string[]> => [
+// would, RECORD_NOT_UNIQUE. A key with a NULL column never collides,
+// unless the key is NULLS NOT DISTINCT; a column left out is NULL.
+const uniqueKeysOf = (collection: string): readonly UniqueKey[] => [
   ...(findModelCollection(collection)?.fields ?? []).flatMap((field) =>
     field.kind !== 'm2o' && field.kind !== 'enum' && field.unique === true
-      ? [[field.field]]
+      ? [{ columns: [field.field], nullsNotDistinct: false }]
       : [],
   ),
   ...compositeKeys
     .filter((key) => key.collection === collection && key.kind === 'unique')
-    .map(({ columns }) => columns),
+    .map(({ columns, nullsNotDistinct }) => ({
+      columns,
+      nullsNotDistinct: nullsNotDistinct === true,
+    })),
 ];
+
+const columnValue = (row: FakeItem, column: string): unknown =>
+  row[column] ?? null;
 
 const assertUnique = (
   collection: string,
   rows: readonly FakeItem[],
   candidate: FakeItem,
 ): void => {
-  for (const columns of uniqueKeysOf(collection)) {
+  for (const { columns, nullsNotDistinct } of uniqueKeysOf(collection)) {
     if (
-      columns.some(
-        (column) =>
-          candidate[column] === null || candidate[column] === undefined,
-      )
+      !nullsNotDistinct &&
+      columns.some((column) => columnValue(candidate, column) === null)
     ) {
       continue;
     }
     const taken = rows.some((row) =>
-      columns.every((column) => row[column] === candidate[column]),
+      columns.every(
+        (column) => columnValue(row, column) === columnValue(candidate, column),
+      ),
     );
     if (taken) {
       throw failure(

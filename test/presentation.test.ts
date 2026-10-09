@@ -298,62 +298,6 @@ describe('field groups', () => {
   });
 });
 
-describe('the history line form', () => {
-  test('shows the label and First seen, then the explicit mappings, then the users read-only, without a group note', () => {
-    expect(
-      fieldGroups
-        .filter(({ collection }) => collection === 'moodle_course_entries')
-        .map(({ field, members, note, readOnly }) => ({
-          field,
-          members,
-          note,
-          readOnly,
-        })),
-    ).toEqual([
-      {
-        field: 'line',
-        members: ['label', 'first_seen'],
-        note: undefined,
-        readOnly: undefined,
-      },
-      {
-        field: 'mapping',
-        members: ['mappings'],
-        note: undefined,
-        readOnly: undefined,
-      },
-      {
-        field: 'usage',
-        members: ['memberships'],
-        note: undefined,
-        readOnly: true,
-      },
-    ]);
-  });
-
-  test('keeps the model notes of First seen and the explicit mappings, read-only First seen', () => {
-    expect(
-      effectiveFieldMeta('moodle_course_entries', 'first_seen'),
-    ).toMatchObject({
-      group: 'line',
-      interface: 'datetime',
-      note: 'When the history index first created this line.',
-      readonly: true,
-    });
-    expect(
-      effectiveFieldMeta('moodle_course_entries', 'mappings'),
-    ).toMatchObject({
-      group: 'mapping',
-      note: 'An explicit mapping replaces every pattern for this line.',
-    });
-    expect(
-      fieldPresentations
-        .filter(({ collection }) => collection === 'moodle_course_entries')
-        .map(({ field }) => field),
-    ).toEqual(['memberships']);
-  });
-});
-
 describe('curriculum generations in the forms', () => {
   test('keeps the curriculum of a course in its links only', () => {
     expect(fieldNames('courses')).toEqual(
@@ -462,13 +406,23 @@ describe('field presentation', () => {
       'curriculum_entries.program_states',
       'course_curricula.entry',
       'course_equivalency_members.entry',
+      'moodle_pattern_mappings.year_pattern',
+      'moodle_pattern_mappings.year_pattern',
     ]);
+    // The other conditions show or require a pattern mapping's year
+    // pattern (test/pattern-mapping-model.test.ts).
     expect(
-      declaredConditions.filter(
-        ({ condition }) =>
-          JSON.stringify(condition) !== JSON.stringify(lockedWithoutGeneration),
-      ),
-    ).toEqual([]);
+      declaredConditions
+        .filter(
+          ({ condition }) =>
+            JSON.stringify(condition) !==
+            JSON.stringify(lockedWithoutGeneration),
+        )
+        .map(({ field }) => field),
+    ).toEqual([
+      'moodle_pattern_mappings.year_pattern',
+      'moodle_pattern_mappings.year_pattern',
+    ]);
   });
 
   test('names a council member by the linked student, beside the index', () => {

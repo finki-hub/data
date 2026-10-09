@@ -27,6 +27,14 @@ const rowOf = (
 ): null | SheetRow =>
   (id === undefined ? undefined : places[collection][id - 1]) ?? null;
 
+// A typed pattern cell: its Слушатели row, its column named by its year.
+const patternCell: Placer = ({ academicYear, collection, ids }, places) => {
+  const row = rowOf(collection, ids[0], places);
+  return row === null || academicYear === undefined
+    ? null
+    : { ...row, text: sheetPlace(row.sheet, row.row, academicYear) };
+};
+
 const placers: Readonly<Record<RuleFixCode, Placer>> = {
   // The later teaching row, and the row used instead.
   duplicate_assignment: (finding, places) => {
@@ -51,6 +59,10 @@ const placers: Readonly<Record<RuleFixCode, Placer>> = {
           sheet: cell.sheet,
           text: sheetPlace(cell.sheet, cell.row, cell.column),
         },
+  // The newest year's cell of the course's Слушатели row.
+  newest_year_widened: patternCell,
+  // The cell whose line breaks were removed.
+  pattern_line_break: patternCell,
   // The teaching cell, and the lines that repeat a name.
   repeated_staff_name: ({ collection, field, ids, lines }, places) => {
     const row = rowOf(collection, ids[0], places);

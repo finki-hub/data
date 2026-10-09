@@ -258,14 +258,20 @@ const seeds = async (target, state) => {
   const indexed = await rebuild(target);
   assert.equal(indexed.status, 200, JSON.stringify(indexed.body));
   for (const course of state.seed.courses) {
-    const id = await create(target, state, ['courses', { name: course.name }]);
+    const id = await create(target, state, [
+      'courses',
+      { name: course.name, pattern_mappings: [] },
+    ]);
     state.courseIds.set(course.key, id);
     state.courseKeys.set(id, course.key);
   }
   for (const key of ['ma', 'mb']) {
     const id = await create(target, state, [
       'courses',
-      { name: `Synthetic Mapped Course ${key.toUpperCase()}` },
+      {
+        name: `Synthetic Mapped Course ${key.toUpperCase()}`,
+        pattern_mappings: [],
+      },
     ]);
     state.courseIds.set(key, id);
     state.courseKeys.set(id, key);
@@ -607,7 +613,7 @@ const refusesInvalidPattern = async (target, state) => {
   Object.assign(state, { completed: before.revisions.completed });
   const course = await create(target, state, [
     'courses',
-    { name: 'C++ Course' },
+    { name: 'C++ Course', pattern_mappings: [] },
   ]);
   const created = await post(
     target,

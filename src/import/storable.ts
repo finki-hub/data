@@ -1,5 +1,6 @@
 import type { ModelCollectionKey, ModelField } from '../schema.js';
 
+import { patternMappingMaxBytes } from '../../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import { findModelCollection } from '../data-model/collections.js';
 import { enumMaxLength } from '../data-model/field-payloads.js';
 import {
@@ -37,14 +38,36 @@ const tooLong = (value: string, limit: number): null | string => {
     : null;
 };
 
+// The text columns a CHECK of the schema-constraints migration limits in
+// bytes (PostgreSQL octet_length, UTF-8).
+const textByteLimits: Partial<
+  Record<ModelCollectionKey, Readonly<Record<string, number>>>
+> = { moodle_pattern_mappings: patternMappingMaxBytes };
+
+const encoder = new TextEncoder();
+
+const tooManyBytes = (value: string, limit: number): null | string => {
+  const length = encoder.encode(value).length;
+  return length > limit
+    ? `${String(length)} bytes, max ${String(limit)}`
+    : null;
+};
+
 // Why the column of the field cannot hold the value, as a fact about the
 // value, or null when it can.
-const unstorable = (field: ModelField, value: PlannedValue): null | string => {
+const unstorable = (
+  field: ModelField,
+  value: PlannedValue,
+  maxBytes: number | undefined,
+): null | string => {
   if (value === null) {
     return field.nullable ? null : 'empty (required)';
   }
   if (isRef(value) || field.kind === 'm2o') {
     return null;
+  }
+  if (typeof value === 'string' && maxBytes !== undefined) {
+    return tooManyBytes(value, maxBytes);
   }
   if (typeof value === 'string' && field.kind === 'string') {
     return tooLong(value, maxStringLength);
@@ -68,7 +91,7 @@ type Problem = { readonly field: string; readonly problem: string };
 // it, with why: a required column the row leaves out (the database would
 // fill it with nothing), or a value its column cannot hold.
 const rowProblems = (
-  collection: string,
+  collection: ModelCollectionKey,
   fields: ReadonlyMap<string, ModelField>,
   row: PlannedRow,
 ): readonly Problem[] => {
@@ -82,12 +105,13 @@ const rowProblems = (
     )
     .map(({ field }) => ({ field, problem: 'missing (required)' }))
     .toArray();
+  const maxBytes = textByteLimits[collection] ?? {};
   const held = Object.entries(row.record).flatMap(([name, value]) => {
     const field = fields.get(name);
     if (field === undefined) {
       throw new TypeError(`plan: ${collection}.${name} not in model`);
     }
-    const problem = unstorable(field, value);
+    const problem = unstorable(field, value, maxBytes[name]);
     return problem === null ? [] : [{ field: name, problem }];
   });
   return [...missing, ...held];

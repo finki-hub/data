@@ -188,7 +188,10 @@ const seeds = async (target, state) => {
   const indexed = await rebuild(target);
   assert.equal(indexed.status, 200, JSON.stringify(indexed.body));
   for (const [key, name] of Object.entries(courseNames)) {
-    const id = await create(target, state, ['courses', { name }]);
+    const id = await create(target, state, [
+      'courses',
+      { name, pattern_mappings: [] },
+    ]);
     state.courseIds.set(key, id);
     state.courseKeys.set(id, key);
   }

@@ -153,7 +153,7 @@ const seedsHistories = async (target, state) => {
   }
   const course = await create(target, state, [
     'courses',
-    { name: 'Synthetic History Course' },
+    { name: 'Synthetic History Course', pattern_mappings: [] },
   ]);
   const year = await create(target, state, [
     'academic_years',

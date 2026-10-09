@@ -277,14 +277,14 @@ const installsFlow = async (target, state) => {
 const recordsSourceStatements = async (target, state) => {
   const courseA = await create(target, state, [
     'courses',
-    { name: 'Synthetic Coordination Course A' },
+    { name: 'Synthetic Coordination Course A', pattern_mappings: [] },
   ]);
   let report = await status(target);
   assert.equal(report.revisions.source, 1);
   assert.deepEqual(report.dirty, ['publication']);
   const courseB = await create(target, state, [
     'courses',
-    { name: 'Synthetic Coordination Course B' },
+    { name: 'Synthetic Coordination Course B', pattern_mappings: [] },
   ]);
   const yearA = await create(target, state, [
     'academic_years',

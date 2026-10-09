@@ -144,7 +144,10 @@ export const installedRelation = (relation: ModelRelation): FakeRelation => ({
   field: relation.field,
   meta: {
     junction_field: relation.junction,
-    one_deselect_action: relation.nullable ? 'nullify' : 'delete',
+    one_deselect_action:
+      relation.nullable && relation.onDelete !== 'CASCADE'
+        ? 'nullify'
+        : 'delete',
     one_field: relation.alias?.field ?? null,
     sort_field: relation.sortField,
   },

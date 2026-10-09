@@ -121,6 +121,11 @@ const collectionRoles = [
     role: 'source',
   },
   {
+    collection: 'moodle_pattern_mappings',
+    invalidates: ['enrollments', 'publication'],
+    role: 'source',
+  },
+  {
     collection: 'course_enrollment_rules',
     invalidates: ['enrollments', 'publication'],
     role: 'source',

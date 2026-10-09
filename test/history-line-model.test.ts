@@ -8,8 +8,11 @@ import {
   toFieldPayload,
 } from '../src/data-model/field-payloads.js';
 import { toCollectionPayload } from '../src/data-model/install.js';
+import { fieldPresentations } from '../src/data-model/presentation/fields.js';
+import { fieldGroups } from '../src/data-model/presentation/groups.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import { findCollection, findField } from './data-model-test-helpers.js';
+import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
 // The history line model in Studio: a line is its exact label and the time
 // the history index first created it, with no review state; its explicit
@@ -155,13 +158,72 @@ const everyAlias = dataModelCollections.flatMap(({ collection }) =>
 );
 
 describe('alias notes', () => {
-  test('are sent exactly where the model declares one: on the explicit mappings of a line only', () => {
+  test("are sent exactly where the model declares one: on a course's pattern mappings and a line's explicit mappings", () => {
     const noted = everyAlias
       .filter(({ alias }) =>
         Object.hasOwn(toAliasPayload(alias, 1).meta, 'note'),
       )
       .map(({ alias, collection }) => `${collection}.${alias.field}`);
 
-    expect(noted).toEqual(['moodle_course_entries.mappings']);
+    expect(noted).toEqual([
+      'courses.pattern_mappings',
+      'moodle_course_entries.mappings',
+    ]);
+  });
+});
+
+describe('the history line form', () => {
+  test('shows the label and First seen, then the explicit mappings, then the users read-only, without a group note', () => {
+    expect(
+      fieldGroups
+        .filter(({ collection }) => collection === 'moodle_course_entries')
+        .map(({ field, members, note, readOnly }) => ({
+          field,
+          members,
+          note,
+          readOnly,
+        })),
+    ).toEqual([
+      {
+        field: 'line',
+        members: ['label', 'first_seen'],
+        note: undefined,
+        readOnly: undefined,
+      },
+      {
+        field: 'mapping',
+        members: ['mappings'],
+        note: undefined,
+        readOnly: undefined,
+      },
+      {
+        field: 'usage',
+        members: ['memberships'],
+        note: undefined,
+        readOnly: true,
+      },
+    ]);
+  });
+
+  test('keeps the model notes of First seen and the explicit mappings, read-only First seen', () => {
+    expect(
+      effectiveFieldMeta('moodle_course_entries', 'first_seen'),
+    ).toMatchObject({
+      group: 'line',
+      interface: 'datetime',
+      note: 'When the history index first created this line.',
+      readonly: true,
+    });
+    expect(
+      effectiveFieldMeta('moodle_course_entries', 'mappings'),
+    ).toMatchObject({
+      group: 'mapping',
+      note: 'An explicit mapping replaces every pattern for this line.',
+    });
+    expect(
+      fieldPresentations
+        .filter(({ collection }) => collection === 'moodle_course_entries')
+        .map(({ field }) => field),
+    ).toEqual(['memberships']);
   });
 });

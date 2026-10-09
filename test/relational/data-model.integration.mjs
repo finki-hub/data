@@ -221,6 +221,7 @@ const guardsCurriculumLinks = async (target, state) => {
   const generations = await createGenerations(target);
   const course = await createItem(target, 'courses', {
     name: 'Synthetic Course',
+    pattern_mappings: [],
   });
   const entry2018 = await createItem(target, 'curriculum_entries', {
     generation: generations['2018'],

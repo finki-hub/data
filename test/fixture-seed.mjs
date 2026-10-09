@@ -201,8 +201,10 @@ export const seedReference = async (
 ) => {
   const years = await seedYears(target, declarations);
   const { generations, programs } = await seedGenerations(target, declarations);
+  // An explicitly empty list: no default pattern mapping is created.
   const courseRows = Array.from({ length: courseCount }, (_, index) => ({
     name: courseName(index),
+    pattern_mappings: [],
     tags: index % 4 === 0 ? null : `synthetic, tag ${index % 7}`,
   }));
   const courseIds = await createRows(target, 'courses', courseRows);

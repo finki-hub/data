@@ -214,7 +214,10 @@ const seeds = async (target, state) => {
   for (const key of ['a', 'b', 'c', 'd']) {
     const id = await create(target, state, [
       'courses',
-      { name: `Synthetic Mapped Course ${key.toUpperCase()}` },
+      {
+        name: `Synthetic Mapped Course ${key.toUpperCase()}`,
+        pattern_mappings: [],
+      },
     ]);
     state.ids.set(key, id);
     state.courses.set(id, key);
@@ -655,6 +658,7 @@ const countsTwoPages = async (target, state, context) => {
     '/items/courses',
     Array.from({ length: bulkCourses }, (_, index) => ({
       name: `Synthetic Mapped Bulk Course ${index + 1}`,
+      pattern_mappings: [],
     })),
   );
   const bulk = created.data.map(({ id }) => id);

@@ -111,6 +111,7 @@ const seedRows = async (target) => {
     'courses',
     Array.from({ length: courseCount }, (_, index) => ({
       name: `Synthetic Operations Course ${String(index + 1).padStart(3, '0')}`,
+      pattern_mappings: [],
       status: 'all_professors',
     })),
   );
@@ -255,7 +256,11 @@ const seedsYear = async ({ state, t, target }) => {
 const seedsCourse = async ({ state, t, target }) => {
   const run = flowAs(target, target.token);
   const [course] = await createMany(target, 'courses', [
-    { name: 'Synthetic Operations New Course', status: 'all_professors' },
+    {
+      name: 'Synthetic Operations New Course',
+      pattern_mappings: [],
+      status: 'all_professors',
+    },
   ]);
   state.courses.push(course);
   await post(target, '/items/course_enrollment_rules', {

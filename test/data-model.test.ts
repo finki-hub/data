@@ -141,8 +141,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(25);
-    expect(new Set(dataModelCollectionKeys).size).toBe(25);
+    expect(dataModelCollectionKeys).toHaveLength(26);
+    expect(new Set(dataModelCollectionKeys).size).toBe(26);
     expect(dataModelCollectionKeys.slice(0, 9)).toEqual([
       'courses',
       'staff',
@@ -382,6 +382,16 @@ describe('domain keys', () => {
         kind: 'index',
       },
       {
+        collection: 'moodle_pattern_mappings',
+        columns: ['course', 'pattern', 'year_pattern', 'only_in_year'],
+        kind: 'unique',
+      },
+      {
+        collection: 'moodle_pattern_mappings',
+        columns: ['course', 'only_in_year'],
+        kind: 'index',
+      },
+      {
         collection: 'course_enrollment_rules',
         columns: ['course', 'academic_year'],
         kind: 'unique',
@@ -413,9 +423,10 @@ describe('domain keys', () => {
 
     for (const key of compositeKeys) {
       const columns = key.columns.map((column) => `"${column}"`).join(', ');
+      const nulls = key.nullsNotDistinct === true ? ' NULLS NOT DISTINCT' : '';
 
       expect(schemaConstraints.statements).toContain(
-        `CREATE ${key.kind === 'unique' ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS "${key.name}" ON "${key.collection}" (${columns})`,
+        `CREATE ${key.kind === 'unique' ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS "${key.name}" ON "${key.collection}" (${columns})${nulls}`,
       );
     }
     for (const statement of schemaConstraints.statements) {
@@ -768,6 +779,7 @@ describe('relations and aliases', () => {
       'assignments',
       'curricula',
       'history_mappings',
+      'pattern_mappings',
       'enrollment_rules',
       'enrollments',
     ]);

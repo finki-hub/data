@@ -75,6 +75,10 @@ const saved = async (
   return file;
 };
 
+const postedCourse = z.array(
+  z.object({ pattern_mappings: z.array(z.unknown()) }),
+);
+
 const savedDataset = (dataset: SyntheticDataset = parityDataset()) =>
   saved(syntheticWorkbook(dataset));
 
@@ -322,7 +326,7 @@ describe('import command', () => {
     const summary = importSummary.parse(JSON.parse(line));
 
     expect(summary).toMatchObject({
-      rows: { course_curricula: 12, courses: 8 },
+      rows: { course_curricula: 12, courses: 8, moodle_pattern_mappings: 10 },
     });
     expect([summary.blockers, summary.unstorable]).toEqual([{}, {}]);
 
@@ -514,5 +518,32 @@ describe('lifecycle commands', () => {
     expect(compose).not.toMatch(commandPattern);
     expect(dockerfile).not.toMatch(dockerCommandPattern);
     expect(dockerfile).not.toContain('npm');
+  });
+});
+
+describe('the courses the import writes', () => {
+  test('are posted with an empty list of pattern mappings, so Directus adds no default one: the import writes them itself', async () => {
+    const run = cli();
+
+    await expect(
+      run.run([], { ...target, WORKBOOK_PATH: await savedDataset() }),
+    ).resolves.toBe(exitCodes.ok);
+
+    const postedCourses = run.fake.calls
+      .filter(
+        ({ method, pathname }) =>
+          method === 'POST' && pathname.startsWith('/items/courses?'),
+      )
+      .flatMap(({ body }) => postedCourse.parse(body));
+
+    expect(postedCourses).toHaveLength(8);
+    expect(
+      postedCourses.filter(
+        ({ pattern_mappings }) => pattern_mappings.length > 0,
+      ),
+    ).toEqual([]);
+    expect(run.fake.store.items.get('moodle_pattern_mappings')).toHaveLength(
+      10,
+    );
   });
 });

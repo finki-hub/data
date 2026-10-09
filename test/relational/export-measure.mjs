@@ -68,6 +68,7 @@ const statesOf = (entries, programs) =>
 const courseRows = (count) =>
   Array.from({ length: count }, (_, index) => ({
     name: measuredCourse(index),
+    pattern_mappings: [],
     tags: index % 3 === 0 ? null : `synthetic;measured;${index % 7}`,
   }));
 

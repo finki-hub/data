@@ -14,8 +14,10 @@ export type FieldGroup = {
 };
 
 // A Studio form condition. Its rule must carry exactly one top-level key, or
-// Studio silently ignores it.
+// Studio silently ignores it. `clear_hidden_value_on_save` (Directus 12)
+// saves a field the condition hides as null.
 export type FieldCondition = {
+  readonly clear_hidden_value_on_save?: boolean;
   readonly hidden?: boolean;
   readonly name: string;
   readonly readonly?: boolean;

@@ -87,6 +87,9 @@ export const modelRelations: readonly ModelRelation[] =
     ),
   );
 
+// Removing a row from the "one" side's list does what deleting that side
+// does to it: a required or CASCADE link deletes the row, an optional one
+// is nullified. An only-in-year pattern mapping cannot lose its year.
 export const toRelationPayload = (
   relation: ModelRelation,
 ): RelationPayload => ({
@@ -94,7 +97,10 @@ export const toRelationPayload = (
   field: relation.field,
   meta: {
     junction_field: relation.junction,
-    one_deselect_action: relation.nullable ? 'nullify' : 'delete',
+    one_deselect_action:
+      relation.nullable && relation.onDelete !== 'CASCADE'
+        ? 'nullify'
+        : 'delete',
     one_field: relation.alias?.field ?? null,
     sort_field: relation.sortField,
   },
@@ -198,6 +204,21 @@ export const compositeKeys: readonly CompositeKey[] = [
     columns: ['course', 'academic_year'],
     kind: 'index',
     name: 'moodle_course_mappings_course_academic_year_index',
+  },
+  // One mapping per course, pattern, year pattern and year; an all-years
+  // mapping has no year, an only-in-year one no year pattern.
+  {
+    collection: 'moodle_pattern_mappings',
+    columns: ['course', 'pattern', 'year_pattern', 'only_in_year'],
+    kind: 'unique',
+    name: 'moodle_pattern_mappings_course_pattern_unique',
+    nullsNotDistinct: true,
+  },
+  {
+    collection: 'moodle_pattern_mappings',
+    columns: ['course', 'only_in_year'],
+    kind: 'index',
+    name: 'moodle_pattern_mappings_course_only_in_year_index',
   },
   {
     collection: 'course_enrollment_rules',

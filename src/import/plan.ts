@@ -15,6 +15,7 @@ import {
   sortFindings,
 } from './findings.js';
 import { planGenerations, planPrograms } from './generations.js';
+import { planPatternMappings } from './pattern-mappings.js';
 import {
   contentRows,
   councilLinks,
@@ -61,8 +62,9 @@ const formulaCellFinding = (cell: SheetCell): Finding =>
 // share, before anything reaches Directus, and the plan of the parsed
 // workbook. The seeds come first, then the content rows, the courses with
 // their status, the curriculum entries and their program states, the
-// course links, the enrollment rules, the teaching role rows, the
-// equivalencies with their members and the council.
+// course links, the enrollment rules, the pattern mappings (proven against
+// the Moodle histories here, src/import/pattern-mappings.ts), the teaching
+// role rows, the equivalencies with their members and the council.
 export const planImport = ({
   academicYears,
   data,
@@ -72,18 +74,28 @@ export const planImport = ({
   const rows = workbookRows(data);
   const checked = preflight(rows, academicYears);
   const { candidates } = checked;
+  const copied = copiedParts.map((part) => ({
+    collection: part,
+    rows: contentRows({ collection: part, source: part }, data[part]),
+  }));
+  const patterns = planPatternMappings({
+    academicYears,
+    candidates: candidates.courses,
+    courses: rows.courses,
+    users:
+      copied.find(({ collection }) => collection === 'moodle_users')?.rows ??
+      [],
+  });
   const findings = sortFindings([
     ...checked.findings,
     ...formulaPatternCells.map(formulaCellFinding),
+    ...patterns.findings,
   ]);
   const collections: readonly PlannedCollection[] = [
     { collection: 'academic_years', rows: planAcademicYears(academicYears) },
     { collection: 'curriculum_generations', rows: planGenerations() },
     { collection: 'study_programs', rows: planPrograms(studyPrograms) },
-    ...copiedParts.map((part) => ({
-      collection: part,
-      rows: contentRows({ collection: part, source: part }, data[part]),
-    })),
+    ...copied,
     {
       collection: 'courses',
       rows: contentRows(
@@ -105,6 +117,7 @@ export const planImport = ({
       collection: 'course_enrollment_rules',
       rows: planEnrollmentRules(candidates.courses),
     },
+    { collection: 'moodle_pattern_mappings', rows: patterns.rows },
     {
       collection: 'teaching_assignments',
       rows: planTeachingAssignments(candidates.courses),

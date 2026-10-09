@@ -227,6 +227,7 @@ const promotesFirstSnapshot = async (target, state) => {
   assert.ok(memberships > previousRows);
   const course = await createItem(target, 'courses', {
     name: 'Synthetic Snapshot Course',
+    pattern_mappings: [],
   });
   const year = await createItem(target, 'academic_years', {
     label: '2033/2034',

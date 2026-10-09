@@ -216,6 +216,7 @@ const deletesAtInstall = async (context, attempt) => {
     'courses',
     [1, 2, 3].map((index) => ({
       name: `Synthetic Doomed Course ${attempt}.${index}`,
+      pattern_mappings: [],
     })),
   );
   const published = state.seeded.years.filter((year) => year.published);

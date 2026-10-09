@@ -172,7 +172,10 @@ const importsAndMaps = async ({ state, target }) => {
     '/items/moodle_course_entries?fields=id,label&limit=-1',
   );
   const entries = new Map(rows.map(({ id, label }) => [label, id]));
-  const course = await createItem(target, 'courses', { name: courseName });
+  const course = await createItem(target, 'courses', {
+    name: courseName,
+    pattern_mappings: [],
+  });
   const year = await createItem(target, 'academic_years', {
     label: yearLabel,
     sort: 94,
@@ -184,6 +187,7 @@ const importsAndMaps = async ({ state, target }) => {
   });
   const second = await createItem(target, 'courses', {
     name: 'Synthetic Second Course',
+    pattern_mappings: [],
   });
   await createItem(target, 'moodle_course_mappings', {
     academic_year: year.data.id,

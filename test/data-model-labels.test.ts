@@ -183,18 +183,24 @@ describe('field and alias labels', () => {
     expect(new Set(unlabelled)).toEqual(new Set([absent]));
   });
 
-  test('labels only the course status, the teaching staff links, the history lines and the explicit mappings', () => {
+  test('labels only the course status, the teaching staff links, the history lines and the explicit and pattern mappings', () => {
     expect(dataModelCollections.flatMap(declaredLabels)).toEqual([
       'courses.status: Status',
       'courses.assignments: Teaching staff',
       'courses.history_mappings: Explicit mappings',
+      'courses.pattern_mappings: Pattern mappings',
       'staff.assignments: Teaches',
       'teaching_assignments: Teaching staff / Teaching assignment',
       'academic_years.mappings: Explicit mappings',
+      'academic_years.pattern_mappings: Pattern mappings',
       'moodle_course_entries: History lines / History line',
       'moodle_course_entries.first_seen: First seen',
       'moodle_course_entries.mappings: Explicit mappings',
       'moodle_course_mappings: Explicit mappings / Explicit mapping',
+      'moodle_pattern_mappings: Pattern mappings / Pattern mapping',
+      'moodle_pattern_mappings.pattern: Pattern',
+      'moodle_pattern_mappings.year_pattern: Year pattern',
+      'moodle_pattern_mappings.only_in_year: Only in year',
     ]);
   });
 });
@@ -238,6 +244,7 @@ describe('collection labels', () => {
       ['assignments', 'Teaching staff'],
       ['history_mappings', 'Explicit mappings'],
       ['name', 'Course name'],
+      ['pattern_mappings', 'Pattern mappings'],
       ['status', 'Status'],
     ]);
 

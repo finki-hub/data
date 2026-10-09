@@ -345,6 +345,7 @@ const seedBulk = async (t, target, state) => {
     'courses',
     Array.from({ length: 30 }, (_, index) => ({
       name: `Synthetic Automatic Bulk ${String(index + 1).padStart(2, '0')}`,
+      pattern_mappings: [],
     })),
   );
   const bulkYears = await createMany(

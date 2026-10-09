@@ -145,6 +145,11 @@ const defaultViews: readonly TabularPreset[] = [
     ['moodle_user', 'sort'],
   ),
   defaultView(
+    'moodle_pattern_mappings',
+    ['course', 'pattern', 'year_pattern', 'only_in_year'],
+    ['course'],
+  ),
+  defaultView(
     'moodle_course_mappings',
     ['entry', 'course', 'academic_year'],
     ['entry'],

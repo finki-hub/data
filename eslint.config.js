@@ -67,6 +67,7 @@ const config = [
       'directus/flows/count-history-page.cjs',
       'directus/flows/match-history-lines.cjs',
       'src/import/labels.ts',
+      'src/import/pattern-proof.ts',
       'src/workbook-enrollment-reader.ts',
       'test/curriculum-code.test.ts',
       'test/fixtures/stress-oracle.ts',

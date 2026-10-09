@@ -278,6 +278,7 @@ const installProbeFlow = async (target) => {
 const refusesDirectWrites = async (target, state, log) => {
   const course = await post(target, '/items/courses', {
     name: 'Synthetic Roles Guarded Course',
+    pattern_mappings: [],
   });
   state.items.unshift(['courses', course.data.id]);
   const year = state.items.find(([name]) => name === 'academic_years');

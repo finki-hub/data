@@ -72,6 +72,7 @@ export const seedRows = async (
     'courses',
     ['A', 'B', 'C'].map((letter) => ({
       name: `Synthetic Browser Course ${letter}`,
+      pattern_mappings: [],
       status: 'all_professors',
     })),
   );

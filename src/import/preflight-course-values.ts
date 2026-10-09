@@ -4,6 +4,7 @@ import type { CourseRow } from './workbook-rows.js';
 
 import { detailed, type Finding, finding, type PartRows } from './findings.js';
 import { isValidPattern, nonEmpty } from './labels.js';
+import { withoutLineBreaks } from './pattern-mappings.js';
 import { type Indexes, patternKey } from './preflight-indexes.js';
 
 // The rule of one course and year: the last pattern the workbook names
@@ -36,7 +37,11 @@ const ruleOf = (
       overrides: rows.map((row) => row.id),
       pattern,
       source: override === null ? 'default' : 'override',
-      valid: isValidPattern(pattern),
+      // The rule keeps the pattern as typed; its pattern mapping drops the
+      // line breaks first (pattern-mappings.ts), and both must compile.
+      valid:
+        isValidPattern(pattern) &&
+        (override === null || isValidPattern(withoutLineBreaks(override))),
     },
   };
 };
@@ -62,8 +67,9 @@ const invalidSources = (
 
 // One enrollment rule per academic year of the workbook: the last pattern
 // it names, else the unescaped `<name>-<year>` default, each compiled in
-// Unicode mode as the legacy rule Flows compile it. A rule that does not
-// compile could never count.
+// Unicode mode as the legacy rule Flows compile it, and a typed pattern
+// also without its line breaks, as its pattern mapping holds it. A rule or
+// mapping that does not compile could never count.
 export const rulesOf = (
   course: CourseRow,
   {

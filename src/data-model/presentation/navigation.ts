@@ -50,11 +50,12 @@ export const folders: readonly Folder[] = [
     members: [
       'moodle_users',
       'moodle_course_entries',
+      'moodle_pattern_mappings',
       'moodle_course_mappings',
       'moodle_history_memberships',
       'moodle_import_rows',
     ],
-    note: 'Moodle profile snapshot, course history entries and their mappings.',
+    note: 'Moodle profile snapshot, history lines and the mappings that count them.',
     sort: 4,
   },
   {

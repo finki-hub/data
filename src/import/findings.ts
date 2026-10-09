@@ -38,11 +38,15 @@ export const blockerCodes = [
 // teaching or pattern row naming no course, the teaching row of a course
 // whose export row has typed professors (the export row wins), a pattern
 // of a year the workbook does not list, and the earlier of several
-// patterns of one course and year (the last one applies).
+// patterns of one course and year (the last one applies). A typed pattern
+// that counts what the course's standard mapping counts in its year, or
+// that a converted all-years mapping counts, is no mapping of its own.
 export const skippedCodes = [
   'duplicate_pattern',
+  'merged_pattern',
   'orphan_assignment',
   'orphan_pattern',
+  'redundant_pattern',
   'superseded_assignment',
   'unknown_academic_year',
 ] as const;
@@ -59,7 +63,9 @@ export const warningCodes = [
   'equivalency_label_after_precedent',
   'formula_pattern_cell',
   'label_metacharacters',
+  'newest_year_widened',
   'orphan_equivalency',
+  'pattern_line_break',
   'repeated_staff_name',
   'unlinked_availability',
   'unmatched_council_index',
@@ -70,11 +76,15 @@ export const warningCodes = [
 // The warnings of what the import fixes by rule, never in the workbook:
 // a later teaching row of a course is ignored (the first is used), an
 // availability of TRUE without a name links nothing, a formula pattern
-// cell is not read, and a name listed again in one teaching cell is
-// linked once. The summary places each case (fixes).
+// cell is not read, a name listed again in one teaching cell is linked
+// once, a typed pattern loses its line breaks, and the converted mappings
+// count more in the newest year of a course without a typed cell there.
+// The summary places each case (fixes).
 export const ruleFixCodes = [
   'duplicate_assignment',
   'formula_pattern_cell',
+  'newest_year_widened',
+  'pattern_line_break',
   'repeated_staff_name',
   'unlinked_availability',
 ] as const satisfies ReadonlyArray<(typeof warningCodes)[number]>;
@@ -95,13 +105,15 @@ export type PartRows = {
 };
 
 // What else a case involves, never a value: the rows of other parts it
-// concerns (such as the curriculum rows a name matches), the curriculum
-// generation of a case about one generation's values, the place of a
-// cell no row was read from (sheet, row and column header of a formula
-// pattern cell, whose ids are empty), and the field of the row's cell a
-// teaching case concerns with its lines (1 for the first; none when the
-// case is the whole cell).
+// concerns (such as the curriculum rows a name matches), the academic
+// year of a pattern cell case (its column), the curriculum generation of
+// a case about one generation's values, the place of a cell no row was
+// read from (sheet, row and column header of a formula pattern cell,
+// whose ids are empty), and the field of the row's cell a teaching case
+// concerns with its lines (1 for the first; none when the case is the
+// whole cell).
 type CaseDetail = {
+  readonly academicYear?: string;
   readonly cell?: SheetCell;
   readonly field?: string;
   readonly generation?: '2018' | '2023';
