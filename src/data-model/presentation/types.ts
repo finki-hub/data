@@ -1,11 +1,12 @@
 type GroupStart = 'closed' | 'open';
 
 // A field group of a form: an alias field that hosts the listed members in
-// the given order.
+// the given order, under its English label.
 export type FieldGroup = {
   readonly collection: string;
   readonly field: string;
   readonly headerIcon: string;
+  readonly label: string;
   readonly members: readonly string[];
   readonly note?: string;
   readonly readOnly?: true;

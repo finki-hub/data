@@ -34,37 +34,49 @@ const statusNote = `${statusLabels.all_professors} publishes "${teachingTexts.al
 export const courseTemplate = '{{name}}';
 export const staffTemplate = '{{name}}';
 export const studentTemplate = '{{index_number}} - {{name}}';
-const channelTemplate = '{{channel}} (semester {{semester}})';
+export const channelTemplate = '{{channel}} (semester {{semester}})';
 export const curriculumEntryTemplate =
   '{{code}} - {{name}} ({{generation.code}})';
-export const equivalencyTemplate = '{{course.name}}';
+// The labels of an equivalency's members, one per generation; an
+// equivalency without a course reads by them too.
+export const equivalencyTemplate = '{{members.label}}';
 
 // A required dropdown of today's values that also takes a new one.
-const requiredChoice = (field: string, choices: readonly EnumChoice[]) =>
-  enumField(field, choices, { allowOther: true, nullable: false });
+const requiredChoice = (
+  field: string,
+  choices: readonly EnumChoice[],
+  label: string,
+) => enumField(field, choices, { allowOther: true, label, nullable: false });
 
 export const contentCollections: readonly ModelCollection[] = [
   {
     collection: 'courses',
     displayTemplate: courseTemplate,
     fields: [
-      required('name'),
+      required('name', 'string', { label: 'Name' }),
       enumField('status', statusChoices, {
         defaultValue: 'active',
         label: 'Status',
         note: statusNote,
         nullable: false,
       }),
-      scalar('tags', 'string'),
+      scalar('tags', 'string', { label: 'Tags' }),
       // The one Discord channel of the course, picked from either form; it
       // publishes nothing (channel comes from the curriculum entries).
       m2o('discord_channel', 'discord_channels', {
-        alias: { field: 'courses', fields: ['name'], template: courseTemplate },
+        alias: {
+          field: 'courses',
+          fields: ['name'],
+          label: 'Courses',
+          template: courseTemplate,
+        },
+        label: 'Discord channel',
         template: channelTemplate,
       }),
     ],
     hidden: false,
     icon: 'school',
+    label: { plural: 'Courses', singular: 'Course' },
     note: 'Canonical course data published to courses.json in R2.',
     singleton: false,
     sort: 1,
@@ -73,36 +85,39 @@ export const contentCollections: readonly ModelCollection[] = [
     collection: 'staff',
     displayTemplate: staffTemplate,
     fields: [
-      required('name'),
-      required('active', 'boolean'),
-      required('title'),
-      requiredChoice('position', staffPositions),
-      required('email'),
-      scalar('cabinet', 'string'),
-      scalar('profile', 'text'),
-      scalar('courses', 'string'),
-      scalar('consultations', 'text'),
+      required('name', 'string', { label: 'Name' }),
+      required('active', 'boolean', { label: 'Active' }),
+      required('title', 'string', { label: 'Title' }),
+      requiredChoice('position', staffPositions, 'Position'),
+      required('email', 'string', { label: 'Email' }),
+      scalar('cabinet', 'string', { label: 'Office' }),
+      scalar('profile', 'text', { label: 'Profile page' }),
+      // The staff member's Moodle profile link, published as courses.
+      scalar('courses', 'string', { label: 'Moodle profile' }),
+      scalar('consultations', 'text', { label: 'Consultations page' }),
     ],
     hidden: false,
     icon: 'group',
+    label: { plural: 'Staff', singular: 'Staff member' },
     note: 'Canonical staff data published to staff.json in R2.',
     singleton: false,
     sort: 2,
   },
   {
     collection: 'rooms',
-    displayTemplate: '{{location}} / {{name}}',
+    displayTemplate: '{{name}} ({{location}})',
     fields: [
-      required('name'),
-      requiredChoice('type', roomTypes),
-      requiredChoice('location', roomLocations),
-      scalar('description', 'text'),
-      scalar('floor', 'integer'),
-      scalar('capacity', 'integer'),
-      scalar('mrbs', 'string'),
+      required('name', 'string', { label: 'Name' }),
+      requiredChoice('type', roomTypes, 'Type'),
+      requiredChoice('location', roomLocations, 'Location'),
+      scalar('description', 'text', { label: 'Description' }),
+      scalar('floor', 'integer', { label: 'Floor' }),
+      scalar('capacity', 'integer', { label: 'Capacity' }),
+      scalar('mrbs', 'string', { label: 'Booking page' }),
     ],
     hidden: false,
     icon: 'meeting_room',
+    label: { plural: 'Rooms', singular: 'Room' },
     note: 'Canonical room data published to rooms.json in R2.',
     singleton: false,
     sort: 3,
@@ -111,12 +126,13 @@ export const contentCollections: readonly ModelCollection[] = [
     collection: 'students',
     displayTemplate: studentTemplate,
     fields: [
-      required('index_number'),
-      required('name'),
-      required('source_group'),
+      required('index_number', 'string', { label: 'Index number' }),
+      required('name', 'string', { label: 'Name' }),
+      required('source_group', 'string', { label: 'Group' }),
     ],
     hidden: false,
     icon: 'badge',
+    label: { plural: 'Students', singular: 'Student' },
     note: 'Private student directory; only its R2 export is published.',
     singleton: false,
     sort: 4,
@@ -132,21 +148,24 @@ export const contentCollections: readonly ModelCollection[] = [
         alias: {
           field: 'equivalencies',
           fields: ['members.generation.code', 'members.label'],
-          template: '{{id}}',
+          label: 'Equivalencies',
+          template: equivalencyTemplate,
         },
+        label: 'Course',
         note: 'The course the equivalency belongs to, when its 2023 label names exactly one course.',
         template: courseTemplate,
       }),
     ],
     hidden: false,
     icon: 'compare_arrows',
+    label: { plural: 'Equivalencies', singular: 'Equivalency' },
     note: 'Course-name equivalencies across curriculum generations.',
     singleton: false,
     sort: 7,
   },
   {
     collection: 'teaching_assignments',
-    displayTemplate: '{{course.name}} ({{role}})',
+    displayTemplate: '{{course.name}}: {{staff.name}} ({{role}})',
     fields: [
       // One link per person, role and course
       // (teaching_assignments_course_staff_role_unique); deleting the
@@ -158,6 +177,7 @@ export const contentCollections: readonly ModelCollection[] = [
           label: 'Teaching staff',
           template: '{{role}}: {{staff.name}}',
         },
+        label: 'Course',
         nullable: false,
         sortField: 'sort',
         template: courseTemplate,
@@ -169,11 +189,14 @@ export const contentCollections: readonly ModelCollection[] = [
           label: 'Teaches',
           template: '{{course.name}} ({{role}})',
         },
+        label: 'Staff member',
         nullable: false,
         template: staffTemplate,
       }),
-      enumField('role', roleChoices, { nullable: false }),
-      scalar('sort', 'integer'),
+      enumField('role', roleChoices, { label: 'Role', nullable: false }),
+      // The drag order of the course's lists, which orders the published
+      // names.
+      scalar('sort', 'integer', { label: 'Order' }),
     ],
     hidden: false,
     icon: 'co_present',

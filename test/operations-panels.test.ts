@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { computed, type Ref } from 'vue';
 import { z } from 'zod';
 
 import type {
@@ -59,6 +60,7 @@ import {
 import {
   ageText,
   checkLinkText,
+  collectionText,
   instantText,
   orderedChecks,
   stateLabel,
@@ -67,6 +69,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/status-labels.js';
 import { bookmarkKey } from '../directus/extensions/directus-extension-data-operations/src/status-reads.js';
 import { statusView } from '../directus/extensions/directus-extension-data-operations/src/status-view.js';
+import { useStudioName } from '../directus/extensions/directus-extension-data-operations/src/studio-name.js';
 import {
   defaultPanels,
   installOperationsDashboard,
@@ -80,6 +83,21 @@ import { flowTemplates } from './registry-test-helpers.js';
 // contract with the manual Flows and the status endpoint, and the default
 // Data operations dashboard. The panels themselves render in Studio
 // (test/operations.browser.mjs); here their decisions run as plain code.
+
+// The app's collections store as useCollection reads it: the names Studio
+// shows, by collection.
+const studioNames = vi.hoisted(
+  () => new Map([['course_equivalencies', 'Equivalencies']]),
+);
+
+vi.mock('@directus/extensions-sdk', () => ({
+  useCollection: (key: Ref<null | string>) => ({
+    info: computed(() => {
+      const name = studioNames.get(key.value ?? '');
+      return name === undefined ? null : { name };
+    }),
+  }),
+}));
 
 // A fixture Flow as added in Studio.
 const fixtureFlow: ManualFlow = {
@@ -563,6 +581,47 @@ describe('the readiness view', () => {
     );
     expect(reviewed.map((check) => checkLinkText(check))).toEqual(
       reviewed.map(({ page }) => humanize(page)),
+    );
+  });
+
+  test('names a check whose bookmark is missing by the name Studio shows for its collection, else by the humanized key', () => {
+    const view = readinessView({ answer, bookmarks: new Map() });
+    const check = view.checks.find(
+      ({ page, review }) => page === 'course_equivalencies' && review === null,
+    );
+    if (check === undefined) {
+      throw new Error('No check links the equivalencies');
+    }
+
+    expect(checkLinkText(check, 'Equivalencies')).toBe('Equivalencies');
+    expect(checkLinkText(check)).toBe('Course equivalencies');
+    expect(
+      checkLinkText(
+        { ...check, review: 'Equivalencies without a course' },
+        'Equivalencies',
+      ),
+    ).toBe('Equivalencies without a course');
+  });
+});
+
+describe('the dashboard collection names', () => {
+  test('name a collection as Studio does, else by its humanized key', () => {
+    expect(collectionText('curriculum_generations', 'Generations')).toBe(
+      'Generations',
+    );
+    expect(collectionText('curriculum_generations')).toBe(
+      'Curriculum generations',
+    );
+  });
+
+  test("read the Studio name from the app's collections store, none for a collection it does not list", () => {
+    const listed = useStudioName(() => 'course_equivalencies');
+    const unlisted = useStudioName(() => 'curriculum_generations');
+
+    expect(listed.value).toBe('Equivalencies');
+    expect(unlisted.value).toBeUndefined();
+    expect(collectionText('curriculum_generations', unlisted.value)).toBe(
+      'Curriculum generations',
     );
   });
 });

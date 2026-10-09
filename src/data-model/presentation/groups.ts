@@ -1,12 +1,13 @@
 import type { FieldGroup } from './types.js';
 
-// The course form: its overview, curriculum, staff, Moodle and enrollment
-// sections.
+// The course form: its Basics, Curriculum, Teaching, Moodle mappings and
+// Enrollments sections.
 export const fieldGroups: readonly FieldGroup[] = [
   {
     collection: 'courses',
     field: 'overview',
     headerIcon: 'school',
+    label: 'Basics',
     members: ['name', 'tags', 'discord_channel'],
     sort: 1,
     start: 'open',
@@ -15,6 +16,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'curriculum',
     headerIcon: 'menu_book',
+    label: 'Curriculum',
     members: ['curricula', 'equivalencies'],
     note: 'Curriculum links carry the generation, entry, credits and availability; equivalencies list their members, one label per generation.',
     sort: 2,
@@ -24,6 +26,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'staff',
     headerIcon: 'co_present',
+    label: 'Teaching',
     members: ['status', 'assignments'],
     sort: 3,
     start: 'open',
@@ -32,6 +35,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'moodle',
     headerIcon: 'history_edu',
+    label: 'Moodle mappings',
     members: ['pattern_mappings', 'history_mappings'],
     sort: 4,
     start: 'open',
@@ -40,6 +44,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'courses',
     field: 'enrollment',
     headerIcon: 'functions',
+    label: 'Enrollments',
     members: ['enrollments', 'counted_lines'],
     sort: 5,
     start: 'open',
@@ -51,6 +56,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'moodle_course_entries',
     field: 'line',
     headerIcon: 'history_edu',
+    label: 'History line',
     members: ['label', 'first_seen'],
     sort: 1,
     start: 'open',
@@ -59,6 +65,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'moodle_course_entries',
     field: 'mapping',
     headerIcon: 'alt_route',
+    label: 'Mapping',
     members: ['mappings'],
     sort: 2,
     start: 'open',
@@ -67,6 +74,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'moodle_course_entries',
     field: 'counting',
     headerIcon: 'fact_check',
+    label: 'Counting',
     members: ['counted_for'],
     readOnly: true,
     sort: 3,
@@ -76,6 +84,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'moodle_course_entries',
     field: 'usage',
     headerIcon: 'account_tree',
+    label: 'Moodle users',
     members: ['memberships'],
     readOnly: true,
     sort: 4,
@@ -88,6 +97,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'data_operations',
     field: 'revisions',
     headerIcon: 'history_toggle_off',
+    label: 'Revisions',
     members: [
       'source_revision',
       'history_index_input_revision',
@@ -107,6 +117,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'data_operations',
     field: 'claim',
     headerIcon: 'sync_lock',
+    label: 'Running job',
     members: [
       'claim_token',
       'claim_owner',
@@ -128,6 +139,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'data_operations',
     field: 'failure',
     headerIcon: 'error',
+    label: 'Last failure',
     members: [
       'last_error_code',
       'last_error_message',
@@ -146,6 +158,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'data_operations',
     field: 'outcomes',
     headerIcon: 'task_alt',
+    label: 'Last run',
     members: [
       'import_state',
       'publication_state',
@@ -161,6 +174,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'data_operations',
     field: 'snapshot',
     headerIcon: 'upload_file',
+    label: 'Moodle snapshot',
     members: [
       'import_file',
       'import_rows',

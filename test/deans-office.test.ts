@@ -137,6 +137,7 @@ describe("the dean's office", () => {
     expect(terms?.alias).toEqual({
       field: 'dean_terms',
       fields: ['year', 'position'],
+      label: "Dean's office terms",
       template: '{{year}} {{position}}',
     });
     expect(terms && toAliasPayload(terms.alias, 11).meta).toMatchObject({

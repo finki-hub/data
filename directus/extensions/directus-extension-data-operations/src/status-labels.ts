@@ -92,10 +92,18 @@ export const orderedChecks = (checks: readonly CheckView[]): CheckView[] =>
     )
     .map(({ check }) => check);
 
+// A collection as the dashboard names it: by the name Studio shows for it
+// (its label, read from the app; studio-name.ts), else by its humanized
+// key, as for a collection the app does not list.
+export const collectionText = (
+  collection: string,
+  studioName?: string,
+): string => studioName ?? humanize(collection);
+
 // The words of a Studio link to the records behind a check: its
 // incomplete-data bookmark while it exists, else its collection.
-export const checkLinkText = (check: CheckView): string =>
-  check.review ?? humanize(check.page);
+export const checkLinkText = (check: CheckView, studioName?: string): string =>
+  check.review ?? collectionText(check.page, studioName);
 
 // Bytes as "5.3 kB".
 export const bytesText = (bytes: null | number): string => {

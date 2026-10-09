@@ -48,6 +48,7 @@ export const mappingCollections: readonly ModelCollection[] = [
           note: 'A new course gets <name>- with the default year pattern. Renaming the course keeps its mappings; add the new name as an alternative when Moodle uses it.',
           template: '{{pattern}}',
         },
+        label: 'Course',
         nullable: false,
         template: courseTemplate,
       }),
@@ -100,6 +101,7 @@ export const mappingCollections: readonly ModelCollection[] = [
           readOnly: true,
           template: '{{course.name}} ({{academic_year.label}})',
         },
+        label: 'History line',
         nullable: false,
         readOnly: true,
         template: historyLineTemplate,
@@ -112,16 +114,22 @@ export const mappingCollections: readonly ModelCollection[] = [
           readOnly: true,
           template: lineInYearTemplate,
         },
+        label: 'Course',
         nullable: false,
         readOnly: true,
         template: courseTemplate,
       }),
       m2o('academic_year', 'academic_years', {
+        label: 'Academic year',
         nullable: false,
         readOnly: true,
         template: academicYearTemplate,
       }),
-      enumField('source', sourceChoices, { nullable: false, readOnly: true }),
+      enumField('source', sourceChoices, {
+        label: 'Counted by',
+        nullable: false,
+        readOnly: true,
+      }),
       // Empty for an explicit mapping. Deleting the pattern mapping deletes
       // the lines it counted, as the next count would.
       m2o('pattern_mapping', 'moodle_pattern_mappings', {
@@ -132,6 +140,7 @@ export const mappingCollections: readonly ModelCollection[] = [
           readOnly: true,
           template: lineInYearTemplate,
         },
+        label: patternMappings.singular,
         onDelete: 'CASCADE',
         readOnly: true,
         template: patternMappingTemplate,
@@ -151,25 +160,33 @@ export const mappingCollections: readonly ModelCollection[] = [
     fields: [
       scalar('claim_token', 'string', {
         indexed: true,
+        label: 'Claim token',
         nullable: false,
         readOnly: true,
       }),
-      scalar('page_token', 'string', { nullable: false, readOnly: true }),
+      scalar('page_token', 'string', {
+        label: 'Page token',
+        nullable: false,
+        readOnly: true,
+      }),
       m2o('entry', 'moodle_course_entries', {
+        label: 'History line',
         nullable: false,
         readOnly: true,
         template: historyLineTemplate,
       }),
       m2o('pattern_mapping', 'moodle_pattern_mappings', {
+        label: patternMappings.singular,
         nullable: false,
         readOnly: true,
         template: patternMappingTemplate,
       }),
       // <start>/<start+1>; empty for an only-in-year mapping.
-      scalar('year_label', 'string', { readOnly: true }),
+      scalar('year_label', 'string', { label: 'Year', readOnly: true }),
     ],
     hidden: true,
     icon: 'pending_actions',
+    label: { plural: 'Match candidates', singular: 'Match candidate' },
     singleton: false,
     sort: 31,
   },

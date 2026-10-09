@@ -3,9 +3,12 @@ import type { CheckView } from './status-contract.js';
 
 import StatusBadge from './status-badge.vue';
 import { checkLinkText } from './status-labels.js';
+import { useStudioName } from './studio-name.js';
 
 // One readiness check: severity, code, count and the link to its records.
-defineProps<{ check: CheckView }>();
+const props = defineProps<{ check: CheckView }>();
+
+const studioName = useStudioName(() => props.check.page);
 </script>
 
 <template>
@@ -14,7 +17,7 @@ defineProps<{ check: CheckView }>();
     <th scope="row" :title="check.description">{{ check.code }}</th>
     <td class="count">{{ check.count }}</td>
     <td class="link">
-      <router-link :to="check.link">{{ checkLinkText(check) }}</router-link>
+      <router-link :to="check.link">{{ checkLinkText(check, studioName) }}</router-link>
     </td>
   </tr>
 </template>

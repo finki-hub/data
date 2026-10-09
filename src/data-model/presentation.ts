@@ -11,6 +11,7 @@ import {
   planPresentation,
   type PresentationState,
 } from './presentation/plan.js';
+import { fieldTranslations } from './translations.js';
 
 const json = (body: unknown, method: 'PATCH' | 'POST') => ({
   body: JSON.stringify(body),
@@ -42,7 +43,8 @@ const folderPayload = (folder: Folder) => ({
   },
 });
 
-// A group is an alias field flagged `group`; its members point at it.
+// A group is an alias field flagged `group`; its members point at it. Its
+// label is the section heading.
 const groupPayload = (group: FieldGroup) => ({
   field: group.field,
   meta: {
@@ -54,6 +56,7 @@ const groupPayload = (group: FieldGroup) => ({
     required: false,
     sort: group.sort,
     special: ['alias', 'no-data', 'group'],
+    translations: fieldTranslations(group.label),
     width: 'full',
   },
   schema: null,

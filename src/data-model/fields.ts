@@ -14,17 +14,30 @@ type RelationOptions = Partial<
   Omit<ModelRelationField, 'field' | 'kind' | 'related'>
 >;
 
-export const scalar = (
-  field: string,
+// A declaration that keeps its key as a literal type, so a record keyed by
+// the fields of a collection is checked against them (labelledFields).
+type Keyed<Field extends ModelField, Key extends string> = Field & {
+  readonly field: Key;
+};
+
+export const scalar = <Key extends string>(
+  field: Key,
   kind: ModelScalarKind,
   options: ScalarOptions = {},
-): ModelScalarField => ({ field, kind, nullable: true, ...options });
+): Keyed<ModelScalarField, Key> => ({
+  field,
+  kind,
+  nullable: true,
+  ...options,
+});
 
 // A column that must hold a value.
-export const required = (
-  field: string,
+export const required = <Key extends string>(
+  field: Key,
   kind: ModelScalarKind = 'string',
-): ModelScalarField => scalar(field, kind, { nullable: false });
+  options: ScalarOptions = {},
+): Keyed<ModelScalarField, Key> =>
+  scalar(field, kind, { ...options, nullable: false });
 
 // The choices of a vocabulary, in the order of its values, each with the
 // one label the record declares for it (a missing or extra label does not
@@ -35,17 +48,25 @@ export const labelledChoices = <const V extends string>(
 ): readonly EnumChoice[] =>
   values.map((value) => ({ label: labels[value], value }));
 
-export const enumField = (
-  field: string,
+export const enumField = <Key extends string>(
+  field: Key,
   choices: readonly EnumChoice[],
   options: EnumOptions = {},
-): ModelEnumField => ({
+): Keyed<ModelEnumField, Key> => ({
   choices,
   field,
   kind: 'enum',
   nullable: true,
   ...options,
 });
+
+// The fields, each with the label the record declares for its key (a
+// missing label does not compile).
+export const labelledFields = <Key extends string>(
+  fields: ReadonlyArray<Keyed<ModelField, Key>>,
+  labels: Readonly<Record<NoInfer<Key>, string>>,
+): readonly ModelField[] =>
+  fields.map((field) => ({ ...field, label: labels[field.field] }));
 
 // The stored values an enum field accepts, in declaration order.
 export const choiceValues = (field: ModelEnumField): string[] =>

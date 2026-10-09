@@ -1,7 +1,11 @@
 import type { ModelCollection } from '../schema.js';
 
 import { deanPositions } from './choice-lists.js';
-import { staffTemplate, studentTemplate } from './content-collections.js';
+import {
+  channelTemplate,
+  staffTemplate,
+  studentTemplate,
+} from './content-collections.js';
 import { enumField, m2o, required, scalar } from './fields.js';
 
 // The reference lists the one-time workbook import fills beside the
@@ -10,14 +14,19 @@ import { enumField, m2o, required, scalar } from './fields.js';
 export const referenceCollections: readonly ModelCollection[] = [
   {
     collection: 'discord_channels',
-    displayTemplate: '{{semester}} - {{channel}}',
+    displayTemplate: channelTemplate,
     // A channel's courses link to it (courses.discord_channel).
     fields: [
-      scalar('semester', 'integer', { minimum: 1, nullable: false }),
-      required('channel'),
+      scalar('semester', 'integer', {
+        label: 'Semester',
+        minimum: 1,
+        nullable: false,
+      }),
+      required('channel', 'string', { label: 'Channel' }),
     ],
     hidden: false,
     icon: 'forum',
+    label: { plural: 'Discord channels', singular: 'Discord channel' },
     note: 'Discord channel aliases grouped by semester.',
     singleton: false,
     sort: 10,
@@ -26,21 +35,24 @@ export const referenceCollections: readonly ModelCollection[] = [
     collection: 'student_council',
     displayTemplate: '{{year}} - {{student.name}}',
     fields: [
-      required('year', 'integer'),
-      required('index_number'),
-      required('position'),
+      required('year', 'integer', { label: 'Year' }),
+      required('index_number', 'string', { label: 'Index number' }),
+      required('position', 'string', { label: 'Position' }),
       m2o('student', 'students', {
         alias: {
           field: 'council_memberships',
           fields: ['year', 'position'],
+          label: 'Council memberships',
           template: '{{year}} - {{position}}',
         },
+        label: 'Student',
         note: 'Student record of the index. Empty: needs review; the index labels the member.',
         template: studentTemplate,
       }),
     ],
     hidden: false,
     icon: 'groups_3',
+    label: { plural: 'Student council', singular: 'Council member' },
     note: 'Student council membership history.',
     singleton: false,
     sort: 11,
@@ -49,7 +61,7 @@ export const referenceCollections: readonly ModelCollection[] = [
     collection: 'deans_office',
     displayTemplate: '{{year}} {{position}}: {{staff.name}}',
     fields: [
-      required('year', 'integer'),
+      required('year', 'integer', { label: 'Year' }),
       // The holder of a term: one per year and position
       // (deans_office_year_position_unique). A staff member who holds a
       // term cannot be deleted (NO ACTION), and taking a term out of the
@@ -58,16 +70,22 @@ export const referenceCollections: readonly ModelCollection[] = [
         alias: {
           field: 'dean_terms',
           fields: ['year', 'position'],
+          label: "Dean's office terms",
           template: '{{year}} {{position}}',
         },
+        label: 'Staff member',
         nullable: false,
         onDelete: 'NO ACTION',
         template: staffTemplate,
       }),
-      enumField('position', deanPositions, { nullable: false }),
+      enumField('position', deanPositions, {
+        label: 'Position',
+        nullable: false,
+      }),
     ],
     hidden: false,
     icon: 'account_balance',
+    label: { plural: "Dean's office", singular: "Dean's office term" },
     note: "Dean's office membership history.",
     singleton: false,
     sort: 12,

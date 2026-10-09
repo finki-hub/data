@@ -181,7 +181,7 @@ describe('the counted lines', () => {
 });
 
 describe('the staged matches', () => {
-  test('hold a claim, a page, a line, its pattern mapping and the year read, hidden and unlabelled', () => {
+  test('hold a claim, a page, a line, its pattern mapping and the year read, hidden as match candidates', () => {
     expect(shapeOf(matches)).toEqual([
       { field: 'claim_token', kind: 'string', nullable: false, readOnly: true },
       { field: 'page_token', kind: 'string', nullable: false, readOnly: true },
@@ -205,7 +205,10 @@ describe('the staged matches', () => {
       { field: 'year_label', kind: 'string', nullable: true, readOnly: true },
     ]);
     expect(findCollection(matches)).toMatchObject({ hidden: true });
-    expect(findCollection(matches).label).toBeUndefined();
+    expect(findCollection(matches).label).toEqual({
+      plural: 'Match candidates',
+      singular: 'Match candidate',
+    });
     expect(relationsOf(matches).map(({ alias }) => alias)).toEqual([
       null,
       null,

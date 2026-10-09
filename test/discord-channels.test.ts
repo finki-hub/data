@@ -117,6 +117,7 @@ describe('the Discord channels', () => {
     expect(alias?.alias).toEqual({
       field: 'courses',
       fields: ['name'],
+      label: 'Courses',
       template: '{{name}}',
     });
     // The installer writes the usual editable list; presentation then

@@ -10,7 +10,7 @@ defineProps<{ controller: SearchController }>();
 
 <template>
   <div class="course-search">
-    <v-notice v-if="!controller.supported" type="info">Layout supports Moodle Users only</v-notice>
+    <v-notice v-if="!controller.supported" type="info">Layout supports Moodle users only</v-notice>
     <template v-else>
       <header class="search-heading">
         <h2>Course history search</h2>

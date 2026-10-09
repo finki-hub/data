@@ -1,12 +1,13 @@
-import type { ModelCollection, ModelScalarField } from '../schema.js';
+import type { ModelCollection } from '../schema.js';
 
 import {
+  type SnapshotField,
   type SnapshotFieldDeclaration,
   snapshotFieldTable,
 } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { courseTemplate } from './content-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
-import { m2o, scalar } from './fields.js';
+import { labelledFields, m2o, scalar } from './fields.js';
 
 const moodleUserTemplate = '{{Name}}';
 const historyEntryTemplate = '{{label}}';
@@ -18,14 +19,64 @@ const explicitMappings = {
   singular: 'Explicit mapping',
 } as const;
 
+// The label of each scraper field; "(old)" and "(new)" name the two
+// Moodle instances. A new field of the snapshot contract needs one.
+const snapshotLabels: Readonly<Record<SnapshotField, string>> = {
+  AIM_new: 'AIM (new)',
+  AIM_old: 'AIM (old)',
+  Avatar_new: 'Avatar (new)',
+  Avatar_old: 'Avatar (old)',
+  City_new: 'City (new)',
+  City_old: 'City (old)',
+  Country_new: 'Country (new)',
+  Country_old: 'Country (old)',
+  Courses: 'Course history',
+  'Courses Count': 'Course count',
+  Description_new: 'Description (new)',
+  Description_old: 'Description (old)',
+  ICQ_new: 'ICQ (new)',
+  ICQ_old: 'ICQ (old)',
+  ID_new: 'Moodle ID (new)',
+  ID_old: 'Moodle ID (old)',
+  Images_new: 'Images (new)',
+  Images_old: 'Images (old)',
+  Interests_new: 'Interests (new)',
+  Interests_old: 'Interests (old)',
+  'Last Access_new': 'Last access (new)',
+  'Last Access_old': 'Last access (old)',
+  Mail: 'Email',
+  MoodleNet_new: 'MoodleNet (new)',
+  MoodleNet_old: 'MoodleNet (old)',
+  MSN_new: 'MSN (new)',
+  MSN_old: 'MSN (old)',
+  Name: 'Name',
+  Profile_new: 'Profile (new)',
+  Profile_old: 'Profile (old)',
+  Skype_new: 'Skype (new)',
+  Skype_old: 'Skype (old)',
+  Timezone_new: 'Timezone (new)',
+  Timezone_old: 'Timezone (old)',
+  Web_new: 'Website (new)',
+  Web_old: 'Website (old)',
+  Yahoo_new: 'Yahoo (new)',
+  Yahoo_old: 'Yahoo (old)',
+};
+
 // The Moodle user columns: the scraper fields of the snapshot contract,
-// with the same names and kinds in the snapshot staging rows.
-const moodleUserFields: readonly ModelScalarField[] = snapshotFieldTable.map(
-  ({ field, kind, ...declaration }: SnapshotFieldDeclaration) => ({
-    field,
-    kind,
-    nullable: declaration.required !== true,
-  }),
+// with the same names, kinds and labels in the snapshot staging rows.
+const moodleUserFields = labelledFields(
+  snapshotFieldTable.map(
+    ({
+      field,
+      kind,
+      ...declaration
+    }: SnapshotFieldDeclaration & { readonly field: SnapshotField }) => ({
+      field,
+      kind,
+      nullable: declaration.required !== true,
+    }),
+  ),
+  snapshotLabels,
 );
 
 export const moodleCollections: readonly ModelCollection[] = [
@@ -35,6 +86,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     fields: moodleUserFields,
     hidden: false,
     icon: 'person',
+    label: { plural: 'Moodle users', singular: 'Moodle user' },
     note: 'Private Moodle profile snapshot.',
     singleton: false,
     sort: 13,
@@ -45,6 +97,10 @@ export const moodleCollections: readonly ModelCollection[] = [
     fields: moodleUserFields,
     hidden: true,
     icon: 'upload_file',
+    label: {
+      plural: 'Snapshot staging rows',
+      singular: 'Snapshot staging row',
+    },
     note: 'Replaceable staging rows written only by the controlled Moodle snapshot import. Never read by Search, derivation or publication.',
     singleton: false,
     sort: 17,
@@ -54,6 +110,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     displayTemplate: historyEntryTemplate,
     fields: [
       scalar('label', 'text', {
+        label: 'Line',
         note: 'Exact Moodle history line (max 2048 bytes; case and whitespace kept); written by the index run, read-only.',
         nullable: false,
         readOnly: true,
@@ -89,9 +146,11 @@ export const moodleCollections: readonly ModelCollection[] = [
             'entry.counted_for.academic_year',
             'sort',
           ],
+          label: 'History lines',
           readOnly: true,
           template: '{{entry.label}}',
         },
+        label: 'Moodle user',
         nullable: false,
         readOnly: true,
         sortField: 'sort',
@@ -101,20 +160,24 @@ export const moodleCollections: readonly ModelCollection[] = [
         alias: {
           field: 'memberships',
           fields: ['moodle_user', 'sort'],
+          label: 'Users',
           readOnly: true,
           template: '{{moodle_user.Name}}',
         },
+        label: 'History line',
         nullable: false,
         readOnly: true,
         template: historyEntryTemplate,
       }),
       scalar('sort', 'integer', {
+        label: 'Order',
         note: 'Position of the first occurrence inside the raw history.',
         readOnly: true,
       }),
     ],
     hidden: true,
     icon: 'account_tree',
+    label: { plural: 'History memberships', singular: 'History membership' },
     note: 'Replaceable derived index of which history entries each Moodle user carries.',
     singleton: false,
     sort: 19,
@@ -132,6 +195,7 @@ export const moodleCollections: readonly ModelCollection[] = [
           note: 'An explicit mapping replaces every pattern for this line.',
           template: '{{course.name}} ({{academic_year.label}})',
         },
+        label: 'History line',
         nullable: false,
         template: historyEntryTemplate,
       }),
@@ -142,6 +206,7 @@ export const moodleCollections: readonly ModelCollection[] = [
           label: explicitMappings.plural,
           template: '{{entry.label}} ({{academic_year.label}})',
         },
+        label: 'Course',
         nullable: false,
         template: courseTemplate,
       }),
@@ -152,6 +217,7 @@ export const moodleCollections: readonly ModelCollection[] = [
           label: explicitMappings.plural,
           template: '{{course.name}}: {{entry.label}}',
         },
+        label: 'Academic year',
         nullable: false,
         template: academicYearTemplate,
       }),

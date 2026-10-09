@@ -36,7 +36,7 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Search** bookmark and the **Unmapped history lines** bookmark; never an incomplete-data bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the data model with its English Studio labels, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, form sections, a default table view for every collection Studio lists, the **Search** bookmark and the **Unmapped history lines** bookmark; never an incomplete-data bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once and creates a bookmark for each kind of data still missing (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
@@ -548,7 +548,7 @@ import, run from Studio. The scraper's output is used unchanged: the
 [`courses-scraper`](https://github.com/finki-hub/courses-scraper)
 `profiles.csv` and its 38 headers, with no conversion step and no identity
 matching here (snapshot identities are the scraper's business). The native
-**Import / Export** sidebar of **Moodle Users** is not supported for
+**Import / Export** sidebar of **Moodle users** is not supported for
 snapshots: it upserts rows by the generated `id`, drops empty cells, turns
 the text `null` into NULL, parses JSON-looking text, accepts structurally
 malformed rows and replaces nothing atomically.
@@ -566,7 +566,7 @@ kept.
    local storage location. The import refuses a CSV outside that folder.
 3. Run **Import Moodle snapshot** on the **Data operations** dashboard (or
    the Flow **Data / Import Moodle snapshot** from the sidebar of the
-   hidden **Data Operations** singleton, `/admin/content/data_operations`).
+   hidden **Data operations** singleton, `/admin/content/data_operations`).
    Choose the file in **Private CSV file** (an item picker that lists the
    files of that folder; a REST caller may send the file id) and switch on
    **Replace the whole active Moodle snapshot**. Switch on **Allow an empty
@@ -677,6 +677,11 @@ permanently and must not be used against a deployment containing data.
 Every collection of the model is private. Relationships are native Directus
 relations (many-to-one, one-to-many, many-to-many through a junction) with
 readable display templates, keyed by generated ids, never by course names.
+Studio shows every collection, field and form section by its English label
+(an en-US translation; another interface language shows each key
+title-cased, such as Course Equivalencies). A record reads by its display
+template: a teaching row as course, person and role, a room as name
+(location), an equivalency by its members' labels.
 
 ### What the workbook fills
 
@@ -769,12 +774,12 @@ database guards the table:
   count): written only by their own runs. The database refuses every other
   write (`Write refused: course_enrollments (derived; writer: enrollments
   claim completion)`), so edit the sources instead. The course form still
-  shows edit and delete buttons on its derived **Enrollments** rows; the
-  guard refuses them.
+  shows edit and delete buttons on its derived **Enrollment counts** rows;
+  the guard refuses them.
 - **Candidate, staging and status** (`data_operation_matches`,
   `moodle_import_rows`, `data_operations`):
   bookkeeping of the running operations, never edited by hand. The
-  **Data Operations** singleton keeps its bookkeeping (source revision,
+  **Data operations** singleton keeps its bookkeeping (source revision,
   last error) across everything, and setup never resets it.
 
 A course holds what `courses.json` publishes from it directly (name,
@@ -849,21 +854,22 @@ with HTTP 500 naming the foreign key, not a 400, so move or remove the
 referencing rows first.
 
 Curriculum entries are one collection for every generation. The default
-view of **Curriculum Entries** lists them generation first, in catalog
+view of **Curriculum entries** lists them generation first, in catalog
 order, with their linked courses; narrow it to one generation with Studio's
 native filter on **Generation**, so a new generation needs no bookmark and
 no setup rerun.
 
 ### Forms and relationships
 
-A course is the entry point: its form shows its **Discord channel**, its
-curriculum links and equivalency members, its status and staff links, its
-**Pattern mappings** and its **Explicit mappings** of Moodle history lines
-per academic year, and its derived counts and **Counted lines**
-(read-only).
+A course is the entry point. Its form has five sections: **Basics** (name,
+tags and **Discord channel**), **Curriculum** (**Curriculum links** and
+**Equivalencies**), **Teaching** (**Status** and **Teaching staff**),
+**Moodle mappings** (**Pattern mappings** and **Explicit mappings** of
+Moodle history lines per academic year) and **Enrollments** (the derived
+**Enrollment counts** and **Counted lines**, read-only).
 A **History line**'s form shows its exact label and **First seen**, its
 **Explicit mappings**, the courses and academic years it is **Counted
-for**, and the users carrying it (the last two derived and read-only).
+for**, and the **Users** carrying it (the last two derived and read-only).
 
 - The curriculum entry picker of a course link and the program picker of an
   entry's program states offer only rows of the chosen generation (the
@@ -891,8 +897,8 @@ for**, and the users carrying it (the last two derived and read-only).
   that list, or deleting the channel, clears the link. A channel needs its
   semester (1 or more) and channel name. The link publishes nothing:
   `channel` and `<generation>-channel` in `courses.json` come from the
-  **Channel** checkbox of the course's curriculum entries, which is kept
-  apart from the link.
+  **Has a Discord channel** checkbox of the course's curriculum entries,
+  which is kept apart from the link.
 - A dean's office term needs its year, its **Position** and its staff
   member. The position is one of Dean, Vice-dean for teaching, Vice-dean
   for science and cooperation and Vice-dean for finance, stored as the
@@ -956,7 +962,7 @@ for it:
   lines**, then one completion that rebuilds the counted lines and every
   count). The next tick takes the next domain.
 - **Data / Mark pending** (the **Recalculate** panel of the dashboard) is a
-  manual Flow on the hidden **Data Operations** singleton. It marks the
+  manual Flow on the hidden **Data operations** singleton. It marks the
   chosen domains pending (the history index and the enrollment counts
   when none is chosen) and answers the status.
   It runs nothing itself: the schedule picks the work up at its next tick.
@@ -1243,9 +1249,9 @@ only those whose view lists a row, so each marks data that is actually
 missing; `npm run setup` never creates one. While a bookmark exists, the
 **Readiness** panel links its check to it. Delete a bookmark once its data
 is complete: nothing creates it again, and the panel then links the check
-to its collection page, named after the collection. The views are
-generated from `exports/review-views.ts` of the data-operations extension;
-each warning maps to its bookmark:
+to its collection page, named by the collection's Studio label (such as
+**Equivalencies**). The views are generated from `exports/review-views.ts`
+of the data-operations extension; each warning maps to its bookmark:
 
 | Check | Bookmark | Collection | Lists |
 | --- | --- | --- | --- |
@@ -1305,7 +1311,8 @@ overwrites an edited one):
   its count and one link to its records (its incomplete-data bookmark
   while it exists, else its collection); and the academic years,
   curriculum generations and study programs whose `published` flags
-  decide the public keys, each linked to its form.
+  decide the public keys, each linked to its form. A collection is named
+  by its Studio label, such as **Generations**.
   The lists come from the declarations and the status, never from a fixed
   set. Facts read `Label: value · Label: value`. A blocking last failure
   shows its code with its domain, revision, time and retries (the failing
@@ -1358,7 +1365,7 @@ location.
 `npm run setup` installs, once under stable ids (a Studio edit of any of
 them survives every later setup):
 
-- **Data / Validate readiness**, a manual Flow on **Data Operations**,
+- **Data / Validate readiness**, a manual Flow on **Data operations**,
   answers `{ready, revision, blockers, warnings, issueCounts, links,
   reviews, blockedFiles}`: a count for every registered code, the Studio
   page of each positive one and the name of its incomplete-data bookmark
@@ -1600,17 +1607,17 @@ fields, and the filter builder supports nested include/exclude conditions.
 | Spreadsheet helper | Directus replacement |
 | --- | --- |
 | `Пребарување` | **Search** view on `moodle_users`, with include/exclude course pickers and matching users. |
-| `Слушатели` | **Pattern mappings** and **Explicit mappings**, which count the history lines into the derived **Course Enrollments** (see [Enrollment counts](#enrollment-counts)); the counts and **Counted lines** are also in the course form's **Enrollment** group, and the lines no mapping counts are in **Unmapped history lines**. |
+| `Слушатели` | **Pattern mappings** and **Explicit mappings**, which count the history lines into the derived **Enrollment counts** (see [Enrollment counts](#enrollment-counts)); the counts and **Counted lines** are also in the course form's **Enrollments** section, and the lines no mapping counts are in **Unmapped history lines**. |
 | `Индекси` / `Индекси (Export)` | Search/filter the canonical `students` collection, including `source_group`. |
 | `Предмети (Export)` | Browse the canonical `courses` collection and its form. |
-| `Предмети - 2023`, `Предмети - 2018` | **Curriculum Entries**, generation first, narrowed with the Generation filter. |
+| `Предмети - 2023`, `Предмети - 2018` | **Curriculum entries**, generation first, narrowed with the Generation filter. |
 
 These are normal private Studio views, not separately stored copies. You can
 change visible columns, sorting, and filters in Studio and save additional
 presets/bookmarks for yourself or the team.
 
-Open **Content → Moodle Users → Search** to use the course-history search
-layout. The main **Moodle Users** view keeps the native table for regular
+Open **Content → Moodle users → Search** to use the course-history search
+layout. The main **Moodle users** view keeps the native table for regular
 data management. Setup creates this shared bookmark once from
 `directus/presets/course-search.json`; both views use the same collection.
 
@@ -1625,7 +1632,7 @@ data management. Setup creates this shared bookmark once from
   directions, by name.
 - The page header's native search and filters apply too (the layout reads
   `Filtered by page header: search, filter`), including filters on
-  related fields such as **History Memberships → Entry → Label** or the course
+  related fields such as **History lines → History line → Line** or the course
   an entry is counted for. They run as the signed-in user. A filter path names
   at most `MAX_RELATIONAL_DEPTH` fields (10 by default, as for the REST API).
   A longer path, `_some`/`_none` quantifiers and implicit `$FOLLOW(...)`
@@ -1643,7 +1650,7 @@ case-sensitive against complete newline-separated entries of the raw
 `Courses` text, including year/semester, not substrings or regex; it does
 not go through the history index or the mappings, so a line that is
 unmapped or not indexed yet is found like any other. To see where a
-person's lines count, open the person: the **History Memberships** list
+person's lines count, open the person: the **History lines** list
 shows each line with the courses and academic years it is counted for, as
 of the last completed count; a line counted nowhere shows none. Up to 20
 selections are supported per group. Use **Refresh data** after importing a
@@ -1654,7 +1661,7 @@ The layout and its companion endpoint are one bundle in
 `directus/extensions/directus-extension-course-search`. Compiled files are
 included for Compose. After changing its TypeScript or Vue sources, run
 `npm run build:search`, restart Directus, and refresh Studio. Use the main
-**Moodle Users** view for the standard collection editing and export
+**Moodle users** view for the standard collection editing and export
 workflow.
 
 ## Branding
@@ -1868,8 +1875,8 @@ others).
    `F28L1W001`: the database refuses a non-empty code without that start,
    so codes of another scheme need `codeLevel` (`exports/curriculum-code.ts`)
    and its guard (`curriculum-guards.ts`) changed first. Link courses in
-   the course form's **Curricula** list, and add equivalency members of the
-   generation where they apply. Browse them on **Curriculum Entries**
+   the course form's **Curriculum links** list, and add equivalency members
+   of the generation where they apply. Browse them on **Curriculum entries**
    narrowed by the Generation filter; an incomplete-data bookmark that
    exists lists the new rows too. No bookmark and no setup rerun is
    needed.

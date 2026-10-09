@@ -107,8 +107,15 @@ const installsStudioMetadata = async (target) => {
   assert.equal(overview.type, 'alias');
   assert.deepEqual(overview.meta.special, ['alias', 'no-data', 'group']);
   assert.equal(overview.meta.interface, 'group-detail');
+  // The English labels: the form section, a field and the collection.
+  assert.deepEqual(overview.meta.translations, [
+    { language: 'en-US', translation: 'Basics' },
+  ]);
   const name = await get(target, '/fields/courses/name');
   assert.equal(name.meta.group, 'overview');
+  assert.deepEqual(name.meta.translations, [
+    { language: 'en-US', translation: 'Name' },
+  ]);
   const status = await get(target, '/fields/courses/status');
   assert.equal(status.meta.group, 'staff');
   assert.equal(status.meta.required, true);
@@ -148,6 +155,14 @@ const installsStudioMetadata = async (target) => {
   assert.equal(folder.meta.collapse, 'open');
   const courses = await get(target, '/collections/courses');
   assert.equal(courses.meta.group, 'courses_and_curriculum');
+  assert.deepEqual(courses.meta.translations, [
+    {
+      language: 'en-US',
+      plural: 'Courses',
+      singular: 'Course',
+      translation: 'Courses',
+    },
+  ]);
   const hidden = await get(target, '/collections/course_curricula');
   assert.equal(hidden.meta.hidden, true);
   assert.equal(hidden.meta.group, 'courses_and_curriculum');
