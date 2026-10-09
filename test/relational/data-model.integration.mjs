@@ -222,11 +222,26 @@ const courseChannel = async (target, course) => {
   return body.data.discord_channel;
 };
 
+// The live rule of a relation, as relationState reads it.
+const liveRelation = async (target, path) =>
+  relationState(
+    await read(await request(target, path, { token: target.token }), 200),
+  );
+
 // A course picks its Discord channel, and the channel lists its courses
 // and picks existing ones. Taking a course out of that list, or deleting
 // the channel, clears the link (nullify, SET NULL) and keeps the course. A
 // semester below 1 is refused.
 const linksDiscordChannels = async (target) => {
+  assert.deepEqual(
+    await liveRelation(target, '/relations/courses/discord_channel'),
+    {
+      on_delete: 'SET NULL',
+      one_deselect_action: 'nullify',
+      one_field: 'courses',
+      sort_field: null,
+    },
+  );
   assert.equal(
     await rejectedItem(target, 'discord_channels', {
       channel: 'synthetic-zero',
@@ -298,20 +313,57 @@ const deanTerms = async (target, staff) => {
     .toSorted();
 };
 
+const deanTerm = (staff, year, position) => ({ position, staff, year });
+
+// A staff member who can hold a dean's office term; answers its id.
+const createDeanStaff = async (target, name) => {
+  const staff = await createItem(target, 'staff', {
+    active: true,
+    email: `${name.toLowerCase().replaceAll(' ', '.')}@staff.example`,
+    name,
+    position: 'Synthetic Position',
+    title: 'Prof.',
+  });
+  return staff.data.id;
+};
+
+// Takes every term out of the staff form's list, which deletes the
+// terms, then deletes the staff member.
+const removeDeanStaff = async (target, staff) => {
+  await read(
+    await request(
+      target,
+      `/items/staff/${staff}`,
+      json('PATCH', { dean_terms: [] }, target.token),
+    ),
+    200,
+  );
+  assert.deepEqual(await deanTerms(target, staff), []);
+  await read(
+    await request(target, `/items/staff/${staff}`, {
+      method: 'DELETE',
+      token: target.token,
+    }),
+    204,
+  );
+};
+
 // A dean's office term needs one of the four positions and has one holder
 // per year and position. A staff member who holds a term cannot be
 // deleted (NO ACTION; Directus 12.3.1 answers the database error as a
 // 500); taking the terms out of the staff form's list deletes them, and
 // the staff member can then be deleted.
 const keepsDeanTerms = async (target) => {
-  const staff = await createItem(target, 'staff', {
-    active: true,
-    email: 'synthetic.dean@staff.example',
-    name: 'Synthetic Dean Staff',
-    position: 'Synthetic Position',
-    title: 'Prof.',
-  });
-  const holder = staff.data.id;
+  assert.deepEqual(
+    await liveRelation(target, '/relations/deans_office/staff'),
+    {
+      on_delete: 'NO ACTION',
+      one_deselect_action: 'delete',
+      one_field: 'dean_terms',
+      sort_field: null,
+    },
+  );
+  const holder = await createDeanStaff(target, 'Synthetic Dean Staff');
   const term = (year, position) => ({ position, staff: holder, year });
   assert.equal(
     await rejectedItem(target, 'deans_office', term(2_091, 'Dean')),
@@ -337,22 +389,49 @@ const keepsDeanTerms = async (target) => {
     '2091 Декан',
     '2092 Продекан за настава',
   ]);
-  await read(
-    await request(
-      target,
-      `/items/staff/${holder}`,
-      json('PATCH', { dean_terms: [] }, target.token),
-    ),
-    200,
+  await removeDeanStaff(target, holder);
+};
+
+// The key is the year and position, whoever holds the term: another staff
+// member cannot take a held year and position, while the same year in
+// another position and the same position in another year are free. A term
+// without its staff member is refused.
+const keepsOneHolderPerTerm = async (target) => {
+  const holder = await createDeanStaff(target, 'Synthetic Dean Holder');
+  const other = await createDeanStaff(target, 'Synthetic Dean Other');
+  assert.equal(
+    await rejectedItem(target, 'deans_office', {
+      position: 'Декан',
+      year: 2_093,
+    }),
+    'FAILED_VALIDATION',
   );
-  assert.deepEqual(await deanTerms(target, holder), []);
-  await read(
-    await request(target, `/items/staff/${holder}`, {
-      method: 'DELETE',
+  await createItem(target, 'deans_office', deanTerm(holder, 2_093, 'Декан'));
+  assert.equal(
+    await rejectedItem(target, 'deans_office', deanTerm(other, 2_093, 'Декан')),
+    'RECORD_NOT_UNIQUE',
+  );
+  await createItem(
+    target,
+    'deans_office',
+    deanTerm(other, 2_093, 'Продекан за финансии'),
+  );
+  await createItem(target, 'deans_office', deanTerm(other, 2_094, 'Декан'));
+  assert.deepEqual(await deanTerms(target, holder), ['2093 Декан']);
+  assert.deepEqual(await deanTerms(target, other), [
+    '2093 Продекан за финансии',
+    '2094 Декан',
+  ]);
+  for (const staff of [holder, other]) {
+    await removeDeanStaff(target, staff);
+  }
+  const terms = await read(
+    await request(target, '/items/deans_office?fields=id', {
       token: target.token,
     }),
-    204,
+    200,
   );
+  assert.deepEqual(terms.data, []);
 };
 
 // The generation rows a curriculum test needs: 2013 label-only, 2018 and
@@ -613,6 +692,10 @@ test('installs the relational model idempotently and enforces its domain keys', 
     await t.test(
       "keeps one holder per dean's office term and refuses deleting a holder",
       () => keepsDeanTerms(target),
+    );
+    await t.test(
+      "keys a dean's office term by year and position, whoever holds it",
+      () => keepsOneHolderPerTerm(target),
     );
     await t.test(
       'rejects mismatched generations and duplicate curriculum links',

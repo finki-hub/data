@@ -98,8 +98,10 @@ export const editsRelationNatively = async (context) => {
   await admin.command('wait', '--text', staffNames[0]);
   await admin.command('wait', '--load', 'networkidle');
   await shot(admin, '17-assignment-before.png');
+  // The page heading names the staff member too (the display template is
+  // course, staff member and role), so only the field's button matches.
   await pickInDrawer(admin, {
-    picker: (line) => line.includes(staffNames[0]),
+    picker: (line) => line.includes(`button "${staffNames[0]}`),
     text: staffNames[1],
   });
   await admin.command('wait', '--text', staffNames[1]);

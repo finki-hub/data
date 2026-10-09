@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
+import {
+  dataModelCollectionKeys,
+  dataModelCollections,
+} from '../../src/data-model/collections.js';
 import { applySchemaConstraints } from '../../src/data-model/constraints.js';
-import { installDataModel } from '../../src/data-model/install.js';
+import {
+  installDataModel,
+  toCollectionPayload,
+} from '../../src/data-model/install.js';
 import { installPresentation } from '../../src/data-model/presentation.js';
 import {
   generationFilter,
@@ -16,6 +22,10 @@ import {
   folders,
 } from '../../src/data-model/presentation/navigation.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
+import {
+  collectionTranslations,
+  fieldTranslations,
+} from '../../src/data-model/translations.js';
 import { incompleteDataPresets } from '../../src/import/incomplete-data-bookmarks.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
@@ -30,6 +40,7 @@ import {
 } from './data-model-helpers.mjs';
 
 const systemPrefix = 'directus_';
+const collectionsPath = '/collections';
 
 const get = async (target, path) => {
   const body = await read(
@@ -47,7 +58,7 @@ const remove = async (target, path) =>
 
 // The three listings the presentation writes to, byte-comparable between runs.
 const snapshot = async (target) => ({
-  collections: await get(target, '/collections'),
+  collections: await get(target, collectionsPath),
   fields: await get(target, '/fields'),
   presets: await get(target, '/presets?limit=-1'),
 });
@@ -55,6 +66,18 @@ const snapshot = async (target) => ({
 const presetIds = async (target) => {
   const presets = await get(target, '/presets?limit=-1&fields=id');
   return presets.map(({ id }) => id);
+};
+
+// The sidebar folders: user collections without a table.
+const folderKeys = async (target) => {
+  const collections = await get(target, collectionsPath);
+  return collections
+    .filter(
+      ({ collection, schema }) =>
+        schema === null && !collection.startsWith(systemPrefix),
+    )
+    .map(({ collection }) => collection)
+    .toSorted();
 };
 
 const expectedFirstRun = {
@@ -215,6 +238,103 @@ const installsStudioMetadata = async (target) => {
   );
 };
 
+const isGroup = ({ meta }) => meta?.special?.includes('group') === true;
+
+// The English labels as declared (plan 1.1 to 1.3, pinned against the
+// declarations by data-model-labels.test.ts): every form group with its
+// note and its members in order, and no other group; every model
+// collection with its display template and note; every field and alias.
+const labelsAsDeclared = async (target) => {
+  const fields = await get(target, '/fields');
+  const modelFields = fields.filter(({ collection }) =>
+    dataModelCollectionKeys.includes(collection),
+  );
+  const fieldOf = (collection, field) =>
+    modelFields.find(
+      (live) => live.collection === collection && live.field === field,
+    );
+  for (const group of fieldGroups) {
+    const key = `${group.collection}.${group.field}`;
+    const live = fieldOf(group.collection, group.field);
+    assert.ok(live !== undefined && isGroup(live), `${key} missing`);
+    assert.deepEqual(
+      live.meta.translations,
+      fieldTranslations(group.label),
+      key,
+    );
+    assert.equal(live.meta.note, group.note ?? null, key);
+    const members = modelFields
+      .filter(
+        ({ collection, meta }) =>
+          collection === group.collection && meta?.group === group.field,
+      )
+      .toSorted((left, right) => left.meta.sort - right.meta.sort)
+      .map(({ field }) => field);
+    assert.deepEqual(members, group.members, key);
+  }
+  assert.deepEqual(
+    modelFields
+      .filter(isGroup)
+      .map(({ collection, field }) => `${collection}.${field}`)
+      .toSorted(),
+    fieldGroups
+      .map(({ collection, field }) => `${collection}.${field}`)
+      .toSorted(),
+  );
+  const collections = await get(target, collectionsPath);
+  for (const declared of dataModelCollections) {
+    const { collection } = declared;
+    const live = collections.find((row) => row.collection === collection);
+    assert.notEqual(declared.label, undefined, `${collection} label`);
+    assert.deepEqual(
+      live?.meta.translations,
+      collectionTranslations(declared.label),
+      collection,
+    );
+    assert.equal(
+      live.meta.display_template,
+      declared.displayTemplate,
+      collection,
+    );
+    assert.equal(live.meta.note, declared.note ?? null, collection);
+    for (const { field, meta } of toCollectionPayload(declared).fields) {
+      assert.deepEqual(
+        fieldOf(collection, field)?.meta.translations,
+        meta.translations ?? null,
+        `${collection}.${field}`,
+      );
+    }
+  }
+};
+
+// Every model collection sits in the folder the sidebar declares, at its
+// position there; Moodle users alone at the root. No other folder is added.
+const placesAsDeclared = async (target, state) => {
+  const collections = await get(target, collectionsPath);
+  for (const collection of dataModelCollectionKeys) {
+    const expected =
+      collection === 'moodle_users'
+        ? { group: null, sort: 6 }
+        : collectionPlacements.find(
+            (declared) => declared.collection === collection,
+          )?.meta;
+    assert.notEqual(expected, undefined, `${collection} has no placement`);
+    const live = collections.find((row) => row.collection === collection);
+    assert.deepEqual(
+      { group: live?.meta.group, sort: live?.meta.sort },
+      expected,
+      collection,
+    );
+  }
+  assert.deepEqual(
+    await folderKeys(target),
+    [
+      ...state.foldersBefore,
+      ...folders.map(({ collection }) => collection),
+    ].toSorted(),
+  );
+};
+
 // The API-side half of the browser QA: the trigger rejects a link whose
 // generation differs from its entry, and a matching link plus a professor
 // assignment read back through the course.
@@ -326,7 +446,7 @@ const removesPresentation = async (target, state) => {
     await remove(target, `/collections/${folder.collection}`);
   }
   assert.deepEqual(await presetIds(target), state.presetsBefore);
-  const collections = await get(target, '/collections');
+  const collections = await get(target, collectionsPath);
   const remaining = new Set(
     collections
       .map(({ collection }) => collection)
@@ -340,7 +460,10 @@ const removesPresentation = async (target, state) => {
 test('installs the Studio presentation once and lets the course be edited through its relations', async (t) => {
   const target = targetFrom(process.env);
   const directus = adminRequest(target);
-  const state = { presetsBefore: await presetIds(target) };
+  const state = {
+    foldersBefore: await folderKeys(target),
+    presetsBefore: await presetIds(target),
+  };
 
   await withDataModel(target, async () => {
     try {
@@ -353,6 +476,14 @@ test('installs the Studio presentation once and lets the course be edited throug
       await t.test(
         'installs groups, filters, hidden columns, folders and bookmarks',
         () => installsStudioMetadata(target),
+      );
+      await t.test(
+        'labels every form group, collection, field and alias in English as declared',
+        () => labelsAsDeclared(target),
+      );
+      await t.test(
+        'places every collection in its declared folder and adds no other folder',
+        () => placesAsDeclared(target, state),
       );
       await t.test(
         'rejects a mismatched generation and reads relations back through the course',
