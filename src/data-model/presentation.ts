@@ -1,8 +1,6 @@
-import type { ReadinessEntry } from '../../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
 import type { DirectusRequest } from '../directus-request.js';
 import type { FieldGroup, Folder } from './presentation/types.js';
 
-import { readinessRegistry } from '../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { presentationFieldPatches } from './presentation/fields.js';
 import { fieldGroups } from './presentation/groups.js';
 import {
@@ -13,14 +11,15 @@ import {
   planPresentation,
   type PresentationState,
 } from './presentation/plan.js';
-import { presetDefinitionsFor } from './presentation/presets.js';
 
 const json = (body: unknown, method: 'PATCH' | 'POST') => ({
   body: JSON.stringify(body),
   method,
 });
 
-const presetsQuery = '/presets?limit=-1&fields=bookmark,collection,user,role';
+// Every preset with what tells a global one from a personal one.
+export const presetsQuery =
+  '/presets?limit=-1&fields=bookmark,collection,user,role';
 
 // Collections whose fields the presentation touches.
 const presentedCollections: readonly string[] = [
@@ -87,18 +86,13 @@ const readState = async (
 
 // Installs the Studio presentation once: sidebar folders and placement,
 // form groups, relational interface options, displays and shared presets
-// (the Needs review bookmarks of the readiness registry among them). Each
-// element is written only while it still carries the schema installer's
-// defaults, so a rerun never overwrites Studio edits and a project that
-// already has the presentation sees no mutating call.
-export const installPresentation = async (
-  request: DirectusRequest,
-  registry: readonly ReadinessEntry[] = readinessRegistry,
-) => {
-  const plan = planPresentation(
-    await readState(request),
-    presetDefinitionsFor(registry),
-  );
+// (the default views, Search and Unmapped history lines; only the import
+// creates the incomplete-data bookmarks). Each element is written only
+// while it still carries the schema installer's defaults, so a rerun never
+// overwrites Studio edits and a project that already has the presentation
+// sees no mutating call.
+export const installPresentation = async (request: DirectusRequest) => {
+  const plan = planPresentation(await readState(request));
   for (const folder of plan.folders) {
     await request('/collections', json(folderPayload(folder), 'POST'));
   }

@@ -22,7 +22,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { equivalencyWithoutCourse } from '../directus/extensions/directus-extension-data-operations/src/exports/review-views.js';
 import { findModelCollection } from '../src/data-model/collections.js';
-import { reviewPresets } from '../src/data-model/presentation/presets.js';
+import { incompleteDataPresets } from '../src/import/incomplete-data-bookmarks.js';
 import { storeReader } from '../src/projection/memory-reader.js';
 import { edit, importedStore } from './relational-export-helpers.js';
 
@@ -110,14 +110,14 @@ describe('the readiness-check registry', () => {
     ).toEqual([]);
   });
 
-  test('names one Needs review bookmark per name and installs exactly those', () => {
+  test('names one incomplete-data bookmark per name, and the import declares exactly those', () => {
     const reviewed = readinessRegistry.flatMap(({ page, review }) =>
       review === undefined ? [] : [{ page, review }],
     );
     const bookmarks = reviewed.map(({ review }) => review.bookmark);
 
     expect(new Set(bookmarks).size).toBe(bookmarks.length);
-    expect(reviewPresets()).toEqual(
+    expect(incompleteDataPresets()).toEqual(
       reviewed.map(({ page, review }) => ({
         bookmark: review.bookmark,
         collection: page,
@@ -139,7 +139,7 @@ describe('the readiness-check registry', () => {
       })),
     );
     expect(
-      reviewPresets().find(
+      incompleteDataPresets().find(
         ({ bookmark }) => bookmark === 'Equivalencies without a course',
       ),
     ).toMatchObject({
@@ -212,7 +212,7 @@ describe('the readiness-check registry', () => {
         .map(({ code }) => code),
     ).toEqual([]);
     expect(
-      reviewPresets(readinessRegistry).filter(
+      incompleteDataPresets(readinessRegistry).filter(
         ({ collection }) => collection === 'teaching_assignments',
       ),
     ).toEqual([]);
@@ -397,7 +397,7 @@ describe('readiness derived from the registry', () => {
     expect(prepared.files.map(({ filename }) => filename)).toEqual(filenames);
   });
 
-  test('names the Needs review bookmark of a positive code that declares one', async () => {
+  test('names the incomplete-data bookmark of a positive code that declares one', async () => {
     const answer = await readinessAction(
       exportDefinitions,
       deps(await importedStore()),
@@ -426,7 +426,7 @@ describe('readiness derived from the registry', () => {
         .map(({ code }) => code),
     ).toEqual([]);
     expect(
-      reviewPresets().filter(
+      incompleteDataPresets().filter(
         ({ collection }) => collection === 'moodle_course_entries',
       ),
     ).toEqual([]);

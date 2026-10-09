@@ -1,6 +1,6 @@
 import type { SourceRead } from './types.js';
 
-// The rules every export and readiness read obeys, and every Needs review
+// The rules every export and readiness read obeys, and every review view
 // filter: explicit fields (never `*`), each once, and no `_some` or `_none`
 // anywhere in a filter (Directus 12.3.1 drops a two-condition `_some`
 // silently and matches two `_some` blocks across different rows).

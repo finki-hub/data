@@ -13,8 +13,9 @@ import { installSnapshotFolder } from './flows/snapshot-folder.js';
 // What `npm run setup` installs, in order: the schema (realigning the
 // choices and validation of every declared enum), the database constraints
 // and source-invalidation triggers, the Studio presentation (its default
-// table views and bookmarks, the Search bookmark among them), the private
-// folder of the Moodle snapshot files, every registered Flow family through one loop
+// table views and the Search and Unmapped history lines bookmarks; only the
+// import creates the incomplete-data bookmarks), the private folder of the
+// Moodle snapshot files, every registered Flow family through one loop
 // (registry.ts: automatic processing last, so the first tick of its
 // schedule finds every child) and the Data operations dashboard whose
 // panels name those Flows. Every step is idempotent and installs once, so

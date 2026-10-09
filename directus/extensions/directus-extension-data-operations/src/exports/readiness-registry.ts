@@ -22,12 +22,13 @@ import {
 // order, declared once (a new check is one entry, with a check or an
 // aggregate that counts it). `ready` is true exactly when every blocker
 // counts zero; blockers hold back the files they gate, warnings nothing.
-// An entry with a `review` gets its Needs review bookmark from setup and
-// the dashboard links it there (review-views.ts); an entry whose records
-// no plain filter can list (a missing row, a duplicate) links its page.
-// A description is the dashboard tooltip of the code: a short fact about
-// the records it counts, without a trailing period; README ("Readiness
-// and Needs review views") says what to do about each.
+// An entry with a `review` gets its incomplete-data bookmark from the
+// import when the view lists a row, and the dashboard links it there while
+// the bookmark exists (review-views.ts); an entry whose records no plain
+// filter can list (a missing row, a duplicate) links its page. A
+// description is the dashboard tooltip of the code: a short fact about the
+// records it counts, without a trailing period; README ("Readiness and
+// incomplete-data bookmarks") says what to do about each.
 
 const status: ReadinessSource = { kind: 'status' };
 const snapshot: ReadinessSource = { kind: 'snapshot' };

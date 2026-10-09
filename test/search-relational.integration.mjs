@@ -2,12 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { installPresentation } from '../src/data-model/presentation.js';
 import {
-  curriculumBookmark,
   searchBookmark,
   unmappedLinesBookmark,
 } from '../src/data-model/presentation/bookmarks.js';
+import { createIncompleteDataBookmarks } from '../src/import/incomplete-data-bookmarks.js';
 import { runSetup } from '../src/setup.js';
 import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
@@ -39,9 +38,10 @@ import {
 // and mappings exist beside them, and Search still matches the raw
 // Courses text exactly, reads its options from the raw histories, and
 // passes Studio's relational native filters to Directus as the caller.
-// The Needs review bookmarks setup installs are the registry's, and the
-// dashboard's readiness links resolve to them; Unmapped history lines is
-// installed beside them and lists the line no mapping counts.
+// Setup installs Search and Unmapped history lines and no incomplete-data
+// bookmark; the bookmarks the import creates for the seeded gaps are the
+// registry's views, the dashboard's readiness links resolve to them while
+// they exist, and Unmapped history lines lists the line no mapping counts.
 
 const bookmarkLink = /^\/content\/(?<page>[a-z_]+)\?bookmark=(?<id>\d+)$/u;
 const courseName = 'Synthetic Search Course';
@@ -62,52 +62,23 @@ const labelFilter = (label) => ({
   history_memberships: { entry: { label: { _eq: label } } },
 });
 
-// A test-only readiness check with one review view.
-const extraCheck = {
-  code: 'synthetic_search_extra',
-  description: 'A synthetic check of the Search suite.',
-  gates: [],
-  generationScoped: false,
-  page: 'moodle_course_entries',
-  review: {
-    bookmark: 'Synthetic extra review',
-    fields: ['label'],
-    filter: { label: { _starts_with: 'Synthetic' } },
-    sort: ['label'],
-  },
-  severity: 'warning',
-  source: {
-    aggregate: 'count',
-    field: 'id',
-    filter: { label: { _starts_with: 'Synthetic' } },
-    kind: 'count',
-  },
-};
-
 const globalBookmarks = (target) =>
   get(
     target,
     '/presets?fields=id,bookmark,collection,filter,layout,layout_query&filter[bookmark][_nnull]=true&filter[user][_null]=true&filter[role][_null]=true&limit=-1',
   );
 
-// Setup installs one global bookmark per registry entry with a review, on
-// its page with its filter, columns and order; the readiness read links
-// each such check to that bookmark and every other check to its page; a
-// test-only extra check gets exactly one more bookmark on a rerun.
-const installsReviewViews = async ({ directus, t, target }) => {
+// The readiness rows of the checks, by code.
+const readinessChecks = async (target) => {
+  const { checks } = await get(target, '/finki-hub-data-status/readiness');
+  return new Map(checks.map((check) => [check.code, check]));
+};
+
+// Setup installs Search and Unmapped history lines and no incomplete-data
+// bookmark, so readiness links every check to its collection page.
+const installsNoIncompleteDataBookmark = async ({ directus, target }) => {
   await runSetup(directus);
   const installed = await globalBookmarks(target);
-  const reviewed = readinessRegistry.filter(({ review }) => review);
-  for (const { page, review } of reviewed) {
-    const matching = installed.filter(
-      ({ bookmark, collection }) =>
-        bookmark === review.bookmark && collection === page,
-    );
-    assert.equal(matching.length, 1, review.bookmark);
-    assert.deepEqual(matching[0].filter, review.filter);
-    assert.deepEqual(matching[0].layout_query.tabular.fields, review.fields);
-    assert.deepEqual(matching[0].layout_query.tabular.sort, review.sort);
-  }
   const search = installed.filter(({ bookmark }) => bookmark === 'Search');
   assert.deepEqual(
     search.map(({ collection, layout }) => [collection, layout]),
@@ -132,46 +103,68 @@ const installsReviewViews = async ({ directus, t, target }) => {
       },
     ],
   );
-  // No other shared bookmark: a hand-written review view would show here.
+  // No other shared bookmark: an incomplete-data one would show here.
   assert.deepEqual(
     installed.map(({ bookmark }) => bookmark).toSorted(),
-    [
-      searchBookmark.bookmark,
-      curriculumBookmark.bookmark,
-      unmappedLinesBookmark.bookmark,
-      ...reviewed.map(({ review }) => review.bookmark),
-    ].toSorted(),
+    [searchBookmark.bookmark, unmappedLinesBookmark.bookmark].toSorted(),
   );
-  const { checks } = await get(target, '/finki-hub-data-status/readiness');
-  for (const { code, page, review } of readinessRegistry) {
-    const check = checks.find((candidate) => candidate.code === code);
-    if (review === undefined) {
-      assert.equal(check?.link, `/content/${page}`, code);
-      continue;
-    }
-    const { groups } = bookmarkLink.exec(check?.link ?? '') ?? {};
-    const preset = installed.find(({ id }) => String(id) === groups?.id);
-    assert.equal(groups?.page, page, code);
-    assert.equal(preset?.bookmark, review.bookmark, code);
+  const checks = await readinessChecks(target);
+  for (const { code, page } of readinessRegistry) {
+    assert.equal(checks.get(code)?.link, `/content/${page}`, code);
+    assert.equal(checks.get(code)?.review, null, code);
   }
-  const extra = await installPresentation(directus, [
-    ...readinessRegistry,
-    extraCheck,
-  ]);
-  assert.deepEqual(extra.presets.created, 1);
-  const after = await globalBookmarks(target);
-  const added = after.filter(({ id }) =>
-    installed.every((old) => old.id !== id),
+};
+
+// The incomplete-data bookmarks of the seeded gaps, as the import creates
+// them: exactly the reviewed checks that count a row, each with its view's
+// filter, columns and order, linked from readiness while it exists. A
+// second run creates none, and one deleted in Studio stays deleted after a
+// setup rerun, its check linking its page again.
+const createsIncompleteDataBookmarks = async ({ directus, t, target }) => {
+  const before = await readinessChecks(target);
+  const reviewed = readinessRegistry.filter(
+    ({ code, review }) =>
+      review !== undefined && (before.get(code)?.count ?? 0) > 0,
   );
+  assert.ok(reviewed.length >= 2, 'the seeded gaps are counted');
   assert.deepEqual(
-    added.map(({ bookmark, collection }) => [bookmark, collection]),
-    [['Synthetic extra review', 'moodle_course_entries']],
+    await createIncompleteDataBookmarks(directus),
+    reviewed.map(({ review }) => review.bookmark),
   );
-  await remove(target, `/presets/${added[0].id}`);
-  const rerun = await installPresentation(directus);
-  assert.equal(rerun.presets.created, 0);
+  const installed = await globalBookmarks(target);
+  const linked = await readinessChecks(target);
+  for (const { code, page, review } of reviewed) {
+    const matching = installed.filter(
+      ({ bookmark, collection }) =>
+        bookmark === review.bookmark && collection === page,
+    );
+    assert.equal(matching.length, 1, review.bookmark);
+    assert.deepEqual(matching[0].filter, review.filter);
+    assert.deepEqual(matching[0].layout_query.tabular.fields, review.fields);
+    assert.deepEqual(matching[0].layout_query.tabular.sort, review.sort);
+    const { groups } = bookmarkLink.exec(linked.get(code)?.link ?? '') ?? {};
+    assert.equal(groups?.page, page, code);
+    assert.equal(groups?.id, String(matching[0].id), code);
+    assert.equal(linked.get(code)?.review, review.bookmark, code);
+  }
+  assert.deepEqual(await createIncompleteDataBookmarks(directus), []);
+  const [deleted] = reviewed;
+  const preset = installed.find(
+    ({ bookmark }) => bookmark === deleted.review.bookmark,
+  );
+  await remove(target, `/presets/${preset.id}`);
+  const rerun = await runSetup(directus);
+  assert.equal(rerun.presentation.presets.created, 0);
+  const after = await globalBookmarks(target);
+  assert.ok(
+    after.every(({ bookmark }) => bookmark !== deleted.review.bookmark),
+    'a deleted incomplete-data bookmark stays deleted',
+  );
+  const unlinked = await readinessChecks(target);
+  assert.equal(unlinked.get(deleted.code)?.link, `/content/${deleted.page}`);
+  assert.equal(unlinked.get(deleted.code)?.review, null);
   t.diagnostic(
-    `review bookmarks: ${reviewed.length} of ${readinessRegistry.length} checks; one more for a test-only check`,
+    `incomplete-data bookmarks: ${reviewed.length} of ${readinessRegistry.length} checks`,
   );
 };
 
@@ -512,7 +505,7 @@ const survivesReplacement = async ({ state, target }) => {
   );
 };
 
-test('keeps raw-history Search and installs the Needs review views of the registry', async (t) => {
+test('keeps raw-history Search and creates the incomplete-data bookmarks of the registry', async (t) => {
   const target = targetFrom(process.env);
   const directus = adminRequest(target);
   const state = { files: [] };
@@ -523,12 +516,16 @@ test('keeps raw-history Search and installs the Needs review views of the regist
     before = await fileIds(target);
     try {
       await t.test(
-        'installs one bookmark per reviewed check, linked from readiness, and one more for a new check',
-        () => installsReviewViews(context),
+        'installs Search and Unmapped history lines and no incomplete-data bookmark, linking every check to its page',
+        () => installsNoIncompleteDataBookmark(context),
       );
       await t.test(
         'imports a snapshot, indexes it, and seeds mappings and review issues',
         () => importsAndMaps(context),
+      );
+      await t.test(
+        'creates the bookmarks of the seeded gaps, linked from readiness, and keeps a deleted one deleted',
+        () => createsIncompleteDataBookmarks(context),
       );
       await t.test(
         'opens every review view through the REST API and lists what readiness counts',

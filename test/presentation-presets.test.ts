@@ -6,20 +6,15 @@ import type {
 } from '../src/data-model/presentation/preset-schema.js';
 
 import {
-  curriculumBookmark,
   searchBookmark,
   unmappedLinesBookmark,
 } from '../src/data-model/presentation/bookmarks.js';
-import {
-  presetDefinitions,
-  presetDefinitionsFor,
-  reviewPresets,
-} from '../src/data-model/presentation/presets.js';
+import { presetDefinitions } from '../src/data-model/presentation/presets.js';
+import { incompleteDataPresets } from '../src/import/incomplete-data-bookmarks.js';
 import { resolves } from './presentation-test-helpers.js';
 
-// The shared presets the presentation declares: the default table views,
-// the curriculum bookmark, the Needs review bookmarks, Search and
-// Unmapped history lines.
+// The shared presets setup installs: the default table views, Search and
+// Unmapped history lines. The incomplete-data bookmarks are the import's.
 
 const isTabular = (preset: PresetDefinition): preset is TabularPreset =>
   preset.layout === 'tabular';
@@ -32,7 +27,8 @@ const defaultViewOf = (collection: string) =>
       (preset) => preset.bookmark === null && preset.collection === collection,
     );
 
-const unresolvedPresetPaths = presetDefinitions
+// The paths of every tabular preset setup or the import creates.
+const unresolvedPresetPaths = [...presetDefinitions, ...incompleteDataPresets()]
   .filter(isTabular)
   .flatMap((preset) =>
     [...preset.layout_query.tabular.fields, ...preset.layout_query.tabular.sort]
@@ -41,44 +37,16 @@ const unresolvedPresetPaths = presetDefinitions
   );
 
 describe('presets', () => {
-  test('defines one curriculum bookmark, narrowed by the native generation filter, and none per generation', () => {
-    expect(curriculumBookmark).toMatchObject({
-      bookmark: 'Curriculum by generation',
-      collection: 'curriculum_entries',
-      filter: null,
-      role: null,
-      user: null,
-    });
-    expect(curriculumBookmark.layout_query.tabular.sort).toEqual([
-      'generation',
-      'catalog_order',
-    ]);
-    expect(curriculumBookmark.layout_query.tabular.fields[0]).toBe(
-      'generation',
-    );
+  test('declares Search and Unmapped history lines as its only shared bookmarks, and none per generation', () => {
     expect(
-      presetDefinitions.filter(
-        ({ bookmark, collection }) =>
-          collection === 'curriculum_entries' && bookmark !== null,
-      ),
-    ).toEqual([curriculumBookmark]);
-    // No bookmark names a generation row: a new row needs none.
+      presetDefinitions.filter(({ bookmark }) => bookmark !== null),
+    ).toEqual([searchBookmark, unmappedLinesBookmark]);
+    // No preset names a generation row: a new row needs none.
     expect(
       presetDefinitions.filter(({ filter }) =>
         JSON.stringify(filter ?? {}).includes('"generation":{"_eq"'),
       ),
     ).toEqual([]);
-  });
-
-  test('declares no shared bookmark beyond the curriculum one, the registry review views, Search and Unmapped history lines', () => {
-    expect(
-      presetDefinitions.filter(({ bookmark }) => bookmark !== null),
-    ).toEqual([
-      curriculumBookmark,
-      ...reviewPresets(),
-      searchBookmark,
-      unmappedLinesBookmark,
-    ]);
   });
 
   test('keeps the Moodle users main table and the Search bookmark of directus/presets/course-search.json', () => {
@@ -138,18 +106,26 @@ describe('presets', () => {
     ]);
   });
 
-  test('lists curriculum entries without a level column, in the default view and the curriculum bookmark', () => {
+  test('lists curriculum entries generation first in catalog order, with their linked courses and without a level column', () => {
     expect(
-      defaultViewOf('curriculum_entries')?.layout_query.tabular.fields,
-    ).toEqual(['generation', 'code', 'name', 'semester', 'channel']);
-    expect(curriculumBookmark.layout_query.tabular.fields).toEqual([
-      'generation',
-      'code',
-      'name',
-      'semester',
-      'channel',
-      'course_links',
-    ]);
+      defaultViewOf('curriculum_entries')?.layout_query.tabular,
+    ).toMatchObject({
+      fields: [
+        'generation',
+        'code',
+        'name',
+        'semester',
+        'channel',
+        'course_links',
+      ],
+      sort: ['generation', 'catalog_order'],
+    });
+    expect(
+      presetDefinitions.filter(
+        ({ bookmark, collection }) =>
+          collection === 'curriculum_entries' && bookmark !== null,
+      ),
+    ).toEqual([]);
   });
 
   test('shows a course with its status, tags, curriculum links and assignments in the default Courses view', () => {
@@ -171,7 +147,7 @@ describe('presets', () => {
     });
   });
 
-  test('lists history lines by label with their First seen, and keeps no Needs review bookmark on them', () => {
+  test('lists history lines by label with their First seen, and keeps no incomplete-data bookmark on them', () => {
     expect(
       defaultViewOf('moodle_course_entries')?.layout_query.tabular,
     ).toMatchObject({ fields: ['label', 'first_seen'], sort: ['label'] });
@@ -184,7 +160,7 @@ describe('presets', () => {
         .map(({ bookmark }) => bookmark),
     ).toEqual(['Unmapped history lines']);
     expect(
-      reviewPresets().filter(
+      incompleteDataPresets().filter(
         ({ collection }) => collection === 'moodle_course_entries',
       ),
     ).toEqual([]);
@@ -217,10 +193,6 @@ describe('presets', () => {
     ).toEqual([unmappedLinesBookmark]);
     // The filter goes through the line's Counted for list.
     expect(resolves('moodle_course_entries', 'counted_for.id')).toBeTruthy();
-  });
-
-  test('keeps Unmapped history lines whatever the readiness registry declares', () => {
-    expect(presetDefinitionsFor([])).toContain(unmappedLinesBookmark);
   });
 
   test('lists only fields that exist on the collection or its relation targets', () => {

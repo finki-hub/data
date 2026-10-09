@@ -14,6 +14,7 @@ import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
 import { publishAssetsFlowId } from '../../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../../src/flows/snapshot-import.js';
+import { createIncompleteDataBookmarks } from '../../src/import/incomplete-data-bookmarks.js';
 import { runSetup } from '../../src/setup.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import { createMany, settle } from './automatic-processing-helpers.mjs';
@@ -93,8 +94,8 @@ const keepsEdits = async ({ directus, target }) => {
 // 260 courses, All professors so that courses.json needs no staff link,
 // an older published year, a new unpublished year, one Moodle user with
 // two history lines and a mapping of one line to the first course in the
-// new year, and an equivalency without a course (a warning with a Needs
-// review bookmark).
+// new year, and an equivalency without a course (a warning with an
+// incomplete-data bookmark).
 const seedRows = async (target) => {
   const courses = await createMany(
     target,
@@ -285,8 +286,13 @@ const showsLists = async ({ state, target }) => {
   );
 };
 
-const seeds = async ({ state, target }) => {
+// The seeded rows, then the incomplete-data bookmarks as the import
+// creates them: the equivalency without a course is the only gap.
+const seeds = async ({ directus, state, target }) => {
   Object.assign(state, await seedRows(target));
+  assert.deepEqual(await createIncompleteDataBookmarks(directus), [
+    'Equivalencies without a course',
+  ]);
 };
 
 test('installs the Data operations dashboard and guards every data operation', async (t) => {

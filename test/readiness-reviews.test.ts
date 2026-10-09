@@ -10,7 +10,7 @@ import { readinessRegistry } from '../directus/extensions/directus-extension-dat
 import { storeReader } from '../src/projection/memory-reader.js';
 import { edit, importedStore } from './relational-export-helpers.js';
 
-// The Needs review views against the counts they explain: over synthetic
+// The incomplete-data views against the counts they explain: over synthetic
 // stores, a view lists exactly the records its entry counts (for a
 // countDistinct, rows whose distinct values are the count). It runs the
 // view's own filter through the same fake reader as readiness, which
@@ -91,7 +91,7 @@ const countedBy = async (store: FakeStore, entry: Reviewed) => {
     : new Set(rows.map((row) => row[distinct])).size;
 };
 
-describe('the Needs review views', () => {
+describe('the incomplete-data views', () => {
   test.each([
     ['the imported parity fixture', importedStore],
     ['a store holding every counted issue', everyIssue],

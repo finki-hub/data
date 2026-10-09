@@ -13,6 +13,7 @@ import {
   publishAssetsFlowId,
 } from '../src/flows/publish-public-assets.js';
 import { snapshotFlowId } from '../src/flows/snapshot-import.js';
+import { createIncompleteDataBookmarks } from '../src/import/incomplete-data-bookmarks.js';
 import {
   clickMatching,
   entryText,
@@ -36,6 +37,7 @@ import {
   removeFlow,
   settle,
 } from './relational/automatic-processing-helpers.mjs';
+import { adminRequest } from './relational/data-model-helpers.mjs';
 import { get, patch, remove } from './relational/history-index-helpers.mjs';
 import {
   syntheticRows,
@@ -58,9 +60,10 @@ const dialogs = '#dialog-outlet';
 const freeRow = Math.max(...defaultPanels.map(({ height, y }) => y + height));
 
 // Three courses, a new unpublished academic year, an equivalency without
-// a course (a warning with a Needs review bookmark) and a generated
-// snapshot CSV of synthetic users uploaded into the private folder. The
-// courses are All professors, so they publish without a staff link.
+// a course (a warning, with the incomplete-data bookmark the import would
+// create for it) and a generated snapshot CSV of synthetic users uploaded
+// into the private folder. The courses are All professors, so they
+// publish without a staff link.
 export const seedRows = async (
   target,
   state,
@@ -81,6 +84,7 @@ export const seedRows = async (
     { label: yearLabel, published: false },
   ]);
   await createMany(target, 'course_equivalencies', [{ course: null }]);
+  await createIncompleteDataBookmarks(adminRequest(target));
   const directory = await mkdtemp(
     path.join(os.tmpdir(), 'operations-browser-csv-'),
   );
@@ -336,7 +340,7 @@ export const reopensEmpty = async ({
 };
 
 // The review link of a positive check (the seeded equivalency without a
-// course) opens its Needs review bookmark.
+// course) opens its incomplete-data bookmark.
 export const followsReview = async ({ admin, shot }) => {
   await admin.command('wait', '[data-check="equivalency_without_course"] a');
   await shot(admin, '12-readiness-review-link.png');

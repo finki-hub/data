@@ -6,12 +6,17 @@ import { test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 
 import { findModelCollection } from '../../src/data-model/collections.js';
+import {
+  searchBookmark,
+  unmappedLinesBookmark,
+} from '../../src/data-model/presentation/bookmarks.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { flowFamilies } from '../../src/flows/registry.js';
 import { runImportCli } from '../../src/import-run.js';
 import { countApplicationRecords } from '../../src/import-state.js';
+import { incompleteDataPresets } from '../../src/import/incomplete-data-bookmarks.js';
 import { planImport } from '../../src/import/plan.js';
 import { exitCodes } from '../../src/lifecycle.js';
 import { runSetup } from '../../src/setup.js';
@@ -39,6 +44,14 @@ const forbiddenOnStdout = ['Alpha', 'SYN-', '@', 'Synthetic', 'SENTINEL'];
 const malformedPattern =
   /^Import failed: Кадар \(Export\) row 3, column "active": invalid boolean "maybe"$/u;
 const migrationEndpointPattern = /^\/finki-hub-data-operations\/migrations\//u;
+// The parity fixture keeps a gap behind every incomplete-data view: an
+// equivalency without a course, a label without an entry and a council
+// member without a student.
+const fixtureBookmarks = incompleteDataPresets().map(
+  ({ bookmark }) => bookmark,
+);
+// The one the setup rerun scenario deletes.
+const deletedBookmark = 'Equivalencies without a course';
 
 const get = async (target, pathname) => {
   const body = await read(
@@ -199,9 +212,22 @@ const assertImported = async (target, context, summary) => {
   assert.ok((await count(target, 'course_curricula')) > 0);
 };
 
+// The names of the global bookmarks, sorted.
+const globalBookmarks = async (target) => {
+  const presets = await get(
+    target,
+    '/presets?fields=bookmark,user,role&filter[bookmark][_nnull]=true&limit=-1',
+  );
+  return presets
+    .filter(({ role, user }) => user === null && role === null)
+    .map(({ bookmark }) => bookmark)
+    .toSorted();
+};
+
 // Every shared preset the presentation declares exists once: the default
-// views, the bookmarks and Search.
-const assertPresets = async (target) => {
+// views, Search and Unmapped history lines. Beside them, the bookmarks are
+// the fixture's incomplete-data views the import created.
+const assertPresets = async (target, summary) => {
   const presets = await get(
     target,
     '/presets?fields=collection,bookmark,user,role&limit=-1',
@@ -219,6 +245,15 @@ const assertPresets = async (target) => {
       `${collection} ${bookmark ?? 'default view'} exists once`,
     );
   }
+  assert.deepEqual(summary.bookmarks, fixtureBookmarks);
+  assert.deepEqual(
+    await globalBookmarks(target),
+    [
+      searchBookmark.bookmark,
+      unmappedLinesBookmark.bookmark,
+      ...fixtureBookmarks,
+    ].toSorted(),
+  );
 };
 
 const importWrites = async (target, context) => {
@@ -229,7 +264,7 @@ const importWrites = async (target, context) => {
   await pauseAutomaticProcessing(target);
   const summary = aggregateOnly(run.stdout[0]);
   await assertImported(target, context, summary);
-  await assertPresets(target);
+  await assertPresets(target, summary);
   assert.deepEqual(
     run.calls.filter(({ pathname }) => pathname.startsWith('/flows/trigger/')),
     [],
@@ -282,8 +317,25 @@ const editInStudio = async (target) => {
   );
 };
 
+// Deletes a global bookmark by name, as a Studio user does once its data
+// is complete.
+const deleteBookmark = async (target, name) => {
+  const [preset] = await get(
+    target,
+    `/presets?fields=id&filter[bookmark][_eq]=${encodeURIComponent(name)}&filter[user][_null]=true&filter[role][_null]=true&limit=1`,
+  );
+  await read(
+    await request(target, `/presets/${preset.id}`, {
+      method: 'DELETE',
+      token: target.token,
+    }),
+    204,
+  );
+};
+
 const setupPreservesStudioEdits = async (target, directus) => {
   await editInStudio(target);
+  await deleteBookmark(target, deletedBookmark);
   const before = await studioSnapshot(target);
   const recorder = recording(directus);
   const summary = await runSetup(recorder.request);
@@ -309,6 +361,11 @@ const setupPreservesStudioEdits = async (target, directus) => {
     'the rerun only reapplies the bundled SQL migrations',
   );
   assert.deepEqual(await studioSnapshot(target), before);
+  const bookmarks = await globalBookmarks(target);
+  assert.ok(
+    !bookmarks.includes(deletedBookmark),
+    'a deleted incomplete-data bookmark stays deleted',
+  );
   const [edited] = await get(
     target,
     `/flows?fields=options&filter[id][_eq]=${markPendingFlowId}`,
@@ -356,6 +413,7 @@ const setupThenImport = async (target, directus, context) => {
     skipped: presetDefinitions.length,
   });
   await assertImported(target, context, summary);
+  await assertPresets(target, summary);
   assert.deepEqual(
     await normalizedTargets(target, Object.keys(context.planned)),
     context.runs.get('imported'),
@@ -420,7 +478,7 @@ const scenarios = async (t, { context, directus, target }) => {
     },
   );
   await t.test(
-    'a repeated setup keeps Studio-edited Flows and presets untouched',
+    'a repeated setup keeps Studio-edited Flows and presets untouched, and a deleted bookmark deleted',
     () => setupPreservesStudioEdits(target, directus),
   );
   await t.test('a second import is refused before any write', () =>

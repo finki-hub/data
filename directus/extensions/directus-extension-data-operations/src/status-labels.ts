@@ -92,8 +92,8 @@ export const orderedChecks = (checks: readonly CheckView[]): CheckView[] =>
     )
     .map(({ check }) => check);
 
-// The words of a Studio link to the records behind a check: its review
-// bookmark, else its collection.
+// The words of a Studio link to the records behind a check: its
+// incomplete-data bookmark while it exists, else its collection.
 export const checkLinkText = (check: CheckView): string =>
   check.review ?? humanize(check.page);
 

@@ -9,8 +9,9 @@ import { bookmarkKey } from './status-reads.js';
 // Readiness as the dashboard shows it: one row per declared check of the
 // readiness-check registry, in registry order, with its severity, count,
 // description, the files it gates and one Studio link to the records
-// behind it (its Needs review bookmark when it declares one and setup
-// installed it, else its collection page). Counts and links only.
+// behind it (its incomplete-data bookmark while the bookmark exists, else
+// its collection page), and the bookmark's name only while it exists.
+// Counts and links only.
 
 // The bookmark names the registry declares, for the bookmark lookup.
 export const reviewBookmarks = (
@@ -25,7 +26,8 @@ export const reviewBookmarks = (
 
 type ReadinessInputs = {
   readonly answer: ReadinessAnswer;
-  // The installed review bookmarks, by bookmarkKey(collection, name).
+  // The existing incomplete-data bookmarks, by bookmarkKey(collection,
+  // name).
   readonly bookmarks: ReadonlyMap<string, number>;
   readonly registry?: readonly ReadinessEntry[];
 };
@@ -52,7 +54,7 @@ export const readinessView = ({
             ? collectionPage(page)
             : bookmarkPage(page, bookmark),
         page,
-        review: review?.bookmark ?? null,
+        review: bookmark === undefined ? null : (review?.bookmark ?? null),
         severity,
       };
     },

@@ -144,25 +144,27 @@ const planGroups = (
     return create;
   });
 
+// Whether a live preset is the global one (no user, no role) of a
+// declared preset's collection and bookmark name (null for a default view).
+export const isGlobalPreset = (
+  live: LivePreset,
+  preset: Pick<PresetDefinition, 'bookmark' | 'collection'>,
+): boolean =>
+  live.collection === preset.collection &&
+  live.bookmark === preset.bookmark &&
+  live.user === null &&
+  live.role === null;
+
 const planPresets = (
   state: PresentationState,
-  presets: readonly PresetDefinition[],
   tally: PresentationTally,
 ): readonly PresetDefinition[] =>
-  presets.filter((preset) => {
+  presetDefinitions.filter((preset) => {
     const collection = state.collections.get(preset.collection);
     const create =
       collection !== undefined &&
       collection.schema !== null &&
-      state.presets.every(
-        (live) =>
-          !(
-            live.collection === preset.collection &&
-            live.bookmark === preset.bookmark &&
-            live.user === null &&
-            live.role === null
-          ),
-      );
+      state.presets.every((live) => !isGlobalPreset(live, preset));
     tally.add('presets', create ? 'created' : 'skipped');
     return create;
   });
@@ -170,11 +172,10 @@ const planPresets = (
 // Diffs the declared presentation against the live listings. Everything is
 // additive and applied at most once per element; nothing is deleted. A
 // preset (default view or bookmark) is created only while no global
-// preset of its collection and name exists, so a check or view declared
-// later gets its bookmark on the next setup and an edited one is kept.
+// preset of its collection and name exists, so a view declared later is
+// created on the next setup and an edited one is kept.
 export const planPresentation = (
   state: PresentationState,
-  presets: readonly PresetDefinition[] = presetDefinitions,
 ): PresentationPlan => {
   const tally = new PresentationTally();
   const newFolders = folders.filter((folder) => {
@@ -198,7 +199,7 @@ export const planPresentation = (
     folders: newFolders,
     groups: planGroups(statuses, fields, tally),
     placements,
-    presets: planPresets(state, presets, tally),
+    presets: planPresets(state, tally),
     summary: tally.summary(),
   };
 };

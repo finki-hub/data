@@ -26,7 +26,8 @@ export type ReadinessAnswer = {
   // The Studio page of every positive code.
   readonly links: Readonly<Record<string, string>>;
   readonly ready: boolean;
-  // The Needs review bookmark of every positive code that declares one.
+  // The incomplete-data bookmark name of every positive code that declares
+  // one.
   readonly reviews: Readonly<Record<string, string>>;
   readonly revision: number;
   readonly warnings: readonly string[];

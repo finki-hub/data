@@ -16,6 +16,7 @@ import {
   folders,
 } from '../../src/data-model/presentation/navigation.js';
 import { presetDefinitions } from '../../src/data-model/presentation/presets.js';
+import { incompleteDataPresets } from '../../src/import/incomplete-data-bookmarks.js';
 import { assertMarkerPresent, targetFrom } from '../isolated-target.mjs';
 import {
   adminRequest,
@@ -154,8 +155,8 @@ const installsStudioMetadata = async (target) => {
     target,
     '/presets?limit=-1&fields=bookmark,collection,filter,user,role&filter[bookmark][_nnull]=true&sort=bookmark',
   );
-  // The curriculum bookmark and one Needs review bookmark per registry
-  // entry that declares a view, each on its page collection.
+  // Search and Unmapped history lines only: setup creates no
+  // incomplete-data bookmark.
   assert.deepEqual(
     bookmarks.toSorted(byName),
     presetDefinitions
@@ -170,10 +171,10 @@ const installsStudioMetadata = async (target) => {
       .toSorted(byName),
   );
   assert.ok(
-    bookmarks.some(
-      ({ bookmark }) => bookmark === 'Equivalencies without a course',
+    bookmarks.every(({ bookmark }) =>
+      incompleteDataPresets().every((preset) => preset.bookmark !== bookmark),
     ),
-    'the Equivalencies without a course bookmark is installed',
+    'setup installs no incomplete-data bookmark',
   );
   assert.ok(
     bookmarks.every(

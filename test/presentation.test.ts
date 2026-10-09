@@ -2,12 +2,10 @@ import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { installPresentation } from '../src/data-model/presentation.js';
 import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
 import {
-  curriculumBookmark,
   searchBookmark,
   unmappedLinesBookmark,
 } from '../src/data-model/presentation/bookmarks.js';
@@ -28,13 +26,10 @@ import {
   collectionPlacements,
   folders,
 } from '../src/data-model/presentation/navigation.js';
-import {
-  presetDefinitions,
-  presetDefinitionsFor,
-  reviewPresets,
-} from '../src/data-model/presentation/presets.js';
+import { presetDefinitions } from '../src/data-model/presentation/presets.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import { fieldTranslations } from '../src/data-model/translations.js';
+import { incompleteDataPresets } from '../src/import/incomplete-data-bookmarks.js';
 import {
   fakeDirectus,
   type FakeMeta,
@@ -45,12 +40,8 @@ import {
 } from './data-model-test-helpers.js';
 import {
   appliedState,
-  bookmarkNames,
   effectiveFieldMeta,
   freshState,
-  reviewBody,
-  reviewedBy,
-  withExtraCheck,
 } from './presentation-test-helpers.js';
 
 const collator = new Intl.Collator('en');
@@ -59,8 +50,6 @@ const collectionPath = /^\/collections\/[^/]+$/u;
 const fieldsPath = /^\/fields\/[^/]+$/u;
 const fieldPath = /^\/fields\/[^/]+\/[^/]+$/u;
 const presetsPath = /^\/presets$/u;
-// A filter that names a generation row by its id.
-const generationRowPattern = /"generation":\{"_(?:eq|in)"/u;
 
 const sorted = (values: readonly string[]): readonly string[] =>
   values.toSorted((a, b) => collator.compare(a, b));
@@ -258,24 +247,6 @@ const createdBookmarks = (writes: readonly RecordedRequest[]) =>
     const bookmark = bookmarkBody.safeParse(body).data?.bookmark;
     return bookmark === undefined || bookmark === null ? [] : [bookmark];
   });
-
-// The Needs review bookmarks a presentation run created, as their page,
-// name, columns and filter.
-const installedReviews = (writes: readonly RecordedRequest[]) =>
-  byShape(writes, 'POST', presetsPath)
-    .map(({ body }) => reviewBody.safeParse(body).data)
-    .filter(
-      (body): body is z.infer<typeof reviewBody> =>
-        body?.bookmark !== undefined &&
-        body.bookmark !== null &&
-        bookmarkNames.has(body.bookmark),
-    )
-    .map(({ bookmark, collection, filter, layout_query }) => ({
-      bookmark,
-      collection,
-      fields: layout_query.tabular.fields,
-      filter,
-    }));
 
 describe('field groups', () => {
   test('groups every course field once, every section open', () => {
@@ -565,88 +536,44 @@ describe('navigation', () => {
   });
 });
 
-describe('the Needs review bookmarks', () => {
-  test('are exactly the registry entries that carry a review, one each, on the page of the check', async () => {
+describe('setup and the incomplete-data bookmarks', () => {
+  test('setup creates no incomplete-data bookmark, only Search and Unmapped history lines', async () => {
     const { request, requests } = fakeDirectus(freshState());
 
     await installPresentation(request);
 
-    const installed = installedReviews(mutations(requests));
-
-    expect(installed).toEqual(reviewedBy(readinessRegistry));
-    // No other shared bookmark: a hand-written review preset shows here.
     expect(createdBookmarks(mutations(requests))).toEqual([
-      curriculumBookmark.bookmark,
-      ...reviewedBy(readinessRegistry).map(({ bookmark }) => bookmark),
       searchBookmark.bookmark,
       unmappedLinesBookmark.bookmark,
     ]);
-    expect(installed.length).toBeGreaterThan(2);
-    expect(installed.map(({ bookmark }) => bookmark)).toContain(
-      'Equivalencies without a course',
-    );
-    expect(reviewPresets()).toHaveLength(installed.length);
+    expect(incompleteDataPresets().length).toBeGreaterThan(2);
   });
 
-  test('gain one bookmark for a test-only extra check, and a rerun installs only that one', async () => {
-    const { request, requests } = fakeDirectus(freshState());
-
-    const summary = await installPresentation(request, withExtraCheck);
-
-    expect(installedReviews(mutations(requests))).toEqual(
-      reviewedBy(withExtraCheck),
-    );
-    expect(summary.presets.created).toBe(presetDefinitions.length + 1);
-    expect(presetDefinitionsFor(withExtraCheck)).toHaveLength(
-      presetDefinitions.length + 1,
-    );
-
-    const rerun = fakeDirectus(appliedState());
-    const again = await installPresentation(rerun.request, withExtraCheck);
-
-    expect(mutations(rerun.requests)).toEqual([
-      expect.objectContaining({ method: 'POST', pathname: '/presets' }),
-    ]);
-    expect(installedReviews(mutations(rerun.requests))).toEqual([
+  test('a rerun leaves an incomplete-data bookmark the import created alone, and creates none of the missing ones', async () => {
+    const [imported] = incompleteDataPresets();
+    if (imported === undefined) {
+      throw new Error('The registry declares no review view');
+    }
+    const state = appliedState();
+    state.presets = [
+      ...(state.presets ?? []),
       {
-        bookmark: 'Synthetic entries without a code',
-        collection: 'curriculum_entries',
-        fields: ['generation', 'name', 'code'],
-        filter: { code: { _null: true } },
+        bookmark: imported.bookmark,
+        collection: imported.collection,
+        role: null,
+        user: null,
       },
-    ]);
-    expect(again.presets).toEqual({
-      adopted: 0,
-      created: 1,
-      skipped: presetDefinitions.length,
-    });
-  });
+    ];
+    const { request, requests } = fakeDirectus(state);
 
-  test('create nothing on a rerun, and give each generation-scoped check one bookmark that names no generation row', async () => {
-    const { request, requests } = fakeDirectus(appliedState());
-
-    await installPresentation(request);
+    const summary = await installPresentation(request);
 
     expect(mutations(requests)).toEqual([]);
-
-    const scoped = readinessRegistry.flatMap(
-      ({ generationScoped, page, review }) =>
-        generationScoped && review !== undefined
-          ? [{ bookmark: review.bookmark, collection: page }]
-          : [],
-    );
-    const bookmarks = reviewPresets().map(({ bookmark, collection }) => ({
-      bookmark,
-      collection,
-    }));
-
-    expect(scoped.length).toBeGreaterThan(0);
-    expect(bookmarks).toEqual(expect.arrayContaining(scoped));
-    expect(
-      reviewPresets().filter(({ filter }) =>
-        generationRowPattern.test(JSON.stringify(filter)),
-      ),
-    ).toEqual([]);
+    expect(summary.presets).toEqual({
+      adopted: 0,
+      created: 0,
+      skipped: presetDefinitions.length,
+    });
   });
 });
 
@@ -801,8 +728,8 @@ describe('installPresentation over Studio edits', () => {
     courses.meta = { ...courses.meta, group: 'my_own_folder' };
     state.presets = [
       {
-        bookmark: 'Curriculum by generation',
-        collection: 'curriculum_entries',
+        bookmark: searchBookmark.bookmark,
+        collection: searchBookmark.collection,
         role: null,
         user: null,
       },
@@ -823,8 +750,8 @@ describe('installPresentation over Studio edits', () => {
     );
 
     expect(created).not.toContainEqual({
-      bookmark: 'Curriculum by generation',
-      collection: 'curriculum_entries',
+      bookmark: searchBookmark.bookmark,
+      collection: searchBookmark.collection,
     });
     expect(created).not.toContainEqual({
       bookmark: null,

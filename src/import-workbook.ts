@@ -4,6 +4,7 @@ import type { PlannedCollection } from './import/planned.js';
 import { ImportInterruptedError } from './import-interruption.js';
 import { countApplicationRecords, ExistingDataError } from './import-state.js';
 import { defaultBatchSize } from './import/batches.js';
+import { createIncompleteDataBookmarks } from './import/incomplete-data-bookmarks.js';
 import { writePlan } from './import/write.js';
 import { runSetup } from './setup.js';
 
@@ -18,6 +19,8 @@ export type ImportIo = {
 };
 
 type ImportSummary = {
+  // The incomplete-data bookmarks created, by name.
+  readonly bookmarks: readonly string[];
   readonly rows: Readonly<Record<string, number>>;
   readonly setup: SetupReport;
 };
@@ -25,13 +28,15 @@ type ImportSummary = {
 // The one-time workbook import of a checked plan (import/plan.ts). It
 // refuses, before any write, a populated project (see
 // countApplicationRecords); runs setup (so an import into an empty project
-// equals setup plus import); then writes the planned relational rows in
+// equals setup plus import); writes the planned relational rows in
 // dependency order, each reference resolved through the ids Directus
-// answered. It runs no Flow and publishes nothing. A failure after the
-// first write raises ImportInterruptedError: the project then holds part
-// of the import, and the remedy is a fresh project. Only the lifecycle
-// command (`npm run import`, through runImportCli) calls it, once the
-// check found no blocking case.
+// answered; then creates the incomplete-data bookmarks whose views list a
+// row (import/incomplete-data-bookmarks.ts). It runs no Flow and publishes
+// nothing. A failure after the first write, the bookmarks included,
+// raises ImportInterruptedError: the project then holds part of the
+// import, and the remedy is a fresh project. Only the lifecycle command
+// (`npm run import`, through runImportCli) calls it, once the check found
+// no blocking case.
 export const importWorkbook = async (
   request: DirectusRequest,
   collections: readonly PlannedCollection[],
@@ -51,7 +56,8 @@ export const importWorkbook = async (
         confirmed += count;
       },
     });
-    return { rows, setup };
+    const bookmarks = await createIncompleteDataBookmarks(request);
+    return { bookmarks, rows, setup };
   } catch (error) {
     throw new ImportInterruptedError({ confirmed, total }, { cause: error });
   }

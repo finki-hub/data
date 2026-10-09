@@ -134,10 +134,11 @@ const checkView = z.object({
   count,
   description: text,
   gates: z.array(text),
-  // The Studio page of the records: the review bookmark when the check
-  // declares one and setup installed it, else the collection page.
+  // The Studio page of the records: the check's incomplete-data bookmark
+  // while it exists, else the collection page.
   link: text,
   page: text,
+  // The name of that bookmark while it exists, else null.
   review: maybeText,
   severity: z.enum(['blocker', 'warning']),
 });

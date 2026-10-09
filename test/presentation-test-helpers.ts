@@ -1,8 +1,3 @@
-import { z } from 'zod';
-
-import type { ReadinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
-
-import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
 import { findFieldPatch } from '../src/data-model/presentation/fields.js';
@@ -91,67 +86,6 @@ export const appliedState = (): FakeState => {
   }));
   return state;
 };
-
-// The body of a preset POST that the review tests read.
-const presetBody = z.object({
-  bookmark: z.string().nullable(),
-  collection: z.string(),
-});
-
-export const reviewBody = presetBody.extend({
-  filter: z.record(z.string(), z.unknown()),
-  layout_query: z.object({
-    tabular: z.object({ fields: z.array(z.string()) }),
-  }),
-});
-
-// A check only this test declares: generation-scoped, on the curriculum
-// entries (whose records carry a generation), with one review view.
-const extraCheck: ReadinessEntry = {
-  code: 'synthetic_entry_without_code',
-  description:
-    'A synthetic check of the test: a curriculum entry without a code.',
-  gates: [],
-  generationScoped: true,
-  page: 'curriculum_entries',
-  review: {
-    bookmark: 'Synthetic entries without a code',
-    fields: ['generation', 'name', 'code'],
-    filter: { code: { _null: true } },
-    sort: ['generation', 'name'],
-  },
-  severity: 'warning',
-  source: {
-    aggregate: 'count',
-    field: 'id',
-    filter: { code: { _null: true } },
-    kind: 'count',
-  },
-};
-
-export const withExtraCheck: readonly ReadinessEntry[] = [
-  ...readinessRegistry,
-  extraCheck,
-];
-
-// The Needs review bookmarks the registry declares, as installed bodies.
-export const reviewedBy = (registry: readonly ReadinessEntry[]) =>
-  registry.flatMap(({ page, review }) =>
-    review === undefined
-      ? []
-      : [
-          {
-            bookmark: review.bookmark,
-            collection: page,
-            fields: [...review.fields],
-            filter: review.filter,
-          },
-        ],
-  );
-
-export const bookmarkNames = new Set(
-  reviewedBy(withExtraCheck).map(({ bookmark }) => bookmark),
-);
 
 const descendingPrefix = /^-/u;
 

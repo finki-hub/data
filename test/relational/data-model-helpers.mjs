@@ -8,6 +8,7 @@ import { presetDefinitions } from '../../src/data-model/presentation/presets.js'
 import { modelRelations } from '../../src/data-model/relations.js';
 import { createDirectusRequest } from '../../src/directus-request.js';
 import { processPendingFlowId } from '../../src/flows/process-pending.js';
+import { incompleteDataPresets } from '../../src/import/incomplete-data-bookmarks.js';
 import { assertMarkerPresent } from '../isolated-target.mjs';
 
 const systemPrefix = 'directus_';
@@ -115,8 +116,11 @@ const remove = async (target, path) =>
     204,
   );
 
-// The global presets `installPresentation` declares (matched by collection
-// and bookmark name), deleted before their collections go so nothing dangles.
+// The global presets `installPresentation` declares and the
+// incomplete-data bookmarks the import creates (matched by collection and
+// bookmark name), deleted before their collections go so nothing dangles.
+const declaredPresets = [...presetDefinitions, ...incompleteDataPresets()];
+
 const destroyPresets = async (target) => {
   const listing = await read(
     await request(
@@ -130,7 +134,7 @@ const destroyPresets = async (target) => {
     (preset) =>
       preset.user === null &&
       preset.role === null &&
-      presetDefinitions.some(
+      declaredPresets.some(
         (definition) =>
           definition.collection === preset.collection &&
           definition.bookmark === preset.bookmark,

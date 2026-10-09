@@ -1,54 +1,9 @@
-import type { ReadinessEntry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
-
-import { readinessRegistry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { findModelCollection } from '../collections.js';
-import {
-  curriculumBookmark,
-  searchBookmark,
-  unmappedLinesBookmark,
-} from './bookmarks.js';
+import { searchBookmark, unmappedLinesBookmark } from './bookmarks.js';
 import {
   defaultView,
   type PresetDefinition,
   type TabularPreset,
-  tabularPresetSchema,
 } from './preset-schema.js';
-
-// The shared Needs review bookmarks: one per readiness-registry entry
-// that declares a review view, on its page collection (the collection
-// whose records it counts), in registry order. A check that declares a
-// view gets its bookmark from the create-missing planner on the next
-// setup, and the dashboard links the check to it by the same page and
-// name; nothing here names a check. A generation-scoped view is one
-// bookmark that shows the generation, never one per generation row.
-export const reviewPresets = (
-  registry: readonly ReadinessEntry[] = readinessRegistry,
-): readonly TabularPreset[] =>
-  registry.flatMap(({ page, review }) =>
-    review === undefined
-      ? []
-      : [
-          tabularPresetSchema.parse({
-            bookmark: review.bookmark,
-            collection: page,
-            filter: review.filter,
-            icon: review.icon ?? findModelCollection(page)?.icon ?? 'rule',
-            layout: 'tabular',
-            layout_options: { tabular: { spacing: 'comfortable' } },
-            layout_query: {
-              tabular: {
-                fields: [...review.fields],
-                limit: 50,
-                page: 1,
-                sort: [...review.sort],
-              },
-            },
-            role: null,
-            search: null,
-            user: null,
-          }),
-        ],
-  );
 
 // A default table view for every collection Studio lists.
 const defaultViews: readonly TabularPreset[] = [
@@ -59,9 +14,11 @@ const defaultViews: readonly TabularPreset[] = [
     ['name', 'status', 'tags', 'curricula', 'assignments'],
     ['name'],
   ),
+  // Generation first, in catalog order; Studio's native filter on
+  // `generation` narrows it to one generation.
   defaultView(
     'curriculum_entries',
-    ['generation', 'code', 'name', 'semester', 'channel'],
+    ['generation', 'code', 'name', 'semester', 'channel', 'course_links'],
     ['generation', 'catalog_order'],
   ),
   defaultView(
@@ -155,21 +112,13 @@ const defaultViews: readonly TabularPreset[] = [
   ),
 ];
 
-// Every shared preset the presentation declares for a readiness
-// registry: the curriculum bookmark, its Needs review bookmarks, the
-// default table views, the Search bookmark and the Unmapped history lines
-// bookmark. Setup installs each once by collection and bookmark name and
-// keeps an existing one.
-export const presetDefinitionsFor = (
-  registry: readonly ReadinessEntry[],
-): readonly PresetDefinition[] => [
-  curriculumBookmark,
-  ...reviewPresets(registry),
+// Every shared preset setup installs: the default table views, the Search
+// bookmark and the Unmapped history lines bookmark, each once by
+// collection and bookmark name, keeping an existing one. The
+// incomplete-data bookmarks come from the import
+// (src/import/incomplete-data-bookmarks.ts).
+export const presetDefinitions: readonly PresetDefinition[] = [
   ...defaultViews,
   searchBookmark,
   unmappedLinesBookmark,
 ];
-
-// The presets of the declared readiness registry.
-export const presetDefinitions: readonly PresetDefinition[] =
-  presetDefinitionsFor(readinessRegistry);

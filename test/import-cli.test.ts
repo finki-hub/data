@@ -38,6 +38,7 @@ const checkSummary = z.strictObject({
   warnings: counts,
 });
 const importSummary = checkSummary.extend({
+  bookmarks: z.array(z.string()),
   mode: z.literal('import'),
   setup: z.record(z.string(), z.unknown()),
 });

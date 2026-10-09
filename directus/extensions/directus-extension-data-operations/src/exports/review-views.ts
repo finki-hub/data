@@ -4,10 +4,10 @@ import type { ReviewView } from './readiness-types.js';
 
 import { unlinkedMember } from './curriculum-checks.js';
 
-// The Needs review views of the readiness-check registry: one shared
-// Studio bookmark per entry that declares one, on its page collection,
-// listing the records behind its count with the columns a fix needs and
-// the relation back to where each record belongs (its course,
+// The review views of the readiness-check registry: the incomplete-data
+// bookmark the import creates per entry that declares one, on its page
+// collection, listing the records behind its count with the columns a fix
+// needs and the relation back to where each record belongs (its course,
 // equivalency or generation). A view of a count entry filters exactly
 // like its count (registry-rules.ts refuses a drift); the filters of the
 // others come from the check modules that count them. Curriculum views

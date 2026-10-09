@@ -8,38 +8,8 @@ import {
 
 // The permanent shared bookmarks: setup installs each once by collection
 // and name, and a rerun keeps an existing one as Studio left it. The
-// Needs review bookmarks come from the readiness registry (presets.ts).
-
-// The one shared curriculum bookmark: every entry, generation first,
-// sorted by generation and catalog order. Studio's native filter on
-// `generation` narrows it to one generation, so a new generation row
-// needs no bookmark and no setup rerun.
-export const curriculumBookmark: TabularPreset = tabularPresetSchema.parse({
-  bookmark: 'Curriculum by generation',
-  collection: 'curriculum_entries',
-  filter: null,
-  icon: 'menu_book',
-  layout: 'tabular',
-  layout_options: { tabular: { spacing: 'comfortable' } },
-  layout_query: {
-    tabular: {
-      fields: [
-        'generation',
-        'code',
-        'name',
-        'semester',
-        'channel',
-        'course_links',
-      ],
-      limit: 50,
-      page: 1,
-      sort: ['generation', 'catalog_order'],
-    },
-  },
-  role: null,
-  search: null,
-  user: null,
-});
+// incomplete-data bookmarks come from the import
+// (src/import/incomplete-data-bookmarks.ts).
 
 // The history lines the last completed count counted for no course and
 // year: a plain O2M null on the counted lines, newest First seen first,

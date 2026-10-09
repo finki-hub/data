@@ -11,7 +11,7 @@ import {
 // The structural rules of the readiness-check registry, checked before any
 // read like the definition rules: one entry per code, a severity from the
 // closed set, a blocker gating declared files and a warning gating none,
-// one Needs review bookmark per name, a generation-scoped view that shows
+// one incomplete-data bookmark per name, a generation-scoped view that shows
 // the generation, a view of a count that lists exactly what it counts,
 // and reads under the same rules as every export read.
 
@@ -48,7 +48,7 @@ const drifts = ({ review, source }: ReadinessEntry): boolean =>
   source.kind === 'count' &&
   JSON.stringify(review.filter) !== JSON.stringify(source.filter);
 
-// A Needs review view lists fields, filters without `_some`/`_none`,
+// A review view lists fields, filters without `_some`/`_none`,
 // lists exactly what a count counts, and shows the generation when its
 // records belong to one.
 const reviewProblems = (entry: ReadinessEntry): string[] => {

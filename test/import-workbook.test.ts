@@ -43,6 +43,10 @@ const planned = (): readonly PlannedCollection[] =>
 const isItemWrite = ({ method, pathname }: RecordedCall): boolean =>
   method === 'POST' && pathname.startsWith('/items/');
 
+// The preset reads and writes of a run: the incomplete-data bookmarks.
+const presetCalls = (calls: readonly RecordedCall[]) =>
+  calls.filter(({ pathname }) => pathname.startsWith('/presets'));
+
 const rowsIn = (store: FakeStore, collection: string): readonly FakeItem[] =>
   store.items.get(collection) ?? [];
 
@@ -147,6 +151,11 @@ describe('the one-time workbook import', () => {
       student_council: 4,
       study_programs: 15,
     });
+    expect(summary.bookmarks).toEqual([
+      'Equivalencies without a course',
+      'Equivalency labels without an entry',
+      'Council members without a student',
+    ]);
     expect(
       fake
         .mutations()
@@ -227,6 +236,7 @@ describe('the one-time workbook import', () => {
     expect(String(error)).not.toContain('migrate');
     expect(fake.mutations()).toEqual([]);
     expect(fake.setups()).toBe(0);
+    expect(presetCalls(fake.calls)).toEqual([]);
   });
 
   test('refuses records in relational collections too', async () => {
@@ -238,6 +248,7 @@ describe('the one-time workbook import', () => {
       counts: { curriculum_entries: 1 },
     });
     expect(fake.mutations()).toEqual([]);
+    expect(presetCalls(fake.calls)).toEqual([]);
   });
 });
 
@@ -265,7 +276,9 @@ describe('an import interrupted after it began writing', () => {
     );
     expect(String(error)).not.toContain('migrate');
     expect(rowsIn(fake.store, 'courses')).toHaveLength(2);
+    expect(presetCalls(fake.calls)).toEqual([]);
     await expect(importInto(fake)).rejects.toBeInstanceOf(ExistingDataError);
+    expect(presetCalls(fake.calls)).toEqual([]);
   });
 
   test('counts no row when the first batch fails, and a rerun is then accepted', async () => {

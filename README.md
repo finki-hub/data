@@ -36,8 +36,8 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, the **Search** bookmark and the **Unmapped history lines** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
-| New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Search** bookmark and the **Unmapped history lines** bookmark; never an incomplete-data bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
+| New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once and creates a bookmark for each kind of data still missing (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
 The import writes only into an empty project and refuses one that already
@@ -82,9 +82,12 @@ A few things are code-owned and kept in step on every rerun:
 - Every managed Flow family is registered once in `src/flows/registry.ts`;
   setup installs them in one loop and reports `created` and `skipped` per
   family under `flows.families`.
-- A Needs review bookmark, default view, dashboard panel or Flow template
-  that the code declares and the project lacks is created, so a check or
-  panel declared later appears on the next setup.
+- A default view, the **Search** or **Unmapped history lines** bookmark,
+  a dashboard panel or a Flow template that the code declares and the
+  project lacks is created, so a panel declared later appears on the next
+  setup. Setup never creates an incomplete-data bookmark; only the import
+  does (see
+  [Readiness and incomplete-data bookmarks](#readiness-and-incomplete-data-bookmarks)).
 - A unique or index flag that a Studio edit removed from a declared column
   is restored, and a relation whose alias, sort, deselect action or delete
   rule drifted is realigned. A table or column the model declares that
@@ -285,8 +288,8 @@ Directus untouched:
   import again; the project is still empty.
 - The curriculum sheets are laid out by semester (column A is merged over
   each semester block, and every row of a block takes the block's label
-  as its `catalog_order`, which the **Curriculum by generation** bookmark
-  sorts by), and a subject that study programs take in
+  as its `catalog_order`, which the default view of **Curriculum
+  Entries** sorts by), and a subject that study programs take in
   different semesters is listed once in each of those blocks, every
   listing with the subject's code; its program columns note the semester
   of each program, such as `задолжителен (сем. 5)`. A curriculum name
@@ -411,7 +414,16 @@ its coordination status row, is accepted. On an accepted project it:
    course links; the pattern mappings; the staff links; the equivalencies
    with their members; the council. Every course is posted with an empty
    list of pattern mappings, so Directus adds no default mapping: the
-   import writes each course's mappings itself.
+   import writes each course's mappings itself;
+3. creates the incomplete-data bookmarks: one per readiness check with a
+   review view whose view lists a row, unless a shared bookmark of that
+   name exists on its collection (see
+   [Readiness and incomplete-data bookmarks](#readiness-and-incomplete-data-bookmarks)).
+   The summary's `bookmarks` lists the names created, `[]` when none:
+
+   ```json
+   "bookmarks": ["Equivalencies without a course"]
+   ```
 
 The import reads the layout of the 2026-10-08 export, and an older export
 stops before Directus is contacted (exit code 1, `Import failed: Слушатели
@@ -483,7 +495,9 @@ The import is not one transaction, and its check for an empty project and
 its first write are not atomic against another writer: let nobody write to
 the project while it runs. If it stops after it started writing rows, it
 exits with code 4, and the message ends with the planned rows Directus had
-confirmed (`Import interrupted: <cause> (rows confirmed: 1043/2310)`).
+confirmed (`Import interrupted: <cause> (rows confirmed: 1043/2310)`). A
+failure while it creates the bookmarks, after every row, is interrupted
+too (`rows confirmed: 2310/2310`).
 There is no resume: set up a fresh project (new Compose volumes, or the
 backup taken before the import) and import again. When Directus confirmed
 no row, the project may be empty, and the import runs again (it refuses,
@@ -799,10 +813,11 @@ reference is refused by the database; Directus 12.3.1 answers that delete
 with HTTP 500 naming the foreign key, not a 400, so move or remove the
 referencing rows first.
 
-Curriculum entries are one collection for every generation. The
-**Curriculum by generation** bookmark on **Curriculum Entries** lists them
-generation first; narrow it to one generation with Studio's native filter on
-**Generation**, so a new generation needs no bookmark and no setup rerun.
+Curriculum entries are one collection for every generation. The default
+view of **Curriculum Entries** lists them generation first, in catalog
+order, with their linked courses; narrow it to one generation with Studio's
+native filter on **Generation**, so a new generation needs no bookmark and
+no setup rerun.
 
 ### Forms and relationships
 
@@ -1101,19 +1116,20 @@ Limits and failures:
   (`FLOWS_RUN_SCRIPT_MAX_MEMORY`), so a pathological pattern fails the run
   visibly. Neither limit is raised automatically.
 
-### Readiness and Needs review views
+### Readiness and incomplete-data bookmarks
 
 Every issue readiness reports is one entry of the readiness-check registry
 (`directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.ts`):
 its code, severity (`blocker` or `warning`), where its count comes from (a
 bounded native aggregate, a check counted in code, the coordinator status or
-the snapshot status), the files it gates, an optional Needs review view,
-whether its records each carry a curriculum `generation` column (so one view
-shows and filters by it, never one view per generation row), and a
-description. `ready` is true exactly when every blocker counts zero;
-blockers hold back publication, warnings nothing. The registry is code, not
-rows, so no Studio edit can turn a blocker into a warning. Readiness
-answers counts, codes and links, never a record.
+the snapshot status), the files it gates, an optional review view (the
+filter, columns and order of its incomplete-data bookmark), whether its
+records each carry a curriculum `generation` column (so one view shows and
+filters by it, never one view per generation row), and a description.
+`ready` is true exactly when every blocker counts zero; blockers hold back
+publication, warnings nothing. The registry is code, not rows, so no
+Studio edit can turn a blocker into a warning. Readiness answers counts,
+codes and links, never a record.
 
 Today's blockers: `history_index_*` and `enrollments_*` (`pending`,
 `running`, `failed`, from the coordinator status),
@@ -1155,19 +1171,22 @@ states the fact only. What to do:
 | `enrollment_count_missing` | Let the pending count run, which counts every course and year; a missing count is never published as 0. |
 | `course_without_professor` | Add a professor to the course's **Teaching staff**, or set its **Status** to All professors or Inactive. |
 
-Every registry entry that declares a review view gets one shared Studio
-bookmark on the collection of its records, and the **Readiness** panel of
-the dashboard links the check to that bookmark. `npm run setup` creates the
-bookmarks that are missing and never changes one that exists, so a check
-declared later gets its view on the next setup, and a Studio edit of a view
-is kept. The views are generated from `exports/review-views.ts` of the
-data-operations extension; today:
+Every registry entry that declares a review view has one shared Studio
+bookmark, its incomplete-data bookmark, on the collection of its records.
+Only the one-time import creates them, once every row is written, and
+only those whose view lists a row, so each marks data that is actually
+missing; `npm run setup` never creates one. While a bookmark exists, the
+**Readiness** panel links its check to it. Delete a bookmark once its data
+is complete: nothing creates it again, and the panel then links the check
+to its collection page, named after the collection. The views are
+generated from `exports/review-views.ts` of the data-operations extension;
+each warning maps to its bookmark:
 
-| Bookmark | Collection | Check | Lists |
+| Check | Bookmark | Collection | Lists |
 | --- | --- | --- | --- |
-| **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
-| **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
-| **Council members without a student** | `student_council` | `council_member_unresolved` | memberships without a student |
+| `equivalency_without_course` | **Equivalencies without a course** | `course_equivalencies` | equivalencies without a course, with their member generations and labels |
+| `equivalency_entry_unresolved` | **Equivalency labels without an entry** | `course_equivalency_members` | member labels of a generation with a curriculum and no entry |
+| `council_member_unresolved` | **Council members without a student** | `student_council` | memberships without a student |
 
 The checks no plain filter can list (a missing row, a duplicate) link
 their collection page instead: today `enrollment_count_missing` and
@@ -1180,10 +1199,8 @@ the existing views. A view filters with plain field and relational paths
 it through the REST API, which refuses an empty string as a filter
 value). Each view lists exactly the records its check counts.
 
-Keep a view's bookmark name when editing it. Setup recognises a view by
-its collection and name: after a rename, the next `npm run setup` creates
-the declared bookmark again beside the renamed one, and the Readiness
-panel links the declared name.
+Keep a bookmark's name when editing it: the **Readiness** panel finds it
+by its collection and name, so after a rename it links the collection page.
 
 ### The Data operations dashboard
 
@@ -1220,9 +1237,10 @@ overwrites an edited one):
   scheduled Flow within the past 60 minutes, and the Moodle snapshot's
   import state with its counts (`Users`, `Indexed`, `History lines` and
   `Courses Count mismatches`, never a profile); every readiness check with
-  its count and one link to its records (its Needs review bookmark when it
-  has one); and the academic years, curriculum generations and study programs
-  whose `published` flags decide the public keys, each linked to its form.
+  its count and one link to its records (its incomplete-data bookmark
+  while it exists, else its collection); and the academic years,
+  curriculum generations and study programs whose `published` flags
+  decide the public keys, each linked to its form.
   The lists come from the declarations and the status, never from a fixed
   set. Facts read `Label: value · Label: value`. A blocking last failure
   shows its code with its domain, revision, time and retries (the failing
@@ -1278,8 +1296,9 @@ them survives every later setup):
 - **Data / Validate readiness**, a manual Flow on **Data Operations**,
   answers `{ready, revision, blockers, warnings, issueCounts, links,
   reviews, blockedFiles}`: a count for every registered code, the Studio
-  page and Needs review bookmark of each positive one and the files the
-  blockers hold back, never a name or a row.
+  page of each positive one and the name of its incomplete-data bookmark
+  when it declares a view, and the files the blockers hold back, never a
+  name or a row.
 - **Publish / Prepare public assets**, a dry preparation: readiness, then
   every file read, serialized and validated, then the source revision
   again. It answers `{revision, files: [{filename, rows, bytes, sha256}],
@@ -1519,7 +1538,7 @@ fields, and the filter builder supports nested include/exclude conditions.
 | `Слушатели` | **Pattern mappings** and **Explicit mappings**, which count the history lines into the derived **Course Enrollments** (see [Enrollment counts](#enrollment-counts)); the counts and **Counted lines** are also in the course form's **Enrollment** group, and the lines no mapping counts are in **Unmapped history lines**. |
 | `Индекси` / `Индекси (Export)` | Search/filter the canonical `students` collection, including `source_group`. |
 | `Предмети (Export)` | Browse the canonical `courses` collection and its form. |
-| `Предмети - 2023`, `Предмети - 2018` | **Curriculum by generation** on **Curriculum Entries**, narrowed with the Generation filter. |
+| `Предмети - 2023`, `Предмети - 2018` | **Curriculum Entries**, generation first, narrowed with the Generation filter. |
 
 These are normal private Studio views, not separately stored copies. You can
 change visible columns, sorting, and filters in Studio and save additional
@@ -1785,9 +1804,10 @@ others).
    so codes of another scheme need `codeLevel` (`exports/curriculum-code.ts`)
    and its guard (`curriculum-guards.ts`) changed first. Link courses in
    the course form's **Curricula** list, and add equivalency members of the
-   generation where they apply. Browse them with **Curriculum by
-   generation** narrowed by the Generation filter; the Needs review views
-   show the new rows too. No bookmark and no setup rerun is needed.
+   generation where they apply. Browse them on **Curriculum Entries**
+   narrowed by the Generation filter; an incomplete-data bookmark that
+   exists lists the new rows too. No bookmark and no setup rerun is
+   needed.
 3. Publish the generation: `courses.json` gains its `<code>-available` key
    and its block, laid out like 2023 (states before credits), newest first
    by code. Publish each program: it adds its `<code>-state-<program>` key
@@ -1872,15 +1892,17 @@ check counted in code), the files it gates (a blocker gates at least one,
 a warning none), whether its records carry a `generation` column, a
 description (the tooltip of its code: a short fact without a trailing
 period, with no instruction; the table under
-[Readiness and Needs review views](#readiness-and-needs-review-views) says
-what to do) and, when a plain filter lists its records, a review view
+[Readiness and incomplete-data bookmarks](#readiness-and-incomplete-data-bookmarks)
+says what to do) and, when a plain filter lists its records, a review view
 (bookmark name, fields, filter, sort). A registry with a code twice, a
 blocker gating no published file, a warning gating one, two reviews of one
 bookmark or a filter with `_some`/`_none` is refused before anything is
 read, and a check several codes share runs once. Then `npm run
-build:operations`, restart Directus and run `npm run setup`, which creates
-its Needs review bookmark; readiness, `issueCounts`, the **Readiness**
-panel and its link follow from the entry.
+build:operations` and restart Directus; readiness, `issueCounts`, the
+**Readiness** panel and its link follow from the entry. Its bookmark comes
+from the import only: on a project imported earlier the panel links the
+collection page, and a shared bookmark of the declared name, saved in
+Studio on that collection, becomes its link.
 
 ### A dashboard action
 

@@ -4,9 +4,10 @@ import type { Aggregate, ReadinessCheck } from './types.js';
 
 // The shape of the readiness-check registry (readiness-registry.ts): every
 // issue readiness can report, declared once in code. Readiness, its
-// `issueCounts` keys, the Studio links, the Needs review bookmarks and the
-// dashboard read these declarations; none of them is a Directus row, so no
-// edit in Studio can turn a blocker into a warning.
+// `issueCounts` keys, the Studio links, the incomplete-data bookmarks the
+// import creates and the dashboard read these declarations; none of them
+// is a Directus row, so no edit in Studio can turn a blocker into a
+// warning.
 
 export const severities = ['blocker', 'warning'] as const;
 
@@ -50,10 +51,10 @@ export type ReadinessSource =
   | { readonly kind: 'snapshot' }
   | { readonly kind: 'status' };
 
-// The Studio view that lists the records behind an issue: a shared
-// bookmark on the entry's page collection, created by setup when missing
-// (one per entry, never one per generation row). Its filter uses plain
-// field and relational paths only.
+// The Studio view that lists the records behind an issue: the shared
+// incomplete-data bookmark the import creates on the entry's page
+// collection when the view lists a row (one per entry, never one per
+// generation row). Its filter uses plain field and relational paths only.
 export type ReviewView = {
   readonly bookmark: string;
   readonly fields: readonly string[];

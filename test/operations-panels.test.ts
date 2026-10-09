@@ -58,6 +58,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/status-facts.js';
 import {
   ageText,
+  checkLinkText,
   instantText,
   orderedChecks,
   stateLabel,
@@ -489,6 +490,12 @@ describe('the status view', () => {
 });
 
 describe('the readiness view', () => {
+  // The checks that declare a review view.
+  const reviewedCodes = new Set(
+    readinessRegistry.flatMap(({ code, review }) =>
+      review === undefined ? [] : [code],
+    ),
+  );
   const counts = new Map(
     readinessRegistry.map(({ code }, index) => [code, index % 3]),
   );
@@ -516,7 +523,7 @@ describe('the readiness view', () => {
     ).toBeTruthy();
   });
 
-  test('links a check to its installed review bookmark', () => {
+  test('links a check to its incomplete-data bookmark while it exists, named by it', () => {
     const [name] = reviewBookmarks();
     const entry = readinessRegistry.find(
       ({ review }) => review?.bookmark === name,
@@ -528,13 +535,35 @@ describe('the readiness view', () => {
       answer,
       bookmarks: new Map([[bookmarkKey(entry.page, name), 41]]),
     });
+    const check = view.checks.find(({ code }) => code === entry.code);
 
-    expect(view.checks.find(({ code }) => code === entry.code)?.link).toBe(
-      `/content/${entry.page}?bookmark=41`,
-    );
+    expect(check).toMatchObject({
+      link: `/content/${entry.page}?bookmark=41`,
+      review: name,
+    });
+    expect(check === undefined ? null : checkLinkText(check)).toBe(name);
     expect(
       orderedChecks(view.checks).findIndex(({ count }) => count === 0),
     ).toBeGreaterThan(0);
+  });
+
+  test('links a check whose bookmark is missing or deleted to its collection, named by it', () => {
+    const view = readinessView({ answer, bookmarks: new Map() });
+    const reviewed = view.checks.filter(({ code }) => reviewedCodes.has(code));
+
+    expect(reviewed.length).toBeGreaterThan(0);
+    expect(
+      reviewed.map(({ link, page, review }) => ({ link, page, review })),
+    ).toEqual(
+      reviewed.map(({ page }) => ({
+        link: `/content/${page}`,
+        page,
+        review: null,
+      })),
+    );
+    expect(reviewed.map((check) => checkLinkText(check))).toEqual(
+      reviewed.map(({ page }) => humanize(page)),
+    );
   });
 });
 
