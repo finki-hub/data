@@ -6,7 +6,8 @@ import { installPresentation } from '../src/data-model/presentation.js';
 import {
   curriculumBookmark,
   searchBookmark,
-} from '../src/data-model/presentation/presets.js';
+  unmappedLinesBookmark,
+} from '../src/data-model/presentation/bookmarks.js';
 import { runSetup } from '../src/setup.js';
 import { assertMarkerPresent, targetFrom } from './isolated-target.mjs';
 import {
@@ -39,7 +40,8 @@ import {
 // Courses text exactly, reads its options from the raw histories, and
 // passes Studio's relational native filters to Directus as the caller.
 // The Needs review bookmarks setup installs are the registry's, and the
-// dashboard's readiness links resolve to them.
+// dashboard's readiness links resolve to them; Unmapped history lines is
+// installed beside them and lists the line no mapping counts.
 
 const bookmarkLink = /^\/content\/(?<page>[a-z_]+)\?bookmark=(?<id>\d+)$/u;
 const courseName = 'Synthetic Search Course';
@@ -111,12 +113,32 @@ const installsReviewViews = async ({ directus, t, target }) => {
     search.map(({ collection, layout }) => [collection, layout]),
     [['moodle_users', 'finki-hub-course-search']],
   );
+  const unmapped = installed.filter(
+    ({ bookmark }) => bookmark === unmappedLinesBookmark.bookmark,
+  );
+  assert.deepEqual(
+    unmapped.map(({ collection, filter, layout, layout_query }) => ({
+      collection,
+      filter,
+      layout,
+      layout_query,
+    })),
+    [
+      {
+        collection: unmappedLinesBookmark.collection,
+        filter: unmappedLinesBookmark.filter,
+        layout: unmappedLinesBookmark.layout,
+        layout_query: unmappedLinesBookmark.layout_query,
+      },
+    ],
+  );
   // No other shared bookmark: a hand-written review view would show here.
   assert.deepEqual(
     installed.map(({ bookmark }) => bookmark).toSorted(),
     [
       searchBookmark.bookmark,
       curriculumBookmark.bookmark,
+      unmappedLinesBookmark.bookmark,
       ...reviewed.map(({ review }) => review.bookmark),
     ].toSorted(),
   );
@@ -236,6 +258,28 @@ const listsWhatReadinessCounts = async ({ t, target }) => {
     'the seeded checks count through their views',
   );
   t.diagnostic(`views listing what readiness counts: ${compared.join(', ')}`);
+};
+
+// Studio's query of the Unmapped history lines bookmark is a valid REST
+// query of the history lines, and it lists the line that no mapping of
+// any kind counts, whether or not a count has run since the import (the
+// courses here have no pattern mapping).
+const listsTheUnmappedLines = async ({ target }) => {
+  const { collection, filter, layout_query } = unmappedLinesBookmark;
+  const { fields, sort } = layout_query.tabular;
+  const rows = await get(
+    target,
+    viewPath(collection, { fields, filter, sort }),
+  );
+  assert.ok(Array.isArray(rows));
+  assert.ok(
+    rows.some(({ label }) => label === unmappedEntry),
+    'the unmapped line is listed',
+  );
+  assert.ok(
+    rows.every(({ first_seen }) => first_seen !== null),
+    'the index wrote First seen',
+  );
 };
 
 // Exact raw entries, null histories, the LIKE wildcard, 50 users a page,
@@ -490,6 +534,10 @@ test('keeps raw-history Search and installs the Needs review views of the regist
       await t.test(
         'opens every review view through the REST API and lists what readiness counts',
         () => listsWhatReadinessCounts(context),
+      );
+      await t.test(
+        'opens Unmapped history lines through the REST API and lists the unmapped line',
+        () => listsTheUnmappedLines(context),
       );
       await t.test(
         'matches exact raw entries with null histories, 50 a page, stable ties and both profile links',

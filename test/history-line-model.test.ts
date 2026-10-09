@@ -17,7 +17,8 @@ import { effectiveFieldMeta } from './presentation-test-helpers.js';
 // The history line model in Studio: a line is its exact label and the time
 // the history index first created it, with no review state; its explicit
 // mappings are labelled as such, and the line's list of them says that one
-// replaces every pattern for the line.
+// replaces every pattern for the line. The form and a user's history show
+// where each line is counted.
 
 const firstSeenNote = 'When the history index first created this line.';
 const explicit = 'Explicit mappings';
@@ -112,11 +113,11 @@ describe('a history line', () => {
     });
   });
 
-  test('shows a user the course and year of each line through its explicit mappings, never a review state', () => {
+  test('shows a user the courses and years each line is counted for, never a review state', () => {
     expect(aliasOf('moodle_users', 'history_memberships').fields).toEqual([
       'entry',
-      'entry.mappings.course',
-      'entry.mappings.academic_year',
+      'entry.counted_for.course',
+      'entry.counted_for.academic_year',
       'sort',
     ]);
   });
@@ -173,15 +174,16 @@ describe('alias notes', () => {
 });
 
 describe('the history line form', () => {
-  test('shows the label and First seen, then the explicit mappings, then the users read-only, without a group note', () => {
+  test('shows the label and First seen, then the explicit mappings, then where the line counts and its users read-only, without a group note', () => {
     expect(
       fieldGroups
         .filter(({ collection }) => collection === 'moodle_course_entries')
-        .map(({ field, members, note, readOnly }) => ({
+        .map(({ field, members, note, readOnly, sort }) => ({
           field,
           members,
           note,
           readOnly,
+          sort,
         })),
     ).toEqual([
       {
@@ -189,18 +191,28 @@ describe('the history line form', () => {
         members: ['label', 'first_seen'],
         note: undefined,
         readOnly: undefined,
+        sort: 1,
       },
       {
         field: 'mapping',
         members: ['mappings'],
         note: undefined,
         readOnly: undefined,
+        sort: 2,
+      },
+      {
+        field: 'counting',
+        members: ['counted_for'],
+        note: undefined,
+        readOnly: true,
+        sort: 3,
       },
       {
         field: 'usage',
         members: ['memberships'],
         note: undefined,
         readOnly: true,
+        sort: 4,
       },
     ]);
   });
@@ -225,5 +237,26 @@ describe('the history line form', () => {
         .filter(({ collection }) => collection === 'moodle_course_entries')
         .map(({ field }) => field),
     ).toEqual(['memberships']);
+  });
+
+  test('lists the courses and years the line is counted for, open and read-only', () => {
+    expect(
+      effectiveFieldMeta('moodle_course_entries', 'counted_for'),
+    ).toMatchObject({
+      group: 'counting',
+      options: {
+        enableSearchFilter: true,
+        fields: ['course', 'academic_year', 'source'],
+      },
+      readonly: true,
+      sort: 1,
+      translations: translation('Counted for'),
+    });
+    expect(
+      fieldGroups.find(
+        ({ collection, field }) =>
+          collection === 'moodle_course_entries' && field === 'counting',
+      )?.start,
+    ).toBe('open');
   });
 });

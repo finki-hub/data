@@ -1,46 +1,18 @@
 import type { ReadinessEntry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
 
 import { readinessRegistry } from '../../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import courseSearch from '../../../directus/presets/course-search.json' with { type: 'json' };
 import { findModelCollection } from '../collections.js';
+import {
+  curriculumBookmark,
+  searchBookmark,
+  unmappedLinesBookmark,
+} from './bookmarks.js';
 import {
   defaultView,
   type PresetDefinition,
-  presetSchema,
   type TabularPreset,
   tabularPresetSchema,
 } from './preset-schema.js';
-
-// The one shared curriculum bookmark: every entry, generation first,
-// sorted by generation and catalog order. Studio's native filter on
-// `generation` narrows it to one generation, so a new generation row
-// needs no bookmark and no setup rerun.
-export const curriculumBookmark: TabularPreset = tabularPresetSchema.parse({
-  bookmark: 'Curriculum by generation',
-  collection: 'curriculum_entries',
-  filter: null,
-  icon: 'menu_book',
-  layout: 'tabular',
-  layout_options: { tabular: { spacing: 'comfortable' } },
-  layout_query: {
-    tabular: {
-      fields: [
-        'generation',
-        'code',
-        'name',
-        'semester',
-        'channel',
-        'course_links',
-      ],
-      limit: 50,
-      page: 1,
-      sort: ['generation', 'catalog_order'],
-    },
-  },
-  role: null,
-  search: null,
-  user: null,
-});
 
 // The shared Needs review bookmarks: one per readiness-registry entry
 // that declares a review view, on its page collection (the collection
@@ -77,11 +49,6 @@ export const reviewPresets = (
           }),
         ],
   );
-
-// The shared Search bookmark on the Moodle users, declared in
-// directus/presets/course-search.json.
-export const searchBookmark: PresetDefinition =
-  presetSchema.parse(courseSearch);
 
 // A default table view for every collection Studio lists.
 const defaultViews: readonly TabularPreset[] = [
@@ -195,8 +162,9 @@ const defaultViews: readonly TabularPreset[] = [
 
 // Every shared preset the presentation declares for a readiness
 // registry: the curriculum bookmark, its Needs review bookmarks, the
-// default table views and the Search bookmark. Setup installs each once
-// by collection and bookmark name and keeps an existing one.
+// default table views, the Search bookmark and the Unmapped history lines
+// bookmark. Setup installs each once by collection and bookmark name and
+// keeps an existing one.
 export const presetDefinitionsFor = (
   registry: readonly ReadinessEntry[],
 ): readonly PresetDefinition[] => [
@@ -204,6 +172,7 @@ export const presetDefinitionsFor = (
   ...reviewPresets(registry),
   ...defaultViews,
   searchBookmark,
+  unmappedLinesBookmark,
 ];
 
 // The presets of the declared readiness registry.

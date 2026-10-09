@@ -11,6 +11,8 @@ import {
   applySourceInvalidation,
 } from '../../src/data-model/constraints.js';
 import { installDataModel } from '../../src/data-model/install.js';
+import { unmappedLinesBookmark } from '../../src/data-model/presentation/bookmarks.js';
+import { aliasesFor } from '../../src/data-model/relations.js';
 import { dispatcherFlow } from '../../src/flows/count-enrollments.js';
 import { flowFamilyCodes } from '../../src/flows/flow-template.js';
 import { historyIndexFlows } from '../../src/flows/index-histories.js';
@@ -71,7 +73,8 @@ import { installHistoryRunner } from './history-runner.mjs';
 // matches, and the completion's SQL rebuilds the counted lines and every
 // count row. The SQL must count exactly what resolveLines and countPairs
 // count over the same rows (enrollment-lines.ts). A course created over
-// the API gets its default pattern mapping in the same transaction.
+// the API gets its default pattern mapping in the same transaction. The
+// Unmapped history lines bookmark and a user's history show the result.
 
 const byKey = (left, right) => left.key.localeCompare(right.key);
 const capRefusal = /Page p0001: matches \d+, max 10000$/u;
@@ -225,6 +228,60 @@ const countsByThePrecedenceRules = async (target, state) => {
   ]);
   const report = await status(target);
   assert.deepEqual(report.pending, ['publication']);
+};
+
+// Studio's query of the Unmapped history lines bookmark lists exactly the
+// lines without a counted line (an O2M null through Counted for), and a
+// user's history, read with the columns its list declares, shows the
+// course and year each line counts for.
+const showsWhereLinesCount = async (target, state) => {
+  const { collection, filter, layout_query } = unmappedLinesBookmark;
+  const { fields, limit, sort } = layout_query.tabular;
+  const listed = await get(
+    target,
+    `/items/${collection}?fields=${fields.join(',')}&sort=${sort.join(',')}&limit=${String(limit)}&filter=${encodeURIComponent(JSON.stringify(filter))}`,
+  );
+  const counted = await get(
+    target,
+    `${countedLinesPath}?fields=entry&limit=-1`,
+  );
+  const countedIds = new Set(counted.map(({ entry }) => entry));
+  const entries = await entriesByLabel(target);
+  const uncounted = entries
+    .values()
+    .filter(({ id }) => !countedIds.has(id))
+    .map(({ label }) => label)
+    .toArray();
+  const labels = listed.map(({ label }) => label);
+  assert.deepEqual(labels.toSorted(), uncounted.toSorted());
+  assert.ok(labels.includes('Counting Unlisted'));
+  assert.ok(labels.includes('Counting Alpha-no year'));
+  assert.ok(!labels.includes(seedExplicit[0][0]));
+  assert.ok(listed.every(({ first_seen }) => first_seen !== null));
+
+  const memberships = aliasesFor('moodle_users').find(
+    ({ alias }) => alias.field === 'history_memberships',
+  ).alias.fields;
+  const columns = ['entry.label', ...memberships]
+    .map((field) => `history_memberships.${field}`)
+    .join(',');
+  const user = await get(
+    target,
+    `/items/moodle_users/${state.ids.get('u5')}?fields=${columns}`,
+  );
+  assert.deepEqual(
+    user.history_memberships.map(({ entry }) => [
+      entry.label,
+      entry.counted_for.map(
+        ({ academic_year, course }) =>
+          `${state.courses.get(course)}/${state.years.get(academic_year)}`,
+      ),
+    ]),
+    [
+      ['Counting Gamma-2082/2083/Z', ['c/y2']],
+      [seedExplicit[0][0], ['b/y2']],
+    ],
+  );
 };
 
 // A course created over the API gets its default mapping in the same
@@ -455,6 +512,10 @@ test('counts every course and academic year by pattern and explicit mappings', a
       await t.test(
         'counts by the precedence rules, exactly as resolveLines does',
         () => countsByThePrecedenceRules(target, state),
+      );
+      await t.test(
+        'lists the uncounted lines in Unmapped history lines and shows where the lines of a user count',
+        () => showsWhereLinesCount(target, state),
       );
       await t.test(
         'gives a new course its default mapping, which a rename keeps',

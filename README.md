@@ -36,7 +36,7 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication, rule seeding and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, the **Search** bookmark and the **Unmapped history lines** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication, rule seeding and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
@@ -803,8 +803,8 @@ equivalency members, its status and staff links, its **Pattern mappings**
 and its **Explicit mappings** of Moodle history lines per academic year,
 and its enrollment rules, derived counts and **Counted lines** (read-only).
 A **History line**'s form shows its exact label and **First seen**, its
-**Explicit mappings**, and the users carrying it (the derived index,
-read-only).
+**Explicit mappings**, the courses and academic years it is **Counted
+for**, and the users carrying it (the last two derived and read-only).
 
 - The curriculum entry picker of a course link and the program picker of an
   entry's program states offer only rows of the chosen generation (the
@@ -1031,6 +1031,16 @@ one row per line, course, year and mapping, shown read-only as **Counted
 for** on a history line, **Counted lines** on a course and **Lines it
 counts** on a pattern mapping. Every run rebuilds them with the counts.
 
+The shared bookmark **Unmapped history lines** on **History lines** lists
+the lines no mapping counts, those without a counted line, newest **First
+seen** first and then by label, so the lines a new snapshot brings are at
+the top. It reflects the last completed count: a new snapshot's lines are
+listed as soon as the history index adds them, and the recount after it
+removes those a mapping counts. To count such a line, add a pattern
+mapping or widen one (an alternative such as `Old name-|New name-`), or
+map the line explicitly. Setup creates the bookmark when it is missing,
+like **Search**, and keeps an existing one as Studio leaves it.
+
 A new course gets its default pattern mapping in the same transaction
 (see the collections section above), so its own lines count from the next
 run; a renamed course keeps its mappings. The enrollment rules
@@ -1131,7 +1141,8 @@ generation: a FALSE is kept, and a TRUE is the rule fix
 `unlinked_availability`.
 
 A Moodle history line without a mapping is no readiness issue:
-administrative lines belong to no course.
+administrative lines belong to no course. **Unmapped history lines** lists
+them (see [Enrollment counts](#enrollment-counts)).
 
 A check's description, the tooltip of its code in the **Readiness** panel,
 states the fact only. What to do:
@@ -1517,7 +1528,7 @@ fields, and the filter builder supports nested include/exclude conditions.
 | Spreadsheet helper | Directus replacement |
 | --- | --- |
 | `Пребарување` | **Search** view on `moodle_users`, with include/exclude course pickers and matching users. |
-| `Слушатели` | **Pattern mappings** and **Explicit mappings**, which count the history lines into the derived **Course Enrollments** (see [Enrollment counts](#enrollment-counts)); the counts and **Counted lines** are also in the course form's **Enrollment** group. |
+| `Слушатели` | **Pattern mappings** and **Explicit mappings**, which count the history lines into the derived **Course Enrollments** (see [Enrollment counts](#enrollment-counts)); the counts and **Counted lines** are also in the course form's **Enrollment** group, and the lines no mapping counts are in **Unmapped history lines**. |
 | `Индекси` / `Индекси (Export)` | Search/filter the canonical `students` collection, including `source_group`. |
 | `Предмети (Export)` | Browse the canonical `courses` collection and its form. |
 | `Предмети - 2023`, `Предмети - 2018` | **Curriculum by generation** on **Curriculum Entries**, narrowed with the Generation filter. |
@@ -1543,7 +1554,7 @@ data management. Setup creates this shared bookmark once from
 - The page header's native search and filters apply too (the layout reads
   `Filtered by page header: search, filter`), including filters on
   related fields such as **History Memberships → Entry → Label** or the course
-  of an entry's mappings. They run as the signed-in user. A filter path names
+  an entry is counted for. They run as the signed-in user. A filter path names
   at most `MAX_RELATIONAL_DEPTH` fields (10 by default, as for the REST API).
   A longer path, `_some`/`_none` quantifiers and implicit `$FOLLOW(...)`
   relations are refused with `400 INVALID_PAYLOAD` and the reason, which the
@@ -1559,13 +1570,13 @@ Moodle histories, never from the history-entry table. Matching is
 case-sensitive against complete newline-separated entries of the raw
 `Courses` text, including year/semester, not substrings or regex; it does
 not go through the history index or the mappings, so a line that is
-unmapped or not indexed yet is found like any other. To reach the
-mappings of a person's lines, open the person: the **History Memberships**
-list shows each line with the course and academic year of its explicit
-mappings. Up to 20 selections are supported per group. Use **Refresh
-data** after importing a new snapshot to reload choices and results. Both
-private endpoints read as the signed-in user; no collection data is
-duplicated or published.
+unmapped or not indexed yet is found like any other. To see where a
+person's lines count, open the person: the **History Memberships** list
+shows each line with the courses and academic years it is counted for, as
+of the last completed count; a line counted nowhere shows none. Up to 20
+selections are supported per group. Use **Refresh data** after importing a
+new snapshot to reload choices and results. Both private endpoints read as
+the signed-in user; no collection data is duplicated or published.
 
 The layout and its companion endpoint are one bundle in
 `directus/extensions/directus-extension-course-search`. Compiled files are

@@ -7,14 +7,19 @@ import type {
 
 import {
   curriculumBookmark,
-  presetDefinitions,
-  reviewPresets,
   searchBookmark,
+  unmappedLinesBookmark,
+} from '../src/data-model/presentation/bookmarks.js';
+import {
+  presetDefinitions,
+  presetDefinitionsFor,
+  reviewPresets,
 } from '../src/data-model/presentation/presets.js';
 import { resolves } from './presentation-test-helpers.js';
 
 // The shared presets the presentation declares: the default table views,
-// the curriculum bookmark, the Needs review bookmarks and Search.
+// the curriculum bookmark, the Needs review bookmarks, Search and
+// Unmapped history lines.
 
 const isTabular = (preset: PresetDefinition): preset is TabularPreset =>
   preset.layout === 'tabular';
@@ -65,10 +70,15 @@ describe('presets', () => {
     ).toEqual([]);
   });
 
-  test('declares no shared bookmark beyond the curriculum one, the registry review views and Search', () => {
+  test('declares no shared bookmark beyond the curriculum one, the registry review views, Search and Unmapped history lines', () => {
     expect(
       presetDefinitions.filter(({ bookmark }) => bookmark !== null),
-    ).toEqual([curriculumBookmark, ...reviewPresets(), searchBookmark]);
+    ).toEqual([
+      curriculumBookmark,
+      ...reviewPresets(),
+      searchBookmark,
+      unmappedLinesBookmark,
+    ]);
   });
 
   test('keeps the Moodle users main table and the Search bookmark of directus/presets/course-search.json', () => {
@@ -166,11 +176,51 @@ describe('presets', () => {
       defaultViewOf('moodle_course_entries')?.layout_query.tabular,
     ).toMatchObject({ fields: ['label', 'first_seen'], sort: ['label'] });
     expect(
-      presetDefinitions.filter(
-        ({ bookmark, collection }) =>
-          collection === 'moodle_course_entries' && bookmark !== null,
+      presetDefinitions
+        .filter(
+          ({ bookmark, collection }) =>
+            collection === 'moodle_course_entries' && bookmark !== null,
+        )
+        .map(({ bookmark }) => bookmark),
+    ).toEqual(['Unmapped history lines']);
+    expect(
+      reviewPresets().filter(
+        ({ collection }) => collection === 'moodle_course_entries',
       ),
     ).toEqual([]);
+  });
+
+  test('declares Unmapped history lines once: the lines without a counted line, newest First seen first', () => {
+    expect(unmappedLinesBookmark).toEqual({
+      bookmark: 'Unmapped history lines',
+      collection: 'moodle_course_entries',
+      filter: { counted_for: { id: { _null: true } } },
+      icon: 'link_off',
+      layout: 'tabular',
+      layout_options: { tabular: { spacing: 'comfortable' } },
+      layout_query: {
+        tabular: {
+          fields: ['label', 'first_seen'],
+          limit: 50,
+          page: 1,
+          sort: ['-first_seen', 'label'],
+        },
+      },
+      role: null,
+      search: null,
+      user: null,
+    });
+    expect(
+      presetDefinitions.filter(
+        ({ bookmark }) => bookmark === unmappedLinesBookmark.bookmark,
+      ),
+    ).toEqual([unmappedLinesBookmark]);
+    // The filter goes through the line's Counted for list.
+    expect(resolves('moodle_course_entries', 'counted_for.id')).toBeTruthy();
+  });
+
+  test('keeps Unmapped history lines whatever the readiness registry declares', () => {
+    expect(presetDefinitionsFor([])).toContain(unmappedLinesBookmark);
   });
 
   test('lists only fields that exist on the collection or its relation targets', () => {

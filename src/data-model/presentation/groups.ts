@@ -45,8 +45,8 @@ export const fieldGroups: readonly FieldGroup[] = [
     start: 'open',
   },
   // The history line form: the exact label and when the index first saw
-  // it, the explicit mappings of the line, then the derived users
-  // read-only.
+  // it, the explicit mappings of the line, the courses and years it is
+  // counted for, then the derived users; the last two read-only.
   {
     collection: 'moodle_course_entries',
     field: 'line',
@@ -65,11 +65,20 @@ export const fieldGroups: readonly FieldGroup[] = [
   },
   {
     collection: 'moodle_course_entries',
+    field: 'counting',
+    headerIcon: 'fact_check',
+    members: ['counted_for'],
+    readOnly: true,
+    sort: 3,
+    start: 'open',
+  },
+  {
+    collection: 'moodle_course_entries',
     field: 'usage',
     headerIcon: 'account_tree',
     members: ['memberships'],
     readOnly: true,
-    sort: 3,
+    sort: 4,
     start: 'closed',
   },
   // The coordination singleton: status the operation and the trigger own

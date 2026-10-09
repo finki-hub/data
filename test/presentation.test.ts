@@ -7,6 +7,11 @@ import { dataModelCollections } from '../src/data-model/collections.js';
 import { installPresentation } from '../src/data-model/presentation.js';
 import { baselineFieldMeta } from '../src/data-model/presentation/baseline.js';
 import {
+  curriculumBookmark,
+  searchBookmark,
+  unmappedLinesBookmark,
+} from '../src/data-model/presentation/bookmarks.js';
+import {
   generationFilter,
   lockedWithoutGeneration,
 } from '../src/data-model/presentation/curriculum-fields.js';
@@ -24,11 +29,9 @@ import {
   folders,
 } from '../src/data-model/presentation/navigation.js';
 import {
-  curriculumBookmark,
   presetDefinitions,
   presetDefinitionsFor,
   reviewPresets,
-  searchBookmark,
 } from '../src/data-model/presentation/presets.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import { fieldTranslations } from '../src/data-model/translations.js';
@@ -501,8 +504,8 @@ describe('field presentation', () => {
     expect(programs?.sort).toBe('sort');
     expect(history?.fields).toEqual([
       'entry',
-      'entry.mappings.course',
-      'entry.mappings.academic_year',
+      'entry.counted_for.course',
+      'entry.counted_for.academic_year',
       'sort',
     ]);
     expect(
@@ -576,6 +579,7 @@ describe('the Needs review bookmarks', () => {
       curriculumBookmark.bookmark,
       ...reviewedBy(readinessRegistry).map(({ bookmark }) => bookmark),
       searchBookmark.bookmark,
+      unmappedLinesBookmark.bookmark,
     ]);
     expect(installed.length).toBeGreaterThan(2);
     expect(installed.map(({ bookmark }) => bookmark)).toContain(
@@ -835,6 +839,44 @@ describe('installPresentation over Studio edits', () => {
       adopted: 0,
       created: presetDefinitions.length - 2,
       skipped: 2,
+    });
+  });
+
+  test('installs Unmapped history lines as declared, keeps an existing one and installs it again once deleted', async () => {
+    const isUnmapped = (call: RecordedRequest): boolean =>
+      presetBody.safeParse(call.body).data?.bookmark ===
+      unmappedLinesBookmark.bookmark;
+    const fresh = fakeDirectus(freshState());
+
+    await installPresentation(fresh.request);
+
+    expect(
+      byShape(mutations(fresh.requests), 'POST', presetsPath)
+        .filter((call) => isUnmapped(call))
+        .map(({ body }) => body),
+    ).toEqual([unmappedLinesBookmark]);
+
+    const kept = fakeDirectus(appliedState());
+
+    await installPresentation(kept.request);
+
+    expect(mutations(kept.requests)).toEqual([]);
+
+    const state = appliedState();
+    state.presets = (state.presets ?? []).filter(
+      ({ bookmark }) => bookmark !== unmappedLinesBookmark.bookmark,
+    );
+    const deleted = fakeDirectus(state);
+
+    const summary = await installPresentation(deleted.request);
+
+    expect(mutations(deleted.requests).map((call) => isUnmapped(call))).toEqual(
+      [true],
+    );
+    expect(summary.presets).toEqual({
+      adopted: 0,
+      created: 1,
+      skipped: presetDefinitions.length - 1,
     });
   });
 
