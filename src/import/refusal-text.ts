@@ -17,12 +17,14 @@ import {
   rowsAt,
   sheetOf,
 } from './refusal-places.js';
+import { referenceLine } from './refusal-reference.js';
 import { teachingLines } from './refusal-teaching.js';
 
 // Every case that blocks the import, one line per code in one form:
 // `<sheet> row N[, column "X"][ «course»]: <fact>[; <fact>]`, naming the
-// rows, the cell and the course it concerns. What to change is in README,
-// per code.
+// rows, the cell and the course it concerns; a case on a reference sheet
+// is placed by its cell (refusal-reference.ts). What to change is in
+// README, per code.
 
 type Line = (finding: Finding, context: RefusalContext) => string;
 
@@ -212,5 +214,5 @@ export const refusalText = (
   context: RefusalContext,
 ): string =>
   isBlockerCode(finding.code)
-    ? lines[finding.code](finding, context)
+    ? (referenceLine(finding, context) ?? lines[finding.code](finding, context))
     : rowsAt(finding.collection, finding.ids, context);

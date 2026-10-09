@@ -6,13 +6,15 @@ import { generationCollections } from './generation-collections.js';
 import { mappingCollections } from './mapping-collections.js';
 import { moodleCollections } from './moodle-collections.js';
 import { operationsCollections } from './operations-collections.js';
+import { referenceCollections } from './reference-collections.js';
 
 // Every collection of the relational model in installation order: the
-// content the workbook import fills first, then the collections that link
-// it, the Moodle collections with their pattern mappings and the
-// operations bookkeeping.
+// content and reference lists the workbook import fills first, then the
+// collections that link them, the Moodle collections with their pattern
+// mappings and the operations bookkeeping.
 export const dataModelCollections: readonly ModelCollection[] = [
   ...contentCollections,
+  ...referenceCollections,
   ...curriculumCollections,
   ...generationCollections,
   ...moodleCollections,

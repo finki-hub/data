@@ -197,6 +197,90 @@ const keepsDuplicateStudentIndexes = async (target) => {
   assert.equal(first.data.index_number, second.data.index_number);
 };
 
+// The names of the courses a Discord channel lists.
+const channelCourses = async (target, channel) => {
+  const body = await read(
+    await request(
+      target,
+      `/items/discord_channels/${channel}?fields=courses.name`,
+      { token: target.token },
+    ),
+    200,
+  );
+  return body.data.courses.map(({ name }) => name).toSorted();
+};
+
+const courseChannel = async (target, course) => {
+  const body = await read(
+    await request(target, `/items/courses/${course}?fields=discord_channel`, {
+      token: target.token,
+    }),
+    200,
+  );
+  return body.data.discord_channel;
+};
+
+// A course picks its Discord channel, and the channel lists its courses
+// and picks existing ones. Taking a course out of that list, or deleting
+// the channel, clears the link (nullify, SET NULL) and keeps the course. A
+// semester below 1 is refused.
+const linksDiscordChannels = async (target) => {
+  assert.equal(
+    await rejectedItem(target, 'discord_channels', {
+      channel: 'synthetic-zero',
+      semester: 0,
+    }),
+    'FAILED_VALIDATION',
+  );
+  const channel = await createItem(target, 'discord_channels', {
+    channel: 'synthetic-channel',
+    semester: 1,
+  });
+  const other = await createItem(target, 'discord_channels', {
+    channel: 'synthetic-other',
+    semester: 2,
+  });
+  const course = (name) =>
+    createItem(target, 'courses', {
+      discord_channel: channel.data.id,
+      name,
+      pattern_mappings: [],
+    });
+  const first = await course('Synthetic Channel Course One');
+  const second = await course('Synthetic Channel Course Two');
+  assert.deepEqual(await channelCourses(target, channel.data.id), [
+    'Synthetic Channel Course One',
+    'Synthetic Channel Course Two',
+  ]);
+  const pick = async (id, courses) =>
+    read(
+      await request(
+        target,
+        `/items/discord_channels/${id}`,
+        json('PATCH', { courses }, target.token),
+      ),
+      200,
+    );
+  await pick(channel.data.id, [first.data.id]);
+  assert.equal(await courseChannel(target, second.data.id), null);
+  await pick(other.data.id, [second.data.id]);
+  assert.equal(await courseChannel(target, second.data.id), other.data.id);
+  assert.deepEqual(await channelCourses(target, other.data.id), [
+    'Synthetic Channel Course Two',
+  ]);
+  await read(
+    await request(target, `/items/discord_channels/${channel.data.id}`, {
+      method: 'DELETE',
+      token: target.token,
+    }),
+    204,
+  );
+  assert.equal(await courseChannel(target, first.data.id), null);
+  assert.deepEqual(await channelCourses(target, other.data.id), [
+    'Synthetic Channel Course Two',
+  ]);
+};
+
 // The generation rows a curriculum test needs: 2013 label-only, 2018 and
 // 2023 with a curriculum.
 const createGenerations = async (target) => {
@@ -447,6 +531,10 @@ test('installs the relational model idempotently and enforces its domain keys', 
     await t.test(
       'keeps two students with the same index in different groups',
       () => keepsDuplicateStudentIndexes(target),
+    );
+    await t.test(
+      'links courses to a Discord channel from either side and clears the link',
+      () => linksDiscordChannels(target),
     );
     await t.test(
       'rejects mismatched generations and duplicate curriculum links',

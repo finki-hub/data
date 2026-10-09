@@ -823,11 +823,7 @@ const retriesFailure = async (target) => {
 const recoversAfterRestart = async (target, state) => {
   await create(target, state, [
     'discord_channels',
-    {
-      channel: 'synthetic-coordination',
-      course_names: 'Synthetic Coordination Course A',
-      semester: 1,
-    },
+    { channel: 'synthetic-coordination', semester: 1 },
   ]);
   const claim = await claimNow(target, 'publication');
   assert.equal(claim.claimed, true);

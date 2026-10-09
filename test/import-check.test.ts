@@ -83,6 +83,7 @@ describe('the finding codes', () => {
     // What a rule fixes is a warning, never a blocker.
     expect([...ruleFixCodes]).toEqual([
       'duplicate_assignment',
+      'duplicate_course_channel',
       'formula_pattern_cell',
       'newest_year_widened',
       'pattern_line_break',

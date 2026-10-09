@@ -80,6 +80,7 @@ describe('the course status', () => {
       'name',
       'status',
       'tags',
+      'discord_channel',
     ]);
   });
 });

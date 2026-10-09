@@ -20,6 +20,12 @@ export const scalar = (
   options: ScalarOptions = {},
 ): ModelScalarField => ({ field, kind, nullable: true, ...options });
 
+// A column that must hold a value.
+export const required = (
+  field: string,
+  kind: ModelScalarKind = 'string',
+): ModelScalarField => scalar(field, kind, { nullable: false });
+
 // The choices of a vocabulary, in the order of its values, each with the
 // one label the record declares for it (a missing or extra label does not
 // compile).

@@ -44,6 +44,12 @@ export type CourseCandidate = {
 };
 
 export type Candidates = {
+  // The course rows a Дискорд cell names, each with the first channel row
+  // naming it (ordinals).
+  readonly channels: ReadonlyArray<{
+    readonly channel: number;
+    readonly course: number;
+  }>;
   readonly council: ReadonlyArray<{
     readonly id: number;
     readonly student: LinkCandidate;

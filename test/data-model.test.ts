@@ -159,7 +159,7 @@ describe('target collections', () => {
     ]);
   });
 
-  test('keeps only the published columns on a course, and the course links its curriculum', () => {
+  test('keeps the published columns on a course plus the one channel link, and the course links its curriculum', () => {
     expect(
       findCollection('courses').fields.map(({ field, kind, nullable }) => [
         field,
@@ -170,6 +170,7 @@ describe('target collections', () => {
       ['name', 'string', false],
       ['status', 'enum', false],
       ['tags', 'string', true],
+      ['discord_channel', 'm2o', true],
     ]);
     expect(
       findCollection('teaching_assignments').fields.map(({ field }) => field),

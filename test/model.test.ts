@@ -116,14 +116,18 @@ describe('studio metadata', () => {
     expect(owned.filter((collection) => sources.has(collection))).toEqual([
       'moodle_course_entries',
     ]);
+
     // A many-to-many list picks existing rows (study programs) and never
-    // creates one from the other side.
+    // creates one from the other side; so does a channel's list of courses.
+    const selectOnly = new Set(['discord_channels.courses']);
+
     expect(
       aliasMetas.filter(
-        ({ derivedTarget, junction, meta, readOnly }) =>
+        ({ derivedTarget, field, junction, meta, readOnly }) =>
           readOnly !== derivedTarget ||
           meta.readonly !== derivedTarget ||
-          meta.options.enableCreate !== (!derivedTarget && !junction) ||
+          meta.options.enableCreate !==
+            (!derivedTarget && !junction && !selectOnly.has(field)) ||
           meta.options.enableSelect === derivedTarget,
       ),
     ).toEqual([]);

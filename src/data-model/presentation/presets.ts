@@ -100,8 +100,8 @@ const defaultViews: readonly TabularPreset[] = [
   ),
   defaultView(
     'discord_channels',
-    ['semester', 'channel', 'course_names'],
-    ['semester'],
+    ['semester', 'channel', 'courses'],
+    ['semester', 'channel'],
   ),
   defaultView('deans_office', ['year', 'name', 'position'], ['-year']),
   // The main Moodle users table.

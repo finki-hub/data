@@ -81,7 +81,7 @@ describe('teaching assignments: staff links', () => {
     ]);
   });
 
-  test('writes the status of every course and never the professors override', () => {
+  test('writes the status and Discord channel of every course and never the professors override', () => {
     const records = recordsIn(planOf(uniqueDataset()), 'courses');
 
     expect(records.map((record) => record['status'])).toEqual([
@@ -95,7 +95,7 @@ describe('teaching assignments: staff links', () => {
       'active',
     ]);
     expect(new Set(records.flatMap((record) => Object.keys(record)))).toEqual(
-      new Set(['name', 'status', 'tags']),
+      new Set(['discord_channel', 'name', 'status', 'tags']),
     );
   });
 

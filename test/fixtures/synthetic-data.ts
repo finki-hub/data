@@ -690,7 +690,7 @@ const makeDiscordChannels = (): readonly SyntheticRow[] => [
     id: 1,
     semester: 1,
     channel: 'gamma-and-delta',
-    course_names: 'Gamma Course\nDelta Course',
+    course_names: 'Gamma Course / Delta Course',
   },
   { id: 2, semester: 6, channel: 'zeta', course_names: 'Zeta Course' },
 ];

@@ -184,6 +184,7 @@ describe('content rows', () => {
     const plan = planOf(dataset);
 
     expect(recordsIn(plan, 'courses')[1]).toEqual({
+      discord_channel: null,
       name: courseNames.beta,
       status: 'active',
       tags: '',

@@ -5,16 +5,18 @@ import { workbookSpecs } from '../specs/workbook.js';
 import { sheetPlace } from '../workbook-values.js';
 import {
   type Finding,
-  isRuleFixCode,
+  isPlacedCode,
+  type PlacedCode,
   relatedIds,
-  type RuleFixCode,
 } from './findings.js';
-import { headerOf, linesText } from './refusal-places.js';
+import { channelNameAt, headerOf, linesText } from './refusal-places.js';
 
-// Where each rule fix of the import applies, for the summary's `fixes`:
-// `<sheet> row N[, column "X"][, line L][ (used: row M)]`, from the
-// workbook places. A place names sheets, rows, column headers and lines,
-// never a value.
+// Where each rule fix of the import applies, and where each Дискорд course
+// name that matches no course stands, for the summary's `fixes`, from the
+// workbook places: `<sheet> row N[, column "X"][, line L][ (used: row M)]`,
+// or for a Дискорд name `Дискорд row N, column C, name K[ (used: row M[,
+// column C'])]`. A place names sheets, rows, columns, lines and name
+// positions, never a value.
 
 type FixPlace = SheetRow & { readonly text: string };
 
@@ -35,7 +37,16 @@ const patternCell: Placer = ({ academicYear, collection, ids }, places) => {
     : { ...row, text: sheetPlace(row.sheet, row.row, academicYear) };
 };
 
-const placers: Readonly<Record<RuleFixCode, Placer>> = {
+// A Дискорд course name: its channel row, the column of its cell and its
+// position there.
+const namePlace: Placer = ({ channelName, collection, ids }, places) => {
+  const row = rowOf(collection, ids[0], places);
+  return row === null || channelName === undefined
+    ? null
+    : { ...row, text: channelNameAt(row, channelName) };
+};
+
+const placers: Readonly<Record<PlacedCode, Placer>> = {
   // The later teaching row, and the row used instead.
   duplicate_assignment: (finding, places) => {
     const row = rowOf('teaching_assignments', finding.ids[0], places);
@@ -49,6 +60,24 @@ const placers: Readonly<Record<RuleFixCode, Placer>> = {
     );
     const usedText = used === null ? '' : ` (used: row ${String(used.row)})`;
     return { ...row, text: `${sheetPlace(row.sheet, row.row)}${usedText}` };
+  },
+  // The later name of the course, and the channel row it keeps; that row's
+  // column only when it differs.
+  duplicate_course_channel: (finding, places) => {
+    const place = namePlace(finding, places);
+    const { channelName, usedChannel } = finding;
+    const used = rowOf('discord_channels', usedChannel?.id, places);
+    if (place === null || used === null || usedChannel === undefined) {
+      return place;
+    }
+    const column =
+      usedChannel.column === channelName?.column
+        ? ''
+        : `, column ${String(usedChannel.column)}`;
+    return {
+      ...place,
+      text: `${place.text} (used: row ${String(used.row)}${column})`,
+    };
   },
   // The pattern cell, its column named by its year.
   formula_pattern_cell: ({ cell }) =>
@@ -81,6 +110,8 @@ const placers: Readonly<Record<RuleFixCode, Placer>> = {
     const column = headerOf('courses', `available_${generation}`);
     return { ...row, text: sheetPlace(row.sheet, row.row, column) };
   },
+  // The name, which links nothing.
+  unmatched_channel_course: namePlace,
 };
 
 const sheetsOf = ({ source }: WorkbookSpec): readonly string[] =>
@@ -96,15 +127,16 @@ const sheetRank = (sheet: string): number => {
 
 const collator = new Intl.Collator('en');
 
-// The places of the rule fixes among the findings, per code (sorted), each
-// list in sheet order, then row order; codes without a case are left out.
+// The places of the placed warnings among the findings, per code
+// (sorted), each list in sheet order, then row order; codes without a case
+// are left out.
 export const fixPlaces = (
   findings: readonly Finding[],
   places: WorkbookPlaces,
 ): Readonly<Record<string, readonly string[]>> => {
   const placed = findings.flatMap((finding) => {
     const { code } = finding;
-    if (!isRuleFixCode(code)) {
+    if (!isPlacedCode(code)) {
       return [];
     }
     const place = placers[code](finding, places);

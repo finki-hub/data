@@ -12,9 +12,9 @@ const flag = z.boolean().nullable();
 // the values a planner moves into another shape. Every row carries its
 // ordinal as its id (1 for the first row read), so a finding names it by
 // sheet and row. The columns copied as they are (every staff, room,
-// student, Discord, dean's office and Moodle user column, and the course
-// name and tags) are read from the workbook data directly
-// (plan-content.ts).
+// student, dean's office and Moodle user column, a Discord channel's
+// semester and alias, and the course name and tags) are read from the
+// workbook data directly (plan-content.ts).
 const courseRow = z.object({
   available_2018: flag,
   available_2023: flag,
@@ -78,6 +78,13 @@ const councilRow = z.object({
   position: text,
   year: integer,
 });
+// The reader numbers every channel pair's semester by its column pair.
+const channelRow = z.object({
+  channel: text,
+  course_names: text,
+  id,
+  semester: z.number().int(),
+});
 const deansRow = z.object({
   id,
   name: text,
@@ -89,6 +96,7 @@ export type CourseRow = z.infer<typeof courseRow>;
 export type EquivalencyRow = z.infer<typeof equivalencyRow>;
 export type AssignmentRow = z.infer<typeof assignmentRow>;
 export type PatternRow = z.infer<typeof patternRow>;
+type ChannelRow = z.infer<typeof channelRow>;
 type CouncilRow = z.infer<typeof councilRow>;
 
 export type WorkbookRows = {
@@ -98,6 +106,7 @@ export type WorkbookRows = {
   readonly curriculum_2018: ReadonlyArray<z.infer<typeof curriculum2018Row>>;
   readonly curriculum_2023: ReadonlyArray<z.infer<typeof curriculum2023Row>>;
   readonly deans_office: ReadonlyArray<z.infer<typeof deansRow>>;
+  readonly discord_channels: readonly ChannelRow[];
   readonly staff: ReadonlyArray<z.infer<typeof staffRow>>;
   readonly student_council: readonly CouncilRow[];
   readonly students: ReadonlyArray<z.infer<typeof studentRow>>;
@@ -118,6 +127,7 @@ export const workbookRows = (data: WorkbookData): WorkbookRows => {
     curriculum_2018: rows('curriculum_2018', curriculum2018Row),
     curriculum_2023: rows('curriculum_2023', curriculum2023Row),
     deans_office: rows('deans_office', deansRow),
+    discord_channels: rows('discord_channels', channelRow),
     staff: rows('staff', staffRow),
     student_council: rows('student_council', councilRow),
     students: rows('students', studentRow),

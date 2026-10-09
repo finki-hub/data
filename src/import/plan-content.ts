@@ -3,7 +3,7 @@ import type {
   WorkbookItem,
   WorkbookKey,
 } from '../schema.js';
-import type { Candidates, CourseCandidate } from './candidates.js';
+import type { Candidates } from './candidates.js';
 
 import { findModelCollection } from '../data-model/collections.js';
 import { linkedRow } from './labels.js';
@@ -51,14 +51,26 @@ export const contentRows = (
     ),
   );
 
-// The teaching status of a course row, decided from its teaching cells.
-export const courseStatus = (candidates: readonly CourseCandidate[]) => {
+// The teaching status of a course row, decided from its teaching cells,
+// and its Discord channel: the first channel row naming it, or none.
+export const courseLinks = ({
+  channels,
+  courses,
+}: Pick<Candidates, 'channels' | 'courses'>) => {
   const statuses = new Map(
-    candidates.map(({ id, teaching }) => [id, teaching.status]),
+    courses.map(({ id, teaching }) => [id, teaching.status]),
   );
-  return (id: number): PlannedRecord => ({
-    status: statuses.get(id) ?? null,
-  });
+  const linked = new Map(
+    channels.map(({ channel, course }) => [course, channel]),
+  );
+  return (id: number): PlannedRecord => {
+    const channel = linked.get(id);
+    return {
+      discord_channel:
+        channel === undefined ? null : ref('discord_channels', channel),
+      status: statuses.get(id) ?? null,
+    };
+  };
 };
 
 // The course of an equivalency row, when its 2023 label names exactly

@@ -18,6 +18,12 @@ export const fieldPresentations: readonly FieldPresentation[] = [
     },
   },
   { collection: 'teaching_assignments', field: 'sort', meta: { hidden: true } },
+  // A channel's list picks existing courses; it never creates one.
+  {
+    collection: 'discord_channels',
+    field: 'courses',
+    meta: { options: { enableCreate: false } },
+  },
   ...moodleFieldPresentations,
 ];
 

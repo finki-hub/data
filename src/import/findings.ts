@@ -56,6 +56,7 @@ export const skippedCodes = [
 export const warningCodes = [
   'ambiguous_equivalency_entry',
   'duplicate_assignment',
+  'duplicate_course_channel',
   'duplicate_course_name',
   'duplicate_equivalency',
   'duplicate_staff_name',
@@ -67,13 +68,15 @@ export const warningCodes = [
   'pattern_line_break',
   'repeated_staff_name',
   'unlinked_availability',
+  'unmatched_channel_course',
   'unmatched_council_index',
   'unmatched_equivalency_entry',
   'unreferenced_rows',
 ] as const;
 
 // The warnings of what the import fixes by rule, never in the workbook:
-// a later teaching row of a course is ignored (the first is used), an
+// a later teaching row of a course is ignored (the first is used), a
+// course a Дискорд cell names again keeps its first channel, an
 // availability of TRUE without a name links nothing, a formula pattern
 // cell is not read, a name listed again in one teaching cell is linked
 // once, a typed pattern loses its line breaks, and the converted mappings
@@ -81,6 +84,7 @@ export const warningCodes = [
 // The summary places each case (fixes).
 export const ruleFixCodes = [
   'duplicate_assignment',
+  'duplicate_course_channel',
   'formula_pattern_cell',
   'newest_year_widened',
   'pattern_line_break',
@@ -89,6 +93,16 @@ export const ruleFixCodes = [
 ] as const satisfies ReadonlyArray<(typeof warningCodes)[number]>;
 
 export type RuleFixCode = (typeof ruleFixCodes)[number];
+
+// The warnings the summary places (fixes): every rule fix, and a Дискорд
+// course name that matches no course, which links nothing and changes
+// nothing else.
+export const placedCodes = [
+  ...ruleFixCodes,
+  'unmatched_channel_course',
+] as const satisfies ReadonlyArray<(typeof warningCodes)[number]>;
+
+export type PlacedCode = (typeof placedCodes)[number];
 
 export type FindingCode =
   | (typeof blockerCodes)[number]
@@ -103,21 +117,29 @@ export type PartRows = {
   readonly ids: readonly number[];
 };
 
+// A course name of a Дискорд cell: the cell's column, which the sheet
+// heads with no name of its own (2 × semester), and the name's position in
+// the cell (1 for the first).
+export type ChannelName = { readonly column: number; readonly name: number };
+
 // What else a case involves, never a value: the rows of other parts it
 // concerns (such as the curriculum rows a name matches), the academic
 // year of a pattern cell case (its column), the curriculum generation of
 // a case about one generation's values, the place of a cell no row was
 // read from (sheet, row and column header of a formula pattern cell,
-// whose ids are empty), and the field of the row's cell a teaching case
+// whose ids are empty), the field of the row's cell a teaching case
 // concerns with its lines (1 for the first; none when the case is the
-// whole cell).
+// whole cell), and the Дискорд course name a case concerns, with the
+// channel row whose link is used instead (its ordinal and column).
 type CaseDetail = {
   readonly academicYear?: string;
   readonly cell?: SheetCell;
+  readonly channelName?: ChannelName;
   readonly field?: string;
   readonly generation?: '2018' | '2023';
   readonly lines?: readonly number[];
   readonly related?: readonly PartRows[];
+  readonly usedChannel?: { readonly column: number; readonly id: number };
 };
 
 export type Finding = CaseDetail &
@@ -175,10 +197,10 @@ const blockerSet: ReadonlySet<string> = new Set(blockerCodes);
 export const isBlockerCode = (code: FindingCode): code is BlockerCode =>
   blockerSet.has(code);
 
-const ruleFixSet: ReadonlySet<string> = new Set(ruleFixCodes);
+const placedSet: ReadonlySet<string> = new Set(placedCodes);
 
-export const isRuleFixCode = (code: FindingCode): code is RuleFixCode =>
-  ruleFixSet.has(code);
+export const isPlacedCode = (code: FindingCode): code is PlacedCode =>
+  placedSet.has(code);
 
 // How often each key occurs, sorted by key.
 export const countKeys = (

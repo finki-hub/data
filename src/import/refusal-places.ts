@@ -1,9 +1,11 @@
 import type { SheetRow, WorkbookKey } from '../schema.js';
 import type { WorkbookPlaces } from '../workbook.js';
+import type { ChannelName } from './findings.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
 import { workbookSpecs } from '../specs/workbook.js';
 import { listText, pluralText } from '../text.js';
+import { sheetPlace } from '../workbook-values.js';
 import { nonEmpty } from './labels.js';
 
 // What a refusal line may name: the sheet and row of every row read and
@@ -60,6 +62,13 @@ export const rowsAt = (
 
 export const courseRow = (id: number, { rows }: RefusalContext) =>
   rows.courses[id - 1];
+
+// A course name of a Дискорд cell by its row, column and position:
+// Дискорд row 7, column 2, name 3.
+export const channelNameAt = (
+  { row, sheet }: SheetRow,
+  { column, name }: ChannelName,
+): string => `${sheetPlace(sheet, row, column)}, name ${String(name)}`;
 
 // The lines of a teaching cell a case concerns: "line 3", "lines 3, 5".
 export const linesText = (lines: readonly number[]): string =>
