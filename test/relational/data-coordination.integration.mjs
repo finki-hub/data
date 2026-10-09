@@ -281,7 +281,8 @@ const recordsSourceStatements = async (target, state) => {
   ]);
   let report = await status(target);
   assert.equal(report.revisions.source, 1);
-  assert.deepEqual(report.dirty, ['publication']);
+  // Every course is counted, so a course marks the counts too.
+  assert.deepEqual(report.dirty, ['enrollments', 'publication']);
   const courseB = await create(target, state, [
     'courses',
     { name: 'Synthetic Coordination Course B', pattern_mappings: [] },

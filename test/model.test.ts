@@ -102,6 +102,8 @@ describe('studio metadata', () => {
     expect(owned).toEqual([
       'moodle_course_entries',
       'moodle_history_memberships',
+      'moodle_counted_lines',
+      'data_operation_matches',
       'course_enrollments',
       'data_operation_results',
     ]);

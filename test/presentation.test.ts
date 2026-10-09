@@ -157,8 +157,10 @@ const options = z.record(z.string(), z.unknown());
 const helperCollections = [
   'course_curricula',
   'curriculum_entry_program_states',
+  'data_operation_matches',
   'data_operation_results',
   'data_operations',
+  'moodle_counted_lines',
   'moodle_history_memberships',
   'moodle_import_rows',
 ];

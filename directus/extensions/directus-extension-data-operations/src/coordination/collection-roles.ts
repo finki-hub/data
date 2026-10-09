@@ -59,9 +59,10 @@ type DomainList = readonly [Domain, ...Domain[]];
 
 // A table only its own writer changes. The database guard refuses every
 // other statement unless the writer opened it for its transaction with the
-// setting finki_hub.<writer>, or a foreign key cascade writes it. The
-// refusal names the writer (`writtenBy`); its HINT states where the rows
-// come from (`hint`).
+// setting finki_hub.<writer>, or a foreign key cascade writes it. A writer
+// of several tables opens them all with its one setting. The refusal names
+// the writer (`writtenBy`); its HINT states where the rows come from
+// (`hint`).
 type WriteGuard = {
   readonly hint: string;
   readonly writer: string;
@@ -76,7 +77,12 @@ const publishes = <const Collection extends string>(collection: Collection) =>
 
 // Sources in the order their triggers are installed, then the others.
 const collectionRoles = [
-  publishes('courses'),
+  // Every course is counted in every academic year.
+  {
+    collection: 'courses',
+    invalidates: ['enrollments', 'publication'],
+    role: 'source',
+  },
   publishes('staff'),
   publishes('rooms'),
   publishes('students'),
@@ -142,7 +148,17 @@ const collectionRoles = [
   {
     collection: 'course_enrollments',
     guard: {
-      hint: 'Source: moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending',
+      hint: 'Source: courses, moodle_pattern_mappings, moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending',
+      writer: 'enrollments_writer',
+      writtenBy: 'enrollments claim completion',
+    },
+    role: 'derived',
+  },
+  // The same completion writes the lines it counts.
+  {
+    collection: 'moodle_counted_lines',
+    guard: {
+      hint: 'Source: moodle_course_entries, moodle_pattern_mappings, moodle_course_mappings; rebuilt by: Data / Process pending',
       writer: 'enrollments_writer',
       writtenBy: 'enrollments claim completion',
     },
@@ -163,6 +179,15 @@ const collectionRoles = [
   },
   {
     collection: 'data_operation_results',
+    guard: {
+      hint: 'Written by: coordinator',
+      writer: 'candidate_writer',
+      writtenBy: 'coordinator',
+    },
+    role: 'candidate',
+  },
+  {
+    collection: 'data_operation_matches',
     guard: {
       hint: 'Written by: coordinator',
       writer: 'candidate_writer',

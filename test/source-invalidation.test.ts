@@ -100,8 +100,12 @@ const provenCollections: ReadonlySet<string> = new Set([
 // The text-style pass (2026-09-30) reworded the RAISE of a missing status
 // row only: with that one line reverted, the migration hashes to the
 // earlier 3e4a956aa89fe3db38148d8e60d91b266494b2dab6064eca68b3bcfa8d621584.
+// Counting every course (2026-10-09) made courses mark the counts too, its
+// one arm in the trigger function: with courses marking publication only,
+// it hashes to the earlier
+// 25c7831910b8db34d25e7aea7dda3bf7eb60098395628448439942c5df810f16.
 const provenSha256 =
-  '25c7831910b8db34d25e7aea7dda3bf7eb60098395628448439942c5df810f16';
+  '4279d689f0fd5ca0db9c7069636e1c687433ad473372859338a3948aa5c451d7';
 
 // The statements the migration of a registry holds: the singleton row, its
 // index and the trigger function, then the triggers of every source (its

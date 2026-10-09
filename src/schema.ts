@@ -94,8 +94,7 @@ export type WorkbookData = Readonly<
 
 export type WorkbookItem = Readonly<Record<string, Scalar>>;
 
-// Where the import read a row: its sheet and row number, which name it in
-// every message.
+// Where the import read a row: its sheet and row number, named in messages.
 export type SheetRow = { readonly row: number; readonly sheet: string };
 
 export type PlacedItem = {
@@ -127,8 +126,7 @@ export const assertNever = (value: never): never => {
   throw new TypeError(`Unexpected collection source: ${String(value)}`);
 };
 
-// Every collection of the Directus model: the workbook content, then the
-// relational, Moodle, operations and coordination collections.
+// Every collection of the Directus model; collections.ts orders them.
 export type ModelCollectionKey =
   | 'academic_years'
   | 'course_curricula'
@@ -140,10 +138,12 @@ export type ModelCollectionKey =
   | 'curriculum_entries'
   | 'curriculum_entry_program_states'
   | 'curriculum_generations'
+  | 'data_operation_matches'
   | 'data_operation_results'
   | 'data_operations'
   | 'deans_office'
   | 'discord_channels'
+  | 'moodle_counted_lines'
   | 'moodle_course_entries'
   | 'moodle_course_mappings'
   | 'moodle_history_memberships'

@@ -8,6 +8,7 @@ import type {
 } from '../schema.js';
 
 import { dataModelCollections } from './collections.js';
+import { mappingKeys } from './mapping-collections.js';
 
 type RelationPayload = {
   readonly collection: string;
@@ -193,6 +194,14 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'unique',
     name: 'moodle_history_memberships_moodle_user_entry_unique',
   },
+  // The users of a line. Directus gives an indexed column an index of this
+  // name, so the statement adds it only where that index is missing.
+  {
+    collection: 'moodle_history_memberships',
+    columns: ['entry'],
+    kind: 'index',
+    name: 'moodle_history_memberships_entry_index',
+  },
   {
     collection: 'moodle_course_mappings',
     columns: ['entry', 'course', 'academic_year'],
@@ -205,21 +214,7 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'index',
     name: 'moodle_course_mappings_course_academic_year_index',
   },
-  // One mapping per course, pattern, year pattern and year; an all-years
-  // mapping has no year, an only-in-year one no year pattern.
-  {
-    collection: 'moodle_pattern_mappings',
-    columns: ['course', 'pattern', 'year_pattern', 'only_in_year'],
-    kind: 'unique',
-    name: 'moodle_pattern_mappings_course_pattern_unique',
-    nullsNotDistinct: true,
-  },
-  {
-    collection: 'moodle_pattern_mappings',
-    columns: ['course', 'only_in_year'],
-    kind: 'index',
-    name: 'moodle_pattern_mappings_course_only_in_year_index',
-  },
+  ...mappingKeys,
   {
     collection: 'course_enrollment_rules',
     columns: ['course', 'academic_year'],

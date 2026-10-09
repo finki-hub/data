@@ -60,9 +60,13 @@ const sorted = (values) => values.toSorted((a, b) => collator.compare(a, b));
 // source names its payload here.
 const payloads = {
   academic_years: { label: '2091/2092', sort: 1 },
-  courses: { name: 'Synthetic Roles Course' },
   moodle_course_entries: { label: 'Synthetic Roles Entry' },
   moodle_users: { Name: 'Synthetic Roles User' },
+  rooms: {
+    location: 'Synthetic Roles Wing',
+    name: 'Synthetic Roles Room',
+    type: 'lab',
+  },
 };
 
 const signature = ({ columns = {}, invalidates, onDelete = [] }) =>
@@ -273,16 +277,28 @@ const installProbeFlow = async (target) => {
 };
 
 // Every guarded table refuses create, update and delete through REST with
-// the registry's refusal; an event-less Flow write, which no hook sees, is
-// refused by the database guard. Nothing is written and nothing marked.
+// the registry's refusal; an event-less Flow write of a complete row, which
+// no hook sees, is refused by the database guard. Nothing is written and
+// nothing marked.
 const refusesDirectWrites = async (target, state, log) => {
   const course = await post(target, '/items/courses', {
     name: 'Synthetic Roles Guarded Course',
     pattern_mappings: [],
   });
   state.items.unshift(['courses', course.data.id]);
+  const entry = await post(target, '/items/moodle_course_entries', {
+    label: 'Synthetic Roles Guarded Course-2091/2092/Z',
+  });
+  state.items.unshift(['moodle_course_entries', entry.data.id]);
+  // An all-years mapping with the default year pattern.
+  const mapping = await post(target, '/items/moodle_pattern_mappings', {
+    course: course.data.id,
+    pattern: 'Synthetic Roles Guarded Course-',
+  });
+  state.items.unshift(['moodle_pattern_mappings', mapping.data.id]);
   const year = state.items.find(([name]) => name === 'academic_years');
   const pair = { academic_year: year?.[1], course: course.data.id };
+  const match = { entry: entry.data.id, pattern_mapping: mapping.data.id };
   // Complete, valid rows: only a guard can refuse them.
   const rows = {
     course_enrollments: {
@@ -291,6 +307,12 @@ const refusesDirectWrites = async (target, state, log) => {
       computed_revision: 1,
       count: 3,
     },
+    data_operation_matches: {
+      ...match,
+      claim_token: '9e4d826c-0000-4000-8000-000000002404',
+      page_token: 'p0001',
+      year_label: payloads.academic_years.label,
+    },
     data_operation_results: {
       ...pair,
       claim_token: '9e4d826c-0000-4000-8000-000000002403',
@@ -298,6 +320,7 @@ const refusesDirectWrites = async (target, state, log) => {
       page_token: 'p0001',
       revision: 1,
     },
+    moodle_counted_lines: { ...pair, ...match, source: 'pattern' },
   };
   const before = await statusOf(target);
   for (const { collection } of guardedDeclarations) {
@@ -324,10 +347,10 @@ const refusesDirectWrites = async (target, state, log) => {
   // half made is removed by the cleanup all the same.
   Object.assign(state, { probeInstalled: true });
   await installProbeFlow(target);
-  for (const collection of ['course_enrollments', 'data_operation_results']) {
+  for (const [collection, payload] of Object.entries(rows)) {
     const probe = await trigger(target, `/flows/trigger/${probeFlowId}`, {
       collection: 'data_operations',
-      payload: rows[collection],
+      payload,
       target: collection,
     });
     assert.equal(probe.status, 500, JSON.stringify(probe.body));
@@ -368,7 +391,7 @@ const refusesDirectWrites = async (target, state, log) => {
     before: after,
     label: 'event-less source write',
     log,
-    marks: ['publication'],
+    marks: expectedMarks(declarationOf('courses'), 'insert'),
   });
 };
 

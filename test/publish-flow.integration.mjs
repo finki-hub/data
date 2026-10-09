@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { declarationOf } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { prepareAssetsFlowId } from '../src/flows/prepare-public-assets.js';
@@ -154,7 +155,16 @@ const assertJsonTyped = async (current, target) => {
 // second later.
 const nextSecond = () => sleep(1_100);
 
+// Whether an edit of the collection marks a calculation as well as
+// publication (a course: every course is counted).
+const marksCalculation = (collection) =>
+  (declarationOf(collection)?.invalidates ?? []).some(
+    (domain) => domain !== 'publication',
+  );
+
 // Renames the first row of a collection by a suffix; answers the new name.
+// An edit that marks the counts waits for them, so publication is the only
+// pending domain.
 const rename = async (target, { collection, suffix }) => {
   const [row] = await get(
     target,
@@ -163,6 +173,7 @@ const rename = async (target, { collection, suffix }) => {
   await patch(target, `/items/${collection}/${row.id}`, {
     name: `${row.name} ${suffix}`,
   });
+  if (marksCalculation(collection)) await settle(target);
   return `${row.name} ${suffix}`;
 };
 

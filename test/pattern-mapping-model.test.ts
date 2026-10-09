@@ -181,6 +181,7 @@ describe('the pattern mappings in Studio', () => {
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
+        'moodle_counted_lines',
         'moodle_history_memberships',
         'moodle_import_rows',
       ],
@@ -207,7 +208,7 @@ describe('the pattern mappings in the database', () => {
   test('are unique per course, pattern, year pattern and year, NULLs included, and indexed by course and year', () => {
     expect(
       compositeKeys
-        .filter(({ nullsNotDistinct }) => nullsNotDistinct === true)
+        .filter((key) => key.collection === collection && key.nullsNotDistinct)
         .map(({ name }) => name),
     ).toEqual(['moodle_pattern_mappings_course_pattern_unique']);
     expect(schemaConstraints.statements).toEqual(

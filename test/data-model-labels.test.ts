@@ -183,12 +183,13 @@ describe('field and alias labels', () => {
     expect(new Set(unlabelled)).toEqual(new Set([absent]));
   });
 
-  test('labels only the course status, the teaching staff links, the history lines and the explicit and pattern mappings', () => {
+  test('labels only the course status, the teaching staff links, the history lines, the explicit and pattern mappings and the counted lines', () => {
     expect(dataModelCollections.flatMap(declaredLabels)).toEqual([
       'courses.status: Status',
       'courses.assignments: Teaching staff',
       'courses.history_mappings: Explicit mappings',
       'courses.pattern_mappings: Pattern mappings',
+      'courses.counted_lines: Counted lines',
       'staff.assignments: Teaches',
       'teaching_assignments: Teaching staff / Teaching assignment',
       'academic_years.mappings: Explicit mappings',
@@ -196,11 +197,14 @@ describe('field and alias labels', () => {
       'moodle_course_entries: History lines / History line',
       'moodle_course_entries.first_seen: First seen',
       'moodle_course_entries.mappings: Explicit mappings',
+      'moodle_course_entries.counted_for: Counted for',
       'moodle_course_mappings: Explicit mappings / Explicit mapping',
       'moodle_pattern_mappings: Pattern mappings / Pattern mapping',
       'moodle_pattern_mappings.pattern: Pattern',
       'moodle_pattern_mappings.year_pattern: Year pattern',
       'moodle_pattern_mappings.only_in_year: Only in year',
+      'moodle_pattern_mappings.counted_lines: Lines it counts',
+      'moodle_counted_lines: Counted lines / Counted line',
     ]);
   });
 });
@@ -242,6 +246,7 @@ describe('collection labels', () => {
     });
     const labels = new Map([
       ['assignments', 'Teaching staff'],
+      ['counted_lines', 'Counted lines'],
       ['history_mappings', 'Explicit mappings'],
       ['name', 'Course name'],
       ['pattern_mappings', 'Pattern mappings'],

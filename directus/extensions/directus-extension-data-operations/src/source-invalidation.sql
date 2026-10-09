@@ -4,8 +4,9 @@
 -- transaction as the edit, so a rolled-back edit marks nothing and a
 -- committed edit becomes visible together with its mark. Nothing here
 -- calculates, maps or dispatches a Flow. Derived, staging and status tables
--- (moodle_history_memberships, course_enrollments, moodle_import_rows,
--- data_operations, data_operation_results, directus_*) carry no trigger.
+-- (moodle_history_memberships, course_enrollments, moodle_counted_lines,
+-- moodle_import_rows, data_operations, data_operation_results,
+-- data_operation_matches, directus_*) carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
 -- a mapping or a rule to another course or year, and any DELETE, marks
@@ -41,6 +42,7 @@ DECLARE
   affected text[];
 BEGIN
   affected := CASE TG_TABLE_NAME
+    WHEN 'courses' THEN ARRAY['enrollments', 'publication']
     WHEN 'moodle_users' THEN ARRAY['history_index', 'enrollments', 'publication']
     WHEN 'moodle_course_entries' THEN ARRAY['enrollments', 'publication']
     WHEN 'moodle_course_mappings' THEN ARRAY['enrollments', 'publication']

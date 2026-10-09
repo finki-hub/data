@@ -34,6 +34,7 @@ import {
   installFlow,
   operationOf,
   removeFlow,
+  settle,
 } from './relational/automatic-processing-helpers.mjs';
 import { get, patch, remove } from './relational/history-index-helpers.mjs';
 import {
@@ -89,11 +90,14 @@ export const seedRows = async (
   return {
     courses,
     csvDirectory: directory,
-    // A source edit that leaves publication pending.
-    rename: (suffix) =>
-      patch(target, `/items/courses/${courses[0]}`, {
+    // A source edit that leaves publication pending. A course marks the
+    // counts too, so it answers once they are current.
+    rename: async (suffix) => {
+      await patch(target, `/items/courses/${courses[0]}`, {
         name: `Synthetic Browser Course A ${suffix}`,
-      }),
+      });
+      await settle(target);
+    },
     yearId: year,
     yearLabel,
   };

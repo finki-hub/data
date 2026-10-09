@@ -110,9 +110,9 @@ describe('input revisions and interruptions', () => {
     const fake = settled('course_enrollment_rules');
     const run = await claimNext(fake);
 
-    // A room, a staff member and a course are saved mid-run: none of them
-    // feeds the counts, so the run is not discarded.
-    for (const table of ['rooms', 'staff', 'courses']) {
+    // A room, a staff member and a teaching link are saved mid-run: none
+    // of them feeds the counts, so the run is not discarded.
+    for (const table of ['rooms', 'staff', 'teaching_assignments']) {
       fake.sourceWrite(table);
     }
 

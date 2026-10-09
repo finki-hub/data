@@ -141,8 +141,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(26);
-    expect(new Set(dataModelCollectionKeys).size).toBe(26);
+    expect(dataModelCollectionKeys).toHaveLength(28);
+    expect(new Set(dataModelCollectionKeys).size).toBe(28);
     expect(dataModelCollectionKeys.slice(0, 9)).toEqual([
       'courses',
       'staff',
@@ -335,77 +335,27 @@ describe('domain keys', () => {
 
   test('declares composite keys only where the domain table says unique', () => {
     expect(
-      compositeKeys.map(({ collection, columns, kind }) => ({
-        collection,
-        columns,
-        kind,
-      })),
+      compositeKeys.map(
+        ({ collection, columns, kind }) =>
+          `${kind} ${collection} (${columns.join(', ')})`,
+      ),
     ).toEqual([
-      {
-        collection: 'teaching_assignments',
-        columns: ['course', 'staff', 'role'],
-        kind: 'unique',
-      },
-      {
-        collection: 'course_curricula',
-        columns: ['course', 'generation'],
-        kind: 'unique',
-      },
-      {
-        collection: 'study_programs',
-        columns: ['generation', 'code'],
-        kind: 'unique',
-      },
-      {
-        collection: 'curriculum_entry_program_states',
-        columns: ['entry', 'program'],
-        kind: 'unique',
-      },
-      {
-        collection: 'course_equivalency_members',
-        columns: ['equivalency', 'generation'],
-        kind: 'unique',
-      },
-      {
-        collection: 'moodle_history_memberships',
-        columns: ['moodle_user', 'entry'],
-        kind: 'unique',
-      },
-      {
-        collection: 'moodle_course_mappings',
-        columns: ['entry', 'course', 'academic_year'],
-        kind: 'unique',
-      },
-      {
-        collection: 'moodle_course_mappings',
-        columns: ['course', 'academic_year'],
-        kind: 'index',
-      },
-      {
-        collection: 'moodle_pattern_mappings',
-        columns: ['course', 'pattern', 'year_pattern', 'only_in_year'],
-        kind: 'unique',
-      },
-      {
-        collection: 'moodle_pattern_mappings',
-        columns: ['course', 'only_in_year'],
-        kind: 'index',
-      },
-      {
-        collection: 'course_enrollment_rules',
-        columns: ['course', 'academic_year'],
-        kind: 'unique',
-      },
-      {
-        collection: 'course_enrollments',
-        columns: ['course', 'academic_year'],
-        kind: 'unique',
-      },
-      {
-        collection: 'data_operation_results',
-        columns: ['claim_token', 'page_token', 'course', 'academic_year'],
-        kind: 'unique',
-      },
+      'unique teaching_assignments (course, staff, role)',
+      'unique course_curricula (course, generation)',
+      'unique study_programs (generation, code)',
+      'unique curriculum_entry_program_states (entry, program)',
+      'unique course_equivalency_members (equivalency, generation)',
+      'unique moodle_history_memberships (moodle_user, entry)',
+      'index moodle_history_memberships (entry)',
+      'unique moodle_course_mappings (entry, course, academic_year)',
+      'index moodle_course_mappings (course, academic_year)',
+      'unique moodle_pattern_mappings (course, pattern, year_pattern, only_in_year)',
+      'index moodle_pattern_mappings (course, only_in_year)',
+      'unique moodle_counted_lines (entry, course, academic_year, pattern_mapping)',
+      'unique data_operation_matches (claim_token, page_token, entry, pattern_mapping)',
+      'unique course_enrollment_rules (course, academic_year)',
+      'unique course_enrollments (course, academic_year)',
+      'unique data_operation_results (claim_token, page_token, course, academic_year)',
     ]);
 
     expect(compositeKeys.flatMap(unknownColumns)).toEqual([]);
@@ -765,6 +715,9 @@ describe('relations and aliases', () => {
     ).toEqual([
       'moodle_users.history_memberships',
       'moodle_course_entries.memberships',
+      'moodle_course_entries.counted_for',
+      'courses.counted_lines',
+      'moodle_pattern_mappings.counted_lines',
       'courses.enrollments',
       'academic_years.enrollments',
     ]);
@@ -780,6 +733,7 @@ describe('relations and aliases', () => {
       'curricula',
       'history_mappings',
       'pattern_mappings',
+      'counted_lines',
       'enrollment_rules',
       'enrollments',
     ]);
@@ -791,7 +745,7 @@ describe('relations and aliases', () => {
     ]);
     expect(
       aliasesFor('moodle_course_entries').map(({ alias }) => alias.field),
-    ).toEqual(['memberships', 'mappings']);
+    ).toEqual(['memberships', 'mappings', 'counted_for']);
   });
 
   test('keeps the links of imported equivalencies and council members nullable', () => {

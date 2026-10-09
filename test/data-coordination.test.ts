@@ -900,7 +900,7 @@ describe('failures and recovery over the persistence port', () => {
   test('recovers on startup without erasing failure details', async () => {
     const fake = new FakeCoordination();
     fake.data.calculationFingerprint = graphA;
-    fake.sourceWrite('courses');
+    fake.sourceWrite('rooms');
     const token = await claimToken(fake, publication, { owner: oldProcess });
 
     // A publication claim plans no table source.

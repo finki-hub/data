@@ -718,16 +718,17 @@ database guards the table:
   snapshot import; a row corrected in Studio is reported by readiness
   (`active_snapshot_edited`) and replaced by the next import.
 - **Derived** (`moodle_history_memberships`, the history index;
-  `course_enrollments`, the counts): written only by their own runs. The
-  database refuses every other write (`Write refused: course_enrollments
-  (derived; writer: enrollments claim completion)`), so edit the sources
-  instead. The course form still shows edit and delete buttons on
-  its derived **Enrollments** rows; the guard refuses them.
+  `course_enrollments`, the counts; `moodle_counted_lines`, the lines they
+  count): written only by their own runs. The database refuses every other
+  write (`Write refused: course_enrollments (derived; writer: enrollments
+  claim completion)`), so edit the sources instead. The course form still
+  shows edit and delete buttons on its derived **Enrollments** rows; the
+  guard refuses them.
 - **Candidate, staging and status** (`data_operation_results`,
-  `moodle_import_rows`, `data_operations`): bookkeeping of the running
-  operations, never edited by hand. The **Data Operations** singleton keeps
-  its bookkeeping (source revision, last error) across everything, and
-  setup never resets it.
+  `data_operation_matches`, `moodle_import_rows`, `data_operations`):
+  bookkeeping of the running operations, never edited by hand. The
+  **Data Operations** singleton keeps its bookkeeping (source revision,
+  last error) across everything, and setup never resets it.
 
 A course holds only what `courses.json` publishes from it directly (name,
 tags, status); its curriculum lives in its links, its staff in its staff
@@ -802,9 +803,10 @@ generation first; narrow it to one generation with Studio's native filter on
 A course is the entry point: its form shows its curriculum links and
 equivalency members, its status and staff links, its **Pattern mappings**
 and its **Explicit mappings** of Moodle history lines per academic year,
-and its enrollment rules and derived counts. A **History line**'s form
-shows its exact label and **First seen**, its **Explicit mappings**, and
-the users carrying it (the derived index, read-only).
+and its enrollment rules, derived counts and **Counted lines** (read-only).
+A **History line**'s form shows its exact label and **First seen**, its
+**Explicit mappings**, and the users carrying it (the derived index,
+read-only).
 
 - The curriculum entry picker of a course link and the program picker of an
   entry's program states offer only rows of the chosen generation (the
@@ -878,25 +880,25 @@ for it:
 
 Every edit of a source collection marks its domains inside the edit's own
 database transaction (the statement triggers of `npm run setup`), so a
-rolled-back edit marks nothing and a committed one is never missed, whether
-it came from Studio, the REST API, a native CSV import or SQL. A Moodle user
-marks the history index, the counts and publication; entries, mappings,
-rules and academic years mark the counts and publication; every other
-source collection marks publication. The mark covers the whole domain, so a mapping or rule moved to
-another course or year, or deleted, changes both the old and the new pair; a
-deleted mapping leaves its rule, whose pair is then counted as 0. Deleting an
-entry or editing its label by hand (the label belongs to the index) marks
-the history index too. Toggling an academic year's `published` flag marks
-the counts too, because a statement trigger cannot tell one column of that
-table from another; marking publication only for the tables a published
-file reads is an open decision. Each calculation also keeps the revision of
-the last statement that touched its inputs (`history_index_input_revision`,
-`enrollments_input_revision`; a Moodle user touches both, an entry, mapping,
-rule or academic year the counts): an edit of a room, staff member, course
-or any other publication-only collection never discards a running
-calculation or retries a failed one. `source_revision` counts statements,
-not edits: deleting a parent row fires the trigger once per table its
-deletion cascades into.
+rolled-back edit marks nothing and a committed one is never missed, whether it
+came from Studio, the REST API, a native CSV import or SQL. A Moodle user
+marks the history index, the counts and publication; courses (every course is
+counted), entries, mappings, rules and academic years mark the counts and
+publication; every other source collection marks publication. The mark covers
+the whole domain, so a mapping or rule moved to another course or year, or
+deleted, changes both the old and the new pair; a deleted mapping leaves its
+rule, whose pair is then counted as 0. Deleting an entry or editing its label
+by hand (the label belongs to the index) marks the history index too. Toggling
+an academic year's `published` flag marks the counts too, because a statement
+trigger cannot tell one column of that table from another; marking publication
+only for the tables a published file reads is an open decision. Each
+calculation also keeps the revision of the last statement that touched its
+inputs (`history_index_input_revision`, `enrollments_input_revision`; a Moodle
+user touches both, a course, entry, mapping, rule or academic year the
+counts): an edit of a room, staff member or any other publication-only
+collection never discards a running calculation or retries a failed one.
+`source_revision` counts statements, not edits: deleting a parent row fires
+the trigger once per table its deletion cascades into.
 
 **Completion is not instant.** A change reaches `course_enrollments` within
 one interval plus the run: on a small synthetic project, 13 to 15 seconds

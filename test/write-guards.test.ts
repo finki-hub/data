@@ -31,6 +31,8 @@ const guardedRoles: ReadonlySet<string> = new Set([
 ]);
 const writePattern =
   /^\s*(?:DELETE FROM|INSERT INTO|TRUNCATE|UPDATE)\s+"(?<table>[a-z_]+)"/u;
+const guardTriggerPattern =
+  /ON "(?<table>[a-z_]+)" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"\('(?<setting>[a-z_.]+)'/u;
 
 // Every statement one port call sent, answered with an empty result.
 const recorded = async (
@@ -66,6 +68,26 @@ const unopenedWrites = (sent: readonly string[]): string[] =>
       : [declaration.collection];
   });
 
+// The guarded tables each writer setting opens: a table's trigger passes a
+// statement only while the setting it names is on.
+const tablesOpenedBy = (): ReadonlyMap<string, readonly string[]> => {
+  const opened = new Map<string, string[]>();
+  for (const trigger of writeGuardStatements().slice(1)) {
+    const { setting = '', table = '' } =
+      guardTriggerPattern.exec(trigger)?.groups ?? {};
+    opened.set(setting, [...(opened.get(setting) ?? []), table]);
+  }
+  return opened;
+};
+
+// The refusal message and HINT of a guarded table.
+const refusalOf = (collection: string) => {
+  const declaration = guardedDeclarations.find(
+    (candidate) => candidate.collection === collection,
+  );
+  return declaration && [guardMessage(declaration), declaration.guard.hint];
+};
+
 describe('write guards of the collection-role registry', () => {
   test('guard every derived, candidate and staging table and nothing else', () => {
     for (const declaration of collectionDeclarations) {
@@ -77,12 +99,56 @@ describe('write guards of the collection-role registry', () => {
       collectionDeclarations.filter(({ role }) => guardedRoles.has(role)),
     );
     expect(guardedDeclarations.map(({ collection }) => collection)).toEqual(
-      expect.arrayContaining(['course_enrollments', 'data_operation_results']),
+      expect.arrayContaining([
+        'course_enrollments',
+        'moodle_counted_lines',
+        'data_operation_results',
+        'data_operation_matches',
+      ]),
     );
 
-    const settings = guardedDeclarations.map(writerSetting);
+    // A writer of several tables is one writer: one name and one role.
+    const writers = Map.groupBy(guardedDeclarations, writerSetting);
 
-    expect(new Set(settings).size).toBe(settings.length);
+    for (const declarations of writers.values()) {
+      expect(
+        new Set(declarations.map(({ guard }) => guard.writtenBy)).size,
+      ).toBe(1);
+      expect(new Set(declarations.map(({ role }) => role)).size).toBe(1);
+    }
+  });
+
+  test('open the counted lines and the staged matches to their own writer only', () => {
+    expect(Object.fromEntries(tablesOpenedBy())).toEqual({
+      'finki_hub.candidate_writer': [
+        'data_operation_results',
+        'data_operation_matches',
+      ],
+      'finki_hub.enrollments_writer': [
+        'course_enrollments',
+        'moodle_counted_lines',
+      ],
+      'finki_hub.history_writer': ['moodle_history_memberships'],
+      'finki_hub.snapshot_writer': ['moodle_import_rows'],
+    });
+    expect(openGuardSql('moodle_counted_lines')).toBe(
+      openGuardSql('course_enrollments'),
+    );
+    expect(openGuardSql('data_operation_matches')).toBe(
+      openGuardSql('data_operation_results'),
+    );
+    expect(
+      ['moodle_counted_lines', 'data_operation_matches'].map(refusalOf),
+    ).toEqual([
+      [
+        'Write refused: moodle_counted_lines (derived; writer: enrollments claim completion)',
+        'Source: moodle_course_entries, moodle_pattern_mappings, moodle_course_mappings; rebuilt by: Data / Process pending',
+      ],
+      [
+        'Write refused: data_operation_matches (candidate; writer: coordinator)',
+        'Written by: coordinator',
+      ],
+    ]);
   });
 
   test('install one shared function and one statement trigger per guarded table', () => {
@@ -101,7 +167,7 @@ describe('write guards of the collection-role registry', () => {
         trigger.includes('"course_enrollments_write_guard"'),
       ),
     ).toBe(
-      'CREATE OR REPLACE TRIGGER "course_enrollments_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"(\'finki_hub.enrollments_writer\', \'Write refused: course_enrollments (derived; writer: enrollments claim completion)\', \'Source: moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending\')',
+      'CREATE OR REPLACE TRIGGER "course_enrollments_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"(\'finki_hub.enrollments_writer\', \'Write refused: course_enrollments (derived; writer: enrollments claim completion)\', \'Source: courses, moodle_pattern_mappings, moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending\')',
     );
 
     for (const [index, declaration] of guardedDeclarations.entries()) {

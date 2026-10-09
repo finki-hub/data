@@ -70,13 +70,16 @@ const yearIn = (matcher: RegExp, label: string): null | string => {
 export const lineYear = (yearPattern: string, label: string): null | string =>
   yearIn(new RegExp(yearPattern, 'u'), label);
 
+// What counts a line: an explicit mapping of it, or a pattern mapping.
+export const countedLineSources = ['explicit', 'pattern'] as const;
+
 // One row of moodle_counted_lines.
 export type CountedLine = {
   readonly academicYear: number;
   readonly course: number;
   readonly entry: number;
   readonly patternMapping: null | number;
-  readonly source: 'explicit' | 'pattern';
+  readonly source: (typeof countedLineSources)[number];
 };
 
 // An explicit mapping of one history line to a course and academic year.
