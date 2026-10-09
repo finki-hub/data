@@ -149,12 +149,27 @@ const installsStudioMetadata = async (target) => {
     councilCollection.meta.display_template,
     '{{year}} - {{student.name}}',
   );
-  assert.equal(councilCollection.meta.group, 'student_records');
-  const folder = await get(target, '/collections/courses_and_curriculum');
-  assert.equal(folder.schema, null);
-  assert.equal(folder.meta.collapse, 'open');
+  assert.equal(councilCollection.meta.group, 'folder_students');
+  // Every folder: no table, closed, no note, its English label.
+  for (const declared of folders) {
+    const folder = await get(target, `/collections/${declared.collection}`);
+    assert.equal(folder.schema, null, declared.collection);
+    assert.equal(folder.meta.collapse, 'closed', declared.collection);
+    assert.equal(folder.meta.note, null, declared.collection);
+    assert.equal(folder.meta.sort, declared.sort, declared.collection);
+    assert.equal(
+      folder.meta.translations.find(({ language }) => language === 'en-US')
+        ?.translation,
+      declared.label,
+      declared.collection,
+    );
+  }
+  // Moodle users sits in no folder, between Enrollments and Internals.
+  const moodleUsers = await get(target, '/collections/moodle_users');
+  assert.equal(moodleUsers.meta.group, null);
+  assert.equal(moodleUsers.meta.sort, 6);
   const courses = await get(target, '/collections/courses');
-  assert.equal(courses.meta.group, 'courses_and_curriculum');
+  assert.equal(courses.meta.group, 'folder_courses');
   assert.deepEqual(courses.meta.translations, [
     {
       language: 'en-US',
@@ -165,7 +180,7 @@ const installsStudioMetadata = async (target) => {
   ]);
   const hidden = await get(target, '/collections/course_curricula');
   assert.equal(hidden.meta.hidden, true);
-  assert.equal(hidden.meta.group, 'courses_and_curriculum');
+  assert.equal(hidden.meta.group, 'folder_internals');
   const bookmarks = await get(
     target,
     '/presets?limit=-1&fields=bookmark,collection,filter,user,role&filter[bookmark][_nnull]=true&sort=bookmark',

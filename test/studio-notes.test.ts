@@ -15,8 +15,8 @@ import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
 // The Studio notes: only where a label cannot carry a rule, each one or two
 // short sentences. Every other collection, field, alias, presentation and
-// group note is gone. The sidebar folders keep their own notes
-// (navigation.ts).
+// group note is gone. A sidebar folder has no note at all (`Folder`
+// declares none; presentation.test.ts checks the folder bodies).
 
 // The model fields and aliases of a collection, in installation order.
 const fieldsOf = (collection: string): readonly string[] => {

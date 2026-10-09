@@ -88,7 +88,8 @@ export const moodleCollections: readonly ModelCollection[] = [
     icon: 'person',
     label: { plural: 'Moodle users', singular: 'Moodle user' },
     singleton: false,
-    sort: 13,
+    // In no sidebar folder: between Enrollments (5) and Internals (7).
+    sort: 6,
   },
   {
     collection: 'moodle_import_rows',

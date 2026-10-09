@@ -31,13 +31,13 @@ const presentedCollections: readonly string[] = [
 ];
 
 // A folder is a `directus_collections` row without a table: no `schema`.
+// Its label is its only text: it sends no note.
 const folderPayload = (folder: Folder) => ({
   collection: folder.collection,
   meta: {
     collapse: folder.collapse,
     hidden: false,
     icon: folder.icon,
-    note: folder.note,
     sort: folder.sort,
     translations: [{ language: 'en-US', translation: folder.label }],
   },

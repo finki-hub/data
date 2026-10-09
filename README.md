@@ -190,6 +190,25 @@ programs, courses and the rest are rows you add in Studio (see
 [Extending](#extending) for the order). To start from the workbook instead,
 run the one-time import (below) in place of step 4.
 
+Studio's sidebar groups the collections by task in six folders, all closed
+when Studio opens, with **Moodle users** directly in the sidebar between
+**Enrollments** and **Internals**:
+
+| Folder | Collections |
+| --- | --- |
+| **Courses** | Courses, Teaching staff, Discord channels |
+| **Curriculum** | Curriculum entries, Equivalencies, Equivalency members, Generations, Study programs |
+| **Staff & rooms** | Staff, Rooms, Dean's office |
+| **Students** | Students, Student council |
+| **Enrollments** | Academic years, History lines (with the **Unmapped history lines** bookmark), Pattern mappings, Explicit mappings |
+| **Internals** | Enrollment counts, and the helper collections Studio hides: curriculum links, program states, counted lines, history memberships, snapshot staging rows, match candidates and Data operations |
+
+**Moodle users** carries the **Search** bookmark. Setup creates a folder
+only while it is missing and files a collection only while it is in no
+folder, so a collection moved in Studio stays where it is. On a project set
+up with an earlier layout, the collections stay in their old folders and
+the new folders are added empty.
+
 ### One-time workbook import
 
 1. Check the workbook without writing anything (no credentials needed).
@@ -264,7 +283,7 @@ run the one-time import (below) in place of step 4.
      WORKBOOK_PATH=finki-hub.xlsx npm run import
    ```
 
-3. Continue with steps 5 and 6 of [Fresh setup](#fresh-setup).
+3. Continue with step 5 of [Fresh setup](#fresh-setup).
 
 The import reads the whole workbook and checks it before it contacts
 Directus, exactly as the dry run does, so a workbook it refuses leaves

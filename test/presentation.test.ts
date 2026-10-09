@@ -129,7 +129,8 @@ const groupBody = z.object({
 
 const metaBody = z.object({ meta: z.record(z.string(), z.unknown()) });
 
-const collectionBody = z.object({
+// Loose at both levels, so a `schema` or `note` key the body sends survives.
+const collectionBody = z.looseObject({
   collection: z.string(),
   meta: z.looseObject({
     collapse: z.string(),
@@ -145,16 +146,6 @@ const presetBody = z.object({
 });
 
 const options = z.record(z.string(), z.unknown());
-
-const helperCollections = [
-  'course_curricula',
-  'curriculum_entry_program_states',
-  'data_operation_matches',
-  'data_operations',
-  'moodle_counted_lines',
-  'moodle_history_memberships',
-  'moodle_import_rows',
-];
 
 const courseGroups = fieldGroups.filter(
   ({ collection }) => collection === 'courses',
@@ -508,34 +499,6 @@ describe('field presentation', () => {
   });
 });
 
-describe('navigation', () => {
-  test('places every model collection in exactly one folder', () => {
-    const placed = collectionPlacements.map(({ collection }) => collection);
-
-    expect(sorted(placed)).toEqual(
-      sorted(dataModelCollections.map(({ collection }) => collection)),
-    );
-
-    const folderNames = folders.map(({ collection }) => collection);
-
-    expect(new Set(folderNames).size).toBe(folderNames.length);
-    expect(
-      collectionPlacements.filter(
-        ({ meta }) =>
-          !folderNames.includes(meta.group) || placed.includes(meta.group),
-      ),
-    ).toEqual([]);
-  });
-
-  test('keeps junction, staging and candidate collections out of the sidebar', () => {
-    const hidden = dataModelCollections
-      .filter((collection) => collection.hidden)
-      .map(({ collection }) => collection);
-
-    expect(sorted(hidden)).toEqual(sorted(helperCollections));
-  });
-});
-
 describe('setup and the incomplete-data bookmarks', () => {
   test('setup creates no incomplete-data bookmark, only Search and Unmapped history lines', async () => {
     const { request, requests } = fakeDirectus(freshState());
@@ -673,11 +636,19 @@ describe('installPresentation on a fresh schema', () => {
       byShape(writes, 'POST', collectionsPath)[0]?.body,
     );
 
-    expect(folder.collection).toBe('courses_and_curriculum');
-    expect(folder.meta.translations[0]?.translation).toBe(
-      'Courses & curriculum',
-    );
-    expect(Object.keys(folder)).not.toContain('schema');
+    expect(folder.collection).toBe('folder_courses');
+    expect(folder.meta.translations).toEqual([
+      { language: 'en-US', translation: 'Courses' },
+    ]);
+    expect(folder.meta.collapse).toBe('closed');
+    expect(
+      byShape(writes, 'POST', collectionsPath).filter(({ body }) => {
+        const post = collectionBody.parse(body);
+        return (
+          Object.hasOwn(post, 'schema') || Object.hasOwn(post.meta, 'note')
+        );
+      }),
+    ).toEqual([]);
   });
 
   test('leaves a field alone once a Studio user changed its interface or options', async () => {

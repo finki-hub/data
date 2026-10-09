@@ -47,14 +47,14 @@ export type FieldPresentation = {
   readonly meta: PresentationMeta;
 };
 
-// A sidebar folder: a `directus_collections` row without a table.
+// A sidebar folder: a `directus_collections` row without a table. Its
+// label names it; it carries no note.
 export type Folder = {
   readonly collapse: 'closed' | 'open';
   readonly collection: string;
   readonly icon: string;
   readonly label: string;
   readonly members: readonly string[];
-  readonly note: string;
   readonly sort: number;
 };
 

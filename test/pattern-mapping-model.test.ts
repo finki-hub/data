@@ -172,20 +172,21 @@ describe('the pattern mappings in Studio', () => {
     ).toBe(false);
   });
 
-  test('sit between History lines and Explicit mappings in the Moodle folder', () => {
+  test('sit between History lines and Explicit mappings in the Enrollments folder', () => {
     expect(
-      folders.find((folder) => folder.collection === 'moodle'),
-    ).toMatchObject({
+      folders.find((folder) => folder.collection === 'folder_enrollments'),
+    ).toEqual({
+      collapse: 'closed',
+      collection: 'folder_enrollments',
+      icon: 'history_edu',
+      label: 'Enrollments',
       members: [
-        'moodle_users',
+        'academic_years',
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
-        'moodle_counted_lines',
-        'moodle_history_memberships',
-        'moodle_import_rows',
       ],
-      note: 'Moodle profile snapshot, history lines and the mappings that count them.',
+      sort: 5,
     });
   });
 

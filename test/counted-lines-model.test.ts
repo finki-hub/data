@@ -176,7 +176,7 @@ describe('the counted lines', () => {
           ({ collection }) => collection === counted || collection === matches,
         )
         .map(({ collection, meta }) => `${meta.group}: ${collection}`),
-    ).toEqual([`moodle: ${counted}`, `operations: ${matches}`]);
+    ).toEqual([`folder_internals: ${counted}`, `folder_internals: ${matches}`]);
   });
 });
 
