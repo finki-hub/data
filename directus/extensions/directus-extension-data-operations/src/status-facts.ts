@@ -110,7 +110,7 @@ export const snapshotText = ({
     ['Users', users],
     ['Indexed', indexedUsers],
     ['History lines', entries],
-    ['Courses Count mismatches', countMismatches],
+    ['Course count mismatches', countMismatches],
   ]);
 
 // The facts of the last failure after its code: domain, revision, when,

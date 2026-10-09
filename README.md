@@ -1326,7 +1326,7 @@ overwrites an edited one):
   revision comes from these entries), the last run and the last run of each
   scheduled Flow within the past 60 minutes, and the Moodle snapshot's
   import state with its counts (`Users`, `Indexed`, `History lines` and
-  `Courses Count mismatches`, never a profile); every readiness check with
+  `Course count mismatches`, never a profile); every readiness check with
   its count and one link to its records (its incomplete-data bookmark
   while it exists, else its collection); and the academic years,
   curriculum generations and study programs whose `published` flags
