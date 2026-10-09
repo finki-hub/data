@@ -36,7 +36,7 @@ Three supported paths set a project up and bring data into it:
 
 | Situation | Path | What it does |
 | --- | --- | --- |
-| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the mapped and legacy enrollment counts, readiness and preparation, publication, rule seeding and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
+| New, empty project | `npm run setup` | Installs the data model, its database constraints and source-invalidation triggers, the Studio presentation (sidebar folders, forms, a default table view for every collection Studio lists, the **Curriculum by generation** bookmark, one Needs review bookmark per readiness check that declares a review view, and the **Search** bookmark), the private File Library folder **Moodle snapshots (private)**, every managed Flow family (`src/flows/registry.ts`: the history index, the snapshot import, the history line matching, readiness and preparation, publication, rule seeding and automatic processing) and the **Data operations** dashboard. Writes no source records (only the coordination status row), but once it has run the schedule keeps the derived data current on its own. |
 | New project, first data from the workbook | `npm run import` | Refuses unless every application collection is empty, runs setup, then imports the workbook once (see [One-time workbook import](#one-time-workbook-import)). |
 | Replace the Moodle snapshot | **Import Moodle snapshot** on the **Data operations** dashboard | Replaces every active Moodle user with the rows of an unchanged scraper CSV, after a private backup (see [Replacing the Moodle snapshot](#replacing-the-moodle-snapshot)). |
 
@@ -655,7 +655,7 @@ relational rows straight from them:
 | `Предмети - 2023`, `Предмети - 2018` | `curriculum_generations`, `study_programs` (from the program column headers) and `curriculum_entries` with their `curriculum_entry_program_states`, one entry per sheet row, orphans, duplicates and every semester-block listing of a subject included; `Ниво` is not read, because the level is the digit after `L` in the code |
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row; one label column per generation, headed `Предмет (<generation code>)`. The column of a label-only generation (2013) may be missing and then reads as empty; a missing column of a generation with a curriculum, a header that names no known generation, or a filled cell under an empty header stops the import (exit code 1) |
 | `Наставен Кадар` | the course's **Status** and its `teaching_assignments` staff links: one per line naming a `Кадар (Export)` row exactly, professors then assistants in cell order (`sort`); a professors cell of exactly `Сите професори` gives All professors, of exactly `(неактивиран предмет)` Inactive (its assistants cell empty or the same text) |
-| `Слушатели` | `academic_years` from the labels heading its year column groups; one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (see [legacy rules](#enrollment-counts-from-legacy-rules)); and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import)) |
+| `Слушатели` | `academic_years` from the labels heading its year column groups; one `course_enrollment_rules` row per course and year, whose pattern is the sheet's pattern where one exists (they count nothing, see [Enrollment counts](#enrollment-counts)); and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import)) |
 | `Дискорд` | `discord_channels`, one row per channel pair |
 | `ФСС` | `student_council`, linked to the student of its index |
 | `Деканат` | `deans_office` |
@@ -724,8 +724,8 @@ database guards the table:
   claim completion)`), so edit the sources instead. The course form still
   shows edit and delete buttons on its derived **Enrollments** rows; the
   guard refuses them.
-- **Candidate, staging and status** (`data_operation_results`,
-  `data_operation_matches`, `moodle_import_rows`, `data_operations`):
+- **Candidate, staging and status** (`data_operation_matches`,
+  `moodle_import_rows`, `data_operations`):
   bookkeeping of the running operations, never edited by hand. The
   **Data Operations** singleton keeps its bookkeeping (source revision,
   last error) across everything, and setup never resets it.
@@ -758,9 +758,7 @@ bytes, both or neither of Year pattern and Only in year, and a second
 mapping of a course with the same pattern, year pattern and year. Deleting
 an academic year deletes the mappings only in that year, and removing one
 from the year's Pattern mappings list deletes it. The enrollment counts
-still come from the rules
-([legacy rules](#enrollment-counts-from-legacy-rules)); `npm run
-compare:live` counts by the pattern mappings.
+follow the mappings (see [Enrollment counts](#enrollment-counts)).
 
 A course created in Studio, over the API or by a Flow that emits events
 gets its default mapping, its escaped name and `-` with the default year
@@ -865,29 +863,30 @@ for it:
   graph, never a collection. When it claims, it runs exactly one domain,
   through **Data / Refresh history index** (every history page in turn
   through **Data / Index Moodle histories** and **Data / Index history
-  page**, then the completion) or **Data / Count enrollments** (one plan of
-  every rule family, each family in turn through **Data / Run enrollment
-  family** and the runner Flow its rule mode declares, then one completion
-  that installs every pair). The next tick takes the next domain.
+  page**, then the completion) or **Data / Count enrollments** (the history
+  lines in pages of 250, each in turn through **Data / Match history
+  lines**, then one completion that rebuilds the counted lines and every
+  count). The next tick takes the next domain.
 - **Data / Mark pending** (the **Recalculate** panel of the dashboard) is a
   manual Flow on the hidden **Data Operations** singleton. It marks the
   chosen domains pending (the history index and the enrollment counts
   when none is chosen) and answers the status.
   It runs nothing itself: the schedule picks the work up at its next tick.
   It is also the explicit retry of a failed run.
-- **Data / Count enrollments** and **Data / Refresh history index** run
-  under a claim their caller holds and never claim themselves.
+- **Data / Count enrollments**, **Data / Match history lines** and **Data /
+  Refresh history index** run under a claim their caller holds and never
+  claim themselves.
 
 Every edit of a source collection marks its domains inside the edit's own
 database transaction (the statement triggers of `npm run setup`), so a
 rolled-back edit marks nothing and a committed one is never missed, whether it
 came from Studio, the REST API, a native CSV import or SQL. A Moodle user
 marks the history index, the counts and publication; courses (every course is
-counted), entries, mappings, rules and academic years mark the counts and
-publication; every other source collection marks publication. The mark covers
-the whole domain, so a mapping or rule moved to another course or year, or
-deleted, changes both the old and the new pair; a deleted mapping leaves its
-rule, whose pair is then counted as 0. Deleting an entry or editing its label
+counted), entries, pattern and explicit mappings, rules and academic years mark
+the counts and publication; every other source collection marks publication.
+The mark covers the whole domain, so a mapping moved to another course or
+year, or deleted, changes both the old and the new pair; a pair a deleted
+mapping alone counted is then counted as 0. Deleting an entry or editing its label
 by hand (the label belongs to the index) marks the history index too. Toggling
 an academic year's `published` flag marks the counts too, because a statement
 trigger cannot tell one column of that table from another; marking publication
@@ -902,13 +901,14 @@ the trigger once per table its deletion cascades into.
 
 **Completion is not instant.** A change reaches `course_enrollments` within
 one interval plus the run: on a small synthetic project, 13 to 15 seconds
-after an edit, of which the count run took about 0.2 seconds (7.3 seconds
-with 450 mapped rules). An edit of a Moodle history needs two ticks, the
+after an edit, of which the count run took about 0.2 seconds (measured with
+the retired rule families; to be measured again). An edit of a Moodle history
+needs two ticks, the
 index and then the counts. Nothing is pushed to an open page: refresh it.
 Fifty edits between two ticks cost one run. Larger projects take longer
 (see [Sizing](#sizing)).
 
-When a run fails (for example a legacy pattern that does not compile), the
+When a run fails (for example a page over the 10,000 matches it may stage), the
 installed counts stay, the domain stays pending, and the status keeps the
 failure's code and message (ids only). The schedule does not retry it on
 later ticks: an edit of a collection the calculation reads, **Data / Mark
@@ -987,156 +987,102 @@ its `blocking` flag says whether it still holds its domain back.
 `revisions.inputs` shows each calculation's input revision. Every status
 read also summarizes the history index with whole-table counts.
 
-### Enrollment counts from explicit mappings
+### Enrollment counts
 
-A history entry counts for a course and academic year through a mapping
-(`moodle_course_mappings`: entry, course, academic year; an entry may have
-several). A pair is counted when its enrollment rule has the mode
-`mapped_entries`. `npm run setup` installs three operation-triggered Flow
-templates for them:
+A course's count for an academic year is the number of distinct Moodle
+accounts holding at least one history line counted for that course and
+year. Every course is counted in every academic year, published or not,
+with 0 where no line counts, and a new course or year is counted by the
+next run. The counts are Moodle accounts, as the scraper writes them: a
+person with two accounts that hold the same course and year counts twice
+(25 such memberships in the 2026-10-08 snapshot).
 
-- **Data / Count mapped enrollments** counts one pair. It takes
-  `{course, academic_year, revision, claim}`, refreshes the enrollment claim,
-  reads the number of distinct Moodle users that have a history entry mapped
-  to that course and academic year in one mapping row, and returns
-  `{course, academic_year, count, revision}`. A user who has two matching
-  entries counts once. When nothing matches, the count is a real zero. On a
-  failure the Flow returns `{ok: false, stage, code, message}` and never
-  a zero. It writes nothing.
-- **Data / Count mapped enrollment page** takes one planned mapped page
-  (a mapped page of `plan_pages` with source `enrollments`, or a page of
-  source `rules`, which the coordinator plans only while every rule is
-  `mapped_entries`, plus the claim and its revision). It first reads the plan
-  that the coordinator stored for the current claim. The claim must be that
-  enrollments claim at that revision, and the page's kind, range and rule
-  count must be the planned ones; anything else is refused with
-  `PAGE_PLAN_MISMATCH`. It then reads the `mapped_entries` rules of the
-  planned range and checks that it read every one of them. It counts each
-  pair with the Flow above, one pair at a time, and stages all counts of
-  the page, zeros included, in one coordinator `stage_page` call. If any
-  pair fails, it stages nothing.
-- **Data / Count mapped enrollment pages** runs the `mapped_entries` family
-  of an enrollments plan (`{claim, kind, pages, revision, runner}`): every
-  mapped page in turn through the page Flow above, then a check that each
-  staged one row per planned rule. It answers `{ok: true, pages, staged}`;
-  on any failure it fails the claim (`MAPPED_COUNT_FAILED`) and answers
-  `{ok: false, stage, code, message}`.
+Two kinds of mapping count a line:
 
-Only the enrollment claim's completion writes `course_enrollments`, and it
-replaces every row at the claimed revision, so one claim must stage every
-rule family (see [Rule modes](#rule-modes)). **Data / Count enrollments** is
-the Flow that does so under the claim the schedule takes. The coordinator
-refuses `plan_pages` with source `rules` under an enrollments claim while
-any rule is not `mapped_entries`, and source `history` under any claim but
-a history index claim (`DOMAIN_MISMATCH`), so an enrollments claim is
-never completed from a plan that leaves a family out.
-All three templates are part of the calculation fingerprint (the pair and
-page Flows through their coordinator steps, the family runner as a declared
-root), so an edit to any of them in Studio marks every calculation pending
-again. The count query filters with
-the path `history_memberships.entry.mappings` and puts the course and the
-year side by side in that path. Keep that shape when you edit the query in Studio:
-Directus ignores a `_some` block that holds two conditions, and two separate
-`_some` blocks can match the course of one mapping with the year of
-another. The same holds for every relational filter.
+- A **Pattern mapping** (see
+  [Editable, derived and bookkeeping collections](#editable-derived-and-bookkeeping-collections))
+  tests its **Pattern** against each history line on its own, so `^` is
+  the start of the line and no pattern spans two lines. An all-years
+  mapping reads the year from the line with its **Year pattern**: the
+  groups `start` and `end` of its first match, each 2 or 4 ASCII digits (2
+  digits mean 20xx), and `end` must be `start` + 1 when both took part.
+  The line counts in `<start>/<start+1>`. It counts nowhere when the year
+  pattern finds nothing, a group has another form, the two years are not
+  consecutive or no academic year carries that label. A new mapping starts
+  with `(?<start>\d{4})/(?<end>\d{4})`; the one-time import also writes
+  `(?<start>\d{4})-(?<end>\d{4})`, `(?<start>\d{4})`,
+  `(?<start>\d{4})/(?<end>\d{2})` and `(?<start>\d{4})-(?<end>\d{2})`
+  where a course's lines write the year that way.
+- An **Explicit mapping** (`moodle_course_mappings`: history line, course,
+  academic year) maps one line by hand; a line may have several.
 
-A mapping whose course and year has no enrollment rule is not counted
-(readiness warns with `mapping_without_rule`); **Add enrollment rules**
-creates the missing rules (see [Extending](#an-academic-year-and-its-rules)).
+Which mapping counts a line is decided per line:
 
-### Enrollment counts from legacy rules
+1. A line with an explicit mapping counts exactly for its explicit
+   mappings; every pattern mapping is ignored for it.
+2. An only-in-year mapping counts each line its pattern matches for its
+   course and year, whatever year the line shows.
+3. An all-years mapping counts a line its pattern matches for its course
+   and the year its year pattern reads, unless the course has an
+   only-in-year mapping in that year.
 
-The one-time import seeds every course and year of the workbook as a
-`legacy_regex` rule whose pattern is recorded literally: the last pattern
-the `Слушатели` sheet names for that course and year, else
-`<course name>-<year>`. Renaming a course later changes no rule. The
-pattern stays editable in **Course Enrollment Rules**; no Flow and no
-extension interprets it except the count script below, which applies it
-as `new RegExp(pattern, 'u')` over the whole raw `Courses` history, tested
-once per user. Names are not escaped, so a
-pattern may cross line boundaries, and a pattern that does not compile
-(for example the default of a course named `C++ Course`) fails the run.
-Switch a rule to `mapped_entries` in Studio once its entries are mapped and
-the mapped users equal the ones its pattern matched; keep `legacy_regex`
-where an expression needs several entries at once.
+The result is kept as **Counted lines** (`moodle_counted_lines`, hidden):
+one row per line, course, year and mapping, shown read-only as **Counted
+for** on a history line, **Counted lines** on a course and **Lines it
+counts** on a pattern mapping. Every run rebuilds them with the counts.
 
-`npm run setup` installs three operation-triggered templates:
+A new course gets its default pattern mapping in the same transaction
+(see the collections section above), so its own lines count from the next
+run; a renamed course keeps its mappings. The enrollment rules
+(`course_enrollment_rules`), which the one-time import still writes and
+**Add enrollment rules** still creates, take no part in counting.
 
-- **Data / Count legacy enrollments** runs the `legacy_regex` family of an
-  enrollments plan (`{claim, kind, pages, revision, runner}`; it reads only
-  the claim). It reads the plan the
-  caller stored with `plan_pages` source `enrollments`, runs the two Flows
-  below serially for every planned legacy page and zero page, checks every
-  answer, and answers `{ok: true, legacyPages, staged, zeroPages, pairs,
-  counted, zeros}`. It never plans and never completes. Any failure fails
-  the claim (`LEGACY_COUNT_FAILED`), so its candidates are discarded and the
-  installed counts stay, and answers `{ok: false, stage, code, message}`
-  naming the first failed page.
-- **Data / Count legacy rules page** counts one legacy page: at most 250
-  Moodle users (only `id` and `Courses` are read) against at most 500
-  legacy rules (`id`, `course`, `academic_year`, `pattern`). It checks the
-  page against the stored plan, validates types, counts and the byte sizes
-  of the histories and of the patterns, compiles every pattern first, and
-  stages only the nonzero partial counts. When any step fails it fails the
-  claim at once, so every later page of the run refuses without reading a
-  history or compiling a pattern: a pathological pattern costs one
-  timeout, not one per history page.
-- **Data / Fill legacy rule zeros** runs once per legacy rule page after all
-  of its legacy pages. It reads the native `sum(count)` grouped by course
-  and year over this claim's candidates of exactly those pages (never
-  another claim's, a mapped page's or its own earlier rows) and stages an
-  explicit zero for every legacy pair no page counted. Like the page Flow,
-  it fails the claim at once when any step fails. The completion sums the
-  staged rows and never fills zeros itself.
+**Data / Count enrollments** runs one count under the enrollments claim
+the schedule takes. It plans the history lines in pages of 250 by id
+(`plan_pages` with source `entries`), runs every page in turn through
+**Data / Match history lines** and completes the claim:
 
-`plan_pages` with source `enrollments` plans every rule family in one plan
-of an enrollments claim: the mapped pages first, then per legacy rule page
-every history page and its zero page. Every page must be staged before
-`complete` accepts the claim, so a run that skips a family is refused with
-`PAGES_MISSING` and deletes nothing. History pages hold at most 250 users
-and 800,000 UTF-8 bytes of `Courses`; legacy rule pages hold at most 500
-rules and 1,000,000 UTF-8 bytes of pattern text, with no cap on a single
-pattern's length. Run Script copies the whole data chain into an isolate
-of 32 MB (`FLOWS_RUN_SCRIPT_MAX_MEMORY`) and stops it after 10 seconds
-(`FLOWS_RUN_SCRIPT_TIMEOUT`). On Directus 12.3.1 the isolate is disposed
-at about 16 MB of string storage, and a text with any non-Latin-1
-character costs two bytes per character there. The time of a page grows
-with its rules times its bytes: on the largest page, literal and
-cross-line patterns take 0.1 to 0.2 seconds and whole-text line walks
-such as `^(?:.*\n)*...` about 3.3 seconds, a third of the timeout. A
-single history or pattern over its budget refuses the plan
-(`PAGE_OVER_BUDGET`, naming the user or rule id and the sizes only). A
-pathological pattern runs into the Run Script timeout and fails the run
-visibly. Neither limit is raised automatically.
+- **Data / Match history lines** checks the page against the plan the
+  coordinator stored for the claim (`PAGE_PLAN_MISMATCH` otherwise), reads
+  the page's lines (id and label), the number of pattern mappings and every
+  pattern mapping, and its Run Script
+  (`directus/flows/match-history-lines.cjs`) compiles each pattern and year
+  pattern once and tests every line against every pattern. It stages each
+  match as `{entry, pattern_mapping, year_label}` in one
+  `stage_page` call: the year an all-years mapping read, none for an
+  only-in-year mapping, and nothing for a line where the year pattern
+  reads no year. A page answers at most 10,000 matches.
+- The completion, in one transaction under the claim, rebuilds the counted
+  lines by the three rules above in SQL, then every `course_enrollments`
+  row, one per course and academic year. It refuses (`PAGES_MISSING`)
+  until every planned page is staged, so nothing partial is installed.
 
-### Rule modes
+Pages never run in parallel. A page that fails fails the claim at once
+(`MATCH_FAILED`), so every later page of the run refuses at its plan check
+before it compiles a pattern; the installed counts stay. The dispatcher
+reaches the page Flow by its fixed id, so both Flows are part of the
+calculation fingerprint and a Studio edit of either marks the calculations
+pending. The same rules exist once in TypeScript (`resolveLines` and
+`countPairs` in
+`directus/extensions/directus-extension-data-operations/src/enrollment-lines.ts`):
+the import, `npm run compare:live` and the unit suite count with them, and
+an integration scenario proves the SQL equal to them.
 
-The rule modes (today `mapped_entries` and `legacy_regex`) are declared
-once, in
-`directus/extensions/directus-extension-data-operations/src/rule-modes.ts`:
-each with its Studio label, what it counts, whether it reads `pattern`, how
-its rules are planned (plain rule ranges, or rule pages crossed with history
-pages plus a zero page each), its page kinds and the Flow that runs its
-whole family. The `mode` field's choices and notes, the enrollments planner,
-the refusal of an undeclared mode, the `rules` plan check, the rule filters
-and page kinds of each family's Flows and the calculation fingerprint all
-read that declaration. The vocabulary stays closed: a rule of any other mode
-refuses the whole plan (`UNKNOWN_RULE_MODE`).
+Limits and failures:
 
-`plan_pages` with source `enrollments` answers
-`{families: [{kind, runnerFlowId, pages}], total}`, one family per mode that
-has rules. **Data / Count enrollments** hands the families in turn to
-**Data / Run enrollment family**, which refreshes the claim and runs the
-family through the runner Flow the plan names. That Trigger Flow step's
-target is the template `{{ $trigger.runner }}` (Directus 12.3.1 renders it
-like any other option); Studio shows the template text in its Flow picker,
-and it must stay as it is. No dispatcher step names a mode, so adding or
-retiring one never edits an installed Flow (a new mode brings its own Flow
-family), and a mode that no rule uses is not planned at all. Once every
-rule is `mapped_entries`, the legacy Flows do not run and the history byte
-budget no longer applies. A family's runner is a declared root of the
-calculation fingerprint, because the fingerprint cannot follow a templated
-Flow id.
+- A page holds at most 250 lines and answers at most 10,000 matches;
+  more fail the run (`Page p0003: matches 12000, max 10000`).
+- The mappings read must hold as many mappings as their count, so a read
+  that `QUERY_LIMIT_MAX` cut short fails the run (`read_mappings: mappings
+  100, expected 267`) instead of leaving mappings unmatched.
+- A pattern or year pattern that does not compile, or a year pattern
+  without a group named `start` or `end`, is refused on save; one that
+  reaches a run anyway fails it, named by its id (`Pattern mapping 12:
+  invalid regular expression (Unterminated group)`).
+- Run Script stops a page after 10 seconds (`FLOWS_RUN_SCRIPT_TIMEOUT`)
+  and copies the data chain into an isolate of 32 MB
+  (`FLOWS_RUN_SCRIPT_MAX_MEMORY`), so a pathological pattern fails the run
+  visibly. Neither limit is raised automatically.
 
 ### Readiness and Needs review views
 
@@ -1163,11 +1109,10 @@ have no newest-first order), `curriculum_generation_unsorted` and
 with a curriculum and their blocks), `study_program_unsorted` and
 `study_program_sort_shared` (the same for the published programs of one
 generation and their state keys), `enrollment_count_missing` (a course and
-published year without a count row), `enrollment_rule_missing` (without a
-rule, so it is never counted), `course_without_professor` (an Active
+published year without a count row), `course_without_professor` (an Active
 course without a professor link, whose professors `courses.json` cannot
-publish). Today's warnings: `mapping_without_rule` (mappings nothing
-counts), `equivalency_without_course`, `equivalency_entry_unresolved` (an
+publish). Today's warnings: `equivalency_without_course`,
+`equivalency_entry_unresolved` (an
 equivalency with a member label of a generation with a curriculum linked
 to no entry of that generation), `council_member_unresolved` (a council
 membership linked to no student), `snapshot_staged`,
@@ -1186,8 +1131,7 @@ generation: a FALSE is kept, and a TRUE is the rule fix
 `unlinked_availability`.
 
 A Moodle history line without a mapping is no readiness issue:
-administrative lines belong to no course, and a legacy rule counts lines
-without one.
+administrative lines belong to no course.
 
 A check's description, the tooltip of its code in the **Readiness** panel,
 states the fact only. What to do:
@@ -1197,10 +1141,8 @@ states the fact only. What to do:
 | `history_index_pending`, `enrollments_pending`, `history_index_running`, `enrollments_running` | Nothing: **Data / Process pending** runs the calculation at its next tick. |
 | `history_index_failed`, `enrollments_failed` | Correct what the last failure names ([Error codes](#error-codes)), then retry with **Recalculate** (**Data / Mark pending**); an edit of an input retries it too. |
 | `snapshot_import_failed` | Run **Data / Import Moodle snapshot** again. |
-| `enrollment_count_missing` | Add the course's rule for that year (`enrollment_rule_missing`), or let the pending count run; a missing count is never published as 0. |
-| `enrollment_rule_missing` | Run **Add enrollment rules** for the year or the course. |
+| `enrollment_count_missing` | Let the pending count run, which counts every course and year; a missing count is never published as 0. |
 | `course_without_professor` | Add a professor to the course's **Teaching staff**, or set its **Status** to All professors or Inactive. |
-| `mapping_without_rule` | Add the enrollment rule of the mapped course and year. |
 | `academic_year_unsorted`, `curriculum_generation_unsorted`, `study_program_unsorted` | Give the published row a `sort`. |
 | `academic_year_sort_shared`, `curriculum_generation_sort_shared`, `study_program_sort_shared` | Give each published row its own `sort` (a program within its generation). |
 
@@ -1221,8 +1163,7 @@ is kept. The views are generated from `exports/review-views.ts` and
 
 The checks no plain filter can list (a missing row, a duplicate) link
 their collection page instead: today `enrollment_count_missing`,
-`enrollment_rule_missing`, `course_without_professor`,
-`mapping_without_rule` and the three `*_sort_shared` blockers.
+`course_without_professor` and the three `*_sort_shared` blockers.
 
 Curriculum views show the generation and filter through the
 `curriculum_generations` relation, so a new generation's rows appear in
@@ -1467,18 +1408,17 @@ these when editing:
 - A Flow that runs under a claim must call the coordinator (a heartbeat,
   `plan_pages` or `stage_page`) at least once a minute: a claim silent for
   60 seconds is released as interrupted.
-- Keep the coordinator steps, the `{{ $trigger.runner }}` target of **Data /
-  Run enrollment family** and the relational filter shape of the count
-  query (see [Mapped enrollment counts](#enrollment-counts-from-explicit-mappings)).
+- Keep the coordinator steps and the fixed Flow id of every Trigger Flow
+  step: the fingerprint follows a child Flow only by its id, so a templated
+  target would leave that Flow out of it.
 
 ### Activity rows, retention and caching
 
 Directus writes one `run` activity row for every Flow run that logs
 activity: each 15-second tick adds one (about 5,760 a day, also on a
-project without the data model); an enrollments run adds one per mapped
-rule and one per page (256 for 254 mapped rules on two pages) plus one per
-family run and runner, besides the row of the Flow that started it; every
-other run adds one. Studio's Flow Logs panel lists revisions, so it shows
+project without the data model); an enrollments run adds one per page of
+250 history lines (12 on the 2026-10-08 data) and one for the dispatcher,
+besides the row of the Flow that started it; every other run adds one. Studio's Flow Logs panel lists revisions, so it shows
 nothing for these activity-only Flows; the dashboard shows the last
 scheduled runs instead. Directus 12.3.1 prunes
 the rows only with `RETENTION_ENABLED=true` (default `false`), after
@@ -1519,12 +1459,10 @@ release code (`SOURCE_CHANGED`, `FINGERPRINT_CHANGED`,
 | `CLAIM_ABANDONED` | The claim stopped heartbeating again at the same inputs, or a publication claim did. | Find why Directus stopped (its log), then **Recalculate** a calculation or publish again. |
 | `COORDINATION_CLAIM_MISMATCH`, `COORDINATION_OWNER_MISMATCH` | The claim token is not the current claim's (it was released or taken over), or the claim belongs to another Directus process. | Read the status: its last failure names the release. Otherwise wait for the other process's run. |
 | `COORDINATION_DOMAIN_MISMATCH`, `COORDINATION_PAGE_UNPLANNED`, `COORDINATION_PAGES_MISSING`, `COORDINATION_COMPLETION_RACED` | A step acted for another claim domain, on a page the claim did not plan, or completed before every planned page was staged. The installed rows stay. | Take the Flow's template again if it was edited, then **Recalculate**. |
-| `COORDINATION_PAGE_INCOMPLETE`, `COORDINATION_DUPLICATE_ROWS` | A page read left out planned Moodle users or named others, or held a row twice. | Take the page Flow's template again if its read step was edited, then **Recalculate**. |
-| `COORDINATION_PAGE_OVER_BUDGET` | One Moodle user's history, or one legacy rule's page, is larger than a page may hold (`Moodle user <id>: Courses history <n> bytes, max <m> per page`). | Shorten that user's raw history at the source. |
-| `COORDINATION_UNKNOWN_RULE_MODE` | A rule's mode is not a declared one (`Rule <id>: mode "…", expected …`). | Set the rule's mode to a declared mode. |
+| `COORDINATION_PAGE_INCOMPLETE`, `COORDINATION_DUPLICATE_ROWS` | A page read left out planned Moodle users or named others, or held a row twice (`Duplicate matches: entry 3 / pattern mapping 7`). | Take the page Flow's template again if its read step was edited, then **Recalculate**. |
 | `COORDINATION_WRITE_GUARDED` | A write to a derived, candidate or bookkeeping collection outside its writer (`Write refused: <collection> (<role>; writer: <writer>)`). | Edit the source collections; the derived rows follow. |
 | `COORDINATION_OUTCOMES_INCOMPLETE`, `COORDINATION_UNKNOWN_FILE` | A publication completed without every declared file uploaded, or reported a file no export definition declares. | Publish again; take the publish Flows' templates again if they were edited. |
-| `INDEX_FAILED`, `ENROLLMENTS_FAILED`, `LEGACY_COUNT_FAILED`, `MAPPED_COUNT_FAILED`, `LEGACY_ZEROS_FAILED`, `ZERO_FILL_FAILED`, `PAGE_PLAN_MISMATCH`, `LEGACY_PLAN_MISMATCH`, `INVALID_RULE_PAGE`, `COUNT_FAILED`, `INVALID_AGGREGATE`, `PLAN_FAILED`, `COMPLETION_REFUSED`, `DOMAIN_UNKNOWN`, `NO_RESULT` | A calculation step failed; the relayed message names each stage and code down to the step that failed (for example `Rule 7 (course 9 / academic year 2): pattern does not compile as a unicode regular expression (…)`). The installed rows stay and the domain waits. | Correct what the innermost message names (here the rule's pattern), then **Recalculate**. |
+| `INDEX_FAILED`, `ENROLLMENTS_FAILED`, `MATCH_FAILED`, `PAGE_PLAN_MISMATCH`, `PLAN_FAILED`, `COMPLETION_REFUSED`, `DOMAIN_UNKNOWN`, `NO_RESULT` | A calculation step failed; the relayed message names each stage and code down to the step that failed (for example `Page p0003 failed [match MATCH_FAILED]: Pattern mapping 12: invalid regular expression (…)` or `Page p0001: matches 10250, max 10000`). The installed rows stay and the domain waits. | Correct what the innermost message names (here the mapping's pattern, or the mappings that match too many lines), then **Recalculate**. |
 | `SNAPSHOT_FILE_INVALID` | The file is missing, outside the **Moodle snapshots (private)** folder or local storage, or larger than `FINKI_HUB_SNAPSHOT_MAX_BYTES`. | Upload the CSV into that folder, or raise the limit. |
 | `SNAPSHOT_INVALID_CSV`, `SNAPSHOT_INVALID_HEADERS`, `SNAPSHOT_INVALID_ROWS` | The file is no strict CSV, its header is not the 38 scraper fields, or its rows break the row rules (ids, `Name`, row count). | Correct the file and import again. |
 | `SNAPSHOT_EMPTY_NOT_CONFIRMED`, `CONFIRMATION_REQUIRED` | An empty snapshot without **Allow an empty snapshot**, or a run without **Replace the whole active Moodle snapshot**. | Switch the box on (the empty one only to remove every Moodle user). |
@@ -1579,7 +1517,7 @@ fields, and the filter builder supports nested include/exclude conditions.
 | Spreadsheet helper | Directus replacement |
 | --- | --- |
 | `Пребарување` | **Search** view on `moodle_users`, with include/exclude course pickers and matching users. |
-| `Слушатели` | **Course Enrollment Rules** (one rule per course and year) and the derived **Course Enrollments** counts, both also in the course form's **Enrollment** group; history lines map to courses in **Explicit mappings**. |
+| `Слушатели` | **Pattern mappings** and **Explicit mappings**, which count the history lines into the derived **Course Enrollments** (see [Enrollment counts](#enrollment-counts)); the counts and **Counted lines** are also in the course form's **Enrollment** group. |
 | `Индекси` / `Индекси (Export)` | Search/filter the canonical `students` collection, including `source_group`. |
 | `Предмети (Export)` | Browse the canonical `courses` collection and its form. |
 | `Предмети - 2023`, `Предмети - 2018` | **Curriculum by generation** on **Curriculum Entries**, narrowed with the Generation filter. |
@@ -1753,6 +1691,11 @@ requirements and the recovery of an interrupted rehearsal are under
 
 ## Sizing
 
+The enrollment counts rows below were measured with the retired rule
+families, before the counts matched history lines against pattern
+mappings; they are to be measured again with the stress scenario. The
+other rows still hold.
+
 Measured on a synthetic full-size project on a developer machine (single
 runs, repeated once: the run times within about ten percent, the wall
 times within one 15-second tick; not a benchmark): 30,000 Moodle users in
@@ -1780,14 +1723,12 @@ The Directus container peaked at 766 MiB during the legacy counts;
 PostgreSQL used about 350 MiB besides its page cache. Each readiness or
 preparation run hashes every active Moodle user once (to detect edits
 outside the snapshot workflow) besides reading the coordination status;
-that is included in the 0.6 s above. The legacy family
-dominates: its cost grows with history pages times legacy rule pages, one
-activity row per page. Converting reviewed legacy rules to mapped rules is
-what shrinks it; a mapped pair costs one Flow run and one heartbeat
-transaction (about 13 ms, so 10,000 pairs take about two minutes). A parent
-delete during the install (see [Automatic processing](#automatic-processing))
-changes the counts' inputs, so it costs a whole rerun, about three minutes at
-this size, whether or not the install lost a deadlock to it.
+that is included in the 0.6 s above. A count run now costs one Flow run
+per page of 250 history lines (20 pages for 5,000 lines), each testing its
+lines against every pattern mapping. A parent delete during the install
+(see [Automatic processing](#automatic-processing)) changes the counts'
+inputs, so it costs a whole rerun, whether or not the install lost a
+deadlock to it.
 
 ## Extending
 
@@ -1810,7 +1751,7 @@ definition.
 | Dashboard actions | **Run operation** panels (Studio); the defaults in `src/data-model/operations-dashboard.ts` | Publish, Recalculate, Import Moodle snapshot, Add enrollment rules |
 | Collection roles (editable sources) | `coordination/collection-roles.ts` | `courses`, `curriculum_entries`, `moodle_course_mappings`, ... |
 | Rule modes | `rule-modes.ts` | `mapped_entries`, `legacy_regex` |
-| Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, Mapped enrollments, Legacy enrollments, Publication, Publish, Enrollment rules, Automatic processing |
+| Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, History line matching, Publication, Publish, Enrollment rules, Automatic processing |
 | Choices of an enumerated field | the field, in `src/data-model/*-collections.ts` | the statuses of a course |
 | Scraper columns | `snapshot/contract.ts` (`snapshotFieldTable`) | the 38 headers of `profiles.csv` |
 
@@ -1825,21 +1766,19 @@ tests, among others).
 ### An academic year and its rules
 
 1. Create the `academic_years` row (label such as `2026/2027`, a `sort`
-   above the newest year's). It is unpublished by default.
-2. Run **Add enrollment rules** on the dashboard with that year: every
-   course gets a `mapped_entries` rule. With a course instead, a new
-   course gets one rule per year; with both, one pair. Existing rules of
-   any mode are kept, so a rerun creates nothing, and no mapping is
-   created. The rules are counted at the next tick (zero where no entry is
-   mapped yet).
-3. Map the year's Moodle history lines in **Explicit mappings**.
-4. Set `published`. `courses.json` gains exactly one key per course, the
+   above the newest year's). It is unpublished by default. The next run
+   counts every course in it, 0 until a line of the year counts: an
+   all-years pattern mapping counts the year's lines whose year its year
+   pattern reads.
+2. Map the year's Moodle history lines no mapping counts, in **Pattern
+   mappings** (a course's other name or year form) or **Explicit
+   mappings** (one line by hand).
+3. Set `published`. `courses.json` gains exactly one key per course, the
    year's label, among the other year keys newest first; readiness blocks
    until every course has a count for it and its `sort` is unique.
 
-No event Flow creates rules on its own; readiness warns about mappings
-without a rule (`mapping_without_rule`) and blocks a published pair without
-one (`enrollment_rule_missing`).
+**Add enrollment rules** still creates rules for the year, which count
+nothing (see [Enrollment counts](#enrollment-counts)).
 
 ### A curriculum generation or study program
 
@@ -1998,33 +1937,16 @@ it only through an export definition.
 
 ### A rule mode
 
-Add the mode to `rule-modes.ts` (its value, label, description, whether it
-reads `pattern`, its planner and page kinds, and the id of the runner Flow
-that runs its whole family) and register that family's Flow templates as a
-new Flow family (see [A managed Flow family](#a-managed-flow-family)).
-Setup then realigns the `mode` choices and installs the new Flows; the
-dispatcher needs no edit, because its runner target is templated from the
-plan.
-
-Retiring a mode is the reverse: remove it from the declaration and its
-family from the registry. The code that takes a mode from the declaration
-by name (`ruleMode('<mode>')`) then fails to compile until it changes too,
-so nothing seeds or counts an undeclared mode:
-
-- the family's own Flow modules under `src/flows/`, which read their mode
-  through `legacyRuleMode` or `mappedRuleMode` in `src/flows/shared.ts`;
-- for `legacy_regex`, the one-time import, which seeds every rule it
-  reads from the workbook with it (`seededMode` in `src/import/rules.ts`),
-  so retiring it also decides what the import seeds;
-- for `mapped_entries`, **Data / Add enrollment rules**, which creates
-  rules of that mode, and the `rules` plan source (`rulesPlanMode` in
-  `rule-modes.ts`).
-
-Setup refuses to realign `mode` while rows still hold the retired value,
-and a project keeps the retired Flows installed but never plans them
-(dropping them from the fingerprint causes one recount). One refusal text
-of `directus/flows/count-history-page.cjs` still names `legacy_regex`
-(wording only).
+The rule modes are declared in `rule-modes.ts` (value, label, description
+and whether a rule of the mode reads `pattern`); setup realigns the `mode`
+choices from it. No Flow counts a rule, so a mode changes no count.
+Retiring a mode fails to compile the code that takes it by name
+(`ruleMode('<mode>')`): the one-time import, which seeds every rule it
+reads from the workbook as `legacy_regex` (`seededMode` in
+`src/import/rules.ts`), and **Data / Add enrollment rules**, which creates
+`mapped_entries` rules (`addedRuleMode` in
+`src/data-model/operations-vocabularies.ts`). Setup refuses to realign
+`mode` while rows still hold the retired value.
 
 ### A managed Flow family
 
@@ -2043,8 +1965,8 @@ a code of its own. A new family therefore takes two edits:
    processing entry, which stays last so its first tick finds every child.
 
 Then run `npm run setup` (after `npm run build:operations` and a restart
-of Directus when the change also touched the data-operations extension,
-as a rule mode does), which installs the new family through the same
+of Directus when the change also touched the data-operations extension),
+which installs the new family through the same
 loop, once.
 
 ### Scraper columns

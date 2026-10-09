@@ -18,6 +18,7 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { importWorkbook } from '../src/import-workbook.js';
 import { type ImportPlan, planImport } from '../src/import/plan.js';
+import { projectedCounts } from '../src/projection/counts.js';
 import { readWorkbookContent } from '../src/workbook.js';
 import {
   courseNames,
@@ -74,49 +75,18 @@ export const unmatchedLegacy = (
   ),
 });
 
-const pattern = z.object({
-  academic_year: z.number(),
-  course: z.number(),
-  mode: z.literal('legacy_regex'),
-  pattern: z.string(),
-});
-
 export const rowsOf = (store: FakeStore, collection: string) =>
   store.items.get(collection) ?? [];
 
-// How many raw histories a legacy pattern matches, compiled once in
-// Unicode mode as the legacy rule Flows compile it: each Moodle user
-// counts once however often the history lists the entry.
-export const matchingHistories = (
-  rulePattern: string,
-  histories: readonly unknown[],
-): number => {
-  const matcher = new RegExp(rulePattern, 'u');
-  return histories.filter(
-    (history) => typeof history === 'string' && matcher.test(history),
-  ).length;
-};
-
-// The count rows the legacy rule Flows install for every rule of a store.
-const countRows = (store: FakeStore): FakeItem[] => {
-  const histories = rowsOf(store, 'moodle_users').map(
-    (user) => user['Courses'],
-  );
-  return rowsOf(store, 'course_enrollment_rules').map((rule, index) => {
-    const parsed = pattern.parse(rule);
-    return {
-      academic_year: parsed.academic_year,
-      computed_revision: 1,
-      count: matchingHistories(parsed.pattern, histories),
-      course: parsed.course,
-      id: index + 1,
-    };
-  });
-};
+// The count rows the enrollments run installs for a store: its pattern
+// mappings resolved over its Moodle users' history lines, one row per
+// course and published academic year (src/projection/counts.ts).
+const countRows = (store: FakeStore): FakeItem[] =>
+  projectedCounts(store).rows.map((row) => ({ ...row, computed_revision: 1 }));
 
 // The relational rows of an import plan: the workbook import of it into an
-// empty fake project, with the count rows its rules produce. A plan with
-// blockers fails here.
+// empty fake project, with the count rows its pattern mappings produce. A
+// plan with blockers fails here.
 const plannedStore = async (plan: ImportPlan): Promise<FakeStore> => {
   if (plan.blockers.length > 0) {
     throw new Error(

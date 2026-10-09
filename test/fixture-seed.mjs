@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 
+import {
+  defaultPattern,
+  defaultYearPattern,
+} from '../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
 import { assignmentRoles } from '../directus/extensions/directus-extension-data-operations/src/exports/teaching-values.js';
-import { ruleMode } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import {
   curriculumPlan,
   generationSeeds,
@@ -9,6 +12,7 @@ import {
   referenceCollections,
   yearRows,
 } from './fixtures/stress-fixture.js';
+import { expectedCounts } from './fixtures/stress-oracle.js';
 import {
   courseName,
   historiesOf,
@@ -24,7 +28,6 @@ import { get } from './relational/history-index-helpers.mjs';
 // the scenarios and the oracle need. Everything it writes is synthetic
 // and lives in model collections, which the model teardown removes.
 
-const legacy = ruleMode('legacy_regex').mode;
 const batchSize = 500;
 
 // Creates rows in batches; answers the created ids in row order.
@@ -159,41 +162,28 @@ export const staffFreeFor = async (target, { course, role }) => {
   return free;
 };
 
-// A legacy rule per course and published year with the default pattern
-// `<course name>-<year label>`, as the one-time import seeds them; answers
-// them in oracle form (course and year as positions).
-const seedLegacyRules = async (target, courses, years) => {
-  const rules = courses.flatMap((course, courseIndex) =>
-    years.flatMap((year, yearIndex) =>
-      year.published
-        ? [
-            {
-              course: courseIndex,
-              mode: legacy,
-              pattern: `${course.name}-${year.label}`,
-              year: yearIndex,
-            },
-          ]
-        : [],
-    ),
-  );
-  await createRows(
-    target,
-    'course_enrollment_rules',
-    rules.map((rule) => ({
-      academic_year: years[rule.year].id,
-      course: courses[rule.course].id,
-      mode: rule.mode,
-      pattern: rule.pattern,
-      review_note: 'Synthetic legacy rule of the stress fixture.',
-    })),
-  );
-  return rules;
+// The default pattern mapping of every course, `<escaped name>-` with the
+// default year pattern, as the one-time import writes it; answers them in
+// oracle form (the course as its position).
+const seedPatternMappings = async (target, courses) => {
+  const rows = courses.map((course) => ({
+    course: course.id,
+    pattern: defaultPattern(course.name),
+    year_pattern: defaultYearPattern,
+  }));
+  const ids = await createRows(target, 'moodle_pattern_mappings', rows);
+  return courses.map((course, index) => ({
+    course: course.index,
+    id: ids[index],
+    onlyInYear: null,
+    pattern: rows[index].pattern,
+    yearPattern: defaultYearPattern,
+  }));
 };
 
 // The whole reference side: years, generations and programs, courses,
-// curriculum, the other exported collections, assignments and the legacy
-// rules of every published year.
+// curriculum, the other exported collections, assignments and the default
+// pattern mapping of every course.
 export const seedReference = async (
   target,
   declarations,
@@ -228,15 +218,15 @@ export const seedReference = async (
     courses,
     reference.staff ?? [],
   );
-  const rules = await seedLegacyRules(target, courses, years);
+  const patterns = await seedPatternMappings(target, courses);
   return {
     assignments,
     courses,
     curriculum,
     generations,
+    patterns,
     programs,
     reference,
-    rules,
     years,
   };
 };
@@ -316,6 +306,38 @@ export const installedCounts = async (target, seeded) => {
       ]),
   );
 };
+
+// The pattern mappings of the created courses as the database holds them,
+// in oracle form (course and only-in-year year as positions).
+export const patternsOf = async (target, seeded) => {
+  const courses = new Map(seeded.courses.map(({ id, index }) => [id, index]));
+  const years = new Map(seeded.years.map(({ id }, index) => [id, index]));
+  const rows = await get(
+    target,
+    '/items/moodle_pattern_mappings?fields=id,course,pattern,year_pattern,only_in_year&sort=id&limit=-1',
+  );
+  return rows
+    .filter(({ course }) => courses.has(course))
+    .map((row) => ({
+      course: courses.get(row.course),
+      id: row.id,
+      onlyInYear:
+        row.only_in_year === null ? null : years.get(row.only_in_year),
+      pattern: row.pattern,
+      yearPattern: row.year_pattern,
+    }));
+};
+
+// The oracle's counts for the state of a suite: its snapshot's lines, the
+// pattern mappings and explicit mappings in oracle form, every created
+// course and year (positions, years with their labels).
+export const oracleCounts = (state) =>
+  expectedCounts(state.snapshotRows, {
+    courses: state.seeded.courses.map(({ index }) => index),
+    explicit: state.mappings,
+    mappings: state.patterns,
+    years: state.seeded.years.map(({ label }, index) => ({ id: index, label })),
+  });
 
 // How many pairs differ between two count maps (never which values).
 export const countDifferences = (expected, installed) => {

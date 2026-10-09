@@ -29,7 +29,7 @@ import {
 } from '../src/flows/process-pending.js';
 import { installFlowFamily } from '../src/flows/registry.js';
 import { FakeCoordination } from './data-coordination-helpers.js';
-import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+import { refusalOf, runScript } from './flow-script-helpers.js';
 
 const history = 'history_index';
 
@@ -102,8 +102,8 @@ describe('source invalidation of the completed source model', () => {
     }
   });
 
-  test('covers the old and the new pair of a moved or deleted mapping or rule by marking the whole domain', () => {
-    for (const table of ['moodle_course_mappings', 'course_enrollment_rules']) {
+  test('covers the old and the new pair of a moved or deleted mapping by marking the whole domain', () => {
+    for (const table of ['moodle_course_mappings', 'moodle_pattern_mappings']) {
       for (const operation of ['update', 'delete'] as const) {
         expect(marks(table, operation, ['course', 'academic_year'])).toEqual([
           enrollments,
@@ -256,7 +256,6 @@ describe('installation', () => {
       installFlowFamily(request, flowFamilyCodes.automation),
     ).resolves.toMatchObject({
       created: [
-        'Data / Run enrollment family',
         'Data / Count enrollments',
         'Data / Mark pending',
         'Data / Process pending',
@@ -264,7 +263,6 @@ describe('installation', () => {
       skipped: [],
     });
     expect(posted.map(({ status }) => status)).toEqual([
-      'inactive',
       'inactive',
       'inactive',
       'inactive',

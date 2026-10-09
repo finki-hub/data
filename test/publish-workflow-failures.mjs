@@ -12,6 +12,7 @@ import { validateReadinessFlowId } from '../src/flows/validate-readiness.js';
 import { countDifferences, installedCounts } from './fixture-seed.mjs';
 import { readOnlyBucket, trigger } from './publish-flow-helpers.mjs';
 import {
+  addPatterns,
   assertCounts,
   assertIntact,
   codeOf,
@@ -19,8 +20,7 @@ import {
   objectsOf,
   publishes,
   refusedPublication,
-  ruleOf,
-  setPattern,
+  removePatterns,
   settlesCounted,
   snapshotState,
   uploadSnapshot,
@@ -36,7 +36,7 @@ import { runImport } from './relational/snapshot-import-helpers.mjs';
 
 // The failure scenarios of the complete workflow suite. Each one fails in
 // a real way on the fixture (a malformed CSV, an Active course without a
-// professor, a pattern that does not compile, a caller without the permission, a
+// professor, a page over the row cap, a caller without the permission, a
 // read-only bucket) and checks that the active snapshot and every
 // published object stayed as they were, then recovers through the
 // supported path. The races (a restart, edits and deletes during a run)
@@ -56,6 +56,7 @@ const roomsFile =
   exportDefinitions.find(({ rows }) => rows.collection === 'rooms')?.filename ??
   '';
 
+const rowCapRefusal = /^Page p\d{4}: matches \d+, max 10000$/u;
 const notClaimed = 'PUBLICATION_NOT_CLAIMED';
 const notPrepared = 'PUBLICATION_NOT_PREPARED';
 
@@ -147,18 +148,27 @@ export const blocksCourseWithoutProfessor = async (context) => {
   await publishes(context);
 };
 
-// A legacy pattern that does not compile fails the count run visibly: the
-// installed counts stay and nothing is published while the counts are not
-// current; the fixed pattern recounts.
-export const failsInvalidPattern = async (context) => {
+// More than 10,000 matches on one page fail the count run visibly (the
+// API refuses a pattern that does not compile, so the row cap is the
+// failure a mapping can cause at run time): 41 only-in-year mappings that
+// match every line give a full page of 250 lines 10,250 matches. The
+// installed counts stay and nothing is published while the counts are
+// not current; removing the mappings recounts.
+export const failsOverRowCap = async (context) => {
   const { state, t, target } = context;
-  const pair = { course: 0, year: 0 };
-  const { rule } = await ruleOf(context, pair);
-  const before = await assertCounts(context, 'before the invalid pattern');
+  const before = await assertCounts(context, 'before the row cap');
   await markPublicationPending(context);
   let failed;
+  let ids = [];
   try {
-    await setPattern(context, pair, 'Synthetic (unclosed');
+    ids = await addPatterns(context, {
+      course: 0,
+      patterns: Array.from(
+        { length: 41 },
+        (_, index) => `.(?:${String(index)})?`,
+      ),
+      year: 0,
+    });
     failed = await waitForStatus(
       target,
       (report) =>
@@ -166,7 +176,8 @@ export const failsInvalidPattern = async (context) => {
       { limitMs: 180_000 },
     );
     assert.equal(failed.report.lastError.domain, 'enrollments');
-    assert.equal(failed.report.lastError.code, 'LEGACY_COUNT_FAILED');
+    assert.equal(failed.report.lastError.code, 'MATCH_FAILED');
+    assert.match(failed.report.lastError.message, rowCapRefusal);
     assert.equal(failed.report.lastError.blocking, true);
     const kept = await installedCounts(target, state.seeded);
     assert.equal(
@@ -176,15 +187,15 @@ export const failsInvalidPattern = async (context) => {
     );
     await refusedPublication(context, {
       code: notClaimed,
-      label: 'invalid pattern',
+      label: 'row cap',
       reason: 'upstream_dirty',
     });
   } finally {
-    await setPattern(context, pair, rule.pattern);
+    await removePatterns(context, ids);
   }
-  await settlesCounted(context, 'after the fixed pattern');
+  await settlesCounted(context, 'after the mappings were removed');
   await publishes(context);
-  t.diagnostic(`invalid pattern: ${failed.report.lastError.code}`);
+  t.diagnostic(`row cap: ${failed.report.lastError.code}`);
 };
 
 // A user without a policy and anonymous callers run no operation and
@@ -202,7 +213,7 @@ export const refusesWithoutPermission = async (context) => {
     const writes = [
       ['POST', '/items/course_enrollments', { count: 1 }],
       ['POST', '/items/moodle_users', { Name: 'Synthetic Plain User' }],
-      ['POST', '/items/data_operation_results', { count: 1 }],
+      ['POST', '/items/data_operation_matches', { year_label: null }],
       ['PATCH', '/items/data_operations', { import_state: 'idle' }],
     ];
     for (const [method, path, body] of writes) {

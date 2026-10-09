@@ -12,6 +12,8 @@ import { stepName } from './text-fragments.js';
 export type ReleaseBranch = {
   // The code kept with the claim's failure (a fixed, bounded code).
   readonly code: string;
+  // More keys the record answers, such as the page it failed on.
+  readonly context?: Readonly<Record<string, string>>;
   // The Flow family the branch belongs to.
   readonly family: FlowFamilyCode;
   // The (templated) message kept beside the code and answered.
@@ -65,6 +67,7 @@ export const releaseSteps = (branch: ReleaseBranch): OperationTemplate[] => [
     name: stepName.answerFailure(branch.stage),
     options: {
       json: {
+        ...branch.context,
         code: branch.recordCode ?? branch.code,
         message: branch.message,
         ok: false,

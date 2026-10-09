@@ -13,7 +13,7 @@ import {
   type PatternMapping,
   resolveLines,
 } from '../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
-import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+import { refusalOf, runScript } from './flow-script-helpers.js';
 import { lineYearVectors } from './line-year-vectors.js';
 
 // The matcher Run Script of "Data / Match history lines", run in node:vm
@@ -115,11 +115,20 @@ const onlyIn = (id: number, pattern: string, year: number): MappingRow => ({
   year_pattern: null,
 });
 
+// count_mappings as Directus answers it: one aggregate row, the count as
+// text.
+const countOf = (count: number) => [{ count: { id: String(count) } }];
+
 const chainOf = (
   entries: readonly EntryRow[],
   mappings: readonly MappingRow[],
   page: unknown = pageOf(entries),
-) => ({ $trigger: page, read_entries: entries, read_mappings: mappings });
+) => ({
+  $trigger: page,
+  count_mappings: countOf(mappings.length),
+  read_entries: entries,
+  read_mappings: mappings,
+});
 
 const run = (
   entries: readonly EntryRow[],
@@ -380,6 +389,7 @@ describe('match-history-lines.cjs refusals', () => {
     expect(
       refusal({
         $trigger: page,
+        count_mappings: countOf(1),
         read_entries: rows,
         read_mappings: [valid],
       }),
@@ -441,7 +451,12 @@ describe('match-history-lines.cjs refusals', () => {
     ],
   ])('refuses the mappings %j', (rows, message) => {
     expect(
-      refusal({ $trigger: page, read_entries: entries, read_mappings: rows }),
+      refusal({
+        $trigger: page,
+        count_mappings: countOf(Array.isArray(rows) ? rows.length : 0),
+        read_entries: entries,
+        read_mappings: rows,
+      }),
     ).toBe(message);
   });
 
@@ -510,5 +525,58 @@ describe('match-history-lines.cjs refusals', () => {
     ];
 
     expect(messages.filter((message) => message.includes(secret))).toEqual([]);
+  });
+});
+
+// Directus cuts a read with limit -1 at QUERY_LIMIT_MAX: a mappings list
+// that differs from their count is never matched as a smaller set.
+describe('match-history-lines.cjs mapping count', () => {
+  const entries = entriesOf('Математика 1-2025/2026/Z');
+  const valid = allYears(7, math1);
+
+  test('refuses a mappings read shorter or longer than their count', () => {
+    const second = { ...valid, id: 8 };
+
+    expect(
+      refusal({ ...chainOf(entries, [valid]), count_mappings: countOf(2) }),
+    ).toBe('read_mappings: mappings 1, expected 2');
+    expect(
+      refusal({
+        ...chainOf(entries, [valid, second]),
+        count_mappings: countOf(1),
+      }),
+    ).toBe('read_mappings: mappings 2, expected 1');
+    expect(
+      refusal({ ...chainOf(entries, []), count_mappings: countOf(267) }),
+    ).toBe('read_mappings: mappings 0, expected 267');
+  });
+
+  test('takes the count as text or as a number', () => {
+    for (const id of ['1', 1]) {
+      expect(
+        answerSchema.parse(
+          runScript(matchScript, {
+            ...chainOf(entries, [valid]),
+            count_mappings: [{ count: { id } }],
+          }),
+        ).mappings,
+      ).toBe(1);
+    }
+  });
+
+  test.each([
+    [undefined],
+    [null],
+    [[]],
+    [[...countOf(1), ...countOf(1)]],
+    [[{ count: '1' }]],
+    [[{ count: { id: '-1' } }]],
+    [[{ count: { id: '1.5' } }]],
+    [[{ count: { id: 1.5 } }]],
+    [[{ count: { id: null } }]],
+  ])('refuses the count %j', (counted) => {
+    expect(
+      refusal({ ...chainOf(entries, [valid]), count_mappings: counted }),
+    ).toBe('count_mappings: expected 1 count row');
   });
 });

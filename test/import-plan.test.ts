@@ -10,6 +10,8 @@ import {
   workbookPrograms,
 } from '../src/import/generations.js';
 import { compositeKey, isRef, type Ref, ref } from '../src/import/planned.js';
+import { projectedCounts } from '../src/projection/counts.js';
+import { memoryStore } from '../src/projection/memory-store.js';
 import { expectedEnrollments } from './expected-exports.js';
 import {
   academicYears,
@@ -28,7 +30,6 @@ import {
   uniqueDataset,
   withCourse,
 } from './import-plan-helpers.js';
-import { matchingHistories } from './relational-export-helpers.js';
 
 const orphanLegacy = 'Orphan Legacy Course';
 
@@ -391,19 +392,22 @@ describe('enrollment rules', () => {
     );
   });
 
-  test('the seeded rules count exactly the committed enrollments', async () => {
-    const dataset = makeSyntheticDataset();
-    const histories = dataset.moodle_users.map((user) => user['Courses']);
-    const rules = rowsIn(planOf(dataset), 'course_enrollment_rules');
+  // The counts the enrollments run installs: the planned pattern mappings
+  // matched line by line (src/projection/counts.ts), keyed by the course's
+  // workbook id and the academic year.
+  test('the planned pattern mappings count exactly the committed enrollments', async () => {
+    const plan = planOf(makeSyntheticDataset());
+    const store = memoryStore(plan.collections);
+    const keysOf = (collection: 'academic_years' | 'courses') =>
+      rowsIn(plan, collection).map(({ key }) => key);
+    const courses = keysOf('courses');
+    const years = keysOf('academic_years');
 
     expect(
       Object.fromEntries(
-        rules.map(({ key, record }) => [
-          key.replace('\u{0}', '/'),
-          matchingHistories(
-            typeof record['pattern'] === 'string' ? record['pattern'] : '',
-            histories,
-          ),
+        projectedCounts(store).rows.map((row) => [
+          `${String(courses[Number(row['course']) - 1])}/${String(years[Number(row['academic_year']) - 1])}`,
+          row['count'],
         ]),
       ),
     ).toEqual(await expectedEnrollments('synthetic'));

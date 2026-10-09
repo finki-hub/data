@@ -67,7 +67,7 @@ const invalidSources = (
 
 // One enrollment rule per academic year of the workbook: the last pattern
 // it names, else the unescaped `<name>-<year>` default, each compiled in
-// Unicode mode as the legacy rule Flows compile it, and a typed pattern
+// Unicode mode as the matcher compiles a pattern, and a typed pattern
 // also without its line breaks, as its pattern mapping holds it. A rule or
 // mapping that does not compile could never count.
 export const rulesOf = (

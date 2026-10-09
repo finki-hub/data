@@ -6,11 +6,11 @@ import { declaredFilenames } from '../../directus/extensions/directus-extension-
 import { exportDefinitions } from '../../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { keySources } from '../../directus/extensions/directus-extension-data-operations/src/exports/key-sources.js';
 import { readinessRegistry } from '../../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import {
   defaultPanels,
   operationsDashboardId,
 } from '../../src/data-model/operations-dashboard.js';
+import { addedRuleMode } from '../../src/data-model/operations-vocabularies.js';
 import { ruleSeedingFlowId } from '../../src/flows/add-enrollment-rules.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { prepareAssetsFlowId } from '../../src/flows/prepare-public-assets.js';
@@ -35,13 +35,15 @@ import { callAs, codeOf, keysDeep, runFlow } from './operations-helpers.mjs';
 // answers a bounded view, and the caller check refuses it and the
 // migrations endpoint without a signed-in user (401) or the admin flag
 // (403); the trigger endpoint refuses a run to a caller who cannot read
-// data_operations; and "Data / Add enrollment rules" seeds
-// the mapped rules of a new year or course idempotently, counted at the
-// next tick, public only once published. The schedule stays active. Every
-// row, user and role is synthetic and removed.
+// data_operations; "Data / Add enrollment rules" seeds the mapped rules of
+// a new year or course idempotently; every course is counted in the new
+// year at the next tick, which is public only once published. The
+// schedule stays active. Every row, user and role is synthetic and
+// removed.
 
-const mapped = ruleMode('mapped_entries').mode;
-const legacy = ruleMode('legacy_regex').mode;
+const mapped = addedRuleMode;
+// A rule of the other stored mode, which the rule seeding keeps.
+const legacy = 'legacy_regex';
 const courseCount = 260;
 const line = 'Synthetic Operations Line';
 const unmappedLine = 'Synthetic Operations Unmapped Line';
@@ -422,7 +424,7 @@ test('installs the Data operations dashboard and guards every data operation', a
         () => seedsCourse(context),
       );
       await t.test(
-        'counts the new rules at the next tick and publishes the year only once opted in',
+        'counts every course in the new year at the next tick and publishes the year only once opted in',
         () => countsAndPublishes(context),
       );
       await t.test(

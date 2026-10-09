@@ -9,7 +9,7 @@ import {
   relayFragment,
   stepName,
 } from '../src/flows/text-fragments.js';
-import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+import { refusalOf, runScript } from './flow-script-helpers.js';
 
 // A Run Script body that holds the fragments and runs `body` over the
 // data chain.
@@ -51,36 +51,37 @@ describe('Run Script fragments', () => {
   });
 
   test('relay a child failure record with its stage and code, cut to one bound', () => {
-    const relay = script("return relayed('Legacy page p0003', data.result);");
+    const relay = script("return relayed('Page p0003', data.result);");
 
     expect(
       runScript(relay, {
         result: {
-          code: 'LEGACY_COUNT_FAILED',
-          message: 'Rule 12: pattern missing',
+          code: 'MATCH_FAILED',
+          message:
+            'Pattern mapping 12: invalid regular expression (Unterminated group)',
           ok: false,
-          stage: 'count',
+          stage: 'match',
         },
       }),
     ).toBe(
-      'Legacy page p0003 failed [count LEGACY_COUNT_FAILED]: Rule 12: pattern missing',
+      'Page p0003 failed [match MATCH_FAILED]: Pattern mapping 12: invalid regular expression (Unterminated group)',
     );
 
     const long = runScript(relay, {
-      result: { code: 'X', message: 'y'.repeat(900), stage: 'count' },
+      result: { code: 'X', message: 'y'.repeat(900), stage: 'match' },
     });
 
     expect(long).toBe(
-      'Legacy page p0003 failed [count X]: '
+      'Page p0003 failed [match X]: '
         .concat('y'.repeat(900))
         .slice(0, relayBound),
     );
     expect(long).toHaveLength(relayBound);
     expect(
       runScript(relay, { result: { code: 'NO_RESULT', message: 'no result' } }),
-    ).toBe('Legacy page p0003 failed [NO_RESULT]: no result');
+    ).toBe('Page p0003 failed [NO_RESULT]: no result');
     expect(runScript(relay, { result: null })).toBe(
-      'Legacy page p0003 failed [undefined]: undefined',
+      'Page p0003 failed [undefined]: undefined',
     );
   });
 
@@ -102,24 +103,24 @@ describe('Flow descriptions', () => {
       flowDescription({
         answers: ['ok: true', 'completed', 'domain'],
         caller: 'Data / Process pending',
-        does: 'Counts every enrollment pair of an enrollments claim',
+        does: 'Counts every course and academic year of an enrollments claim',
         failure: { codes: ['ENROLLMENTS_FAILED'] },
         input: ['claim', 'revision'],
       }),
     ).toBe(
-      'Counts every enrollment pair of an enrollments claim. Input {claim, revision}. Answers {ok: true, completed, domain} or {ok: false, stage, code, message}; failure code ENROLLMENTS_FAILED. Called by "Data / Process pending".',
+      'Counts every course and academic year of an enrollments claim. Input {claim, revision}. Answers {ok: true, completed, domain} or {ok: false, stage, code, message}; failure code ENROLLMENTS_FAILED. Called by "Data / Process pending".',
     );
     expect(
       flowDescription({
-        answers: ['page', 'users'],
-        does: 'Counts one planned legacy page',
+        answers: ['page', 'staged'],
+        does: 'Matches one planned page of history lines',
         failure: {
-          codes: ['LEGACY_COUNT_FAILED', 'INDEX_FAILED'],
+          codes: ['MATCH_FAILED', 'INDEX_FAILED'],
           context: ['page'],
         },
       }),
     ).toBe(
-      'Counts one planned legacy page. Answers {page, users} or {ok: false, page, stage, code, message}; failure codes LEGACY_COUNT_FAILED, INDEX_FAILED.',
+      'Matches one planned page of history lines. Answers {page, staged} or {ok: false, page, stage, code, message}; failure codes MATCH_FAILED, INDEX_FAILED.',
     );
   });
 

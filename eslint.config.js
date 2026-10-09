@@ -64,14 +64,12 @@ const config = [
   {
     files: [
       'directus/extensions/directus-extension-data-operations/src/enrollment-lines.ts',
-      'directus/flows/count-history-page.cjs',
       'directus/flows/match-history-lines.cjs',
       'src/import/labels.ts',
       'src/import/pattern-proof.ts',
       'src/workbook-enrollment-reader.ts',
       'test/curriculum-code.test.ts',
-      'test/fixtures/stress-oracle.ts',
-      'test/relational-export-helpers.ts',
+      'test/import-check.test.ts',
     ],
     rules: {
       'no-new': 'off',
@@ -166,13 +164,8 @@ const config = [
     // The Run Script bodies of the history index Flows are string
     // constants; the suite executes them in node:vm against the shared
     // history vector to prove they split exactly like the bundle; the
-    // mapped and legacy enrollment scripts run there against the data
-    // chain shapes.
-    files: [
-      'test/history-index.test.ts',
-      'test/legacy-enrollment-helpers.ts',
-      'test/mapped-enrollment-flow.test.ts',
-    ],
+    // enrollment scripts run there against the data chain shapes.
+    files: ['test/flow-script-helpers.ts', 'test/history-index.test.ts'],
     rules: {
       'sonarjs/code-eval': 'off',
     },

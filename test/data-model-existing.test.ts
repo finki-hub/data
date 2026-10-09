@@ -201,11 +201,13 @@ describe('installDataModel relation alignment', () => {
 
   test('leaves a reverse alias the model does not declare in place', async () => {
     const state = installedState();
-    state.relations['data_operation_results'] = (
-      state.relations['data_operation_results'] ?? []
-    ).map((relation) =>
-      relation.field === 'course'
-        ? { ...relation, meta: { ...relation.meta, one_field: 'results' } }
+    const matches = state.relations['data_operation_matches'] ?? [];
+
+    expect(matches.map(({ field }) => field)).toContain('entry');
+
+    state.relations['data_operation_matches'] = matches.map((relation) =>
+      relation.field === 'entry'
+        ? { ...relation, meta: { ...relation.meta, one_field: 'matches' } }
         : relation,
     );
     const { request, requests } = fakeDirectus(state);

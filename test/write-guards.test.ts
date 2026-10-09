@@ -102,7 +102,6 @@ describe('write guards of the collection-role registry', () => {
       expect.arrayContaining([
         'course_enrollments',
         'moodle_counted_lines',
-        'data_operation_results',
         'data_operation_matches',
       ]),
     );
@@ -120,10 +119,7 @@ describe('write guards of the collection-role registry', () => {
 
   test('open the counted lines and the staged matches to their own writer only', () => {
     expect(Object.fromEntries(tablesOpenedBy())).toEqual({
-      'finki_hub.candidate_writer': [
-        'data_operation_results',
-        'data_operation_matches',
-      ],
+      'finki_hub.candidate_writer': ['data_operation_matches'],
       'finki_hub.enrollments_writer': [
         'course_enrollments',
         'moodle_counted_lines',
@@ -135,7 +131,7 @@ describe('write guards of the collection-role registry', () => {
       openGuardSql('course_enrollments'),
     );
     expect(openGuardSql('data_operation_matches')).toBe(
-      openGuardSql('data_operation_results'),
+      "SELECT set_config('finki_hub.candidate_writer', 'on', true)",
     );
     expect(
       ['moodle_counted_lines', 'data_operation_matches'].map(refusalOf),
@@ -167,7 +163,7 @@ describe('write guards of the collection-role registry', () => {
         trigger.includes('"course_enrollments_write_guard"'),
       ),
     ).toBe(
-      'CREATE OR REPLACE TRIGGER "course_enrollments_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"(\'finki_hub.enrollments_writer\', \'Write refused: course_enrollments (derived; writer: enrollments claim completion)\', \'Source: courses, moodle_pattern_mappings, moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending\')',
+      'CREATE OR REPLACE TRIGGER "course_enrollments_write_guard" BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_enrollments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_write_guard"(\'finki_hub.enrollments_writer\', \'Write refused: course_enrollments (derived; writer: enrollments claim completion)\', \'Source: courses, moodle_pattern_mappings, moodle_course_mappings, moodle_users; rebuilt by: Data / Process pending\')',
     );
 
     for (const [index, declaration] of guardedDeclarations.entries()) {
@@ -193,8 +189,7 @@ describe('write guards of the collection-role registry', () => {
       await recorded((port) =>
         port.insertCandidates({
           page: 'p0001',
-          revision: 3,
-          rows: [{ academic_year: 1, count: 2, course: 1 }],
+          rows: [{ entry: 1, pattern_mapping: 2, year_label: '2025/2026' }],
           token: uuid,
         }),
       ),
@@ -202,10 +197,12 @@ describe('write guards of the collection-role registry', () => {
     ];
 
     expect(calls.map(writesOf)).toEqual([
-      [expect.stringContaining('DELETE FROM "data_operation_results"')],
-      [expect.stringContaining('DELETE FROM "data_operation_results"')],
-      [expect.stringContaining('INSERT INTO "data_operation_results"')],
+      [expect.stringContaining('DELETE FROM "data_operation_matches"')],
+      [expect.stringContaining('DELETE FROM "data_operation_matches"')],
+      [expect.stringContaining('INSERT INTO "data_operation_matches"')],
       [
+        'DELETE FROM "moodle_counted_lines"',
+        expect.stringContaining('INSERT INTO "moodle_counted_lines"'),
         'DELETE FROM "course_enrollments"',
         expect.stringContaining('INSERT INTO "course_enrollments"'),
       ],

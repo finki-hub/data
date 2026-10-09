@@ -139,7 +139,6 @@ export type ModelCollectionKey =
   | 'curriculum_entry_program_states'
   | 'curriculum_generations'
   | 'data_operation_matches'
-  | 'data_operation_results'
   | 'data_operations'
   | 'deans_office'
   | 'discord_channels'

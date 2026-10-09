@@ -1,5 +1,4 @@
-import type { EnrollmentSources, RuleSize } from '../enrollment-pages.js';
-import type { CountRow, PageRange } from '../page-state.js';
+import type { MatchRow, PageRange } from '../page-state.js';
 import type { ClaimDomain, Domain } from './domains.js';
 import type { Fingerprints } from './fingerprint.js';
 import type { HistoryIndexPort } from './history-port.js';
@@ -36,10 +35,6 @@ export type CoordinationPort = {
   // The fingerprints of the calculation and the publication graph.
   readonly currentFingerprints: () => Promise<Fingerprints>;
   readonly discardCandidates: (token: string, page?: string) => Promise<number>;
-  // The id, mode and pattern bytes of every enrollment rule and the id
-  // and Courses bytes of every Moodle user: what an enrollments plan is
-  // cut from. No pattern, course, year or history text is read.
-  readonly enrollmentSources: () => Promise<EnrollmentSources>;
   readonly ensureSingleton: () => Promise<void>;
   // Guard: claim token, owner, claim revision, the claimed domain's inputs
   // (verifyClaim, waived for a superseded publication) and fingerprint
@@ -55,12 +50,13 @@ export type CoordinationPort = {
   // The history index writes of the same transaction.
   readonly history: HistoryIndexPort;
   readonly insertCandidates: (input: StagedRows) => Promise<number>;
-  // Replaces every course_enrollments row with the aggregated candidates
-  // of the claim and returns how many rows were installed.
+  // Rebuilds moodle_counted_lines from the explicit mappings and the
+  // matches the claim staged, then every course_enrollments row, one per
+  // course and academic year, and returns how many rows each received.
   readonly installEnrollments: (
     token: string,
     revision: number,
-  ) => Promise<number>;
+  ) => Promise<InstalledCounts>;
   // Bounds how long the rest of this transaction waits for a row lock; a
   // longer wait fails with SQLSTATE 55P03 (lock_not_available).
   readonly limitLockWait: (ms: number) => Promise<void>;
@@ -90,14 +86,8 @@ export type CoordinationPort = {
   // a publication's state follows releasedPublicationState over the map
   // given, or else the recorded one.
   readonly release: (input: ReleaseInput) => Promise<boolean>;
-  // The id, mode and pattern bytes of every enrollment rule (never its
-  // pattern), for a rules plan's check that every rule is of a mode planned
-  // as plain rule ranges.
-  readonly ruleModes: () => Promise<readonly RuleSize[]>;
   readonly sourceIds: (source: PageSource) => Promise<readonly number[]>;
-  // Guard: claim token, owner and the claimed domain's inputs unchanged. A
-  // page of an enrollments plan carries its kind (and a cross page its bytes
-  // and rule range) beside the range the coordinator keeps.
+  // Guard: claim token, owner and the claimed domain's inputs unchanged.
   readonly storePlan: (
     token: string,
     owner: string,
@@ -111,6 +101,13 @@ export type CoordinationStore = {
   readonly transaction: <T>(
     work: (port: CoordinationPort) => Promise<T>,
   ) => Promise<T>;
+};
+
+// What an enrollments completion installed: the counted lines and the
+// count rows.
+export type InstalledCounts = {
+  readonly counted: number;
+  readonly installed: number;
 };
 
 export type MarkResult = {
@@ -135,8 +132,7 @@ export type ReleaseInput = {
 
 export type StagedRows = {
   readonly page: string;
-  readonly revision: number;
-  readonly rows: readonly CountRow[];
+  readonly rows: readonly MatchRow[];
   readonly token: string;
 };
 

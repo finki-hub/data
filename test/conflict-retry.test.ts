@@ -84,12 +84,20 @@ const claimToken = async (fake: FakeCoordination, domain: Domain) =>
     ),
   ).token;
 
-// A completed history run with one Moodle user, and a rule edit that
-// leaves enrollments pending.
+// A completed history run with one Moodle user, and a pattern mapping
+// edit that leaves enrollments pending. History line 1, held by four
+// Moodle users, counts for course 1 in 2025/2026 through mapping 1.
 const indexedHistory = async (): Promise<FakeCoordination> => {
   const fake = new FakeCoordination();
   fake.sourceIds.history = [1];
-  fake.sourceIds.rules = [1];
+  fake.sourceIds.entries = [1];
+  fake.counting = {
+    courses: [1],
+    explicit: [],
+    mappings: [{ course: 1, id: 1, onlyInYear: null }],
+    memberships: [1, 2, 3, 4].map((moodleUser) => ({ entry: 1, moodleUser })),
+    years: [{ id: 1, label: '2025/2026' }],
+  };
   const history = await claimToken(fake, 'history_index');
   const [historyPage] = planned.parse(
     await runAction(
@@ -107,11 +115,13 @@ const indexedHistory = async (): Promise<FakeCoordination> => {
     plainContext(fake),
   );
   await runAction({ action: 'complete', token: history }, plainContext(fake));
-  fake.sourceWrite('course_enrollment_rules');
+  fake.sourceWrite('moodle_pattern_mappings');
   return fake;
 };
 
-// One enrollments run with one rule, staged and ready to complete.
+const lineMatch = { entry: 1, pattern_mapping: 1, year_label: '2025/2026' };
+
+// One enrollments run with one history line, staged and ready to complete.
 const stagedEnrollments = async (): Promise<{
   fake: FakeCoordination;
   token: string;
@@ -120,7 +130,7 @@ const stagedEnrollments = async (): Promise<{
   const token = await claimToken(fake, 'enrollments');
   const [page] = planned.parse(
     await runAction(
-      { action: 'plan_pages', source: 'rules', token },
+      { action: 'plan_pages', source: 'entries', token },
       plainContext(fake),
     ),
   ).pages;
@@ -128,7 +138,7 @@ const stagedEnrollments = async (): Promise<{
     {
       action: 'stage_page',
       page: page?.token ?? '',
-      rows: [{ academic_year: 1, count: 4, course: 1 }],
+      rows: [lineMatch],
       token,
     },
     plainContext(fake),
@@ -182,6 +192,7 @@ describe('the install after a database conflict', () => {
       runAction({ action: 'complete', token }, context),
     ).resolves.toEqual({
       completed: true,
+      counted: 1,
       domain: 'enrollments',
       installed: 1,
       retries: 1,
@@ -189,7 +200,7 @@ describe('the install after a database conflict', () => {
     });
     expect(counter.attempts).toBe(2);
     expect(fake.data.enrollments).toEqual([
-      { academic_year: 1, count: 4, course: 1, revision },
+      { academicYear: 1, count: 4, course: 1, revision },
     ]);
     expect(fake.data.claim).toBeNull();
     await expect(statusAction(plainContext(fake))).resolves.toMatchObject({
@@ -247,7 +258,7 @@ describe('the install after a database conflict', () => {
   test('is overtaken when a source change committed between the attempts', async () => {
     const { fake, token } = await stagedEnrollments();
     const { context } = conflicting(fake, [deadlock()], () => {
-      fake.sourceWrite('course_enrollment_rules', 'delete');
+      fake.sourceWrite('moodle_pattern_mappings', 'delete');
     });
 
     await expect(
@@ -308,13 +319,16 @@ describe('the install after a database conflict', () => {
     const token = await claimToken(fake, 'enrollments');
     const once = () => conflicting(fake, [deadlock()]).context;
     const [page] = planned.parse(
-      await runAction({ action: 'plan_pages', source: 'rules', token }, once()),
+      await runAction(
+        { action: 'plan_pages', source: 'entries', token },
+        once(),
+      ),
     ).pages;
     await runAction(
       {
         action: 'stage_page',
         page: page?.token ?? '',
-        rows: [{ academic_year: 1, count: 2, course: 1 }],
+        rows: [lineMatch],
         token,
       },
       conflicting(fake, [deadlock(), deadlock()]).context,

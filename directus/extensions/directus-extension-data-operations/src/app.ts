@@ -9,8 +9,14 @@ import {
   isDomain,
   nextCalculation,
 } from './coordination/domains.js';
-import { operationId, planSources } from './coordination/state.js';
-import { rulesPlanMode } from './rule-modes.js';
+import {
+  maxRowsPerPage,
+  operationId,
+  pageSize,
+  type PageSource,
+  pageSourceDomains,
+  planSources,
+} from './coordination/state.js';
 
 const choices = (values: readonly string[]) =>
   values.map((value) => ({ text: value, value }));
@@ -22,12 +28,16 @@ const domainChoices = (values: readonly string[]) =>
     value,
   }));
 
+// A plan source with the claim domain it is planned under.
+const sourceText = (source: PageSource): string =>
+  `${source} (${pageSourceDomains[source]} claim)`;
+
 const text = (value: unknown): string =>
   typeof value === 'string' && value !== '' ? value : '--';
 
 export default defineOperationApp({
   description:
-    'Coordinates derivation and publication: one exclusive claim per run, candidate counts staged per page, completion only at the claimed source revision.',
+    'Coordinates derivation and publication: one exclusive claim per run, candidates staged per page, completion only at the claimed source revision.',
   icon: 'sync_lock',
   id: operationId,
   name: 'FINKI Hub data coordination',
@@ -89,7 +99,7 @@ export default defineOperationApp({
       field: 'source',
       meta: {
         interface: 'select-dropdown',
-        note: `plan_pages: history (history_index claim), rules (enrollments claim, ${rulesPlanMode.mode} rules only), enrollments (enrollments claim, one family per rule mode).`,
+        note: `plan_pages: ${planSources.map(sourceText).join(', ')}.`,
         options: { allowNone: true, choices: choices(planSources) },
         width: 'half',
       },
@@ -110,7 +120,7 @@ export default defineOperationApp({
       field: 'rows',
       meta: {
         interface: 'input-code',
-        note: 'stage_page: [{ "course": 1, "academic_year": 1, "count": 3 }]; index_page: [{ "id": 7, "entries": ["exact history line", "..."] }] for this page only (at most 250 users).',
+        note: `stage_page: [{ "entry": 7, "pattern_mapping": 3, "year_label": "2025/2026" }] (at most ${String(maxRowsPerPage)} matches); index_page: [{ "id": 7, "entries": ["exact history line", "..."] }] for this page only (at most ${String(pageSize)} users).`,
         options: { language: 'json' },
         width: 'full',
       },

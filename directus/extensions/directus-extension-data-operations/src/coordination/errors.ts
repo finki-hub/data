@@ -12,12 +12,10 @@ type CoordinationErrorCode =
   | 'OUTCOMES_INCOMPLETE'
   | 'OWNER_MISMATCH'
   | 'PAGE_INCOMPLETE'
-  | 'PAGE_OVER_BUDGET'
   | 'PAGE_UNPLANNED'
   | 'PAGES_MISSING'
   | 'SOURCE_CHANGED'
   | 'UNKNOWN_FILE'
-  | 'UNKNOWN_RULE_MODE'
   | 'WRITE_GUARDED';
 
 type CoordinationErrorOptions = ErrorOptions & {

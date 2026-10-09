@@ -2,14 +2,13 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { ruleMode } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { markPendingFlowId } from '../src/flows/mark-pending.js';
 import { createRows } from './fixture-seed.mjs';
 import { forcesInstallDeadlock } from './install-deadlock.mjs';
 import {
   assertIntact,
+  patternOf,
   publishes,
-  ruleOf,
   setPattern,
   settlesCounted,
   untilObserved,
@@ -33,8 +32,6 @@ import { runFlow } from './relational/operations-helpers.mjs';
 // unless one attempt caught it. The active snapshot and every published
 // object stay intact throughout.
 
-const legacy = ruleMode('legacy_regex').mode;
-
 const enrollmentsClaimed = (target) =>
   waitForStatus(target, (report) => report.claim?.domain === 'enrollments', {
     limitMs: 60_000,
@@ -47,15 +44,15 @@ const enrollmentsClaimed = (target) =>
 // recounts; the snapshot and the objects are untouched.
 export const recoversAfterRestart = async (context) => {
   const { containers, t, target } = context;
-  const pair = { course: 2, year: 1 };
-  const { rule } = await ruleOf(context, pair);
+  const course = 2;
+  const { pattern } = patternOf(context, course);
   const caught = await untilObserved(
     'a restart while the count run holds its claim',
     async (attempt) => {
       await setPattern(
         context,
-        pair,
-        `${rule.pattern}|Synthetic Restart Line ${attempt}`,
+        course,
+        `${pattern}|Synthetic Restart Line ${attempt}`,
       );
       const claimed = await enrollmentsClaimed(target);
       const pings = await restartDirectus(target, containers.directus);
@@ -92,11 +89,11 @@ export const recoversAfterRestart = async (context) => {
 // includes it).
 export const keepsConcurrentEdits = async (context) => {
   const { t, target } = context;
-  const edited = { course: 3, year: 2 };
-  const starterPair = { course: 5, year: 3 };
-  const { rule } = await ruleOf(context, edited);
-  const { rule: model } = await ruleOf(context, { course: 4, year: 2 });
-  const { rule: starter } = await ruleOf(context, starterPair);
+  const edited = 3;
+  const starterCourse = 5;
+  const { pattern } = patternOf(context, edited);
+  const { pattern: model } = patternOf(context, 4);
+  const { pattern: starter } = patternOf(context, starterCourse);
   let caught;
   try {
     caught = await untilObserved(
@@ -104,15 +101,16 @@ export const keepsConcurrentEdits = async (context) => {
       async (attempt) => {
         await setPattern(
           context,
-          starterPair,
-          `${starter.pattern}|Synthetic Start ${attempt}`,
+          starterCourse,
+          `${starter}|Synthetic Start ${attempt}`,
         );
         const claimed = await enrollmentsClaimed(target);
         const { claim } = claimed.report;
+        // The edited course now counts the lines of course 4.
         await setPattern(
           context,
           edited,
-          `${model.pattern}|Synthetic Concurrent ${attempt}`,
+          `${model}|Synthetic Concurrent ${attempt}`,
         );
         const during = await status(target);
         const observed =
@@ -128,8 +126,8 @@ export const keepsConcurrentEdits = async (context) => {
       },
     );
   } finally {
-    await setPattern(context, edited, rule.pattern);
-    await setPattern(context, starterPair, starter.pattern);
+    await setPattern(context, edited, pattern);
+    await setPattern(context, starterCourse, starter);
   }
   await settlesCounted(context, 'after the edits were undone');
   await assertIntact(context, 'the edits undone');
@@ -206,11 +204,11 @@ export const watchesInstall = async (target, { before, until, wait }) => {
   return { install, report };
 };
 
-// Three courses with a legacy rule per published year, deleted in parallel
-// once a count run has staged every page; answers whether the deletes met
-// the install, and what they cost.
+// Three courses, each counted in every year, deleted in parallel once a
+// count run has staged every page; answers whether the deletes met the
+// install, and what they cost.
 const deletesAtInstall = async (context, attempt) => {
-  const { state, target } = context;
+  const { target } = context;
   const doomed = await createRows(
     target,
     'courses',
@@ -218,19 +216,6 @@ const deletesAtInstall = async (context, attempt) => {
       name: `Synthetic Doomed Course ${attempt}.${index}`,
       pattern_mappings: [],
     })),
-  );
-  const published = state.seeded.years.filter((year) => year.published);
-  await createRows(
-    target,
-    'course_enrollment_rules',
-    doomed.flatMap((course) =>
-      published.map((year) => ({
-        academic_year: year.id,
-        course,
-        mode: legacy,
-        pattern: `Synthetic Doomed Pattern ${course}`,
-      })),
-    ),
   );
   await settle(target);
   const before = await deadlocks(context);

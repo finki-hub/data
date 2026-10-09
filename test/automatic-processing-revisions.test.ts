@@ -107,7 +107,7 @@ describe('which statements overtake a run', () => {
 
 describe('input revisions and interruptions', () => {
   test('keeps a calculation running and its failure blocking through publication-only edits', async () => {
-    const fake = settled('course_enrollment_rules');
+    const fake = settled('moodle_pattern_mappings');
     const run = await claimNext(fake);
 
     // A room, a staff member and a teaching link are saved mid-run: none
@@ -200,7 +200,7 @@ describe('input revisions and interruptions', () => {
   });
 
   test('reruns a calculation interrupted by a restart once, and waits for a retry when it is interrupted again', async () => {
-    const fake = settled('course_enrollment_rules');
+    const fake = settled('moodle_pattern_mappings');
     const first = await claimNext(fake);
     fake.advance(claimStaleAfterMs + 1);
 

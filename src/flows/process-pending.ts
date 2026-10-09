@@ -1,6 +1,10 @@
 import type { CalculationDomain } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 
-import { dispatcherFlow, dispatcherFlowId } from './count-enrollments.js';
+import {
+  dispatcherFlow,
+  dispatcherFlowId,
+  enrollmentsFailureCode,
+} from './count-enrollments.js';
 import {
   automationId,
   condition,
@@ -18,7 +22,6 @@ import {
   routeSteps,
   unknownDomainSteps,
 } from './process-routes.js';
-import { familyRunnerFlow } from './run-enrollment-family.js';
 import { flowDescription, stepName } from './text-fragments.js';
 
 const family = flowFamilyCodes.automation;
@@ -41,14 +44,14 @@ const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
       answered: { key: 'counted', suffix: '39' },
       child: dispatcherFlowId,
       crashed: branch({
-        code: 'ENROLLMENTS_FAILED',
+        code: enrollmentsFailureCode,
         message: '{{ count.message }}',
         position: [73, 73],
         stage: 'enrollments_run',
         suffixes: ['45', '46'],
       }),
       missing: missingBranch(dispatcherFlow.name, {
-        code: 'ENROLLMENTS_FAILED',
+        code: enrollmentsFailureCode,
         position: [91, 73],
         stage: 'enrollments_missing',
         suffixes: ['47', '48'],
@@ -162,10 +165,10 @@ export const processPendingFlow: FlowTemplate = {
 };
 
 // The automatic processing Flows in installation order: every child before
-// the Flows that call it (the family runner before the dispatcher), the
-// schedule last, so its first tick finds them.
+// the Flows that call it, the schedule last, so its first tick finds them.
+// The dispatcher's page Flow belongs to the matching family, installed
+// before this one.
 export const automaticProcessingFlows: readonly FlowTemplate[] = [
-  familyRunnerFlow,
   dispatcherFlow,
   markPendingFlow,
   processPendingFlow,

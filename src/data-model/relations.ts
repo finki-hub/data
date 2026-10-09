@@ -227,10 +227,4 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'unique',
     name: 'course_enrollments_course_academic_year_unique',
   },
-  {
-    collection: 'data_operation_results',
-    columns: ['claim_token', 'page_token', 'course', 'academic_year'],
-    kind: 'unique',
-    name: 'data_operation_results_claim_page_course_year_unique',
-  },
 ];

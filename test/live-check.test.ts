@@ -549,7 +549,23 @@ describe('npm run compare:live', () => {
   });
 
   test('compares the projection of the workbook with the live files and prints one JSON document', async () => {
-    const check = liveCheck(liveAnswers(await parityLive()));
+    // Live as the rules counted it, testing whole histories: Theta's typed
+    // pattern spans a line break, and Iota's unescaped default matched
+    // "Iota 2X0 Course-2022/2023".
+    const live = await parityLive();
+    const wholeHistory = new Map<string, Readonly<Record<string, string>>>([
+      [courseNames.iota, { '2022/2023': '1' }],
+      [courseNames.theta, { '2021/2022': '2' }],
+    ]);
+    const check = liveCheck(
+      liveAnswers({
+        ...live,
+        'courses.json': live['courses.json'].map((row) => ({
+          ...row,
+          ...wholeHistory.get(String(row['name'])),
+        })),
+      }),
+    );
     const workbook = await savedDataset();
 
     await expect(check.run([], { WORKBOOK_PATH: workbook })).resolves.toBe(
@@ -562,11 +578,8 @@ describe('npm run compare:live', () => {
 
     expect(report.workbook).toBe(workbook);
     // The year keys are compared: the projection counts through the
-    // planned pattern mappings, line by line. The committed parity counts
-    // come from the rules, which tested whole histories, so two differ:
-    // Theta's typed pattern spans a line break and can no longer match one
-    // line, and Iota's standard mapping escapes the "." of its name, so
-    // "Iota 2X0 Course-2022/2023" no longer counts.
+    // planned pattern mappings, line by line, so the two whole-history
+    // counts differ.
     expect(report['courses.json']).toEqual({
       differingValues: 2,
       duplicateKeys: { live: [], projected: [] },
@@ -640,9 +653,9 @@ describe('npm run compare:live', () => {
     const text = check.stdout.join('\n');
     const report = output.parse(JSON.parse(text));
 
-    // The professors text, and the two counts of the test above.
+    // The professors text; the parity counts equal the projection.
     expect(report['courses.json']).toMatchObject({
-      differingValues: 3,
+      differingValues: 1,
       keys: {
         professors: {
           differs: ['Alpha Course'],

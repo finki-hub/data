@@ -1,6 +1,10 @@
 import { performance } from 'node:perf_hooks';
 
 import {
+  defaultPattern,
+  defaultYearPattern,
+} from '../../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
+import {
   readFileSources,
   serializeFile,
 } from '../../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
@@ -11,9 +15,9 @@ import {
 import { get, post } from './history-index-helpers.mjs';
 
 // The realistic dataset of the export measurement (about 1,000 courses
-// with two curriculum links, four assignment rows and fifteen legacy rules
-// each, 500 staff, 300 rooms, 15,000 students and 200 Moodle users whose
-// histories the schedule counts) and the in-process measurement of the
+// with two curriculum links, four assignment rows and its default pattern
+// mapping each, 500 staff, 300 rooms, 15,000 students and 200 Moodle users
+// whose histories the schedule counts) and the in-process measurement of the
 // engine over it. Everything is invented; no address outside .example.
 
 const batch = 1_000;
@@ -129,9 +133,10 @@ const assignmentsOf = (courseIds, staffIds) =>
     ];
   });
 
-// Seeds the realistic dataset beside whatever the project holds, with
-// legacy rules the schedule counts over the synthetic histories; answers
-// the row counts and how long the seeding took.
+// Seeds the realistic dataset beside whatever the project holds, with the
+// default pattern mapping of every course, which the schedule counts over
+// the synthetic histories in every year; answers the row counts and how
+// long the seeding took.
 export const seedRealistic = async (target, scale = 1) => {
   const started = performance.now();
   const count = { courses: 1_000 * scale, rooms: 300 * scale };
@@ -213,15 +218,12 @@ export const seedRealistic = async (target, scale = 1) => {
   await createAll(target, 'teaching_assignments', assignments);
   await createAll(target, 'rooms', roomRows(count.rooms));
   await createAll(target, 'students', studentRows(15_000 * scale));
-  const rules = courseIds.flatMap((course, index) =>
-    years.map((year) => ({
-      academic_year: year.id,
-      course,
-      mode: 'legacy_regex',
-      pattern: `${measuredCourse(index)}-${year.label}`,
-    })),
-  );
-  await createAll(target, 'course_enrollment_rules', rules);
+  const mappings = courseIds.map((course, index) => ({
+    course,
+    pattern: defaultPattern(measuredCourse(index)),
+    year_pattern: defaultYearPattern,
+  }));
+  await createAll(target, 'moodle_pattern_mappings', mappings);
   const labels = years.map(({ label }) => label);
   await createAll(target, 'moodle_users', userRows(200, count.courses, labels));
   return {
@@ -229,8 +231,8 @@ export const seedRealistic = async (target, scale = 1) => {
       assignments: assignments.length,
       courses: courseIds.length,
       links: links.length,
+      mappings: mappings.length,
       rooms: count.rooms,
-      rules: rules.length,
       staff: staffIds.length,
       states: states.length,
       students: 15_000 * scale,

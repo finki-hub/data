@@ -97,12 +97,21 @@ type StageInput = {
   readonly owner?: string;
   readonly page: string;
   readonly rows: Array<{
-    academic_year: number;
-    count: number;
-    course: number;
+    entry: number;
+    pattern_mapping: number;
+    year_label: null | string;
   }>;
   readonly token: string;
 };
+
+const year = '2025/2026';
+
+// A match of a history line and an all-years pattern mapping.
+const match = (entry: number, mapping = 1) => ({
+  entry,
+  pattern_mapping: mapping,
+  year_label: year,
+});
 
 const stage = (fake: FakeCoordination, input: StageInput) =>
   runAction(
@@ -441,7 +450,7 @@ describe('claims over the persistence port', () => {
     fake.sourceWrite('academic_years');
     const token = await claimToken(fake, enrollments);
     const revision = fake.data.sourceRevision;
-    fake.sourceWrite('course_enrollment_rules');
+    fake.sourceWrite('moodle_pattern_mappings');
     const failure = await failureOf(complete(fake, token));
 
     expect(failure).toMatchObject({
@@ -527,14 +536,11 @@ describe('claims over the persistence port', () => {
 describe('pages over the persistence port', () => {
   test('replaces a retried page instead of double counting and refuses unplanned pages', async () => {
     const fake = new FakeCoordination();
-    fake.sourceIds.rules = [11, 12, 13];
+    fake.sourceIds.entries = [11, 12, 13];
     await settleHistory(fake);
-    fake.sourceWrite('course_enrollment_rules');
+    fake.sourceWrite('moodle_pattern_mappings');
     const token = await claimToken(fake, enrollments);
-    const rows = [
-      { academic_year: 1, count: 2, course: 1 },
-      { academic_year: 1, count: 5, course: 2 },
-    ];
+    const rows = [match(11), match(12)];
 
     await expect(
       stage(fake, { page: firstPage, rows, token }),
@@ -544,7 +550,7 @@ describe('pages over the persistence port', () => {
 
     const plan = planned.parse(
       await runAction(
-        { action: 'plan_pages', source: 'rules', token },
+        { action: 'plan_pages', source: 'entries', token },
         context(fake),
       ),
     );
@@ -577,29 +583,50 @@ describe('pages over the persistence port', () => {
     await expect(
       stage(fake, {
         page: firstPage,
-        rows: [...rows, { academic_year: 1, count: 1, course: 1 }],
+        rows: [...rows, { ...match(11), year_label: null }],
         token,
       }),
     ).rejects.toMatchObject({
       code: 'COORDINATION_DUPLICATE_ROWS',
+      message: 'Duplicate matches: entry 11 / pattern mapping 1',
       status: 400,
     });
     expect(fake.data.candidates).toHaveLength(2);
     await expect(
-      stage(fake, {
-        page: firstPage,
-        rows: [{ academic_year: 1, count: 5, course: 2 }],
-        token,
-      }),
+      stage(fake, { page: firstPage, rows: [match(12)], token }),
     ).resolves.toEqual({ page: firstPage, replaced: 2, staged: 1 });
-    expect(fake.data.candidates.map(({ course }) => course)).toEqual([2]);
+    expect(fake.data.candidates.map(({ entry }) => entry)).toEqual([12]);
   });
 
-  test('never labels a partial batch current and installs aggregated counts atomically', async () => {
+  test('never labels a partial batch current and installs the counted lines and counts atomically', async () => {
     const fake = new FakeCoordination();
-    fake.sourceIds.rules = Array.from({ length: 300 }, (_, index) => index + 1);
+    fake.sourceIds.entries = Array.from(
+      { length: 300 },
+      (_, index) => index + 1,
+    );
+    // Course 1 counts by an all-years mapping, course 2 by an only-in-year
+    // mapping of year 1; year 2 holds no counted line.
+    fake.counting = {
+      courses: [1, 2],
+      explicit: [],
+      mappings: [
+        { course: 1, id: 1, onlyInYear: null },
+        { course: 2, id: 2, onlyInYear: 1 },
+      ],
+      memberships: [
+        { entry: 3, moodleUser: 10 },
+        { entry: 3, moodleUser: 11 },
+        { entry: 4, moodleUser: 13 },
+        { entry: 260, moodleUser: 11 },
+        { entry: 260, moodleUser: 12 },
+      ],
+      years: [
+        { id: 1, label: year },
+        { id: 2, label: '2024/2025' },
+      ],
+    };
     fake.data.enrollments.push({
-      academic_year: 9,
+      academicYear: 9,
       count: 99,
       course: 9,
       revision: 0,
@@ -609,7 +636,7 @@ describe('pages over the persistence port', () => {
     const token = await claimToken(fake, enrollments);
     const plan = planned.parse(
       await runAction(
-        { action: 'plan_pages', source: 'rules', token },
+        { action: 'plan_pages', source: 'entries', token },
         context(fake),
       ),
     );
@@ -622,10 +649,7 @@ describe('pages over the persistence port', () => {
 
     await stage(fake, {
       page: firstPage,
-      rows: [
-        { academic_year: 1, count: 2, course: 1 },
-        { academic_year: 1, count: 1, course: 2 },
-      ],
+      rows: [match(3), { entry: 4, pattern_mapping: 2, year_label: null }],
       token,
     });
 
@@ -636,23 +660,22 @@ describe('pages over the persistence port', () => {
     expect(fake.data.claim?.token).toBe(token);
     expect(fake.data.enrollments).toHaveLength(1);
 
-    await stage(fake, {
-      page: secondPage,
-      rows: [{ academic_year: 1, count: 3, course: 1 }],
-      token,
-    });
+    await stage(fake, { page: secondPage, rows: [match(260)], token });
     const revision = fake.data.sourceRevision;
 
     await expect(complete(fake, token)).resolves.toEqual({
       completed: true,
+      counted: 3,
       domain: enrollments,
-      installed: 2,
+      installed: 4,
       retries: 0,
       revision,
     });
     expect(fake.data.enrollments).toEqual([
-      { academic_year: 1, count: 5, course: 1, revision },
-      { academic_year: 1, count: 1, course: 2, revision },
+      { academicYear: 1, count: 3, course: 1, revision },
+      { academicYear: 2, count: 0, course: 1, revision },
+      { academicYear: 1, count: 1, course: 2, revision },
+      { academicYear: 2, count: 0, course: 2, revision },
     ]);
     expect(fake.data.candidates).toEqual([]);
     expect(fake.data.claim).toBeNull();
@@ -660,76 +683,14 @@ describe('pages over the persistence port', () => {
     expect(fake.data.completedRevision).toBe(revision);
     expect(fake.data.calculationFingerprint).toBe(graphA);
   });
-
-  test('discards the candidates of a replaced plan so completion installs only the current plan', async () => {
-    const fake = new FakeCoordination();
-    fake.enrollmentSources = {
-      rules: Array.from({ length: 300 }, (_, index) => ({
-        bytes: 0,
-        id: index + 1,
-        mode: 'mapped_entries',
-      })),
-      users: [],
-    };
-    fake.sourceIds.rules = [1, 2, 3];
-    await settleHistory(fake);
-    fake.sourceWrite('moodle_course_mappings');
-    const token = await claimToken(fake, enrollments);
-    const row = { academic_year: 1, count: 10, course: 1 };
-    const first = await runAction(
-      { action: 'plan_pages', source: 'enrollments', token },
-      context(fake),
-    );
-
-    expect(first).toMatchObject({ discarded: 0, total: 2 });
-    expect(fake.data.claim?.pages).toEqual([firstPage, secondPage]);
-
-    await stage(fake, { page: firstPage, rows: [row], token });
-    await stage(fake, {
-      page: secondPage,
-      rows: [{ ...row, count: 7 }],
-      token,
-    });
-
-    expect(fake.data.candidates).toHaveLength(2);
-
-    const second = await runAction(
-      { action: 'plan_pages', source: 'rules', token },
-      context(fake),
-    );
-
-    expect(second).toMatchObject({ discarded: 2, total: 1 });
-    expect(fake.data.candidates).toEqual([]);
-    expect(fake.data.claim?.pages).toEqual([firstPage]);
-    expect(fake.data.claim?.staged).toEqual([]);
-    await expect(complete(fake, token)).rejects.toMatchObject({
-      code: pagesMissing,
-      extensions: { missing: [firstPage] },
-    });
-
-    await stage(fake, { page: firstPage, rows: [{ ...row, count: 1 }], token });
-    const revision = fake.data.sourceRevision;
-
-    await expect(complete(fake, token)).resolves.toEqual({
-      completed: true,
-      domain: enrollments,
-      installed: 1,
-      retries: 0,
-      revision,
-    });
-    expect(fake.data.enrollments).toEqual([
-      { academic_year: 1, count: 1, course: 1, revision },
-    ]);
-    expect(fake.data.candidates).toEqual([]);
-  });
 });
 
 describe('lock discipline over the persistence port', () => {
   test('locks the singleton before every write and never for a status read', async () => {
     const fake = new FakeCoordination();
-    fake.sourceIds.rules = [1];
+    fake.sourceIds.entries = [1];
     await settleHistory(fake);
-    fake.sourceWrite('course_enrollment_rules');
+    fake.sourceWrite('moodle_pattern_mappings');
     const token = await claimToken(fake, enrollments);
     const locksOf = async (work: Promise<unknown>): Promise<boolean[]> => {
       fake.readLocks = [];
@@ -740,19 +701,13 @@ describe('lock discipline over the persistence port', () => {
     await expect(
       locksOf(
         runAction(
-          { action: 'plan_pages', source: 'rules', token },
+          { action: 'plan_pages', source: 'entries', token },
           context(fake),
         ),
       ),
     ).resolves.toEqual([true]);
     await expect(
-      locksOf(
-        stage(fake, {
-          page: firstPage,
-          rows: [{ academic_year: 1, count: 1, course: 1 }],
-          token,
-        }),
-      ),
+      locksOf(stage(fake, { page: firstPage, rows: [match(1)], token })),
     ).resolves.toEqual([true]);
     await expect(
       locksOf(runAction({ action: 'heartbeat', token }, context(fake))),
@@ -906,7 +861,7 @@ describe('failures and recovery over the persistence port', () => {
     // A publication claim plans no table source.
     await expect(
       runAction(
-        { action: 'plan_pages', source: 'rules', token },
+        { action: 'plan_pages', source: 'entries', token },
         context(fake, oldProcess),
       ),
     ).rejects.toMatchObject({ code: 'COORDINATION_DOMAIN_MISMATCH' });
@@ -915,7 +870,7 @@ describe('failures and recovery over the persistence port', () => {
       stage(fake, {
         owner: oldProcess,
         page: firstPage,
-        rows: [{ academic_year: 1, count: 1, course: 1 }],
+        rows: [match(1)],
         token,
       }),
     );

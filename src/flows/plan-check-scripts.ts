@@ -1,6 +1,7 @@
-// The Run Script source every page check of the enrollment families
-// shares: the one coordination status row, the current enrollments claim
-// at the page's revision, and the page's entry in the stored plan. The
+// The Run Script source of the page check of an enrollments page
+// (pagePlanScript, shared.ts): the one coordination status row, the
+// current enrollments claim at the page's revision, and the page's entry
+// in the stored plan. The
 // script defines `refuse` first (refuseFragment, text-fragments.ts), so
 // each check refuses as `<place>: <fault>`; none names a claim token.
 

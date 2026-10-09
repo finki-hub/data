@@ -1,7 +1,4 @@
-import {
-  familiesCheckScript,
-  familiesScript,
-} from './count-enrollments-scripts.js';
+import { pagesCheckScript, pagesScript } from './count-enrollments-scripts.js';
 import {
   automationId,
   coordinateOperation,
@@ -9,16 +6,12 @@ import {
   type FlowTemplate,
   operation,
 } from './flow-template.js';
+import { matchFlow, matchFlowId } from './match-history-lines.js';
 import {
   chainStep,
   type ReleaseBranch,
   releaseSteps,
 } from './release-steps.js';
-import {
-  familyFailureCode,
-  familyRunnerFlow,
-  familyRunnerFlowId,
-} from './run-enrollment-family.js';
 import { flowDescription } from './text-fragments.js';
 
 const family = flowFamilyCodes.automation;
@@ -26,6 +19,10 @@ const family = flowFamilyCodes.automation;
 const claimToken = '{{ $trigger.claim }}';
 
 export const dispatcherFlowId = automationId('01');
+
+// The code the dispatcher fails its claim with when a step of its own
+// fails.
+export const enrollmentsFailureCode = 'ENROLLMENTS_FAILED';
 
 type Failure = Omit<ReleaseBranch, 'family' | 'position' | 'token'> & {
   readonly column: number;
@@ -38,11 +35,17 @@ const release = ({ column, ...failure }: Failure): ReleaseBranch => ({
   token: claimToken,
 });
 
-// Every step that can fail, with the code kept with the claim. A family
-// fails the claim itself (its runner with its own code, or "Data / Run
-// enrollment family" when the runner could not), so the family branch
-// here finds the claim released and keeps the family's code and message.
+// Every step that can fail, with the code kept with the claim. A page
+// fails the claim itself (MATCH_FAILED), so the check branch here finds
+// the claim released and keeps the page's code and message.
 const branches = {
+  check: release({
+    code: enrollmentsFailureCode,
+    column: 73,
+    message: '{{ pages_ok.message }}',
+    stage: 'check',
+    suffixes: ['27', '28'],
+  }),
   complete: release({
     code: 'COMPLETION_REFUSED',
     column: 91,
@@ -51,19 +54,20 @@ const branches = {
     stage: 'complete',
     suffixes: ['29', '2a'],
   }),
-  families: release({
-    code: familyFailureCode,
-    column: 37,
-    message: '{{ families.message }}',
-    stage: 'families',
-    suffixes: ['23', '24'],
+  match: release({
+    code: enrollmentsFailureCode,
+    column: 55,
+    message: '{{ match_pages.message }}',
+    recordCode: '{{ match_pages.code }}',
+    stage: 'match',
+    suffixes: ['25', '26'],
   }),
-  family: release({
-    code: familyFailureCode,
-    column: 73,
-    message: '{{ families_ok.message }}',
-    stage: 'family',
-    suffixes: ['27', '28'],
+  pages: release({
+    code: enrollmentsFailureCode,
+    column: 37,
+    message: '{{ pages.message }}',
+    stage: 'pages',
+    suffixes: ['23', '24'],
   }),
   plan: release({
     code: 'PLAN_FAILED',
@@ -73,25 +77,15 @@ const branches = {
     stage: 'plan',
     suffixes: ['21', '22'],
   }),
-  run: release({
-    code: familyFailureCode,
-    column: 55,
-    message: '{{ run_families.message }}',
-    stage: 'run',
-    suffixes: ['25', '26'],
-  }),
 } as const;
 
-// The enrollment count of one claim ({claim, revision}): one plan of every
-// declared rule mode as one family each, every family serially through
-// "Data / Run enrollment family" (which runs it through the runner Flow
-// the plan names), then one completion that installs every pair at once.
-// The completion refuses until every page of every planned family is
-// staged, so a family that did not run never drops its rows. No step
-// names a rule mode or a runner Flow: declaring or retiring a mode
-// (rule-modes.ts) changes the plan, never this graph. Pages never run in
-// parallel, the claim is refreshed by every family, pair, page and plan,
-// and any failure fails the claim so nothing partial is installed.
+// The enrollment count of one claim ({claim, revision}): one plan of the
+// history lines in pages of 250, every page serially through "Data / Match
+// history lines", then one completion that rebuilds the counted lines and
+// every count row at once. The completion refuses until every planned page
+// is staged, so a page that did not run never drops its matches. Pages
+// never run in parallel, every page and the plan refresh the claim, and
+// any failure fails the claim so nothing partial is installed.
 export const dispatcherFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
@@ -99,13 +93,14 @@ export const dispatcherFlow: FlowTemplate = {
       'ok: true',
       'completed',
       'domain',
+      'counted',
       'installed',
       'revision',
       'pages',
-      'families',
+      'staged',
     ],
     caller: 'Data / Process pending',
-    does: `Counts every enrollment pair of an enrollments claim: plans every rule family, runs each through "${familyRunnerFlow.name}", completes the claim`,
+    does: `Counts every course and academic year of an enrollments claim: plans the history lines, matches each page through "${matchFlow.name}", completes the claim`,
     failure: {},
     input: ['claim', 'revision'],
   }),
@@ -118,11 +113,11 @@ export const dispatcherFlow: FlowTemplate = {
       column: 19,
       failure: branches.plan,
       key: 'plan',
-      name: 'Plan every rule family',
+      name: 'Plan the history line pages',
       next: '12',
       options: {
         action: 'plan_pages',
-        source: 'enrollments',
+        source: 'entries',
         token: claimToken,
       },
       suffix: '11',
@@ -130,35 +125,35 @@ export const dispatcherFlow: FlowTemplate = {
     }),
     chainStep({
       column: 37,
-      failure: branches.families,
-      key: 'families',
-      name: 'List the planned families',
+      failure: branches.pages,
+      key: 'pages',
+      name: 'List the planned pages',
       next: '13',
-      options: { code: familiesScript },
+      options: { code: pagesScript },
       suffix: '12',
       type: 'exec',
     }),
     chainStep({
       column: 55,
-      failure: branches.run,
-      key: 'run_families',
-      name: 'Run every family in turn',
+      failure: branches.match,
+      key: 'match_pages',
+      name: 'Match every page in turn',
       next: '14',
       options: {
-        flow: familyRunnerFlowId,
+        flow: matchFlowId,
         iterationMode: 'serial',
-        payload: '{{ families }}',
+        payload: '{{ pages }}',
       },
       suffix: '13',
       type: 'trigger',
     }),
     chainStep({
       column: 73,
-      failure: branches.family,
-      key: 'families_ok',
-      name: 'Check every family answer',
+      failure: branches.check,
+      key: 'pages_ok',
+      name: 'Check every page answer',
       next: '15',
-      options: { code: familiesCheckScript },
+      options: { code: pagesCheckScript },
       suffix: '14',
       type: 'exec',
     }),
@@ -179,12 +174,13 @@ export const dispatcherFlow: FlowTemplate = {
       options: {
         json: {
           completed: true,
+          counted: '{{ complete.counted }}',
           domain: 'enrollments',
-          families: '{{ families_ok.families }}',
           installed: '{{ complete.installed }}',
           ok: true,
-          pages: '{{ plan.total }}',
+          pages: '{{ pages_ok.pages }}',
           revision: '{{ complete.revision }}',
+          staged: '{{ pages_ok.staged }}',
         },
       },
       position: [109, 1],

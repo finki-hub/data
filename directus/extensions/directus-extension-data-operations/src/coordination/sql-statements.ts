@@ -1,6 +1,6 @@
+import { countedLineSources } from '../enrollment-lines.js';
 import { calculationDomains } from './domains.js';
 import {
-  calculationRunnerRoots,
   calculationTargets,
   neutralActions,
   pageStepActions,
@@ -29,33 +29,19 @@ const literals = (values: readonly string[]): string =>
 const action = `o."options"->>'action'`;
 const claimed = `o."options"->>'domain'`;
 
-// One row of a VALUES list holding a fixed identifier.
-const valuesRow = (value: string): string => `(${literals([value])})`;
-
-// The declared runner Flows (fixed identifiers of the rule-mode registry)
-// as more roots of the calculation graph; none when no mode is declared.
-const runnerRoots = (runners: readonly string[]): string =>
-  runners.length === 0
-    ? ''
-    : `
-  UNION SELECT 'calculation', runners."flow" FROM (VALUES ${runners.map(valuesRow).join(', ')}) AS runners("flow")`;
-
 // The managed Flow graphs, partitioned by what their coordinate steps do
 // (graphKindsOf in fingerprint.ts is the same rule): a Flow is a root of
 // the calculation graph when it claims a calculation domain or
 // next_calculation or plans, stages or indexes pages, and a root of the
 // publication graph when it claims publication; a templated or unknown
 // action or claim domain roots both, and a Flow holding only mark, status,
-// heartbeat, complete or fail steps roots neither. The runner of every
-// declared rule mode roots the calculation graph as well (its caller's
-// flow id is templated). Each graph adds every Flow its roots reach
-// through Trigger Flow operations; UNION stops at Flows already reached,
-// so a cycle ends, and a templated or unknown child id matches no Flow.
-// Only system tables are read, never a collection. Binding: the coordinate
+// heartbeat, complete or fail steps roots neither. Each graph adds every
+// Flow its roots reach through Trigger Flow operations, each of which
+// names its child by a fixed id; UNION stops at Flows already reached, so
+// a cycle ends, and a templated or unknown child id matches no Flow. Only
+// system tables are read, never a collection. Binding: the coordinate
 // type.
-export const graphSqlOf = (
-  runners: readonly string[],
-): string => `WITH RECURSIVE "roots"("graph", "flow") AS (
+export const graphSql = `WITH RECURSIVE "roots"("graph", "flow") AS (
   SELECT DISTINCT kinds."graph", o."flow"::text FROM "directus_operations" o
   CROSS JOIN (VALUES ('calculation'), ('publication')) AS kinds("graph")
   WHERE o."type" = ? AND CASE
@@ -63,7 +49,7 @@ export const graphSqlOf = (
     WHEN ${action} IN (${literals(pageStepActions)}) THEN kinds."graph" = 'calculation'
     WHEN ${action} = 'claim' AND ${claimed} IN (${literals(calculationTargets)}) THEN kinds."graph" = 'calculation'
     WHEN ${action} = 'claim' AND ${claimed} IN (${literals(publicationTargets)}) THEN kinds."graph" = 'publication'
-    ELSE true END${runnerRoots(runners)}
+    ELSE true END
 ), "managed"("graph", "flow") AS (
   SELECT "graph", "flow" FROM "roots"
   UNION
@@ -75,8 +61,6 @@ SELECT m."graph", f."id" AS "flow", f."trigger", f."options" AS "flow_options", 
 FROM "managed" m JOIN "directus_flows" f ON f."id"::text = m."flow"
 LEFT JOIN "directus_operations" o ON o."flow" = f."id"
 ORDER BY m."graph", f."id", o."id"`;
-
-export const graphSql = graphSqlOf(calculationRunnerRoots);
 
 // Bindings: token, owner, domain, fingerprint, dirty JSON, domain, revision.
 export const claimSql = `UPDATE "data_operations" SET "claim_token" = ?, "claim_owner" = ?, "claim_domain" = ?,
@@ -161,20 +145,39 @@ export const markSql = `UPDATE "data_operations" SET "source_revision" = "source
 // Bindings: the lock wait in milliseconds, for this transaction only.
 export const lockWaitSql = `SELECT set_config('lock_timeout', ?, true)`;
 
-// Bindings: token, page, revision, rows JSON.
-export const insertSql = `INSERT INTO "data_operation_results" ("claim_token", "page_token", "course", "academic_year", "count", "revision")
-SELECT ?, ?, rows."course", rows."academic_year", rows."count", ?
-FROM json_to_recordset(?::json) AS rows("course" integer, "academic_year" integer, "count" integer)`;
+const [explicitSource, patternSource] = countedLineSources;
 
-// Bindings: revision, token.
-export const installSql = `INSERT INTO "course_enrollments" ("course", "academic_year", "count", "computed_revision", "computed_at")
-SELECT "course", "academic_year", SUM("count")::integer, ?, clock_timestamp()
-FROM "data_operation_results" WHERE "claim_token" = ?
-GROUP BY "course", "academic_year" ORDER BY "course", "academic_year"`;
+// Bindings: token, page, rows JSON.
+export const stageSql = `INSERT INTO "data_operation_matches" ("claim_token", "page_token", "entry", "pattern_mapping", "year_label")
+SELECT ?, ?, rows."entry", rows."pattern_mapping", rows."year_label"
+FROM json_to_recordset(?::json) AS rows("entry" integer, "pattern_mapping" integer, "year_label" text)`;
 
-// What an enrollments plan is cut from: the mode and pattern bytes of
-// every rule (never its pattern) and the UTF-8 bytes of every raw history
-// (never its text).
-export const ruleModesSql = `SELECT "id", "mode", COALESCE(octet_length("pattern"), 0) AS "bytes" FROM "course_enrollment_rules" ORDER BY "id"`;
+// The lines the claim counts, by the rules of resolveLines
+// (enrollment-lines.ts): a line with an explicit mapping counts exactly
+// for its explicit mappings; any other line counts for every match the
+// claim staged, an only-in-year mapping in its year, an all-years mapping
+// in the academic year labelled as its year pattern read, unless that
+// label names no year or the course has an only-in-year mapping in that
+// year. Binding: token.
+export const countedLinesSql = `INSERT INTO "moodle_counted_lines" ("entry", "course", "academic_year", "source", "pattern_mapping")
+SELECT e."entry", e."course", e."academic_year", '${explicitSource}', NULL FROM "moodle_course_mappings" e
+UNION ALL
+SELECT m."entry", p."course", COALESCE(p."only_in_year", y."id"), '${patternSource}', p."id"
+FROM "data_operation_matches" m
+JOIN "moodle_pattern_mappings" p ON p."id" = m."pattern_mapping"
+LEFT JOIN "academic_years" y ON p."only_in_year" IS NULL AND y."label" = m."year_label"
+WHERE m."claim_token" = ?
+  AND NOT EXISTS (SELECT 1 FROM "moodle_course_mappings" x WHERE x."entry" = m."entry")
+  AND (p."only_in_year" IS NOT NULL OR (y."id" IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM "moodle_pattern_mappings" o WHERE o."course" = p."course" AND o."only_in_year" = y."id")))
+ORDER BY 1, 2, 3, 5`;
 
-export const historySizesSql = `SELECT "id", COALESCE(octet_length("Courses"), 0) AS "bytes" FROM "moodle_users" ORDER BY "id"`;
+// One count row per course and academic year: the distinct Moodle users
+// holding a line counted for that pair, 0 when none does. Binding:
+// revision.
+export const enrollmentsSql = `INSERT INTO "course_enrollments" ("course", "academic_year", "count", "computed_revision", "computed_at")
+SELECT c."id", y."id", COUNT(DISTINCT h."moodle_user")::integer, ?, clock_timestamp()
+FROM "courses" c CROSS JOIN "academic_years" y
+LEFT JOIN "moodle_counted_lines" l ON l."course" = c."id" AND l."academic_year" = y."id"
+LEFT JOIN "moodle_history_memberships" h ON h."entry" = l."entry"
+GROUP BY c."id", y."id" ORDER BY c."id", y."id"`;

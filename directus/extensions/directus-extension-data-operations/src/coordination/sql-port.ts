@@ -19,20 +19,19 @@ import { affected, first, json, matched, openGuard, run } from './sql-run.js';
 import { stateRow, toState } from './sql-state.js';
 import {
   claimSql,
+  countedLinesSql,
+  enrollmentsSql,
   finishSql,
   graphSql,
   heartbeatSql,
-  historySizesSql,
-  insertSql,
-  installSql,
   lockWaitSql,
   markSql,
   planSql,
   recordSql,
   releaseSql,
   retriesSql,
-  ruleModesSql,
   stagedSql,
+  stageSql,
   stateSql,
 } from './sql-statements.js';
 import {
@@ -54,19 +53,6 @@ export type SqlDatabase = SqlClient & {
 
 const countRow = z.object({ count: z.coerce.number().int().nonnegative() });
 const idRows = z.array(z.object({ id: z.coerce.number().int() }));
-const ruleModeRows = z.array(
-  z.object({
-    bytes: z.coerce.number().int().nonnegative(),
-    id: z.coerce.number().int(),
-    mode: z.string().nullable(),
-  }),
-);
-const historySizeRows = z.array(
-  z.object({
-    bytes: z.coerce.number().int().nonnegative(),
-    id: z.coerce.number().int(),
-  }),
-);
 const markRow = z.object({
   dirty_domains: z.array(z.string()).nullable(),
   source_revision: z.number().int(),
@@ -84,7 +70,7 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   candidateCount: async (token) => {
     const row = await first(
       client,
-      'SELECT COUNT(*)::integer AS "count" FROM "data_operation_results" WHERE "claim_token" = ?',
+      'SELECT COUNT(*)::integer AS "count" FROM "data_operation_matches" WHERE "claim_token" = ?',
       [token],
     );
     return countRow.parse(row).count;
@@ -94,20 +80,12 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
     return fingerprintsOfGraph(graphRowsSchema.parse(result.rows));
   },
   discardCandidates: async (token, page) => {
-    await openGuard(client, 'data_operation_results');
+    await openGuard(client, 'data_operation_matches');
     return affected(
       client,
-      `DELETE FROM "data_operation_results" WHERE "claim_token" = ?${page === undefined ? '' : ' AND "page_token" = ?'}`,
+      `DELETE FROM "data_operation_matches" WHERE "claim_token" = ?${page === undefined ? '' : ' AND "page_token" = ?'}`,
       page === undefined ? [token] : [token, page],
     );
-  },
-  enrollmentSources: async () => {
-    const rules = await run(client, ruleModesSql);
-    const users = await run(client, historySizesSql);
-    return {
-      rules: ruleModeRows.parse(rules.rows),
-      users: historySizeRows.parse(users.rows),
-    };
   },
   ensureSingleton: async () => {
     await run(
@@ -129,20 +107,23 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
     matched(client, heartbeatSql, [leaseMs, token, owner]),
   history: historySqlPort(client),
   insertCandidates: async (input: StagedRows) => {
-    await openGuard(client, 'data_operation_results');
-    return affected(client, insertSql, [
+    await openGuard(client, 'data_operation_matches');
+    return affected(client, stageSql, [
       input.token,
       input.page,
-      input.revision,
       json(input.rows),
     ]);
   },
-  // The install replaces every count row: the coordinator is the writer of
-  // the derived counts and opens their guard first.
+  // The install replaces every counted line, then every count row: the
+  // coordinator is the writer of both and opens their guards first.
   installEnrollments: async (token, revision) => {
+    await openGuard(client, 'moodle_counted_lines');
     await openGuard(client, 'course_enrollments');
+    await run(client, 'DELETE FROM "moodle_counted_lines"');
+    const counted = await affected(client, countedLinesSql, [token]);
     await run(client, 'DELETE FROM "course_enrollments"');
-    return affected(client, installSql, [revision, token]);
+    const installed = await affected(client, enrollmentsSql, [revision]);
+    return { counted, installed };
   },
   limitLockWait: async (ms) => {
     await run(client, lockWaitSql, [String(ms)]);
@@ -184,10 +165,6 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
       files === null ? null : json(files),
       input.token,
     ]);
-  },
-  ruleModes: async () => {
-    const rules = await run(client, ruleModesSql);
-    return ruleModeRows.parse(rules.rows);
   },
   sourceIds: async (source: PageSource) => {
     const result = await run(

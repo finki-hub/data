@@ -15,7 +15,6 @@ import {
   withRows,
 } from '../src/projection/memory-store.js';
 import { asData, expectedData } from './expected-exports.js';
-import { courseNames } from './fixtures/synthetic-data.js';
 import { planOf } from './import-plan-helpers.js';
 import {
   engineAssets,
@@ -129,23 +128,8 @@ describe('the memory store of an import plan', () => {
     const expected = await expectedData('parity');
     const published = (name: 'courses' | 'rooms' | 'staff') =>
       asData(name, publicRows.parse(files[name]));
-    // The committed counts come from the rules, which tested whole
-    // histories: Theta's typed pattern spans a line break, and Iota's
-    // standard mapping escapes the "." of its name, so both count 0.
-    const perLine = new Map<string, Readonly<Record<string, string>>>([
-      [courseNames.iota, { '2022/2023': '0' }],
-      [courseNames.theta, { '2021/2022': '0' }],
-    ]);
 
-    expect(published('courses')).toEqual(
-      asData(
-        'courses',
-        expected.courses.map((row) => ({
-          ...row,
-          ...perLine.get(row['name'] ?? ''),
-        })),
-      ),
-    );
+    expect(published('courses')).toEqual(expected.courses);
     expect(published('staff')).toEqual(expected.staff);
     expect(published('rooms')).toEqual(expected.rooms);
   });

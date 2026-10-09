@@ -5,8 +5,6 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 
-import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
-import { ruleSeedingFlowId } from '../../src/flows/add-enrollment-rules.js';
 import { historyId } from '../../src/flows/flow-template.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
 import { runSetup } from '../../src/setup.js';
@@ -63,21 +61,18 @@ import {
 // the default suite): the generated full-size run. 30,000 Moodle users
 // with 5,000 distinct history labels, the model's academic years plus one
 // newer unpublished year, the generations and programs the import seeds,
-// 400 courses with a legacy rule per published year, and the published
+// 400 courses with their default pattern mapping, and the published
 // files of the export registry, all written through the REST API; then
 // the unchanged CSV through staging and promotion, the history index and
-// both rule families through the Task 26 dispatcher on the native
-// schedule (before and after "Data / Add enrollment rules" adds the new
-// year's mapped pairs), readiness and a manual publication to the local
-// S3 bucket. Each phase records its wall time and the memory of the
+// the enrollment counts on the native schedule (before and after the new
+// year's lines get explicit mappings), readiness and a manual publication
+// to the local S3 bucket. Each phase records its wall time and the memory of the
 // Directus and database containers (stress-helpers.mjs); counts, ids and
 // index are checked against the oracle through the API, never printed.
 // Follow-up 24 (the refresh Flow's refused-completion branch) and
 // follow-up 11 (parent deletes while a count run installs) run on the way.
 
 const size = { courses: 400, labels: 5_000, referenceRows: 300, users: 30_000 };
-const legacy = ruleMode('legacy_regex').mode;
-const mapped = ruleMode('mapped_entries').mode;
 const longRun = 45 * 60_000;
 const splitScriptId = historyId('22');
 const probeComment = '\n// synthetic stress probe: a graph edit during the run';
@@ -124,23 +119,14 @@ const seeds = (context) =>
         pattern_mappings: [],
       })),
     );
-    await createRows(
-      target,
-      'course_enrollment_rules',
-      doomed.flatMap((course) =>
-        seeded.years
-          .filter(({ published }) => published)
-          .map((year) => ({
-            academic_year: year.id,
-            course,
-            mode: legacy,
-            pattern: `Synthetic Doomed Pattern ${course}`,
-          })),
-      ),
-    );
-    Object.assign(state, { doomed, mappings: [], rules: seeded.rules, seeded });
+    Object.assign(state, {
+      doomed,
+      mappings: [],
+      patterns: seeded.patterns,
+      seeded,
+    });
     context.t.diagnostic(
-      `seeded ${seeded.courses.length} courses, ${seeded.years.length} years, ${seeded.generations.length} generations, ${seeded.programs.length} programs, ${seeded.curriculum.entries.length} entries, ${seeded.curriculum.states} states, ${seeded.assignments.length} assignments, ${seeded.rules.length} legacy rules`,
+      `seeded ${seeded.courses.length} courses, ${seeded.years.length} years, ${seeded.generations.length} generations, ${seeded.programs.length} programs, ${seeded.curriculum.entries.length} entries, ${seeded.curriculum.states} states, ${seeded.assignments.length} assignments, ${seeded.patterns.length} pattern mappings`,
     );
   });
 
@@ -276,65 +262,47 @@ const indexes = (context) =>
     );
   });
 
-const countsLegacy = (context) =>
-  measured(context, 'enrollment counts: legacy family', async () => {
+// The course-years every run counts: every created course (the doomed
+// ones included) in every year.
+const pairsOf = ({ doomed, seeded }) =>
+  (seeded.courses.length + doomed.length) * seeded.years.length;
+
+const countsPatterns = (context) =>
+  measured(context, 'enrollment counts: pattern mappings', async () => {
     const { state, t, target } = context;
     const done = await waitCounting(target, 'enrollments');
     await setSchedule(target, false);
-    await assertCounts(context, 'legacy family');
+    await assertCounts(context, 'pattern mappings');
     t.diagnostic(
-      `enrollments run ${lastRunMs(done.report)} ms over ${state.rules.length} legacy pairs; the claim planned ${done.pages} pages`,
+      `enrollments run ${lastRunMs(done.report)} ms over ${pairsOf(state)} course-years; the claim planned ${done.pages} pages`,
     );
   });
 
-const seedsYear = (context) =>
-  measured(context, 'rule seeding and mappings of the new year', async () => {
+const mapsYear = (context) =>
+  measured(context, 'explicit mappings of the new year', async () => {
     const { state, t, target } = context;
     const position = state.seeded.years.findIndex(
       ({ published }) => !published,
     );
     const started = performance.now();
-    const run = await runFlow(target, target.token, {
-      id: ruleSeedingFlowId,
-      values: { academic_year: state.seeded.years[position].id },
-    });
-    const seedingMs = Math.round(performance.now() - started);
-    assert.equal(run.status, 200, JSON.stringify(run.body));
-    // Every course has the year's rule now, the doomed ones included.
-    assert.equal(
-      run.body.created,
-      state.seeded.courses.length + state.doomed.length,
-    );
     const mappings = await seedMappings(target, {
       labels: state.snapshotRows.labels,
       seeded: state.seeded,
       year: position,
     });
-    Object.assign(state, {
-      mappings,
-      rules: [
-        ...state.rules,
-        ...state.seeded.courses.map((_, course) => ({
-          course,
-          mode: mapped,
-          pattern: null,
-          year: position,
-        })),
-      ],
-    });
-    t.diagnostic(
-      `Add enrollment rules: ${run.body.created} mapped pairs in ${run.body.batches} batches, ${seedingMs} ms; ${mappings.length} mappings`,
-    );
+    const mappingMs = Math.round(performance.now() - started);
+    Object.assign(state, { mappings });
+    t.diagnostic(`${mappings.length} explicit mappings in ${mappingMs} ms`);
   });
 
-const countsBoth = (context) =>
-  measured(context, 'enrollment counts: both families', async () => {
+const countsWithExplicit = (context) =>
+  measured(context, 'enrollment counts: with explicit mappings', async () => {
     const { state, t, target } = context;
     await setSchedule(target, true);
     const done = await waitCounting(target, 'enrollments');
-    await assertCounts(context, 'both families');
+    await assertCounts(context, 'with explicit mappings');
     t.diagnostic(
-      `enrollments run ${lastRunMs(done.report)} ms over ${state.rules.length} pairs (with the new year's mapped pairs); the claim planned ${done.pages} pages`,
+      `enrollments run ${lastRunMs(done.report)} ms over ${pairsOf(state)} course-years (with ${state.mappings.length} explicit mappings); the claim planned ${done.pages} pages`,
     );
   });
 
@@ -431,9 +399,9 @@ const steps = [
     refusesHistoryCompletion,
   ],
   ['indexes every history on the schedule', indexes],
-  ['counts the legacy family through the dispatcher', countsLegacy],
-  ['adds the mapped rules and mappings of the new year', seedsYear],
-  ['counts both families through the dispatcher', countsBoth],
+  ['counts every course and year through the dispatcher', countsPatterns],
+  ['maps the lines of the new year by hand', mapsYear],
+  ['counts again with the explicit mappings', countsWithExplicit],
   [
     'keeps counts consistent when parents are deleted at install (follow-up 11)',
     deletesDuringInstall,

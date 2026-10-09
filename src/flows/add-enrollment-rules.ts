@@ -1,3 +1,4 @@
+import { addedRuleMode } from '../data-model/operations-vocabularies.js';
 import {
   pairsScript,
   ruleSeedingOptions,
@@ -17,7 +18,6 @@ import {
   type FlowTemplate,
   rulesId,
 } from './flow-template.js';
-import { mappedRuleMode } from './shared.js';
 import { flowDescription } from './text-fragments.js';
 
 const family = flowFamilyCodes.rules;
@@ -37,7 +37,7 @@ export const ruleSeedingFlowId = rulesId('01');
 export const ruleSeedingFlow: FlowTemplate = {
   accountability: 'activity',
   description: flowDescription({
-    does: `Creates missing enrollment rules (mode ${mappedRuleMode.mode}) for an academic year, a course or one pair`,
+    does: `Creates missing enrollment rules (mode ${addedRuleMode}) for an academic year, a course or one pair`,
     note: 'Existing rules are skipped',
   }),
   entry: rulesId('12'),
@@ -159,7 +159,7 @@ export const ruleSeedingFlow: FlowTemplate = {
           courses: '{{ pairs.courses }}',
           created: '{{ tally.created }}',
           existing: '{{ pairs.existing }}',
-          mode: mappedRuleMode.mode,
+          mode: addedRuleMode,
           years: '{{ pairs.years }}',
         },
       },

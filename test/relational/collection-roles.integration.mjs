@@ -313,13 +313,6 @@ const refusesDirectWrites = async (target, state, log) => {
       page_token: 'p0001',
       year_label: payloads.academic_years.label,
     },
-    data_operation_results: {
-      ...pair,
-      claim_token: '9e4d826c-0000-4000-8000-000000002403',
-      count: 3,
-      page_token: 'p0001',
-      revision: 1,
-    },
     moodle_counted_lines: { ...pair, ...match, source: 'pattern' },
   };
   const before = await statusOf(target);

@@ -10,7 +10,7 @@ import type { ReadinessCheck } from './types.js';
 import { domainLabel } from '../coordination/domains.js';
 import { professorCheck } from './assignment-checks.js';
 import { unlinkedMember } from './curriculum-checks.js';
-import { enrollmentCheck, mappingCheck } from './enrollment-checks.js';
+import { enrollmentCheck } from './enrollment-checks.js';
 import { keyOrderEntries } from './key-order.js';
 import { notCurrentCalculations } from './readiness-facts.js';
 import {
@@ -59,8 +59,6 @@ const declare =
 // Every blocker today holds back courses.json, the file whose rows it reads.
 const blocker = declare('blocker', ['courses.json']);
 const warning = declare('warning', []);
-
-const enrollments = checkedBy(enrollmentCheck);
 
 export const readinessRegistry: readonly ReadinessEntry[] = [
   ...notCurrentCalculations.map(({ domain, state }) =>
@@ -111,14 +109,7 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     code: 'enrollment_count_missing',
     description: 'Course without a count row for a published academic year',
     page: 'course_enrollments',
-    source: enrollments,
-  }),
-  blocker({
-    code: 'enrollment_rule_missing',
-    description:
-      'Course without an enrollment rule for a published academic year',
-    page: 'course_enrollment_rules',
-    source: enrollments,
+    source: checkedBy(enrollmentCheck),
   }),
   warning({
     code: 'equivalency_without_course',
@@ -150,12 +141,5 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     page: 'student_council',
     review: reviewViews.councilWithoutStudent,
     source: counted(councilWithoutStudent),
-  }),
-  warning({
-    code: 'mapping_without_rule',
-    description:
-      'Mapping without an enrollment rule for its course and academic year (not counted)',
-    page: 'moodle_course_mappings',
-    source: checkedBy(mappingCheck),
   }),
 ];

@@ -3,22 +3,21 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import brandingSettings from '../directus/branding/settings.json' with { type: 'json' };
-import { ruleMode } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { applyBranding } from '../src/branding.js';
 import { createDirectusRequest } from '../src/directus-request.js';
-import { ruleSeedingFlowId } from '../src/flows/add-enrollment-rules.js';
 import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
 import { runImportCli } from '../src/import-run.js';
 import { exitCodes } from '../src/lifecycle.js';
 import { runSetup } from '../src/setup.js';
 import {
   installedCounts,
+  oracleCounts,
+  patternsOf,
   seedMappings,
   snapshotFor,
   staffFreeFor,
 } from './fixture-seed.mjs';
 import { yearRows } from './fixtures/stress-fixture.js';
-import { expectedCounts } from './fixtures/stress-oracle.js';
 import { syntheticWorkbook } from './fixtures/synthetic-workbook.js';
 import {
   importsSnapshot,
@@ -39,7 +38,6 @@ import {
   remove,
   status,
 } from './relational/history-index-helpers.mjs';
-import { runFlow } from './relational/operations-helpers.mjs';
 
 // The source project of the restore rehearsal (restore.integration.mjs),
 // built on the isolated fixture through the supported paths: `npm run
@@ -52,7 +50,6 @@ import { runFlow } from './relational/operations-helpers.mjs';
 // restore must reproduce is recorded as digests and counts; nothing is
 // printed. The fixture is returned to marker-only afterwards.
 
-const mapped = ruleMode('mapped_entries').mode;
 const appearanceFields = [
   ...Object.keys(brandingSettings),
   'project_logo',
@@ -276,20 +273,13 @@ export const recordsState = async (context) => {
   );
 };
 
-// The schedule paused, the newer year gets its mapped rules from "Data /
-// Add enrollment rules" and its labels are mapped: an edit the backup
-// takes while it is still pending.
+// The schedule paused, the labels of the newer year are mapped by hand: an
+// edit the backup takes while it is still pending.
 export const leavesEditPending = async (context) => {
   const { state, target } = context;
   state.resumeSchedule = await pauseAutomaticProcessing(target);
   await waitForStatus(target, (current) => current.claim === null);
-  const year = state.seeded.years[state.newYear];
-  const seeding = await runFlow(target, target.token, {
-    id: ruleSeedingFlowId,
-    values: { academic_year: { collection: 'academic_years', key: year.id } },
-  });
-  assert.equal(seeding.status, 200, JSON.stringify(seeding.body));
-  assert.equal(seeding.body.created, state.seeded.courses.length);
+  state.patterns = await patternsOf(target, state.seeded);
   state.mappings = await seedMappings(target, {
     labels: state.snapshotRows.labels,
     seeded: state.seeded,
@@ -301,17 +291,12 @@ export const leavesEditPending = async (context) => {
   state.pending = { revisions: report.revisions };
 };
 
-// The counts the newer year's mapped rules must reach.
+// The counts of the newer year the pending edit must reach: the oracle
+// over the import's pattern mappings and the explicit mappings.
 export const newYearCounts = (state) =>
-  expectedCounts(state.snapshotRows, {
-    mappings: state.mappings,
-    rules: state.seeded.courses.map((_, course) => ({
-      course,
-      mode: mapped,
-      pattern: null,
-      year: state.newYear,
-    })),
-  });
+  [...oracleCounts(state)].filter(([key]) =>
+    key.endsWith(`/${String(state.newYear)}`),
+  );
 
 // Puts the publish Flow and its edited operation back as the template
 // installed them.

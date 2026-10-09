@@ -47,13 +47,7 @@ export const exportCases: readonly ExportCase[] = [
 ];
 
 // The cases that hold enrollments.json.
-const enrollmentCases = [
-  'empty-history-pattern',
-  'legacy-rules',
-  'legacy-rules-empty',
-  'legacy-rules-split',
-  'synthetic',
-] as const;
+const enrollmentCases = ['synthetic'] as const;
 
 type EnrollmentCase = (typeof enrollmentCases)[number];
 

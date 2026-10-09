@@ -5,8 +5,8 @@
 -- committed edit becomes visible together with its mark. Nothing here
 -- calculates, maps or dispatches a Flow. Derived, staging and status tables
 -- (moodle_history_memberships, course_enrollments, moodle_counted_lines,
--- moodle_import_rows, data_operations, data_operation_results,
--- data_operation_matches, directus_*) carry no trigger.
+-- moodle_import_rows, data_operations, data_operation_matches, directus_*)
+-- carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
 -- a mapping or a rule to another course or year, and any DELETE, marks

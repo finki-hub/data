@@ -203,9 +203,11 @@ describe('the readiness-check registry', () => {
       equivalency_entry_unresolved: 'warning/count',
       history_index_failed: 'blocker/status',
       history_index_pending: 'blocker/status',
-      mapping_without_rule: 'warning/check',
       snapshot_import_failed: 'blocker/snapshot',
     });
+    // The enrollment rules no longer decide what is counted.
+    expect(declared.has('enrollment_rule_missing')).toBe(false);
+    expect(declared.has('mapping_without_rule')).toBe(false);
   });
 
   test('checks teaching links only for an Active course without a professor, with no bookmark on them', () => {
@@ -290,8 +292,8 @@ describe('the registry rules', () => {
     ],
     [
       'a blocker gating no file',
-      changed('enrollment_rule_missing', { gates: [] }),
-      'blocker enrollment_rule_missing gates no file',
+      changed('enrollment_count_missing', { gates: [] }),
+      'blocker enrollment_count_missing gates no file',
     ],
     [
       'a warning gating a file',
@@ -300,8 +302,8 @@ describe('the registry rules', () => {
     ],
     [
       'a gate no definition publishes',
-      changed('enrollment_rule_missing', { gates: ['programs.json'] }),
-      'readiness code enrollment_rule_missing gates programs.json, which no definition publishes',
+      changed('enrollment_count_missing', { gates: ['programs.json'] }),
+      'readiness code enrollment_count_missing gates programs.json, which no definition publishes',
     ],
     [
       'a code not in snake case',
@@ -327,19 +329,19 @@ describe('the registry rules', () => {
     ],
     [
       'a review filter with _some',
-      changed('mapping_without_rule', {
+      changed('council_member_unresolved', {
         review: {
-          bookmark: 'Mappings without a rule',
-          fields: ['entry'],
+          bookmark: 'Council members without a student',
+          fields: ['index_number'],
           filter: {
-            entry: {
-              _some: { label: { _null: true } },
+            student: {
+              _some: { index: { _null: true } },
             },
           },
-          sort: ['entry'],
+          sort: ['index_number'],
         },
       }),
-      'review of mapping_without_rule filters with _some or _none',
+      'review of council_member_unresolved filters with _some or _none',
     ],
     [
       'a generation-scoped review that hides the generation',
@@ -412,7 +414,7 @@ describe('readiness derived from the registry', () => {
     );
   });
 
-  test('warns about a mapping without a rule, with its page, and still prepares every file', async () => {
+  test('neither blocks nor warns on an explicit mapping, and prepares every file', async () => {
     const store = await importedStore();
     edit(
       store,
@@ -433,16 +435,10 @@ describe('readiness derived from the registry', () => {
     const answer = await readinessAction(exportDefinitions, deps(store));
     const prepared = await preparePublicFiles(exportDefinitions, deps(store));
 
-    expect(answer).toMatchObject({
-      issueCounts: { mapping_without_rule: 1 },
-      links: {
-        mapping_without_rule: '/admin/content/moodle_course_mappings',
-      },
-      ready: true,
-    });
-    expect(answer.warnings).toContain('mapping_without_rule');
+    expect(answer).toMatchObject({ ready: true });
+    expect(Object.keys(answer.links)).not.toContain('mapping_without_rule');
     expect(answer.blockers).toEqual([]);
-    expect(prepared.warnings).toContain('mapping_without_rule');
+    expect(prepared.warnings).toEqual(answer.warnings);
     expect(prepared.files.map(({ filename }) => filename)).toEqual(filenames);
   });
 

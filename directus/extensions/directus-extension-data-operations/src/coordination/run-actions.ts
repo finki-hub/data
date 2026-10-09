@@ -1,6 +1,6 @@
 import type { CoordinatorInput } from './options.js';
 
-import { duplicatePairs, planPages } from '../page-state.js';
+import { duplicateMatches, planPages } from '../page-state.js';
 import { listText } from '../text.js';
 import {
   type ActionContext,
@@ -17,9 +17,12 @@ import {
   declaredFilenames,
   mergedOutcomes,
 } from './outcomes.js';
-import { checkPlanSource } from './plan-enrollments.js';
-import { pageUnplanned } from './refusals.js';
-import { type PageSource, publicationUploadLeaseMs } from './state.js';
+import { domainMismatch, pageUnplanned } from './refusals.js';
+import {
+  type PageSource,
+  pageSourceDomains,
+  publicationUploadLeaseMs,
+} from './state.js';
 
 type Input<Action extends CoordinatorInput['action']> = Extract<
   CoordinatorInput,
@@ -33,6 +36,19 @@ type Input<Action extends CoordinatorInput['action']> = Extract<
 // inside its own trigger, and the lock order (singleton, then candidate
 // rows) is the one the claim and its recovery use, so no cycle is
 // possible.
+
+// A table source is planned only under its own claim domain: history under
+// a history index claim, entries under an enrollments claim. The refusal
+// names the domains only.
+const checkPlanSource = (domain: null | string, source: PageSource): void => {
+  const expected = pageSourceDomains[source];
+  if (domain !== expected) {
+    throw domainMismatch(
+      { actual: domain, expected, subject: `plan_pages source ${source}` },
+      { details: { domain, source } },
+    );
+  }
+};
 
 // A plan starts, or restarts, the staging of the claim: every candidate row
 // staged under the claim so far is discarded in the same transaction, so a
@@ -55,7 +71,7 @@ export const planPagesAction = (
     if (verdict !== 'ok' || state.claim === null) {
       throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);
     }
-    await checkPlanSource(port, state.claim.domain, input.source);
+    checkPlanSource(state.claim.domain, input.source);
     const discarded = await port.discardCandidates(input.token);
     const pages = planPages(await port.sourceIds(input.source));
     if (!(await port.storePlan(input.token, context.owner, pages))) {
@@ -74,11 +90,11 @@ export const stagePageAction = (
   context: ActionContext,
 ) =>
   guarded(context, input.token, async (port) => {
-    const duplicates = duplicatePairs(input.rows);
+    const duplicates = duplicateMatches(input.rows);
     if (duplicates.length > 0) {
       throw coordinationError(
         'DUPLICATE_ROWS',
-        `Duplicate course/year pairs: ${listText(duplicates)}`,
+        `Duplicate matches: ${listText(duplicates)}`,
         { status: 400 },
       );
     }
@@ -103,7 +119,6 @@ export const stagePageAction = (
         ? 0
         : await port.insertCandidates({
             page: input.page,
-            revision: state.claim.revision,
             rows: input.rows,
             token: input.token,
           });

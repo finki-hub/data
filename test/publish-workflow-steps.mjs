@@ -53,12 +53,12 @@ export const seeds = async (context) => {
   });
   Object.assign(state, {
     mappings: [],
-    rules: seeded.rules,
+    patterns: seeded.patterns,
     seeded,
     snapshotRows: snapshotFor(declarations, seeded, size),
   });
   t.diagnostic(
-    `seeded ${seeded.courses.length} courses, ${seeded.years.length} years, ${seeded.generations.length} generations, ${seeded.programs.length} programs, ${seeded.curriculum.entries.length} entries, ${seeded.assignments.length} assignments, ${seeded.rules.length} rules`,
+    `seeded ${seeded.courses.length} courses, ${seeded.years.length} years, ${seeded.generations.length} generations, ${seeded.programs.length} programs, ${seeded.curriculum.entries.length} entries, ${seeded.assignments.length} assignments, ${seeded.patterns.length} pattern mappings`,
   );
 };
 
@@ -78,7 +78,7 @@ export const importsUnchangedCsv = async (context) => {
 };
 
 // The schedule indexes every distinct history line once per user and
-// counts every rule's pair exactly as the oracle does.
+// counts every course and year exactly as the oracle does.
 export const countsAutomatically = async (context) => {
   const { state, t, target } = context;
   const settled = await settlesCounted(context, 'after the import');
@@ -91,7 +91,7 @@ export const countsAutomatically = async (context) => {
   assert.equal(entries.size, index.labels.size);
   assert.ok([...index.labels].every((label) => entries.has(label)));
   t.diagnostic(
-    `indexed ${index.labels.size} entries, ${index.memberships} memberships; ${state.rules.length} pairs counted; settled after ${settled.elapsedMs} ms`,
+    `indexed ${index.labels.size} entries, ${index.memberships} memberships; ${state.seeded.courses.length * state.seeded.years.length} pairs counted; settled after ${settled.elapsedMs} ms`,
   );
 };
 

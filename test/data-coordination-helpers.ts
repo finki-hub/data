@@ -3,7 +3,6 @@ import type {
   CoordinationPort,
   CoordinationStore,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/port.js';
-import type { EnrollmentSources } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
 
 import { sourceDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import {
@@ -26,7 +25,15 @@ import {
   type PageSource,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import {
-  type CountRow,
+  type CountedLine,
+  countPairs,
+  type ExplicitMapping,
+  type LabelledRow,
+  type Membership,
+  type PairCount,
+} from '../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
+import {
+  type MatchRow,
   type PageRange,
   stagedWith,
 } from '../directus/extensions/directus-extension-data-operations/src/page-state.js';
@@ -50,19 +57,92 @@ type FakeClaim = {
   token: string;
 };
 
-type FakeCandidate = CountRow & {
+type FakeCandidate = MatchRow & {
   readonly page: string;
-  readonly revision: number;
   readonly token: string;
 };
 
-type FakeEnrollment = CountRow & { readonly revision: number };
+type FakeEnrollment = PairCount & { readonly revision: number };
+
+// What an enrollments completion reads besides the staged matches: the
+// courses, the academic years, the explicit mappings, each pattern
+// mapping's course and only-in-year year, and the history memberships.
+export type CountingSources = {
+  readonly courses: readonly number[];
+  readonly explicit: readonly ExplicitMapping[];
+  readonly mappings: ReadonlyArray<{
+    readonly course: number;
+    readonly id: number;
+    readonly onlyInYear: null | number;
+  }>;
+  readonly memberships: readonly Membership[];
+  readonly years: readonly LabelledRow[];
+};
+
+const noCountingSources: CountingSources = {
+  courses: [],
+  explicit: [],
+  mappings: [],
+  memberships: [],
+  years: [],
+};
+
+// The counted lines of a completion, as countedLinesSql writes them: every
+// explicit mapping, then every staged match of a line without one, in its
+// mapping's only-in-year year, or in the year its year label names unless
+// the course has an only-in-year mapping there.
+export const countedFromMatches = (
+  sources: CountingSources,
+  matches: readonly MatchRow[],
+): CountedLine[] => {
+  const explicitLines = new Set(sources.explicit.map(({ entry }) => entry));
+  const yearIds = new Map(sources.years.map(({ id, label }) => [label, id]));
+  const mappings = new Map(sources.mappings.map((row) => [row.id, row]));
+  const replaced = new Set(
+    sources.mappings.flatMap(({ course, onlyInYear }) =>
+      onlyInYear === null ? [] : [`${course}/${onlyInYear}`],
+    ),
+  );
+  const counted = (match: MatchRow): CountedLine[] => {
+    const mapping = mappings.get(match.pattern_mapping);
+    if (mapping === undefined || explicitLines.has(match.entry)) {
+      return [];
+    }
+    const year =
+      mapping.onlyInYear ??
+      (match.year_label === null ? undefined : yearIds.get(match.year_label));
+    const skipped =
+      year === undefined ||
+      (mapping.onlyInYear === null &&
+        replaced.has(`${mapping.course}/${year}`));
+    return skipped
+      ? []
+      : [
+          {
+            academicYear: year,
+            course: mapping.course,
+            entry: match.entry,
+            patternMapping: mapping.id,
+            source: 'pattern',
+          },
+        ];
+  };
+  return [
+    ...sources.explicit.map((row): CountedLine => ({
+      ...row,
+      patternMapping: null,
+      source: 'explicit',
+    })),
+    ...matches.flatMap(counted),
+  ];
+};
 
 type FakeData = {
   calculationFingerprint: null | string;
   candidates: FakeCandidate[];
   claim: FakeClaim | null;
   completedRevision: number;
+  countedLines: CountedLine[];
   dirtyDomains: Domain[];
   enrollments: FakeEnrollment[];
   finishedAtMs: null | number;
@@ -83,6 +163,7 @@ const freshData = (): FakeData => ({
   candidates: [],
   claim: null,
   completedRevision: 0,
+  countedLines: [],
   dirtyDomains: [],
   enrollments: [],
   finishedAtMs: null,
@@ -118,10 +199,9 @@ export class FakeCoordination {
   // The lock flag of every state read, in order, so a test can check that
   // a writing transaction locked the singleton before anything else.
   public readLocks: boolean[] = [];
-  public sourceIds: Record<PageSource, number[]> = { history: [], rules: [] };
-  // What plan_pages with source enrollments reads: rule modes and pattern
-  // bytes (also what a rules plan checks) and history byte sizes.
-  public enrollmentSources: EnrollmentSources = { rules: [], users: [] };
+  public sourceIds: Record<PageSource, number[]> = { entries: [], history: [] };
+  // What an enrollments completion reads besides the staged matches.
+  public counting: CountingSources = noCountingSources;
   // Every bounded lock wait a transaction asked for, in order.
   public lockWaits: number[] = [];
   public transactions = 0;
@@ -354,7 +434,6 @@ export class FakeCoordination {
         );
         return before - data().candidates.length;
       },
-      enrollmentSources: async () => this.enrollmentSources,
       ensureSingleton: async () => {},
       finish: async (input) => {
         const superseded =
@@ -405,8 +484,8 @@ export class FakeCoordination {
             (existing) =>
               existing.token === input.token &&
               existing.page === input.page &&
-              existing.course === row.course &&
-              existing.academic_year === row.academic_year,
+              existing.entry === row.entry &&
+              existing.pattern_mapping === row.pattern_mapping,
           );
           if (clash) {
             throw new Error('duplicate key value violates unique constraint');
@@ -414,29 +493,29 @@ export class FakeCoordination {
           data().candidates.push({
             ...row,
             page: input.page,
-            revision: input.revision,
             token: input.token,
           });
         }
         return input.rows.length;
       },
+      // countedLinesSql, then enrollmentsSql: every course and academic
+      // year, 0 when no counted line holds a user.
       installEnrollments: async (token, revision) => {
-        const totals = new Map<string, FakeEnrollment>();
-        for (const row of data().candidates) {
-          if (row.token !== token) {
-            continue;
-          }
-          const key = `${row.course}/${row.academic_year}`;
-          const existing = totals.get(key);
-          totals.set(key, {
-            academic_year: row.academic_year,
-            count: (existing?.count ?? 0) + row.count,
-            course: row.course,
-            revision,
-          });
-        }
-        data().enrollments = totals.values().toArray();
-        return data().enrollments.length;
+        const sources = this.counting;
+        data().countedLines = countedFromMatches(
+          sources,
+          data().candidates.filter((row) => row.token === token),
+        );
+        data().enrollments = countPairs({
+          counted: data().countedLines,
+          courses: sources.courses.map((id) => ({ id })),
+          memberships: sources.memberships,
+          years: sources.years,
+        }).map((row) => ({ ...row, revision }));
+        return {
+          counted: data().countedLines.length,
+          installed: data().enrollments.length,
+        };
       },
       limitLockWait: async (ms) => {
         this.lockWaits.push(ms);
@@ -478,7 +557,6 @@ export class FakeCoordination {
         this.#release(claim, input);
         return true;
       },
-      ruleModes: async () => this.enrollmentSources.rules,
       sourceIds: async (source) => this.sourceIds[source],
       storePlan: async (token, owner, pages) => {
         const claim = this.#liveClaim(token, owner, true);

@@ -455,7 +455,7 @@ describe('the key order of courses.json', () => {
 });
 
 describe('the enrollment and curriculum checks of courses.json', () => {
-  test('blocks an exported course and year without a count row, and names a missing rule apart', async () => {
+  test('blocks an exported course and year without a count row', async () => {
     const counted = await decide({
       store: edit(
         await importedStore(),
@@ -473,17 +473,19 @@ describe('the enrollment and curriculum checks of courses.json', () => {
 
     expect(counted.blockers).toEqual(['enrollment_count_missing']);
     expect(counted.issueCounts['enrollment_count_missing']).toBe(1);
-    expect(newCourse.blockers).toEqual([
-      'enrollment_count_missing',
-      'enrollment_rule_missing',
-    ]);
+    expect(newCourse.blockers).toEqual(['enrollment_count_missing']);
     expect(newCourse.issueCounts).toMatchObject({
       enrollment_count_missing: 15,
-      enrollment_rule_missing: 15,
     });
+    // Enrollment rules no longer decide what is counted.
+    expect(
+      Object.keys(newCourse.issueCounts).filter((code) =>
+        code.includes('rule'),
+      ),
+    ).toEqual([]);
   });
 
-  test('counts a published year without counts or rules as missing for every course', async () => {
+  test('counts a published year without counts as missing for every course', async () => {
     const decision = await decide({
       store: edit(
         await importedStore(),
@@ -494,7 +496,6 @@ describe('the enrollment and curriculum checks of courses.json', () => {
 
     expect(decision.issueCounts).toMatchObject({
       enrollment_count_missing: 8,
-      enrollment_rule_missing: 8,
     });
     expect(decision.blockedFiles).toEqual(['courses.json']);
   });
@@ -587,7 +588,7 @@ describe('the enrollment and curriculum checks of courses.json', () => {
 });
 
 describe('the teaching and mapping checks of courses.json', () => {
-  test('warns about mappings no rule counts, never blocking on them, and counts no history line', async () => {
+  test('neither blocks nor warns on explicit mappings, and counts no history line', async () => {
     const store = await importedStore();
     edit(
       store,
@@ -610,7 +611,10 @@ describe('the teaching and mapping checks of courses.json', () => {
 
     expect(rowsOf(store, 'moodle_course_mappings')).toHaveLength(3);
     expect(decision.ready).toBeTruthy();
-    expect(decision.issueCounts).toMatchObject({ mapping_without_rule: 2 });
+    expect(decision.warnings).not.toContain('mapping_without_rule');
+    expect(Object.keys(decision.issueCounts)).not.toContain(
+      'mapping_without_rule',
+    );
     expect(Object.keys(decision.issueCounts)).not.toContain(
       'entry_needs_mapping',
     );

@@ -1,8 +1,6 @@
 import type { DirectusRequest } from '../directus-request.js';
 
 import { enrollmentRuleFlows } from './add-enrollment-rules.js';
-import { legacyEnrollmentFlows } from './count-legacy-enrollments.js';
-import { mappedEnrollmentFlows } from './count-mapped-enrollments.js';
 import {
   type FlowFamilyCode,
   flowFamilyCodes,
@@ -13,6 +11,7 @@ import {
   type FlowInstallSummary,
   installFlowTemplates,
 } from './install-flows.js';
+import { matchingFlows } from './match-history-lines.js';
 import { publicationFlows } from './prepare-public-assets.js';
 import { automaticProcessingFlows } from './process-pending.js';
 import { publishFlows } from './publish-public-assets.js';
@@ -28,12 +27,11 @@ export type FlowFamily = {
 };
 
 // Every managed Flow family in installation order: the history index,
-// the snapshot import, the mapped and legacy enrollment counts, the
-// publication buttons, the publish Flows and the rule seeding of the
-// dashboard before automatic processing, whose dispatcher calls the
-// enrollment Flows and whose schedule runs last, so its first tick finds
-// every child. A later family is one entry here, before automatic
-// processing.
+// the snapshot import, the history line matching, the publication
+// buttons, the publish Flows and the rule seeding of the dashboard before
+// automatic processing, whose dispatcher calls the matching Flow and whose
+// schedule runs last, so its first tick finds every child. A later family
+// is one entry here, before automatic processing.
 export const flowFamilies: readonly FlowFamily[] = [
   {
     code: flowFamilyCodes.history,
@@ -46,14 +44,9 @@ export const flowFamilies: readonly FlowFamily[] = [
     templates: snapshotImportFlows,
   },
   {
-    code: flowFamilyCodes.mapped,
-    name: 'Mapped enrollments',
-    templates: mappedEnrollmentFlows,
-  },
-  {
-    code: flowFamilyCodes.legacy,
-    name: 'Legacy enrollments',
-    templates: legacyEnrollmentFlows,
+    code: flowFamilyCodes.matching,
+    name: 'History line matching',
+    templates: matchingFlows,
   },
   {
     code: flowFamilyCodes.publication,

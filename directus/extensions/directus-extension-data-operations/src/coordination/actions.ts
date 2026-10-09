@@ -12,7 +12,6 @@ import {
 import { currentFor, decideClaim } from './decisions.js';
 import { type Domain } from './domains.js';
 import { isLockUnavailable } from './errors.js';
-import { planEnrollmentsAction } from './plan-enrollments.js';
 import { completeAction, failAction } from './release-actions.js';
 import {
   heartbeatAction,
@@ -149,12 +148,10 @@ export const runAction = (
     case 'mark':
       return markAction(input.domains, context);
     case 'plan_pages':
-      return input.source === 'enrollments'
-        ? planEnrollmentsAction(input.token, context)
-        : planPagesAction(
-            { source: input.source, token: input.token },
-            context,
-          );
+      return planPagesAction(
+        { source: input.source, token: input.token },
+        context,
+      );
     case 'record':
       return recordAction(input, context);
     case 'stage_page':

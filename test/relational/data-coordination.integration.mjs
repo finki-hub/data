@@ -6,8 +6,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
 import { declaredFilenames as publicFiles } from '../../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
+import { defaultYearPattern } from '../../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
 import { sourceInvalidation } from '../../directus/extensions/directus-extension-data-operations/src/migrations.js';
-import { ruleMode } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import {
   applySchemaConstraints,
@@ -62,9 +62,14 @@ const templatedOptions = Object.fromEntries(
 const restartContainer = process.env.DIRECTUS_COORDINATION_RESTART_CONTAINER;
 const claimMismatch = 'COORDINATION_CLAIM_MISMATCH';
 const pageUnplanned = 'COORDINATION_PAGE_UNPLANNED';
+// The one history line, its year and the patterns of its two mappings.
+const line = 'Synthetic Coordination Line 2031/2032';
+const lineYear = '2031/2032';
+const linePattern = '^Synthetic Coordination Line';
 const unrecordedUpload =
   /^Publication claim abandoned: no heartbeat for \d+ s\. Revision not published\. Last upload possibly unrecorded$/u;
-// The answer of a complete that needed no retry.
+// The answer of a complete that needed no retry; an enrollments
+// completion also names the counted lines it wrote.
 const completion = (domain, installed, more) => ({
   completed: true,
   domain,
@@ -305,19 +310,23 @@ const recordsSourceStatements = async (target, state) => {
   report = await status(target);
   assert.equal(report.revisions.source, 5);
   assert.deepEqual(report.dirty, allDomains);
-  const ruleIds = [];
-  for (const [course, year] of [
-    [courseA, yearA],
-    [courseB, yearA],
-    [courseA, yearB],
+  // One line created through the API and two mappings counting it: course
+  // A's in the year the line names, course B's in year A. Three statements.
+  const entry = await create(target, state, [
+    'moodle_course_entries',
+    { label: line },
+  ]);
+  const mappingIds = [];
+  for (const mapping of [
+    { course: courseA, pattern: linePattern, year_pattern: defaultYearPattern },
+    { course: courseB, only_in_year: yearA, pattern: linePattern },
   ]) {
-    const rule = await create(target, state, [
-      'course_enrollment_rules',
-      { academic_year: year, course, mode: 'mapped_entries' },
-    ]);
-    ruleIds.push(rule);
+    mappingIds.push(
+      await create(target, state, ['moodle_pattern_mappings', mapping]),
+    );
   }
-  Object.assign(state, { courseA, courseB, ruleIds, userId, yearA, yearB });
+  Object.assign(state, { courseA, courseB, userId, yearA, yearB });
+  Object.assign(state, { entry, mappingIds });
   const duplicate = await request(
     target,
     '/items/academic_years',
@@ -409,7 +418,8 @@ const claimsOnce = async (target, state) => {
     { heartbeat: true },
   );
   // A history run completes only after it planned and indexed its pages;
-  // the one synthetic user has no raw history, so nothing is written.
+  // the one synthetic user holds the one line, which exists already, so
+  // only its membership is written and no source statement runs.
   await refused(
     target,
     { action: 'complete', token: winner.token },
@@ -427,13 +437,13 @@ const claimsOnce = async (target, state) => {
     await act(target, {
       action: 'index_page',
       page: 'p0001',
-      rows: [{ entries: [], id: state.userId }],
+      rows: [{ entries: [line], id: state.userId }],
       token: winner.token,
     }),
     {
       entriesCreated: 0,
       membershipsRemoved: 0,
-      membershipsWritten: 0,
+      membershipsWritten: 1,
       page: 'p0001',
       users: 1,
     },
@@ -464,10 +474,11 @@ const refusesStaleCompletion = async (target, state) => {
   const claim = await claimNow(target, 'enrollments');
   assert.equal(claim.claimed, true);
   assert.equal(claim.revision, 10);
-  await create(target, state, [
+  const yearC = await create(target, state, [
     'academic_years',
     { label: '2033/2034', sort: 3 },
   ]);
+  Object.assign(state, { yearC });
   const error = await refused(
     target,
     { action: 'complete', token: claim.token },
@@ -483,7 +494,7 @@ const refusesStaleCompletion = async (target, state) => {
   assert.equal(report.candidates, 0);
   assert.equal(report.revisions.completed, 10);
   assert.equal(report.revisions.source, 11);
-  assert.equal(await count(target, 'data_operation_results'), 0);
+  assert.equal(await count(target, 'data_operation_matches'), 0);
   await refused(
     target,
     { action: 'heartbeat', token: claim.token },
@@ -502,9 +513,12 @@ const stagesPages = async (target, state) => {
   state.token = claim.token;
   const again = await claimNow(target, 'enrollments');
   assert.equal(again.reason, 'busy');
+  const [allYears, onlyInYear] = state.mappingIds;
+  // The matches the matcher stages for the line: course A's mapping reads
+  // the year from the line, course B's has its own year.
   const rows = [
-    { academic_year: state.yearA, count: 2, course: state.courseA },
-    { academic_year: state.yearA, count: 5, course: state.courseB },
+    { entry: state.entry, pattern_mapping: allYears, year_label: lineYear },
+    { entry: state.entry, pattern_mapping: onlyInYear, year_label: null },
   ];
   const page = (body) => ({
     action: 'stage_page',
@@ -514,35 +528,26 @@ const stagesPages = async (target, state) => {
     ...body,
   });
   await refused(target, page({}), pageUnplanned);
-  // An enrollments claim never plans the Moodle users (Task 12): a plan
-  // without the legacy family could let the completion drop its rows.
+  // An enrollments claim never plans the Moodle users.
   await refused(
     target,
     { action: 'plan_pages', source: 'history', token: claim.token },
     'COORDINATION_DOMAIN_MISMATCH',
   );
-  // A first plan of both rule families, one page staged under it; the plan
-  // over the rules that follows must discard that page's candidates.
-  const ruleRange = {
-    from: Math.min(...state.ruleIds),
-    rows: 3,
-    to: Math.max(...state.ruleIds),
-  };
+  // A first plan of the history lines, one match staged under it; the
+  // plan that follows must discard that page's candidates.
+  const pages = [
+    { from: state.entry, rows: 1, to: state.entry, token: 'p0001' },
+  ];
   const replaced = await act(target, {
     action: 'plan_pages',
-    source: 'enrollments',
+    source: 'entries',
     token: claim.token,
   });
   assert.deepEqual(replaced, {
     discarded: 0,
-    families: [
-      {
-        kind: 'mapped_entries',
-        pages: [{ ...ruleRange, kind: 'mapped', token: 'p0001' }],
-        runnerFlowId: ruleMode('mapped_entries').runnerFlowId,
-      },
-    ],
-    source: 'enrollments',
+    pages,
+    source: 'entries',
     total: 1,
   });
   assert.deepEqual(await act(target, page({ rows: [rows[0]] })), {
@@ -550,20 +555,15 @@ const stagesPages = async (target, state) => {
     replaced: 0,
     staged: 1,
   });
-  assert.equal(await count(target, 'data_operation_results'), 1);
+  assert.equal(await count(target, 'data_operation_matches'), 1);
   const plan = await act(target, {
     action: 'plan_pages',
-    source: 'rules',
+    source: 'entries',
     token: claim.token,
   });
-  assert.deepEqual(plan, {
-    discarded: 1,
-    pages: [{ ...ruleRange, token: 'p0001' }],
-    source: 'rules',
-    total: 1,
-  });
+  assert.deepEqual(plan, { discarded: 1, pages, source: 'entries', total: 1 });
   assert.equal(
-    await count(target, 'data_operation_results'),
+    await count(target, 'data_operation_matches'),
     0,
     'a new plan discards the candidates of the plan it replaces',
   );
@@ -581,31 +581,19 @@ const stagesPages = async (target, state) => {
     replaced: 2,
     staged: 2,
   });
-  assert.equal(await count(target, 'data_operation_results'), 2);
+  assert.equal(await count(target, 'data_operation_matches'), 2);
   const candidates = await get(
     target,
-    '/items/data_operation_results?fields=course,academic_year,count,page_token,revision&sort=course',
+    '/items/data_operation_matches?fields=entry,pattern_mapping,year_label,page_token&sort=pattern_mapping',
   );
-  assert.deepEqual(candidates, [
-    {
-      academic_year: state.yearA,
-      count: 2,
-      course: state.courseA,
-      page_token: 'p0001',
-      revision: 11,
-    },
-    {
-      academic_year: state.yearA,
-      count: 5,
-      course: state.courseB,
-      page_token: 'p0001',
-      revision: 11,
-    },
-  ]);
+  assert.deepEqual(
+    candidates,
+    rows.map((row) => ({ ...row, page_token: 'p0001' })),
+  );
   await refused(target, page({ page: 'p0002' }), pageUnplanned);
   await refused(
     target,
-    page({ rows: [...rows, { ...rows[0], count: 9 }] }),
+    page({ rows: [...rows, { ...rows[0], year_label: null }] }),
     'COORDINATION_DUPLICATE_ROWS',
   );
   await refused(
@@ -620,30 +608,46 @@ const stagesPages = async (target, state) => {
   assert.equal(report.candidates, 2);
 };
 
+// The completion counts the line once for each course in year A (the one
+// user holds it) and 0 for every other course and year: two courses times
+// three years.
 const installsCounts = async (target, state) => {
   assert.deepEqual(
     await act(target, { action: 'complete', token: state.token }),
-    completion('enrollments', 2, { revision: 11 }),
+    completion('enrollments', 6, { counted: 2, revision: 11 }),
   );
   const installed = await get(
     target,
-    '/items/course_enrollments?fields=course,academic_year,count,computed_revision&sort=course',
+    '/items/course_enrollments?fields=course,academic_year,count,computed_revision&sort=course,academic_year&limit=-1',
   );
-  assert.deepEqual(installed, [
-    {
+  // Ids grow with creation: A before B, year A before B before C.
+  const years = [state.yearA, state.yearB, state.yearC];
+  assert.deepEqual(
+    installed,
+    [state.courseA, state.courseB].flatMap((course) =>
+      years.map((year) => ({
+        academic_year: year,
+        computed_revision: 11,
+        count: year === state.yearA ? 1 : 0,
+        course,
+      })),
+    ),
+  );
+  const counted = await get(
+    target,
+    '/items/moodle_counted_lines?fields=entry,course,academic_year,source,pattern_mapping&sort=pattern_mapping&limit=-1',
+  );
+  assert.deepEqual(
+    counted,
+    [state.courseA, state.courseB].map((course, index) => ({
       academic_year: state.yearA,
-      computed_revision: 11,
-      count: 2,
-      course: state.courseA,
-    },
-    {
-      academic_year: state.yearA,
-      computed_revision: 11,
-      count: 5,
-      course: state.courseB,
-    },
-  ]);
-  assert.equal(await count(target, 'data_operation_results'), 0);
+      course,
+      entry: state.entry,
+      pattern_mapping: state.mappingIds[index],
+      source: 'pattern',
+    })),
+  );
+  assert.equal(await count(target, 'data_operation_matches'), 0);
   const report = await status(target);
   assert.equal(report.claim, null);
   assert.deepEqual(report.dirty, ['publication']);

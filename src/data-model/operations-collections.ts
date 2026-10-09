@@ -189,37 +189,4 @@ export const operationsCollections: readonly ModelCollection[] = [
     singleton: true,
     sort: 23,
   },
-  {
-    collection: 'data_operation_results',
-    displayTemplate: '{{claim_token}} / {{page_token}}',
-    fields: [
-      scalar('claim_token', 'string', {
-        indexed: true,
-        nullable: false,
-        readOnly: true,
-      }),
-      scalar('page_token', 'string', { nullable: false, readOnly: true }),
-      m2o('course', 'courses', {
-        nullable: false,
-        readOnly: true,
-        template: courseTemplate,
-      }),
-      m2o('academic_year', 'academic_years', {
-        nullable: false,
-        readOnly: true,
-        template: academicYearTemplate,
-      }),
-      scalar('count', 'integer', {
-        minimum: 0,
-        nullable: false,
-        readOnly: true,
-      }),
-      scalar('revision', 'integer', { readOnly: true }),
-    ],
-    hidden: true,
-    icon: 'pending_actions',
-    note: 'Temporary candidate counts staged under a claim; partial counts only, never raw users.',
-    singleton: false,
-    sort: 24,
-  },
 ];

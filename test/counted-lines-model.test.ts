@@ -363,7 +363,7 @@ describe('every course counted', () => {
     );
     expect(declarationOf('course_enrollments')).toMatchObject({
       guard: {
-        hint: 'Source: courses, moodle_pattern_mappings, moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending',
+        hint: 'Source: courses, moodle_pattern_mappings, moodle_course_mappings, moodle_users; rebuilt by: Data / Process pending',
       },
     });
   });

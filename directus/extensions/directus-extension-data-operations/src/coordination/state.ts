@@ -6,21 +6,18 @@ import type { StoredOutcomes } from './outcomes.js';
 // a caller can pass a whole failure record without a size check of its own.
 export const errorMessageLength = 600;
 
-const pageSources = ['history', 'rules'] as const;
+// What plan_pages may plan: one source table, paged by id under its own
+// claim domain (pageSourceDomains).
+export const planSources = ['history', 'entries'] as const;
 
-export type PageSource = (typeof pageSources)[number];
-
-// What plan_pages may plan: one source table, or `enrollments`, the one
-// plan of an enrollments claim that covers every declared rule mode as one
-// family of pages (rule-modes.ts), so its completion never drops a
-// family's rows.
-export const planSources = [...pageSources, 'enrollments'] as const;
+export type PageSource = (typeof planSources)[number];
 
 // The only tables the page planner ever reads, keyed by the enumerated
-// source names an operation may name.
+// source names an operation may name: the Moodle users a history index
+// claim indexes, and the history lines an enrollments claim matches.
 export const pageSourceTables: Readonly<Record<PageSource, string>> = {
+  entries: 'moodle_course_entries',
   history: 'moodle_users',
-  rules: 'course_enrollment_rules',
 };
 
 // A publication records at most this many per-file outcomes, keyed by
@@ -54,39 +51,14 @@ export const publicationUploadLeaseMs = 20 * 60_000;
 // instead of holding a pooled connection until the commit.
 export const claimLockWaitMs = 2_000;
 
-// Every planned page covers at most this many source rows.
+// Every planned page covers at most this many source rows: Moodle users
+// of a history index page, history lines of an enrollments page.
 export const pageSize = 250;
 
-// A legacy rule page holds at most this many legacy_regex rules; its
-// Run Script compiles each of them once.
-export const legacyRulePageSize = 500;
-
-// The UTF-8 bytes of `Courses` one legacy history page may hold. Run
-// Script copies the whole data chain into an isolate of 32 MB and stops it
-// after 10 s (the defaults, never raised). Memory: V8 keeps a string with
-// any non-Latin-1 character at two bytes per UTF-16 unit and disposes the
-// isolate at about 16 MB of string storage, so a page costs at most twice
-// its bytes. Time grows with rules times bytes: on the largest page (500
-// rules, 800,000 two-byte bytes) literal and cross-line rules take 0.1-0.2
-// s and whole-text line walks (^(?:.*\n)*...) 3.3 s, a third of the
-// timeout (docs/progress/evidence/relational-redesign/task-12-fix-0/).
-// A page of typical histories reaches 250 users first; larger histories
-// only split into more pages, each still read once per rule page.
-export const historyPageBudget = 800_000;
-
-// The UTF-8 bytes of pattern text one legacy rule page may hold: the same
-// 2 MB of string storage as 500 rules of 2,000 characters, while one
-// pattern may use all of it. The planner cuts rule pages by rows and by
-// these bytes, so no existing pattern needs a length cap.
-export const legacyPatternBudget = 1_000_000;
-
-// The only claim domain each table source may be planned under. An
-// enrollments claim plans its rules alone only while every rule is of a
-// mode planned as plain rule ranges; otherwise it needs source
-// `enrollments`, the one plan that covers every rule mode.
+// The only claim domain each table source may be planned under.
 export const pageSourceDomains: Readonly<Record<PageSource, Domain>> = {
+  entries: 'enrollments',
   history: 'history_index',
-  rules: 'enrollments',
 };
 
 export const maxRowsPerPage = 10_000;

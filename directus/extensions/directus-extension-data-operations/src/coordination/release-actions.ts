@@ -108,10 +108,10 @@ export const completeAction = (
       requireEveryFileUploaded(input.files, declared);
     }
     const superseded = decision.kind === 'superseded';
-    const installed =
+    const { counted, installed } =
       claim.domain === 'enrollments'
         ? await port.installEnrollments(input.token, claim.revision)
-        : 0;
+        : { counted: 0, installed: 0 };
     await port.discardCandidates(input.token);
     const finished = await port.finish({
       claimRevision: claim.revision,
@@ -136,6 +136,7 @@ export const completeAction = (
       completed: true,
       domain: claim.domain,
       installed,
+      ...(claim.domain === 'enrollments' && { counted }),
       retries: claim.retries,
       revision: claim.revision,
       // The newer source revision a publication left pending, if any.

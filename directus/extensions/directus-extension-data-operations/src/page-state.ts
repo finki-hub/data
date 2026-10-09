@@ -1,10 +1,13 @@
 import { pageSize, textCollator } from './coordination/state.js';
 
-// A candidate count staged under a claim and a page. Never a profile.
-export type CountRow = {
-  readonly academic_year: number;
-  readonly count: number;
-  readonly course: number;
+// A match staged under a claim and a page: a history line a pattern
+// mapping matches, with the academic year `<start>/<start+1>` its year
+// pattern reads from the line, or null for an only-in-year mapping. Never
+// a label or a pattern.
+export type MatchRow = {
+  readonly entry: number;
+  readonly pattern_mapping: number;
+  readonly year_label: null | string;
 };
 
 // A planned page: the inclusive id range of at most `pageSize` source rows
@@ -54,15 +57,16 @@ export const planPages = (
     token: pageToken(index),
   }));
 
-const pairKey = (row: CountRow): string => `${row.course}/${row.academic_year}`;
+const matchKey = (row: MatchRow): string =>
+  `entry ${row.entry} / pattern mapping ${row.pattern_mapping}`;
 
-// Course/year pairs that occur more than once in one page payload. A page
-// must aggregate its own rows; summing silently would hide a Flow bug.
-export const duplicatePairs = (rows: readonly CountRow[]): string[] => {
+// Line/mapping pairs that occur more than once in one page payload: a
+// mapping matches a line once, so a repeated pair is a Flow bug.
+export const duplicateMatches = (rows: readonly MatchRow[]): string[] => {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
   for (const row of rows) {
-    const key = pairKey(row);
+    const key = matchKey(row);
     if (seen.has(key)) {
       duplicates.add(key);
     }

@@ -8,8 +8,6 @@ import {
   coordinatorActionNames,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
-  calculationRunnerRoots,
-  canonicalJson,
   graphKindsOf,
   neutralActions,
   pageStepActions,
@@ -19,27 +17,12 @@ import {
   stateRow,
   toState,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/sql-state.js';
+import { graphSql } from '../directus/extensions/directus-extension-data-operations/src/coordination/sql-statements.js';
 import {
-  graphSql,
-  graphSqlOf,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/sql-statements.js';
-import { planEnrollmentFamilies } from '../directus/extensions/directus-extension-data-operations/src/enrollment-pages.js';
-import { enrollmentLimits } from '../directus/extensions/directus-extension-data-operations/src/enrollment-ranges.js';
-import {
-  ruleModes,
-  runnerFlowIds,
-} from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
-import {
-  familiesCheckScript,
-  familiesScript,
+  pagesCheckScript,
+  pagesScript,
 } from '../src/flows/count-enrollments-scripts.js';
 import { dispatcherFlow } from '../src/flows/count-enrollments.js';
-import {
-  legacyEnrollmentFlows,
-  legacyParentFlow,
-} from '../src/flows/count-legacy-enrollments.js';
-import { mappedPagesFlow } from '../src/flows/count-mapped-enrollment-pages.js';
-import { mappedEnrollmentFlows } from '../src/flows/count-mapped-enrollments.js';
 import {
   coordinateOperation,
   type FlowTemplate,
@@ -47,6 +30,7 @@ import {
 } from '../src/flows/flow-template.js';
 import { historyIndexFlows } from '../src/flows/index-histories.js';
 import { markPendingFlow } from '../src/flows/mark-pending.js';
+import { matchFlow, matchingFlows } from '../src/flows/match-history-lines.js';
 import { publicationFlows } from '../src/flows/prepare-public-assets.js';
 import {
   automaticProcessingFlows,
@@ -55,8 +39,6 @@ import {
 } from '../src/flows/process-pending.js';
 import { publishFileFlow } from '../src/flows/publish-one-file.js';
 import { publishFlows } from '../src/flows/publish-public-assets.js';
-import { familyRunnerFlow } from '../src/flows/run-enrollment-family.js';
-import { mappedEnrollmentFlowIds } from '../src/flows/shared.js';
 import { snapshotImportFlows } from '../src/flows/snapshot-import.js';
 import {
   claimNext,
@@ -65,7 +47,6 @@ import {
   finish,
   graphFingerprints,
   graphFlowIds,
-  graphRowsOf,
   recordingDatabase,
   settled,
   stateRowOf,
@@ -75,7 +56,6 @@ import {
   tick,
 } from './automatic-processing-helpers.js';
 import { bothGraphs } from './data-coordination-helpers.js';
-import { runScript } from './legacy-enrollment-helpers.js';
 
 const boundedCode = /^[A-Z][A-Z_]{0,63}$/u;
 const collator = new Intl.Collator('en');
@@ -169,7 +149,7 @@ describe('the scheduled claim', () => {
       }),
       stateRowOf({
         dirty_domains: [enrollments, publication],
-        last_error_code: 'LEGACY_COUNT_FAILED',
+        last_error_code: 'MATCH_FAILED',
         last_failed_domain: enrollments,
         last_failed_fingerprint: graphFingerprints.calculation,
         last_failed_revision: 7,
@@ -198,7 +178,7 @@ describe('the scheduled claim', () => {
       expect.objectContaining({
         claimed: false,
         domain: enrollments,
-        error: 'LEGACY_COUNT_FAILED',
+        error: 'MATCH_FAILED',
         reason: 'failed',
       }),
     ]);
@@ -217,7 +197,7 @@ describe('the scheduled claim', () => {
 
 describe('failures and changes during a run', () => {
   test('keeps a failed domain failed on every tick until an edit, Mark pending, a graph change or a retry', async () => {
-    const fake = settled('course_enrollment_rules');
+    const fake = settled('moodle_pattern_mappings');
     const run = await claimNext(fake);
 
     await expect(
@@ -232,7 +212,7 @@ describe('failures and changes during a run', () => {
       await expect(tick(fake)).resolves.toMatchObject({
         claimed: false,
         domain: enrollments,
-        error: 'LEGACY_COUNT_FAILED',
+        error: 'MATCH_FAILED',
         reason: 'failed',
       });
     }
@@ -384,8 +364,7 @@ describe('status', () => {
 const allTemplates = [
   ...historyIndexFlows,
   ...snapshotImportFlows,
-  ...mappedEnrollmentFlows,
-  ...legacyEnrollmentFlows,
+  ...matchingFlows,
   ...automaticProcessingFlows,
 ];
 
@@ -410,9 +389,7 @@ const inGraph = (
 
 const calculationFlows = [
   ...historyIndexFlows,
-  ...mappedEnrollmentFlows,
-  ...legacyEnrollmentFlows,
-  familyRunnerFlow,
+  ...matchingFlows,
   dispatcherFlow,
   processPendingFlow,
 ];
@@ -445,6 +422,12 @@ const withOptions = (
 });
 
 const quoted = (value: string): string => `'${value}'`;
+
+// The Flows a template's Trigger Flow steps name.
+const triggerTargets = ({ operations }: FlowTemplate): unknown[] =>
+  operations.flatMap(({ options, type }) =>
+    type === 'trigger' ? [options['flow']] : [],
+  );
 
 const routeFilter = z.object({
   filter: z.object({
@@ -564,8 +547,7 @@ describe('the Flow-graph fingerprints', () => {
     const calculation = graphFlowIds(installedTemplates, 'calculation');
     const published = graphFlowIds(installedTemplates, 'publication');
 
-    // History, mapped, legacy, the family runner, the dispatcher and the
-    // schedule.
+    // History, the matching page Flow, the dispatcher and the schedule.
     expect(inGraph(calculation, calculationFlows)).toEqual(
       idsOf(calculationFlows),
     );
@@ -614,49 +596,36 @@ describe('the Flow-graph fingerprints', () => {
     expect(calculationEdit.publication).not.toBe(base.publication);
   });
 
-  // The dispatcher reaches a family's runner through a Trigger Flow step
-  // whose flow id is templated, which no graph walk follows: the declared
-  // runners root the calculation graph themselves, so their Flows and the
-  // pages they run stay covered, and a Studio edit of one requeues the
-  // counts.
-  test('root every declared family runner in the calculation graph', () => {
+  // The dispatcher reaches its page Flow through a Trigger Flow step with
+  // a fixed id, so the graph walk covers it with no declared root, and a
+  // Studio edit of it requeues the counts. No managed Trigger Flow step
+  // names a templated id, which no walk could follow.
+  test('reach every child Flow by a fixed id, the matching page Flow included', () => {
     const calculation = graphFlowIds(installedTemplates, 'calculation');
-    const unrooted = graphFlowIds(installedTemplates, 'calculation', []);
-    const runners = [mappedPagesFlow, legacyParentFlow];
+    const ids = new Set(installedTemplates.map(({ id }) => id));
+    const targets = installedTemplates.flatMap(triggerTargets);
 
-    expect(calculationRunnerRoots).toEqual(runners.map(({ id }) => id));
-    expect(runnerFlowIds()).toEqual(calculationRunnerRoots);
-    expect(inGraph(calculation, runners)).toEqual(idsOf(runners));
-    expect(inGraph(unrooted, runners)).toEqual([]);
+    expect(targets.filter((target) => !ids.has(String(target)))).toEqual([]);
     expect(
-      inGraph(graphFlowIds(installedTemplates, 'publication'), runners),
-    ).toEqual([]);
+      dispatcherFlow.operations.find(({ key }) => key === 'match_pages')
+        ?.options['flow'],
+    ).toBe(matchFlow.id);
+    expect(calculation.has(matchFlow.id)).toBeTruthy();
+    expect(
+      graphFlowIds(installedTemplates, 'publication').has(matchFlow.id),
+    ).toBeFalsy();
+    expect(graphSql).not.toContain('runners');
 
     const base = templateFingerprints(installedTemplates);
-    const runnerEdit = templateFingerprints(
+    const pageEdit = templateFingerprints(
       replaced(
         installedTemplates,
-        withOptions(mappedPagesFlow, 'check_pages', { extra: true }),
+        withOptions(matchFlow, 'read_mappings', { extra: true }),
       ),
     );
 
-    expect(runnerEdit.calculation).not.toBe(base.calculation);
-    expect(runnerEdit.publication).not.toBe(base.publication);
-    expect(graphSql).toContain(
-      `UNION SELECT 'calculation', runners."flow" FROM (VALUES ${calculationRunnerRoots
-        .map((id) => quoted(id))
-        .map((id) => `(${id})`)
-        .join(', ')}) AS runners("flow")`,
-    );
-
-    // A registry without a mode drops that runner's root and nothing else;
-    // an empty one adds no root at all.
-    const [mappedRunner = '', legacyRunner = ''] = calculationRunnerRoots;
-
-    expect(graphSqlOf([mappedRunner])).toBe(
-      graphSql.replace(`, (${quoted(legacyRunner)})`, ''),
-    );
-    expect(graphSqlOf([])).not.toContain('runners');
+    expect(pageEdit.calculation).not.toBe(base.calculation);
+    expect(pageEdit.publication).not.toBe(base.publication);
   });
 
   test('root a Flow by what its coordinate step does, and a templated claim in both graphs', () => {
@@ -799,21 +768,8 @@ const mainRow = (flow: FlowTemplate): string[] => {
   return order;
 };
 
-const claimToken = 'c0ffee00-0000-4000-8000-000000000001';
-
-// Every declared mode, runner Flow and page kind (quoted as a script or
-// JSON literal would hold it).
-const declaredValues = ruleModes.flatMap(
-  ({ mode, pageKinds, runnerFlowId }) => [
-    mode,
-    runnerFlowId,
-    ...pageKinds.map((kind) => `'${kind}'`),
-    ...pageKinds.map((kind) => `"${kind}"`),
-  ],
-);
-
 describe('the enrollment dispatcher', () => {
-  test('plans every rule family once, runs the families serially through one runner, then completes once', () => {
+  test('plans the history lines once, matches the pages serially through the matching Flow, then completes once', () => {
     expect(dispatcherFlow).toMatchObject({
       accountability: 'activity',
       id: '6a1d9f0e-2b3c-4d5e-8f70-000000001301',
@@ -823,31 +779,41 @@ describe('the enrollment dispatcher', () => {
     });
     expect(mainRow(dispatcherFlow)).toEqual([
       'plan',
-      'families',
-      'run_families',
-      'families_ok',
+      'pages',
+      'match_pages',
+      'pages_ok',
       'complete',
       'answer',
     ]);
     expect(dispatcherStep('plan')?.options).toEqual({
       action: 'plan_pages',
-      source: 'enrollments',
+      source: 'entries',
       token: triggerClaim,
     });
-    expect(dispatcherStep('run_families')?.options).toEqual({
-      flow: familyRunnerFlow.id,
+    expect(dispatcherStep('match_pages')?.options).toEqual({
+      flow: matchFlow.id,
       iterationMode: 'serial',
-      payload: '{{ families }}',
+      payload: '{{ pages }}',
     });
-    expect(dispatcherStep('families')?.options).toEqual({
-      code: familiesScript,
-    });
-    expect(dispatcherStep('families_ok')?.options).toEqual({
-      code: familiesCheckScript,
+    expect(dispatcherStep('pages')?.options).toEqual({ code: pagesScript });
+    expect(dispatcherStep('pages_ok')?.options).toEqual({
+      code: pagesCheckScript,
     });
     expect(dispatcherStep('complete')?.options).toEqual({
       action: 'complete',
       token: triggerClaim,
+    });
+    expect(dispatcherStep('answer')?.options).toEqual({
+      json: {
+        completed: true,
+        counted: '{{ complete.counted }}',
+        domain: 'enrollments',
+        installed: '{{ complete.installed }}',
+        ok: true,
+        pages: '{{ pages_ok.pages }}',
+        revision: '{{ complete.revision }}',
+        staged: '{{ pages_ok.staged }}',
+      },
     });
 
     // One plan and one completion per claim: a second plan would discard
@@ -866,9 +832,9 @@ describe('the enrollment dispatcher', () => {
 
     expect(rejecting.map(({ key }) => key)).toEqual([
       'plan',
-      'families',
-      'run_families',
-      'families_ok',
+      'pages',
+      'match_pages',
+      'pages_ok',
       'complete',
     ]);
 
@@ -884,57 +850,19 @@ describe('the enrollment dispatcher', () => {
       ).toMatchObject({ json: { ok: false } });
     }
 
-    expect(dispatcherStep('family_fail')?.options).toEqual({
+    expect(dispatcherStep('check_fail')?.options).toEqual({
       action: 'fail',
       code: 'ENROLLMENTS_FAILED',
-      message: '{{ families_ok.message }}',
+      message: '{{ pages_ok.message }}',
       token: triggerClaim,
     });
-  });
-
-  // The dispatcher and its runner are installed once and never updated,
-  // so no step of theirs may depend on the declared modes: the plan names
-  // the families and their runner Flows, the graph stays the same.
-  test('names no rule mode, page kind or runner Flow, so removing a mode from a registry leaves its graph unchanged', () => {
-    const graph = canonicalJson([dispatcherFlow, familyRunnerFlow]);
-
-    expect(declaredValues.filter((value) => graph.includes(value))).toEqual([]);
-
-    // A registry without the legacy mode plans the mapped family alone,
-    // and the same installed steps list and run it.
-    const mappedOnly = ruleModes.filter(({ mode }) => mode !== 'legacy_regex');
-    const families = planEnrollmentFamilies(
-      { rules: [{ bytes: 0, id: 1, mode: 'mapped_entries' }], users: [] },
-      enrollmentLimits,
-      mappedOnly,
-    );
-    const listed = runScript(familiesScript, {
-      $trigger: { claim: claimToken, revision: 11 },
-      plan: { families, total: 1 },
-    });
-
-    expect(listed).toEqual([
-      {
-        claim: claimToken,
-        kind: 'mapped_entries',
-        pages: [{ from: 1, kind: 'mapped', rows: 1, to: 1, token: 'p0001' }],
-        revision: 11,
-        runner: mappedEnrollmentFlowIds.pages,
+    expect(dispatcherStep('match_failed')?.options).toEqual({
+      json: {
+        code: '{{ match_pages.code }}',
+        message: '{{ match_pages.message }}',
+        ok: false,
+        stage: 'match',
       },
-    ]);
-
-    // Its rows in the calculation graph are the same under both
-    // registries; only the runner roots differ.
-    const dispatcherRows = (runners: readonly string[]) =>
-      graphRowsOf(installedTemplates, runners).filter(({ flow }) =>
-        [dispatcherFlow.id, familyRunnerFlow.id].includes(flow),
-      );
-
-    expect(dispatcherRows(runnerFlowIds(mappedOnly))).toEqual(
-      dispatcherRows(runnerFlowIds()),
-    );
-    expect(dispatcherRows(runnerFlowIds())).toHaveLength(
-      dispatcherFlow.operations.length + familyRunnerFlow.operations.length,
-    );
+    });
   });
 });

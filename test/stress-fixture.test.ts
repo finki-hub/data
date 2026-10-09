@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import type { ExportDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/types.js';
 
+import { defaultYearPattern } from '../directus/extensions/directus-extension-data-operations/src/enrollment-lines.js';
 import { codeLevel } from '../directus/extensions/directus-extension-data-operations/src/exports/curriculum-code.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import {
   labelBytes,
   splitHistoryEntries,
 } from '../directus/extensions/directus-extension-data-operations/src/history-contract.js';
-import { ruleMode } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import {
   boundedFields,
   historyField,
@@ -50,8 +50,6 @@ import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
 // edit to the builder.
 
 const fullSize = { courses: 400, labels: 5_000, users: 30_000 };
-const mapped = ruleMode('mapped_entries').mode;
-const legacy = ruleMode('legacy_regex').mode;
 
 const lineBreak = /\r?\n/u;
 const scripts = [/\p{Script=Cyrillic}/u, /\p{Script=Han}/u, /😀/u];
@@ -59,7 +57,7 @@ const collator = new Intl.Collator('en');
 const sorted = (labels: Iterable<string>) =>
   Array.from(labels).toSorted((left, right) => collator.compare(left, right));
 
-// Whether a history line matches no rule of the fixture.
+// Whether a history matches no default pattern mapping of the fixture.
 const matchesNothing =
   (matching: ReadonlySet<string>) =>
   (line: readonly string[]): boolean =>
@@ -436,53 +434,60 @@ describe('the expected files follow the export registry', () => {
   });
 });
 
-describe('the oracle counts with each declared rule mode', () => {
-  it('counts a pattern once per user and a mapping once per distinct user', () => {
+describe('the oracle counts by the counting rules', () => {
+  it('counts each mapping line by line, explicit mappings first, every course and year', () => {
     const lines = [
       ['A Course-2024/2025', 'A Course-2024/2025'],
       ['B Course-2024/2025', 'A Course-2024/2025'],
       ['A Course-2025/2026'],
       null,
     ];
-    const histories = [
-      'A Course-2024/2025\nA Course-2024/2025',
-      'B Course-2024/2025\r\nA Course-2024/2025',
-      'A Course-2025/2026',
-      null,
+    const years = [
+      { id: 1, label: '2024/2025' },
+      { id: 2, label: '2025/2026' },
     ];
     const counts = expectedCounts(
-      { histories, lines },
+      { lines },
       {
+        courses: [1, 2, 3],
+        // B Course's line is mapped to course 3 by hand, which replaces
+        // every pattern for it.
+        explicit: [{ course: 3, label: 'B Course-2024/2025', year: 2 }],
         mappings: [
-          { course: 1, label: 'A Course-2025/2026', year: 1 },
-          { course: 1, label: 'B Course-2024/2025', year: 1 },
+          {
+            course: 1,
+            id: 1,
+            onlyInYear: null,
+            pattern: 'A Course-',
+            yearPattern: defaultYearPattern,
+          },
+          {
+            course: 2,
+            id: 2,
+            onlyInYear: null,
+            pattern: 'Course-',
+            yearPattern: defaultYearPattern,
+          },
+          // Course 2's 2025/2026 holds only what this mapping matches.
+          {
+            course: 2,
+            id: 3,
+            onlyInYear: 2,
+            pattern: '^B Course-',
+            yearPattern: null,
+          },
         ],
-        rules: [
-          { course: 0, mode: legacy, pattern: 'A Course-2024/2025', year: 0 },
-          { course: 0, mode: legacy, pattern: 'Course-202[45]', year: 1 },
-          { course: 1, mode: mapped, pattern: null, year: 1 },
-          { course: 2, mode: mapped, pattern: null, year: 1 },
-        ],
+        years,
       },
     );
 
     expect(Object.fromEntries(counts)).toEqual({
-      [pairKey(0, 0)]: 2,
-      [pairKey(0, 1)]: 3,
       [pairKey(1, 1)]: 2,
-      [pairKey(2, 1)]: 0,
+      [pairKey(1, 2)]: 1,
+      [pairKey(2, 1)]: 2,
+      [pairKey(2, 2)]: 0,
+      [pairKey(3, 1)]: 0,
+      [pairKey(3, 2)]: 1,
     });
-  });
-
-  it('refuses a rule of an undeclared mode', () => {
-    expect(() =>
-      expectedCounts(
-        { histories: [], lines: [] },
-        {
-          mappings: [],
-          rules: [{ course: 0, mode: 'manual_count', pattern: null, year: 0 }],
-        },
-      ),
-    ).toThrow('No rule mode manual_count is declared');
   });
 });

@@ -12,7 +12,7 @@ import {
 } from './publish-workflow-extensions.mjs';
 import {
   blocksCourseWithoutProfessor,
-  failsInvalidPattern,
+  failsOverRowCap,
   refusesMalformedImport,
   refusesWithoutPermission,
   survivesStorageFailure,
@@ -50,7 +50,7 @@ import {
 // REST API; the unchanged generated CSV goes through staging and
 // promotion; the native schedule counts; readiness and the manual publish
 // write every declared file. Then each failure (malformed import,
-// unresolved link, invalid pattern, missing permission, restart,
+// unresolved link, a page over the row cap, missing permission, restart,
 // concurrent edits and deletes, a deadlock at the install, S3 failure)
 // leaves the active snapshot and every published object intact, and the
 // extension scenarios add a year and a generation as rows. The run
@@ -92,7 +92,7 @@ const steps = [
   ],
   [
     'fails the counts on an invalid pattern without installing, blocks publication, then recovers',
-    failsInvalidPattern,
+    failsOverRowCap,
   ],
   [
     'refuses every operation to callers without the permission',
@@ -119,7 +119,7 @@ const steps = [
     survivesStorageFailure,
   ],
   [
-    'adds a new academic year from its rules to one key per course only once published',
+    'counts a new academic year from the start and adds one key per course only once published',
     extendsYear,
   ],
   [

@@ -165,11 +165,6 @@ const defaultViews: readonly TabularPreset[] = [
     ['course'],
   ),
   defaultView(
-    'data_operation_results',
-    ['claim_token', 'page_token', 'course', 'academic_year', 'count'],
-    ['claim_token'],
-  ),
-  defaultView(
     'staff',
     ['name', 'active', 'position', 'email', 'cabinet'],
     ['name'],

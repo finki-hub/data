@@ -148,7 +148,7 @@ const collectionRoles = [
   {
     collection: 'course_enrollments',
     guard: {
-      hint: 'Source: courses, moodle_pattern_mappings, moodle_course_mappings, course_enrollment_rules, moodle_users; rebuilt by: Data / Process pending',
+      hint: 'Source: courses, moodle_pattern_mappings, moodle_course_mappings, moodle_users; rebuilt by: Data / Process pending',
       writer: 'enrollments_writer',
       writtenBy: 'enrollments claim completion',
     },
@@ -176,15 +176,6 @@ const collectionRoles = [
   {
     collection: 'data_operations',
     role: 'status',
-  },
-  {
-    collection: 'data_operation_results',
-    guard: {
-      hint: 'Written by: coordinator',
-      writer: 'candidate_writer',
-      writtenBy: 'coordinator',
-    },
-    role: 'candidate',
   },
   {
     collection: 'data_operation_matches',

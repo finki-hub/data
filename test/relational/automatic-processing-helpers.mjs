@@ -49,27 +49,30 @@ export const lines = {
   alpha71: 'Synthetic Automatic Alpha 71',
   beta71: 'Synthetic Automatic Beta 71',
   beta72: 'Synthetic Automatic Beta 72',
-  legacy: 'Synthetic Automatic Legacy Line',
+  gamma: 'Synthetic Automatic Gamma Line',
 };
 export const seedUsers = [
   [lines.alpha71, lines.beta71].join('\n'),
   lines.alpha71,
-  [lines.beta72, lines.legacy].join('\r\n'),
-  lines.legacy,
+  [lines.beta72, lines.gamma].join('\r\n'),
+  lines.gamma,
 ].map((Courses, index) => ({
   Courses,
   'Courses Count': Courses.split(lineBreak).length,
   Name: `Synthetic Automatic User ${index + 1}`,
 }));
 
-// Every course/year the synthetic rules name, with its expected count
-// before any edit: two users carry Alpha 71, one Beta 71, one Beta 72, two
-// the legacy line (matched by a legacy_regex rule of Gamma).
+// Every course and year with its expected count before any edit: two
+// users carry Alpha 71, one Beta 71, one Beta 72 (explicit mappings), two
+// the Gamma line (an only-in-year pattern mapping of Gamma); every other
+// pair counts 0.
 export const expectedCounts = {
   'alpha/y1': 2,
+  'alpha/y2': 0,
   'beta/y1': 1,
   'beta/y2': 1,
   'gamma/y1': 2,
+  'gamma/y2': 0,
 };
 
 export const wallClock = () => new Date().toISOString();

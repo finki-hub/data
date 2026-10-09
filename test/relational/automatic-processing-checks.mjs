@@ -5,8 +5,8 @@ import { interruptedCode } from '../../directus/extensions/directus-extension-da
 import { claimStaleAfterMs } from '../../directus/extensions/directus-extension-data-operations/src/coordination/state.js';
 import { dataModelCollectionKeys } from '../../src/data-model/collections.js';
 import { dispatcherFlowId } from '../../src/flows/count-enrollments.js';
-import { mappedPairFlow } from '../../src/flows/count-mapped-enrollments.js';
 import { markPendingFlowId } from '../../src/flows/mark-pending.js';
+import { matchFlow } from '../../src/flows/match-history-lines.js';
 import { processPendingFlowId } from '../../src/flows/process-pending.js';
 import {
   afterTick,
@@ -18,7 +18,6 @@ import {
   intervalMs,
   isCurrent,
   latencyOf,
-  lines,
   operationOf,
   psql,
   record,
@@ -51,9 +50,13 @@ import {
 // restart while work is pending, idle ticks and transaction visibility.
 
 const markPendingPath = `/flows/trigger/${markPendingFlowId}`;
-const shapeCount = mappedPairFlow.operations.find(
-  ({ key }) => key === 'shape_count',
+const matchLines = matchFlow.operations.find(
+  ({ key }) => key === 'match_lines',
 );
+const rowCapRefusal = /^Page p\d{4}: matches \d+, max 10000$/u;
+// Mappings enough that every one of the four seeded lines makes more than
+// 10,000 matches on the one page.
+const capMappings = 2_501;
 const childFlowId = syntheticId('10');
 const parentFlowId = syntheticId('20');
 const slowFlowId = syntheticId('30');
@@ -68,9 +71,9 @@ export const freshState = () => ({
   flows: [],
   latencies: [],
   mappings: new Map(),
+  patterns: [],
   restore: new Map(),
   rooms: [],
-  rules: [],
   templatesCreated: [],
   users: [],
   years: new Map(),
@@ -120,27 +123,28 @@ const failedAfter = (at) => (report) =>
   report.domains.enrollments.state === 'failed' &&
   report.lastError?.at !== at;
 
-// A child that fails (a legacy pattern that does not compile) records the
-// failure with its message; the schedule does not retry it on later ticks
-// until Mark pending or an edit, and the installed counts stay.
+// A child that fails (a page over the row cap: more than 10,000 matches)
+// records the failure with its message; the schedule does not retry it on
+// later ticks until Mark pending or an edit, and the installed counts stay.
 const blocksFailedWork = async (t, target, state) => {
   const since = wallClock();
   const before = await countsOf(target, state);
-  const [rule] = await createMany(target, 'course_enrollment_rules', [
-    {
-      academic_year: state.years.get('y2'),
+  const capped = await createMany(
+    target,
+    'moodle_pattern_mappings',
+    Array.from({ length: capMappings }, (_, index) => ({
       course: state.courses.get('gamma'),
-      mode: 'legacy_regex',
-      pattern: '(',
-    },
-  ]);
-  state.rules.push(rule);
+      only_in_year: state.years.get('y2'),
+      pattern: `.(?:${String(index)})?`,
+    })),
+  );
+  state.patterns.push(...capped);
   const failed = await waitForStatus(target, failedAfter(null));
   const error = failed.report.lastError;
-  assert.equal(error.code, 'LEGACY_COUNT_FAILED');
+  assert.equal(error.code, 'MATCH_FAILED');
   assert.equal(error.domain, 'enrollments');
   assert.equal(error.blocking, true);
-  assert.ok(error.message.includes(`Rule ${rule} (course `), error.message);
+  assert.match(error.message, rowCapRefusal);
   assert.equal(failed.report.domains.enrollments.current, false);
   assert.deepEqual(await countsOf(target, state), before, 'counts stay');
   assert.equal(await dispatcherRuns(target, since, 1), 1);
@@ -162,20 +166,16 @@ const blocksFailedWork = async (t, target, state) => {
   await waitForStatus(target, failedAfter(error.at));
   assert.equal(await dispatcherRuns(target, since, 2), 2);
 
-  await patch(target, `/items/course_enrollment_rules/${rule}`, {
-    pattern: lines.legacy,
-  });
+  await removeMany(target, 'moodle_pattern_mappings', capped);
+  state.patterns = state.patterns.filter((id) => !capped.includes(id));
   const edited = wallClock();
   const fixed = await settle(target);
   record(
     t,
     state,
-    latencyOf('counts after fixing the pattern', edited, fixed.report),
+    latencyOf('counts after removing the mappings', edited, fixed.report),
   );
-  assert.deepEqual(await countsOf(target, state), {
-    ...before,
-    'gamma/y2': 2,
-  });
+  assert.deepEqual(await countsOf(target, state), before);
   assert.equal(fixed.report.lastError.blocking, false);
 };
 
@@ -187,20 +187,20 @@ const followsGraphChanges = async (t, target, state) => {
   const publishedGraph = before.fingerprints.current.publication;
   await editOperation(target, state, {
     body: { name: 'Synthetic rename' },
-    step: shapeCount,
+    step: matchLines,
   });
   let report = await status(target);
   assert.equal(report.fingerprints.current.calculation, original);
   assert.deepEqual(report.pending, ['publication']);
-  await patch(target, `/operations/${shapeCount.id}`, {
-    name: shapeCount.name,
+  await patch(target, `/operations/${matchLines.id}`, {
+    name: matchLines.name,
   });
 
   await editOperation(target, state, {
     body: {
-      options: { ...shapeCount.options, synthetic_note: 'Task 13' },
+      options: { ...matchLines.options, synthetic_note: 'Task 13' },
     },
-    step: shapeCount,
+    step: matchLines,
   });
   const edited = wallClock();
   report = await status(target);
@@ -233,7 +233,7 @@ const followsGraphChanges = async (t, target, state) => {
     counted.report.fingerprints.current.calculation,
   );
 
-  await restoreOperation(target, state, shapeCount);
+  await restoreOperation(target, state, matchLines);
   const restored = await settle(target);
   assert.equal(restored.report.fingerprints.current.calculation, original);
   assert.equal(restored.report.fingerprints.calculation, original);
@@ -338,42 +338,53 @@ const followsReachableChildren = async (target, state) => {
   await settle(target);
 };
 
-// Enough mapped rules that one enrollment run lasts seconds.
+// Enough history lines that one enrollment run lasts seconds: 2,000 lines
+// of one user, eight pages, and 30 courses each counted in 15 years by its
+// default pattern mapping (the course is created without a mapping list).
 const seedBulk = async (t, target, state) => {
+  const names = Array.from(
+    { length: 30 },
+    (_, index) =>
+      `Synthetic Automatic Bulk ${String(index + 1).padStart(2, '0')}`,
+  );
+  const labels = Array.from(
+    { length: 15 },
+    (_, index) => `${2_081 + index}/${2_082 + index}`,
+  );
   const bulkCourses = await createMany(
     target,
     'courses',
-    Array.from({ length: 30 }, (_, index) => ({
-      name: `Synthetic Automatic Bulk ${String(index + 1).padStart(2, '0')}`,
-      pattern_mappings: [],
-    })),
+    names.map((name) => ({ name })),
   );
   const bulkYears = await createMany(
     target,
     'academic_years',
-    Array.from({ length: 15 }, (_, index) => ({
-      label: `${2_081 + index}/${2_082 + index}`,
-      sort: 100 + index,
-    })),
+    labels.map((label, index) => ({ label, sort: 100 + index })),
   );
   Object.assign(state, { bulkCourses, bulkYears });
-  await createMany(
-    target,
-    'course_enrollment_rules',
-    bulkCourses.flatMap((course) =>
-      bulkYears.map((academic_year) => ({
-        academic_year,
-        course,
-        mode: 'mapped_entries',
-      })),
+  const history = [
+    ...names.flatMap((name) => labels.map((label) => `${name}-${label}/Z`)),
+    ...Array.from(
+      { length: 1_550 },
+      (_, index) =>
+        `Synthetic Automatic Filler ${String(index).padStart(4, '0')}`,
     ),
+  ];
+  state.users.push(
+    ...(await createMany(target, 'moodle_users', [
+      {
+        Courses: history.join('\n'),
+        'Courses Count': history.length,
+        Name: 'Synthetic Automatic Bulk User',
+      },
+    ])),
   );
   const edited = wallClock();
   const counted = await settle(target, { limitMs: waitLimitMs + 60_000 });
   record(
     t,
     state,
-    latencyOf('counts after 450 new mapped rules', edited, counted.report),
+    latencyOf('counts after 2,000 new lines', edited, counted.report),
   );
 };
 
@@ -416,19 +427,20 @@ const discardsOvertakenRuns = async (t, target, state) => {
   await running(target);
   await editOperation(target, state, {
     body: {
-      options: { ...shapeCount.options, synthetic_note: 'mid-run' },
+      options: { ...matchLines.options, synthetic_note: 'mid-run' },
     },
-    step: shapeCount,
+    step: matchLines,
   });
   const regraphed = await overtaken(target, 'FINGERPRINT_CHANGED');
   assert.equal(regraphed.report.lastError.blocking, false);
-  await restoreOperation(target, state, shapeCount);
+  await restoreOperation(target, state, matchLines);
   await settle(target, { limitMs: waitLimitMs + 30_000 });
 };
 
 // An edit that only marks publication (a room) during a long enrollment
 // run does not discard it: the run completes at its claimed revision,
-// publication stays pending, and nothing reruns. Then the bulk rules go.
+// publication stays pending, and nothing reruns. Then the bulk courses and
+// years go.
 const keepsRunThroughPublicationEdit = async (t, target, state) => {
   const before = await status(target);
   const since = wallClock();

@@ -46,10 +46,11 @@ type LabelPair = { readonly course: number; readonly year: number };
 
 type StressLabels = {
   readonly labels: readonly string[];
-  // The labels that match no rule, in label order.
+  // The labels no course's default pattern mapping matches, in label
+  // order.
   readonly nonmatching: readonly string[];
-  // The labels shaped `<course name>-<year label>`, the default pattern of
-  // a legacy rule, with their pair.
+  // The labels shaped `<course name>-<year label>`, which the course's
+  // default pattern mapping counts in that year, with their pair.
   readonly pairs: ReadonlyMap<string, LabelPair>;
 };
 
@@ -67,8 +68,8 @@ export const courseName = (index: number): string =>
 
 // Exactly `total` distinct labels: every course/year pair (years
 // interleaved, so each year gets its share) as `<course>-<year>` up to the
-// matching share, then labels that match no rule. At least a fifth never
-// match, so nonmatching histories exist at every size.
+// matching share, then labels no default pattern mapping matches. At least
+// a fifth never match, so nonmatching histories exist at every size.
 export const stressLabels = (
   courses: readonly string[],
   years: readonly string[],

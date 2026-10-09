@@ -1,7 +1,8 @@
 import { listMax } from '../../directus/extensions/directus-extension-data-operations/src/text.js';
 import { courseTemplate } from '../data-model/content-collections.js';
 import { academicYearTemplate } from '../data-model/curriculum-collections.js';
-import { mappedRuleMode, scriptText } from './shared.js';
+import { addedRuleMode } from '../data-model/operations-vocabularies.js';
+import { scriptText } from './shared.js';
 import { countFragment, refuseFragment } from './text-fragments.js';
 
 // The input of "Data / Add enrollment rules": its manual trigger with the
@@ -83,7 +84,7 @@ export const pairsScript = `module.exports = function (data) {
   for (const course of courses) {
     for (const year of years) {
       if (!existing.has(course + ':' + year)) {
-        missing.push({ academic_year: year, course: course, mode: ${scriptText(mappedRuleMode.mode)} });
+        missing.push({ academic_year: year, course: course, mode: ${scriptText(addedRuleMode)} });
       }
     }
   }
@@ -126,7 +127,7 @@ export const tallyScript = `module.exports = function (data) {
 export const ruleSeedingOptions = {
   async: false,
   collections: ['data_operations'],
-  confirmationDescription: `Create missing enrollment rules (mode ${mappedRuleMode.mode})?`,
+  confirmationDescription: `Create missing enrollment rules (mode ${addedRuleMode})?`,
   error_on_reject: true,
   fields: [
     {

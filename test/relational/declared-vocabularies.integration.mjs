@@ -338,16 +338,16 @@ const blocksSharedSort = async ({ target }) => {
   assert.equal(restored.issueCounts.academic_year_sort_shared, 0);
 };
 
-// A mapping whose course and (unpublished) year have no rule is counted
-// by nothing: a warning with its page, and the files still prepare.
-const warnsUnruledMapping = async ({ state, target }) => {
+// An explicit mapping in an unpublished year is counted there and warns
+// about nothing; the files still prepare without the year.
+const keepsUnpublishedMapping = async ({ state, target }) => {
   const year = await post(target, '/items/academic_years', {
     label: '2027/2028',
     sort: 17,
   });
   assert.equal(year.data.published, false);
   const entry = await post(target, `/items/${entries}`, {
-    label: 'Synthetic unruled line',
+    label: 'Synthetic unpublished line',
   });
   const [course] = await get(
     target,
@@ -361,12 +361,7 @@ const warnsUnruledMapping = async ({ state, target }) => {
   await settle(target, { limitMs: 180_000 });
   const answer = await readiness(target);
   assert.equal(answer.ready, true, JSON.stringify(answer));
-  assert.equal(answer.issueCounts.mapping_without_rule, 1);
-  assert.ok(answer.warnings.includes('mapping_without_rule'));
-  assert.equal(
-    answer.links.mapping_without_rule,
-    '/admin/content/moodle_course_mappings',
-  );
+  assert.ok(!Object.hasOwn(answer.issueCounts, 'mapping_without_rule'));
   assert.deepEqual(answer.blockers, []);
   assert.deepEqual(
     Object.keys(answer.issueCounts),
@@ -374,7 +369,7 @@ const warnsUnruledMapping = async ({ state, target }) => {
   );
   const run = await prepare(target);
   assert.equal(run.status, 200, JSON.stringify(run.body));
-  assert.ok(run.body.warnings.includes('mapping_without_rule'));
+  assert.deepEqual(run.body.warnings, answer.warnings);
   const { rows } = await preparedCourses(target);
   assert.ok(rows.every((row) => !Object.hasOwn(row, '2027/2028')));
   state.warnings = answer.warnings;
@@ -420,8 +415,8 @@ test('declares vocabularies, years, readiness checks and Flow families once', as
           blocksSharedSort(context),
         );
         await t.test(
-          'warns about a mapping without a rule and still prepares the files',
-          () => warnsUnruledMapping(context),
+          'neither blocks nor warns on a mapping of an unpublished year and prepares the files',
+          () => keepsUnpublishedMapping(context),
         );
       } finally {
         await t.test('removes its temporary directories', async () => {

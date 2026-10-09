@@ -34,7 +34,7 @@ import {
   sourceInvalidation,
 } from '../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import {
-  duplicatePairs,
+  duplicateMatches,
   missingPages,
   pageToken,
   pageTokenPattern,
@@ -81,7 +81,6 @@ const provenCollections: ReadonlySet<string> = new Set([
   'curriculum_entries',
   'curriculum_entry_program_states',
   'curriculum_generations',
-  'data_operation_results',
   'data_operations',
   'deans_office',
   'discord_channels',
@@ -104,8 +103,13 @@ const provenCollections: ReadonlySet<string> = new Set([
 // one arm in the trigger function: with courses marking publication only,
 // it hashes to the earlier
 // 25c7831910b8db34d25e7aea7dda3bf7eb60098395628448439942c5df810f16.
+// Matching history lines (2026-10-09) removed the candidate table of the
+// staged counts, which the header names among the tables without a
+// trigger: with its candidate declaration added back, it hashes to the
+// earlier
+// 4279d689f0fd5ca0db9c7069636e1c687433ad473372859338a3948aa5c451d7.
 const provenSha256 =
-  '4279d689f0fd5ca0db9c7069636e1c687433ad473372859338a3948aa5c451d7';
+  'fb51bf2ad9b6a504b7262b7eb20e75249582ab8f798156825086f7d00229022c';
 
 // The statements the migration of a registry holds: the singleton row, its
 // index and the trigger function, then the triggers of every source (its
@@ -130,18 +134,37 @@ const invalidOptions: readonly unknown[] = [
   { action: 'mark', domains: [] },
   { action: 'mark', domains: ['directus_users'] },
   { action: 'plan_pages', source: 'moodle_users', token: uuid },
-  { action: 'plan_pages', source: 'rules', token: 'not-a-uuid' },
+  { action: 'plan_pages', source: 'entries', token: 'not-a-uuid' },
+  // The rule sources the history lines replaced.
+  ...['rules', 'enrollments'].map((source) => ({
+    action: 'plan_pages',
+    source,
+    token: uuid,
+  })),
   { action: 'stage_page', page: 'page-1', rows: [], token: uuid },
   {
     action: 'stage_page',
     page: 'p0001',
-    rows: [{ academic_year: 1, count: -1, course: 1 }],
+    rows: [{ entry: 0, pattern_mapping: 1, year_label: null }],
+    token: uuid,
+  },
+  // A year label is lineYear's <start>/<start+1>, whatever year it names.
+  ...['2025', '2024-2025', '-2/-1', '12345/12346'].map((label) => ({
+    action: 'stage_page',
+    page: 'p0001',
+    rows: [{ entry: 1, pattern_mapping: 1, year_label: label }],
+    token: uuid,
+  })),
+  {
+    action: 'stage_page',
+    page: 'p0001',
+    rows: [{ entry: 1, pattern_mapping: 1 }],
     token: uuid,
   },
   {
     action: 'stage_page',
     page: 'p0001',
-    rows: [{ academic_year: 0, count: 1, course: 1 }],
+    rows: [{ academic_year: 1, count: 1, course: 1 }],
     token: uuid,
   },
   { action: 'complete' },
@@ -317,22 +340,25 @@ describe('option contract', () => {
       parseCoordinatorInput({
         ...blanks,
         action: 'plan_pages',
-        source: 'rules',
+        source: 'entries',
         token: uuid,
       }),
-    ).toEqual({ action: 'plan_pages', source: 'rules', token: uuid });
+    ).toEqual({ action: 'plan_pages', source: 'entries', token: uuid });
     expect(
       parseCoordinatorInput({
         ...blanks,
         action: 'stage_page',
         page: 'p0001',
-        rows: '[{"course":1,"academic_year":2,"count":3,"extra":true}]',
+        rows: '[{"entry":1,"pattern_mapping":2,"year_label":"2025/2026","extra":true},{"entry":3,"pattern_mapping":4,"year_label":null}]',
         token: uuid,
       }),
     ).toEqual({
       action: 'stage_page',
       page: 'p0001',
-      rows: [{ academic_year: 2, count: 3, course: 1 }],
+      rows: [
+        { entry: 1, pattern_mapping: 2, year_label: '2025/2026' },
+        { entry: 3, pattern_mapping: 4, year_label: null },
+      ],
       token: uuid,
     });
     expect(
@@ -745,19 +771,20 @@ describe('page planning', () => {
     ]);
   });
 
-  test('finds duplicated pairs, missing pages and records a staged page once', () => {
+  test('finds duplicated matches, missing pages and records a staged page once', () => {
     expect(
-      duplicatePairs([
-        { academic_year: 1, count: 1, course: 1 },
-        { academic_year: 2, count: 1, course: 1 },
+      duplicateMatches([
+        { entry: 1, pattern_mapping: 1, year_label: '2025/2026' },
+        { entry: 1, pattern_mapping: 2, year_label: '2025/2026' },
+        { entry: 2, pattern_mapping: 1, year_label: null },
       ]),
     ).toEqual([]);
     expect(
-      duplicatePairs([
-        { academic_year: 1, count: 1, course: 1 },
-        { academic_year: 1, count: 4, course: 1 },
+      duplicateMatches([
+        { entry: 1, pattern_mapping: 1, year_label: '2025/2026' },
+        { entry: 1, pattern_mapping: 1, year_label: null },
       ]),
-    ).toEqual(['1/1']);
+    ).toEqual(['entry 1 / pattern mapping 1']);
     expect(missingPages(['p0001', 'p0002'], ['p0002'])).toEqual(['p0001']);
     expect(stagedWith(['p0002'], 'p0001')).toEqual(['p0001', 'p0002']);
     expect(stagedWith(['p0001'], 'p0001')).toEqual(['p0001']);

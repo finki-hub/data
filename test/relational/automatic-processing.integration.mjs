@@ -124,24 +124,15 @@ const seedCatalog = async (target, state) => {
   }
 };
 
-const seedRules = async (target, state) => {
+const seedMappings = async (target, state) => {
   const course = (key) => state.courses.get(key);
   const year = (key) => state.years.get(key);
-  const mapped = (courseKey, yearKey) => ({
-    academic_year: year(yearKey),
-    course: course(courseKey),
-    mode: 'mapped_entries',
-  });
-  state.rules.push(
-    ...(await createMany(target, 'course_enrollment_rules', [
-      mapped('alpha', 'y1'),
-      mapped('beta', 'y1'),
-      mapped('beta', 'y2'),
+  state.patterns.push(
+    ...(await createMany(target, 'moodle_pattern_mappings', [
       {
-        academic_year: year('y1'),
         course: course('gamma'),
-        mode: 'legacy_regex',
-        pattern: lines.legacy,
+        only_in_year: year('y1'),
+        pattern: `^${lines.gamma}$`,
       },
     ])),
   );
@@ -161,7 +152,7 @@ const seedRules = async (target, state) => {
 };
 
 // Seeding sources is all it takes: the history index runs at the next
-// tick, the counts at the one after, then the rules and mappings count.
+// tick, the counts at the one after, then the mappings count.
 const processesSeeds = async (t, target, state) => {
   await seedCatalog(target, state);
   const since = wallClock();
@@ -190,14 +181,10 @@ const processesSeeds = async (t, target, state) => {
     Object.values(lines).toSorted(byText),
   );
   for (const { id, label } of entries) state.entries.set(label, id);
-  await seedRules(target, state);
+  await seedMappings(target, state);
   const mapped = wallClock();
   const done = await settle(target);
-  record(
-    t,
-    state,
-    latencyOf('counts after rules and mappings', mapped, done.report),
-  );
+  record(t, state, latencyOf('counts after mappings', mapped, done.report));
   assert.deepEqual(await countsOf(target, state), expectedCounts);
 };
 
@@ -231,7 +218,7 @@ const followsMovedMapping = async (t, target, state) => {
   assert.equal(await runsSince(target, historyFlowIds.refresh, since), 0);
 };
 
-// Deleting a mapping leaves its rule, whose pair is then counted as zero.
+// Deleting a mapping leaves its pair counted, now as zero.
 const zeroesDeletedMapping = async (t, target, state) => {
   await remove(
     target,

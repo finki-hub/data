@@ -79,7 +79,6 @@ export const schemaConstraints: Migration = {
     'CREATE UNIQUE INDEX IF NOT EXISTS "data_operation_matches_claim_page_entry_mapping_unique" ON "data_operation_matches" ("claim_token", "page_token", "entry", "pattern_mapping")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollment_rules_course_academic_year_unique" ON "course_enrollment_rules" ("course", "academic_year")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollments_course_academic_year_unique" ON "course_enrollments" ("course", "academic_year")',
-    'CREATE UNIQUE INDEX IF NOT EXISTS "data_operation_results_claim_page_course_year_unique" ON "data_operation_results" ("claim_token", "page_token", "course", "academic_year")',
     `DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'course_enrollments_count_nonnegative') THEN

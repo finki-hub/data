@@ -757,21 +757,51 @@ const refusesForeignDomain = async (target, state) => {
     },
     'COORDINATION_PAGE_UNPLANNED',
   );
-  const rules = await act(target, {
+  // The claim plans the history lines instead and stages each page without
+  // a match (the course has no pattern mapping). The completion still
+  // counts the explicit mapping runsFlowsAfterEdit made of the Alpha line,
+  // whatever the pages staged, and every course and year.
+  const plan = await act(target, {
     action: 'plan_pages',
-    source: 'rules',
+    source: 'entries',
     token: claim.token,
   });
-  assert.equal(rules.total, 0);
+  assert.ok(plan.total > 0);
+  for (const { token: page } of plan.pages) {
+    await act(target, {
+      action: 'stage_page',
+      page,
+      rows: [],
+      token: claim.token,
+    });
+  }
   assert.deepEqual(
     await act(target, { action: 'complete', token: claim.token }),
     {
       completed: true,
+      counted: 1,
       domain: 'enrollments',
-      installed: 0,
+      installed: 1,
       retries: 0,
       revision: claim.revision,
     },
+  );
+  const entries = await entriesByLabel(target);
+  const alpha = entries.get(alphaCourse);
+  assert.deepEqual(
+    await get(
+      target,
+      '/items/moodle_counted_lines?fields=entry,course,academic_year,source,pattern_mapping&limit=-1',
+    ),
+    [
+      {
+        academic_year: state.year,
+        course: state.course,
+        entry: alpha.id,
+        pattern_mapping: null,
+        source: 'explicit',
+      },
+    ],
   );
   const report = await status(target);
   assert.deepEqual(report.pending, ['publication']);

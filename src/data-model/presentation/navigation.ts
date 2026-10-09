@@ -68,7 +68,6 @@ export const folders: readonly Folder[] = [
       'course_enrollment_rules',
       'course_enrollments',
       'data_operations',
-      'data_operation_results',
       'data_operation_matches',
     ],
     note: 'Enrollment rules, derived counts and the private operation state.',

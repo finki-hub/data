@@ -189,9 +189,10 @@ const makeMoodleUser = (
 };
 
 /**
- * Cross-newline override for Theta 2021/2022: only histories listing the lab
- * directly after the lecture (LF or CRLF) count, so per-entry matching is not
- * equivalent to this whole-text expression.
+ * Cross-newline override for Theta 2021/2022: it spans a line break, so no
+ * single history line matches it and Theta counts 0 in 2021/2022, where a
+ * whole-history match counted the two histories listing the lab directly
+ * after the lecture (LF or CRLF).
  */
 export const thetaCrossNewlinePattern = String.raw`Theta Course-2021/2022\r?\nTheta Lab-2021/2022`;
 

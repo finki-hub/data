@@ -37,7 +37,6 @@ import {
   uniqueDataset,
   withCourse,
 } from './import-plan-helpers.js';
-import { matchingHistories } from './relational-export-helpers.js';
 
 const thetaProfessor = 'Prof. Theta';
 
@@ -71,6 +70,19 @@ const courseCandidate = (
 // (unique in the dataset). An empty curriculum code is published as no key.
 const codeOf = (row: SyntheticRow | undefined): unknown =>
   row?.['code'] === '' ? null : (row?.['code'] ?? null);
+
+// How many raw histories a rule's pattern matches, compiled once in
+// Unicode mode and tested against the whole history: each Moodle user
+// counts once however often the history lists the line.
+const matchingHistories = (
+  rulePattern: string,
+  histories: readonly unknown[],
+): number => {
+  const matcher = new RegExp(rulePattern, 'u');
+  return histories.filter(
+    (history) => typeof history === 'string' && matcher.test(history),
+  ).length;
+};
 
 const syntheticCourses = await expectedRows('synthetic', 'courses');
 const publishedCourses = new Map(
@@ -347,7 +359,11 @@ describe('rule and council candidates', () => {
     });
   });
 
-  test('the rules count exactly the committed enrollments of the synthetic dataset', async () => {
+  // The committed enrollments count line by line. A rule tested the whole
+  // history: Theta's typed pattern spans a line break and counts 2 that
+  // way, and Iota's unescaped default "Iota 2.0 Course-2022/2023" matches
+  // the "Iota 2X0 Course-2022/2023" line, 1 user.
+  test('the rules count the committed enrollments but where a rule matched across lines or unescaped', async () => {
     const dataset = makeSyntheticDataset();
     const { candidates } = checkOf(dataset);
     const histories = dataset.moodle_users.map((user) => user['Courses']);
@@ -362,7 +378,11 @@ describe('rule and council candidates', () => {
     expect(Object.keys(counts)).toHaveLength(
       dataset.courses.length * academicYears.length,
     );
-    expect(counts).toEqual(await expectedEnrollments('synthetic'));
+    expect(counts).toEqual({
+      ...(await expectedEnrollments('synthetic')),
+      '7/2021/2022': 2,
+      '8/2022/2023': 1,
+    });
   });
 
   test('falls back to the default when the last pattern row supplies no pattern', () => {

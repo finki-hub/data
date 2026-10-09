@@ -141,8 +141,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(28);
-    expect(new Set(dataModelCollectionKeys).size).toBe(28);
+    expect(dataModelCollectionKeys).toHaveLength(27);
+    expect(new Set(dataModelCollectionKeys).size).toBe(27);
     expect(dataModelCollectionKeys.slice(0, 9)).toEqual([
       'courses',
       'staff',
@@ -248,7 +248,7 @@ describe('target collections', () => {
       'history_index_input_revision',
       'enrollments_input_revision',
     ]);
-    expect(findCollection('data_operation_results').hidden).toBeTruthy();
+    expect(findCollection('data_operation_matches').hidden).toBeTruthy();
     expect(findCollection('moodle_history_memberships').hidden).toBeTruthy();
   });
 
@@ -268,14 +268,12 @@ describe('target collections', () => {
   });
 
   test('bounds enrollment counts at zero on the server', () => {
-    for (const collection of ['course_enrollments', 'data_operation_results']) {
-      const count = findField(collection, 'count');
+    const count = findField('course_enrollments', 'count');
 
-      expect(count.kind === 'integer' && count.minimum).toBe(0);
-      expect(toFieldPayload(count, 5).meta.validation).toEqual({
-        count: { _gte: 0 },
-      });
-    }
+    expect(count.kind === 'integer' && count.minimum).toBe(0);
+    expect(toFieldPayload(count, 5).meta.validation).toEqual({
+      count: { _gte: 0 },
+    });
 
     const optional = toFieldPayload(scalar('n', 'integer', { minimum: 1 }), 1);
 
@@ -355,7 +353,6 @@ describe('domain keys', () => {
       'unique data_operation_matches (claim_token, page_token, entry, pattern_mapping)',
       'unique course_enrollment_rules (course, academic_year)',
       'unique course_enrollments (course, academic_year)',
-      'unique data_operation_results (claim_token, page_token, course, academic_year)',
     ]);
 
     expect(compositeKeys.flatMap(unknownColumns)).toEqual([]);
@@ -789,7 +786,7 @@ describe('relations and aliases', () => {
       schema: { on_delete: 'SET NULL' },
     });
     expect(
-      relationsOf('data_operation_results').map(({ alias }) => alias),
+      relationsOf('data_operation_matches').map(({ alias }) => alias),
     ).toEqual([null, null]);
   });
 });

@@ -23,7 +23,7 @@ import {
   type OperationTemplate,
 } from '../src/flows/flow-template.js';
 import { flowFamily } from '../src/flows/registry.js';
-import { refusalOf, runScript } from './legacy-enrollment-helpers.js';
+import { refusalOf, runScript } from './flow-script-helpers.js';
 
 // "Data / Add enrollment rules" (Task 16, owner decision 2026-09-23): the
 // explicit, idempotent seeding of mapped_entries rules for a new academic

@@ -8,9 +8,13 @@ import { keySources } from '../directus/extensions/directus-extension-data-opera
 import { fingerprintOf } from '../directus/extensions/directus-extension-data-operations/src/snapshot/fingerprint.js';
 import { publishAssetsFlowId } from '../src/flows/publish-public-assets.js';
 import { snapshotFolder } from '../src/flows/snapshot-folder.js';
-import { countDifferences, installedCounts } from './fixture-seed.mjs';
+import {
+  countDifferences,
+  createRows,
+  installedCounts,
+  oracleCounts,
+} from './fixture-seed.mjs';
 import { expectedFiles } from './fixtures/stress-fixture.js';
-import { expectedCounts } from './fixtures/stress-oracle.js';
 import { writeStressCsv } from './fixtures/stress-snapshot.js';
 import {
   bucketStatus,
@@ -91,13 +95,11 @@ export const assertIntact = async ({ s3, state, target }, label) => {
   }
 };
 
-// The installed counts equal the oracle's for the current rules and
-// mappings (compared pair by pair, reported as a number of differences).
+// The installed counts equal the oracle's for the current pattern and
+// explicit mappings (compared pair by pair, reported as a number of
+// differences).
 export const assertCounts = async ({ state, target }, label) => {
-  const expected = expectedCounts(state.snapshotRows, {
-    mappings: state.mappings,
-    rules: state.rules,
-  });
+  const expected = oracleCounts(state);
   const installed = await installedCounts(target, state.seeded);
   assert.equal(installed.size, expected.size, `${label}: count rows`);
   assert.equal(
@@ -306,27 +308,59 @@ export const untilObserved = async (label, attempt, limit = 3) => {
   return assert.fail(`${label}: not observed in ${limit} attempts`);
 };
 
-// The rule of a pair (course and year positions) in oracle form, with its
-// id.
-export const ruleOf = async ({ state, target }, { course, year }) => {
-  const [row] = await get(
-    target,
-    `/items/course_enrollment_rules?fields=id,pattern&filter[course][_eq]=${state.seeded.courses[course].id}&filter[academic_year][_eq]=${state.seeded.years[year].id}`,
+// The default pattern mapping of a course (its position) in oracle form,
+// with its id.
+export const patternOf = ({ state }, course) => {
+  const mapping = state.patterns.find(
+    (entry) => entry.course === course && entry.onlyInYear === null,
   );
-  const rule = state.rules.find(
-    (entry) => entry.course === course && entry.year === year,
-  );
-  assert.ok(row !== undefined && rule !== undefined, 'the rule exists');
-  return { id: row.id, rule };
+  assert.ok(mapping !== undefined, 'the course has its default mapping');
+  return mapping;
 };
 
-// Changes the pattern of a rule, in the database and in the oracle.
-export const setPattern = async (context, pair, pattern) => {
-  const { id, rule } = await ruleOf(context, pair);
-  await patch(context.target, `/items/course_enrollment_rules/${id}`, {
+// Changes the pattern of a course's default mapping, in the database and
+// in the oracle.
+export const setPattern = async (context, course, pattern) => {
+  const mapping = patternOf(context, course);
+  await patch(context.target, `/items/moodle_pattern_mappings/${mapping.id}`, {
     pattern,
   });
-  context.state.rules = context.state.rules.map((entry) =>
-    entry === rule ? { ...rule, pattern } : entry,
+  context.state.patterns = context.state.patterns.map((entry) =>
+    entry === mapping ? { ...mapping, pattern } : entry,
   );
+};
+
+// Adds only-in-year mappings of a course (its position) and a year (its
+// position), in the database and in the oracle; answers their ids.
+export const addPatterns = async (context, { course, patterns, year }) => {
+  const { state, target } = context;
+  const ids = await createRows(
+    target,
+    'moodle_pattern_mappings',
+    patterns.map((pattern) => ({
+      course: state.seeded.courses[course].id,
+      only_in_year: state.seeded.years[year].id,
+      pattern,
+    })),
+  );
+  state.patterns = [
+    ...state.patterns,
+    ...patterns.map((pattern, index) => ({
+      course,
+      id: ids[index],
+      onlyInYear: year,
+      pattern,
+      yearPattern: null,
+    })),
+  ];
+  return ids;
+};
+
+// Removes pattern mappings by id, in the database and in the oracle.
+export const removePatterns = async (context, ids) => {
+  const { state, target } = context;
+  for (const id of ids) {
+    await remove(target, `/items/moodle_pattern_mappings/${id}`);
+  }
+  state.patterns = state.patterns.filter(({ id }) => !ids.includes(id));
 };

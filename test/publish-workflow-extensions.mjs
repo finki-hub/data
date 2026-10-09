@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 
 import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { ruleMode } from '../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
-import { ruleSeedingFlowId } from '../src/flows/add-enrollment-rules.js';
 import {
   createRows,
   installedCounts,
@@ -12,6 +10,7 @@ import {
 } from './fixture-seed.mjs';
 import { expectedFiles } from './fixtures/stress-fixture.js';
 import {
+  assertCounts,
   digestsOf,
   keyRowsOf,
   publishedRows,
@@ -25,14 +24,12 @@ import {
   wallClock,
 } from './relational/automatic-processing-helpers.mjs';
 import { patch, remove, status } from './relational/history-index-helpers.mjs';
-import { runFlow } from './relational/operations-helpers.mjs';
 
 // The extension scenarios of the complete workflow suite: a new academic
 // year and a new curriculum generation with two programs are rows, never
 // code. Each reaches the published files only once it is opted in, and
 // then adds exactly its declared keys.
 
-const mapped = ruleMode('mapped_entries').mode;
 const coursesFile =
   exportDefinitions.find(({ rows }) => rows.collection === 'courses')
     ?.filename ?? '';
@@ -58,50 +55,25 @@ const gainedKeys = (before, after) => {
   });
 };
 
-// The unpublished newer year of the fixture gets one mapped rule per course
-// from "Data / Add enrollment rules" (a rerun adds none), is counted by
-// exactly one run of the dispatcher on the next tick (written just after a
-// tick, so no run meets half of it; no failure or overtaking recorded),
-// changes no published byte until it is opted in, then adds one key per
-// course: its label, before the older years, valued by the count.
+// The unpublished newer year of the fixture is counted like every year.
+// Explicit mappings of its lines are counted by exactly one run of the
+// dispatcher on the next tick (written just after a tick, so no run meets
+// half of them; no failure or overtaking recorded). The year changes no
+// published byte until it is opted in, then adds one key per course: its
+// label, before the older years, valued by the count.
 export const extendsYear = async (context) => {
   const { state, t, target } = context;
   const position = state.seeded.years.findIndex(({ published }) => !published);
   const year = state.seeded.years[position];
-  const courses = state.seeded.courses.length;
   const before = await status(target);
+  await assertCounts(context, 'the new year before it is published');
   await afterTick();
-  const seeding = await runFlow(target, target.token, {
-    id: ruleSeedingFlowId,
-    values: { academic_year: { collection: 'academic_years', key: year.id } },
-  });
-  assert.equal(seeding.status, 200, JSON.stringify(seeding.body));
-  assert.deepEqual(
-    [seeding.body.created, seeding.body.mode],
-    [courses, mapped],
-  );
-  const rerun = await runFlow(target, target.token, {
-    id: ruleSeedingFlowId,
-    values: { academic_year: year.id },
-  });
-  assert.deepEqual([rerun.body.created, rerun.body.existing], [0, courses]);
   const mappings = await seedMappings(target, {
     labels: state.snapshotRows.labels,
     seeded: state.seeded,
     year: position,
   });
-  Object.assign(state, {
-    mappings: [...state.mappings, ...mappings],
-    rules: [
-      ...state.rules,
-      ...state.seeded.courses.map((_, course) => ({
-        course,
-        mode: mapped,
-        pattern: null,
-        year: position,
-      })),
-    ],
-  });
+  Object.assign(state, { mappings: [...state.mappings, ...mappings] });
   const since = wallClock();
   const settled = await settlesCounted(context, 'the new year after a tick');
   assert.equal(
@@ -143,7 +115,7 @@ export const extendsYear = async (context) => {
   );
   assert.deepEqual(others, []);
   t.diagnostic(
-    `new year: ${seeding.body.created} mapped rules in ${seeding.body.batches} batch(es), rerun ${rerun.body.created}; ${mappings.length} mappings; counted by one dispatcher run, ${settled.elapsedMs} ms after the writes; one key per course once published`,
+    `new year: ${mappings.length} explicit mappings counted by one dispatcher run, ${settled.elapsedMs} ms after the writes; one key per course once published`,
   );
 };
 

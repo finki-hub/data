@@ -779,19 +779,20 @@ describe('index guards', () => {
     fake.graphs = { calculation: graphA, publication: graphA };
     fake.data.calculationFingerprint = graphA;
     fake.sourceIds.history = [1];
-    fake.sourceIds.rules = [1];
+    fake.sourceIds.entries = [1];
     fake.sourceWrite('academic_years');
     const token = await claimDomain(fake, 'enrollments');
 
     // The users are never planned under an enrollment claim; a page
-    // planned from its rules still names p0001 for the writer to refuse.
+    // planned from its history lines still names p0001 for the writer to
+    // refuse.
     await expect(failureOf(planHistory(fake, token))).resolves.toEqual({
       code: 'COORDINATION_DOMAIN_MISMATCH',
       status: 409,
     });
 
     await runAction(
-      { action: 'plan_pages', source: 'rules', token },
+      { action: 'plan_pages', source: 'entries', token },
       context(fake),
     );
 

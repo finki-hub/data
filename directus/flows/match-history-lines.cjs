@@ -2,11 +2,12 @@
 // It matches one planned page of history lines: at most 250
 // moodle_course_entries of the page's id range ($trigger {token, from, to,
 // rows}; read_entries: id and label) against every pattern mapping
-// (read_mappings: id, pattern, year_pattern, only_in_year). Each pattern
-// and year pattern is compiled once with the u flag and tested against the
-// whole line. An only-in-year mapping stages its matches with no year; an
-// all-years mapping stages the academic year its year pattern reads from
-// the line, by the rule of lineYear in the data-operations bundle
+// (read_mappings: id, pattern, year_pattern, only_in_year; count_mappings:
+// their number, as one aggregate row). Each pattern and year pattern is
+// compiled once with the u flag and tested against the whole line. An
+// only-in-year mapping stages its matches with no year; an all-years
+// mapping stages the academic year its year pattern reads from the line,
+// by the rule of lineYear in the data-operations bundle
 // (src/enrollment-lines.ts), and a line where it reads none is not staged.
 // Everything is validated before a pattern runs; a refusal names ids and
 // counts only, never a label or a pattern. The answer's rows are what
@@ -16,6 +17,7 @@ const maxEntries = 250;
 const maxRows = 10_000;
 const pagePattern = /^p\d{4,9}$/u;
 const capturedYear = /^(?:\d{2}|\d{4})$/u;
+const countText = /^\d{1,15}$/u;
 
 const whole = function (value, least) {
   return Number.isSafeInteger(value) && value >= least;
@@ -105,9 +107,31 @@ const checkMapping = function (mapping, ids) {
   }
 };
 
-const checkMappings = function (mappings) {
+// The number of pattern mappings count_mappings read: one aggregate row
+// whose count is a whole number (PostgreSQL counts arrive as text).
+const mappingCount = function (answer) {
+  const row = Array.isArray(answer) && answer.length === 1 ? answer[0] : null;
+  const value = isObject(row) && isObject(row.count) ? row.count.id : null;
+  const count =
+    typeof value === 'string' && countText.test(value) ? Number(value) : value;
+  if (!whole(count, 0)) {
+    refuse('count_mappings', 'expected 1 count row');
+  }
+  return count;
+};
+
+// Directus cuts a read with limit -1 at QUERY_LIMIT_MAX, so a list shorter
+// than the count is refused: the mappings past the cut would match nothing.
+const checkMappings = function (mappings, counted) {
   if (!Array.isArray(mappings)) {
     refuse('read_mappings', 'no mapping list');
+  }
+  const expected = mappingCount(counted);
+  if (mappings.length !== expected) {
+    refuse(
+      'read_mappings',
+      `mappings ${mappings.length}, expected ${expected}`,
+    );
   }
   const ids = new Set();
   for (const mapping of mappings) {
@@ -194,7 +218,7 @@ const matchHistoryLines = (data) => {
   const entries = data.read_entries;
   const mappings = data.read_mappings;
   checkEntries(entries, page);
-  checkMappings(mappings);
+  checkMappings(mappings, data.count_mappings);
   const matchers = mappings.map(prepared);
   const rows = [];
   for (const entry of entries) {

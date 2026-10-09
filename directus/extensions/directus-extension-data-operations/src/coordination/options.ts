@@ -68,10 +68,18 @@ const failureMessage = z
     value === undefined ? null : value.slice(0, errorMessageLength),
   );
 
-const countRowSchema = z.object({
-  academic_year: z.number().int().positive(),
-  count: z.number().int().nonnegative(),
-  course: z.number().int().positive(),
+// One match of a history line and a pattern mapping as the matcher stages
+// it: the year its year pattern read, or null for an only-in-year mapping.
+// The year is lineYear's `<start>/<start+1>`, start from -1 (an end year
+// 0000) to 9999; one that names no academic year is staged too, and the
+// completion's join on the label drops it, as resolveLines does.
+const matchRowSchema = z.object({
+  entry: z.number().int().positive(),
+  pattern_mapping: z.number().int().positive(),
+  year_label: z
+    .string()
+    .regex(/^(?:-1|\d{1,4})\/\d{1,5}$/u)
+    .nullable(),
 });
 
 // One Moodle user of an index page with the distinct entries of its raw
@@ -147,7 +155,7 @@ const coordinatorInputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('stage_page'),
     page: z.preprocess(blank, z.string().regex(pageTokenPattern)),
-    rows: z.preprocess(jsonish, z.array(countRowSchema).max(maxRowsPerPage)),
+    rows: z.preprocess(jsonish, z.array(matchRowSchema).max(maxRowsPerPage)),
     token,
   }),
   z.object({

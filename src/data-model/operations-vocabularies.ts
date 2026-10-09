@@ -7,7 +7,10 @@ import {
   publicationStates,
   stateLabels,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
-import { ruleModes } from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
+import {
+  ruleMode,
+  ruleModes,
+} from '../../directus/extensions/directus-extension-data-operations/src/rule-modes.js';
 import { labelledChoices } from './fields.js';
 
 // The vocabularies of the operations collections. The coordinator's own
@@ -26,6 +29,9 @@ const modeDoes = ({ description, mode }: (typeof ruleModes)[number]): string =>
   `${mode} ${description}`;
 
 export const modeNote = `${ruleModes.map(modeDoes).join('; ')}.`;
+
+// The mode Add enrollment rules gives every rule it creates.
+export const addedRuleMode = ruleMode('mapped_entries').mode;
 
 export const patternNote = `Literal regular expression, as the workbook import or a hand edit recorded it; only used by ${ruleModes
   .filter(({ usesPattern }) => usesPattern)

@@ -15,8 +15,7 @@ const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 export const flowFamilyCodes = {
   automation: '13',
   history: '09',
-  legacy: '12',
-  mapped: '11',
+  matching: '17',
   publication: '14',
   publish: '15',
   rules: '16',
@@ -46,6 +45,10 @@ export const snapshotId = familyIds(flowFamilyCodes.snapshot);
 // The automatic processing family (the enrollment dispatcher, Mark pending
 // and the scheduled Process pending).
 export const automationId = familyIds(flowFamilyCodes.automation);
+
+// The history line matching family (Data / Match history lines), which
+// the enrollment dispatcher runs once per planned page.
+export const matchingId = familyIds(flowFamilyCodes.matching);
 
 // The publication family (Data / Validate readiness and Publish / Prepare
 // public assets).
