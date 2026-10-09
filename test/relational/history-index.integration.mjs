@@ -141,7 +141,6 @@ const installsFlows = async (target, directus, state) => {
     entries: 0,
     indexedUsers: 0,
     memberships: 0,
-    needsMapping: 0,
     users: 0,
   });
 };
@@ -242,14 +241,10 @@ const indexesThroughCoordinator = async (target, state) => {
     entries.keys().toArray().toSorted(),
     [...seedLabels].toSorted(),
   );
-  assert.ok(
-    entries
-      .values()
-      .every(
-        ({ review_reason, review_state }) =>
-          review_state === 'needs_mapping' && review_reason === null,
-      ),
-  );
+  // One INSERT created them, so they share its First seen.
+  const seen = new Set(entries.values().map(({ first_seen }) => first_seen));
+  assert.equal(seen.size, 1);
+  assert.equal(typeof [...seen][0], 'string');
   const [one, two, three, four, five, six] = state.users;
   assert.deepEqual(await membershipsOf(target, one.id), [
     [alphaCourse, 0],
@@ -275,7 +270,6 @@ const indexesThroughCoordinator = async (target, state) => {
     entries: 7,
     indexedUsers: 5,
     memberships: 10,
-    needsMapping: 7,
     users: 6,
   });
   // The raw scraper field is untouched: user one still counts three lines.
@@ -317,16 +311,13 @@ const indexesThroughCoordinator = async (target, state) => {
 };
 
 // An edited history plus a manual mapping, then the installed Flows end
-// to end: the removed label keeps its entry and its mapping, the user's
-// memberships are replaced, a new label arrives as needs_mapping.
+// to end: the removed label keeps its entry, its First seen and its
+// mapping, the user's memberships are replaced, a new label gets the
+// later run's First seen.
 const runsFlowsAfterEdit = async (target, state) => {
   const [one] = state.users;
   const entries = await entriesByLabel(target);
   const alpha = entries.get(alphaCourse);
-  await patch(target, `${entriesPath}/${alpha.id}`, {
-    review_reason: 'Checked by hand',
-    review_state: 'mapped',
-  });
   await createItem(target, 'moodle_course_mappings', {
     academic_year: state.year,
     course: state.course,
@@ -367,17 +358,14 @@ const runsFlowsAfterEdit = async (target, state) => {
     entries: 8,
     indexedUsers: 5,
     memberships: 10,
-    needsMapping: 7,
     users: 6,
   });
   const after = await entriesByLabel(target);
-  assert.deepEqual(after.get(alphaCourse), {
-    id: alpha.id,
-    label: alphaCourse,
-    review_reason: 'Checked by hand',
-    review_state: 'mapped',
-  });
-  assert.equal(after.get('Delta Course')?.review_state, 'needs_mapping');
+  assert.deepEqual(after.get(alphaCourse), alpha);
+  // The later run's own transaction time, never the earlier entries'.
+  const delta = after.get('Delta Course')?.first_seen;
+  assert.equal(typeof delta, 'string');
+  assert.notEqual(delta, alpha.first_seen);
   assert.equal(await count(target, 'moodle_course_mappings'), 1);
   assert.deepEqual(await membershipsOf(target, one.id), [
     [betaCourse, 0],
@@ -403,8 +391,8 @@ const runsFlowsAfterEdit = async (target, state) => {
 // Directus refuses every item write on the derived index with a 403 (the
 // hook); a Flow that skips events reaches the database guard instead and
 // fails. A deleted entry cascades its memberships through that guard,
-// marks the index stale, and the next run brings the entry back as
-// needs_mapping with the users' memberships.
+// marks the index stale, and the next run brings the entry back, with a
+// First seen of its own, and with the users' memberships.
 const guardsMemberships = async (target, state) => {
   const [membership] = await get(
     target,
@@ -489,7 +477,8 @@ const guardsMemberships = async (target, state) => {
   const after = await entriesByLabel(target);
   const restored = after.get(betaCourse);
   assert.notEqual(restored.id, beta.id);
-  assert.equal(restored.review_state, 'needs_mapping');
+  assert.equal(typeof restored.first_seen, 'string');
+  assert.notEqual(restored.first_seen, beta.first_seen);
   assert.deepEqual(await membershipsOf(target, state.users[0].id), [
     [betaCourse, 0],
     ['Delta Course', 1],
@@ -647,7 +636,6 @@ const failsOversizedHistoryThroughFlows = async (target, state) => {
     entries: 8,
     indexedUsers: 5,
     memberships: 10,
-    needsMapping: 7,
     users: 7,
   });
   const entries = await entriesByLabel(target);
@@ -721,8 +709,8 @@ const refusesOverlongLine = async (target, state) => {
   });
   const entries = await entriesByLabel(target);
   assert.equal(
-    entries.get('Synthetic Shortened Line')?.review_state,
-    'needs_mapping',
+    typeof entries.get('Synthetic Shortened Line')?.first_seen,
+    'string',
   );
 
   // Back to the six seeded users: the deletion marks the index again and

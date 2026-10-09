@@ -14,17 +14,19 @@ type RawClient = {
 };
 
 // Every statement binds its values as JSON or plain numbers; none carries
-// an identifier from the caller. The entry columns are the model's: `label` (unique,
-// exact text) and `review_state`.
+// an identifier from the caller. The entry columns are the model's: `label`
+// (unique, exact text) and `first_seen`.
 
 // Bindings: labels JSON.
 const entriesSql = `SELECT "id", "label" FROM "moodle_course_entries"
 WHERE "label" IN (SELECT "value" FROM json_array_elements_text(?::json)) ORDER BY "id"`;
 
-// Bindings: labels JSON. A label created by hand in the same instant is
-// skipped by the conflict clause and found by the lookup that follows.
-const entryInsertSql = `INSERT INTO "moodle_course_entries" ("label", "review_state")
-SELECT wanted."value", 'needs_mapping' FROM json_array_elements_text(?::json) AS wanted
+// Bindings: labels JSON. `first_seen` is the time of the transaction that
+// creates the entry; no statement writes it again. A label created by hand
+// in the same instant is skipped by the conflict clause, which leaves the
+// existing entry untouched, and found by the lookup that follows.
+const entryInsertSql = `INSERT INTO "moodle_course_entries" ("label", "first_seen")
+SELECT wanted."value", now() FROM json_array_elements_text(?::json) AS wanted
 ON CONFLICT ("label") DO NOTHING`;
 
 // Bindings: user ids JSON.
@@ -48,7 +50,6 @@ const summarySql = `SELECT
   (SELECT COUNT(DISTINCT "moodle_user")::integer FROM "moodle_history_memberships") AS "indexed_users",
   (SELECT COUNT(*)::integer FROM "moodle_history_memberships") AS "memberships",
   (SELECT COUNT(*)::integer FROM "moodle_course_entries") AS "entries",
-  (SELECT COUNT(*)::integer FROM "moodle_course_entries" WHERE "review_state" = 'needs_mapping') AS "needs_mapping",
   (SELECT COUNT(*)::integer FROM "moodle_users" u
     WHERE COALESCE(u."Courses Count", 0) <> (SELECT COUNT(*) FROM "moodle_history_memberships" m WHERE m."moodle_user" = u."id")) AS "count_mismatches"`;
 
@@ -68,7 +69,6 @@ const summaryRow = z.object({
   entries: count,
   indexed_users: count,
   memberships: count,
-  needs_mapping: count,
   users: count,
 });
 
@@ -95,7 +95,6 @@ const toSummary = (row: z.infer<typeof summaryRow>): HistorySummary => ({
   entries: row.entries,
   indexedUsers: row.indexed_users,
   memberships: row.memberships,
-  needsMapping: row.needs_mapping,
   users: row.users,
 });
 

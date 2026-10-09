@@ -170,8 +170,17 @@ const installsStudioMetadata = async (target) => {
       .toSorted(byName),
   );
   assert.ok(
-    bookmarks.some(({ bookmark }) => bookmark === 'Needs mapping'),
-    'the Needs mapping bookmark is installed',
+    bookmarks.some(
+      ({ bookmark }) => bookmark === 'Equivalencies without a course',
+    ),
+    'the Equivalencies without a course bookmark is installed',
+  );
+  assert.ok(
+    bookmarks.every(
+      ({ bookmark }) =>
+        !['Mapped entries awaiting review', 'Needs mapping'].includes(bookmark),
+    ),
+    'no history line review bookmark is installed',
   );
 };
 

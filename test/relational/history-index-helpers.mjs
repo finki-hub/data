@@ -238,7 +238,7 @@ export const create = async (target, state, [collection, item]) => {
 export const entriesByLabel = async (target) => {
   const rows = await get(
     target,
-    `${entriesPath}?fields=id,label,review_state,review_reason&limit=-1`,
+    `${entriesPath}?fields=id,label,first_seen&limit=-1`,
   );
   return new Map(rows.map((row) => [row.label, row]));
 };

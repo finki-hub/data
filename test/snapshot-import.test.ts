@@ -124,12 +124,7 @@ const prepared = async () => {
     { academic_year: 1, course: 1, entry: 1 },
   ];
   world.coordination.data.history.entries = [
-    {
-      id: 1,
-      label: 'Synthetic Course 1',
-      review_reason: null,
-      review_state: 'mapped',
-    },
+    { first_seen: 't+1', id: 1, label: 'Synthetic Course 1' },
   ];
   const next = [syntheticRow(1), syntheticRow(2), syntheticRow(3)];
   await importCsv(world, next);

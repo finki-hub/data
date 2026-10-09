@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
+import { sourceDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import { dataModelCollections } from '../src/data-model/collections.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import { effectiveFieldMeta } from './presentation-test-helpers.js';
@@ -34,7 +35,8 @@ const modelFields = dataModelCollections.flatMap((collection) =>
   })),
 );
 
-// True when every column of the collection is owned by the Flows.
+// True when every column of the collection is owned by the Flows (the
+// history lines too: the index writes both their columns).
 const isDerived = (collection: string): boolean =>
   dataModelCollections
     .find((candidate) => candidate.collection === collection)
@@ -93,14 +95,25 @@ describe('studio metadata', () => {
   });
 
   test('shows derived collections as read-only rows that Studio cannot add to', () => {
-    expect(
-      dataModelCollections
-        .filter(({ collection }) => isDerived(collection))
-        .map(({ collection }) => collection),
-    ).toEqual([
+    const owned = dataModelCollections
+      .filter(({ collection }) => isDerived(collection))
+      .map(({ collection }) => collection);
+
+    expect(owned).toEqual([
+      'moodle_course_entries',
       'moodle_history_memberships',
       'course_enrollments',
       'data_operation_results',
+    ]);
+
+    // The history lines are the one source among them: Studio edits their
+    // explicit mappings and may delete a line, never a column of it.
+    const sources = new Set<string>(
+      sourceDeclarations.map(({ collection }) => collection),
+    );
+
+    expect(owned.filter((collection) => sources.has(collection))).toEqual([
+      'moodle_course_entries',
     ]);
     // A many-to-many list picks existing rows (study programs) and never
     // creates one from the other side.

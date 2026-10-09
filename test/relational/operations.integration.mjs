@@ -103,7 +103,8 @@ const keepsEdits = async ({ directus, target }) => {
 // courses.json needs no staff link, an older published year with a mapped
 // rule per course, a new unpublished year without rules, one Moodle user
 // with two history lines and a mapping of one line to the first course in
-// the new year.
+// the new year, and an equivalency without a course (a warning with a
+// Needs review bookmark).
 const seedRows = async (target) => {
   const courses = await createMany(
     target,
@@ -127,12 +128,14 @@ const seedRows = async (target) => {
     'Courses Count': 2,
     Name: 'Synthetic Operations User',
   });
+  await post(target, '/items/course_equivalencies', { course: null });
   await settle(target);
+  // The index run created the line, so it records its First seen.
   const [entry] = await get(
     target,
-    `/items/moodle_course_entries?fields=id,review_state&filter[label][_eq]=${encodeURIComponent(line)}`,
+    `/items/moodle_course_entries?fields=id,first_seen&filter[label][_eq]=${encodeURIComponent(line)}`,
   );
-  assert.equal(entry.review_state, 'needs_mapping');
+  assert.equal(typeof entry.first_seen, 'string');
   await post(target, '/items/moodle_course_mappings', {
     academic_year: newer,
     course: courses[0],
@@ -152,24 +155,24 @@ const navigatesToIssues = async ({ t, target }) => {
   const request = as(target, target.token);
   const readiness = await request('GET', '/finki-hub-data-status/readiness');
   assert.equal(readiness.status, 200);
-  const needsMapping = readiness.body.data.checks.find(
-    ({ code }) => code === 'entry_needs_mapping',
+  const positive = readiness.body.data.checks.find(
+    ({ code }) => code === 'equivalency_without_course',
   );
-  assert.ok(needsMapping.count > 0);
-  const bookmark = bookmarkPattern.exec(needsMapping.link)?.groups?.id;
-  assert.ok(bookmark !== undefined, needsMapping.link);
+  assert.ok(positive.count > 0);
+  const bookmark = bookmarkPattern.exec(positive.link)?.groups?.id;
+  assert.ok(bookmark !== undefined, positive.link);
   const preset = await request('GET', `/presets/${bookmark}`);
   assert.equal(preset.status, 200);
-  assert.equal(preset.body.data.bookmark, needsMapping.review);
+  assert.equal(preset.body.data.bookmark, positive.review);
   const filter = encodeURIComponent(JSON.stringify(preset.body.data.filter));
   const rows = await request(
     'GET',
-    `/items/${needsMapping.page}?fields=id,label&filter=${filter}`,
+    `/items/${positive.page}?fields=id,course&filter=${filter}`,
   );
   assert.equal(rows.status, 200);
-  assert.ok(rows.body.data.length >= needsMapping.count);
+  assert.ok(rows.body.data.length >= positive.count);
   t.diagnostic(
-    `followed ${needsMapping.link} to ${rows.body.data.length} record(s)`,
+    `followed ${positive.link} to ${rows.body.data.length} record(s)`,
   );
 };
 

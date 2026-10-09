@@ -96,12 +96,12 @@ const verifyCoverage = async (
 };
 
 // Every label of the page gets an entry id. Labels without an entry are
-// created as needs_mapping in one statement; an existing entry is never
-// updated. The entries table is a source table, so that statement's
-// trigger bumps the source revision inside this very transaction: under
-// the singleton lock nothing else can have moved it, and rows that only
-// wait for a mapping cannot change this index, so the claim adopts the
-// revision its own statement caused.
+// created in one statement, which sets their First seen; an existing entry
+// is never updated. The entries table is a source table, so that
+// statement's trigger bumps the source revision inside this very
+// transaction: under the singleton lock nothing else can have moved it,
+// and new rows that no mapping names yet cannot change this index, so the
+// claim adopts the revision its own statement caused.
 const ensureEntries = async (
   port: CoordinationPort,
   labels: readonly string[],
@@ -132,7 +132,7 @@ const ensureEntries = async (
 // first-occurrence order, record the page as staged. Only this transaction
 // opens the membership write guard. Entries and mappings are never
 // deleted, so a label that later snapshots no longer contain keeps its
-// review state and its manual mappings.
+// First seen and its explicit mappings.
 export const indexPageAction = (
   input: Input,
   context: ActionContext,

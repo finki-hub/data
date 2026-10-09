@@ -265,7 +265,7 @@ const importsOnce = async ({ admin, shot, target }) => {
   assert.equal(await runsSince(target, snapshotFlowId, since), 1);
   assert.equal(await count(target, 'moodle_users'), snapshotRows);
   await settle(target, { limitMs: 600_000 });
-  await admin.command('wait', '--text', 'Needs mapping');
+  await admin.command('wait', '--text', 'History lines');
   await shot(admin, '04-import-settled.png');
 };
 

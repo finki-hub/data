@@ -581,7 +581,7 @@ describe('curriculum generations and study programs as rows', () => {
 });
 
 describe('enumerations', () => {
-  test('declares the role, mode, review and operation states with their labels', () => {
+  test('declares the role, mode and operation states with their labels', () => {
     expect(enumOf('teaching_assignments', 'role').choices).toEqual([
       { label: 'Professor', value: 'professor' },
       { label: 'Assistant', value: 'assistant' },
@@ -591,15 +591,6 @@ describe('enumerations', () => {
       { label: 'Mapped entries', value: 'mapped_entries' },
       { label: 'Legacy regex', value: 'legacy_regex' },
     ]);
-    expect(enumOf('moodle_course_entries', 'review_state')).toMatchObject({
-      choices: [
-        { label: 'Needs mapping', value: 'needs_mapping' },
-        { label: 'Mapped', value: 'mapped' },
-        { label: 'Ignored', value: 'ignored' },
-      ],
-      defaultValue: 'needs_mapping',
-      nullable: false,
-    });
     expect(enumOf('data_operations', 'import_state').defaultValue).toBe('idle');
     expect(enumOf('data_operations', 'publication_state').defaultValue).toBe(
       'idle',
@@ -644,31 +635,32 @@ describe('enumerations', () => {
   });
 
   test('builds server-enforced dropdowns for enums', () => {
-    const payload = toFieldPayload(
-      enumOf('moodle_course_entries', 'review_state'),
-      3,
-    );
+    const payload = toFieldPayload(enumOf('courses', 'status'), 3);
 
     expect(payload).toMatchObject({
-      field: 'review_state',
+      field: 'status',
       meta: {
         interface: 'select-dropdown',
         options: {
           allowNone: false,
           allowOther: false,
           choices: [
-            { text: 'Needs mapping', value: 'needs_mapping' },
-            { text: 'Mapped', value: 'mapped' },
-            { text: 'Ignored', value: 'ignored' },
+            { text: 'Active', value: 'active' },
+            { text: 'All professors', value: 'all_professors' },
+            { text: 'Inactive', value: 'inactive' },
           ],
         },
         required: true,
         sort: 3,
         validation: {
-          review_state: { _in: ['needs_mapping', 'mapped', 'ignored'] },
+          status: { _in: ['active', 'all_professors', 'inactive'] },
         },
       },
-      schema: { is_nullable: false, max_length: enumMaxLength },
+      schema: {
+        default_value: 'active',
+        is_nullable: false,
+        max_length: enumMaxLength,
+      },
       type: 'string',
     });
 

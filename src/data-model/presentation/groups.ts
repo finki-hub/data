@@ -45,14 +45,14 @@ export const fieldGroups: readonly FieldGroup[] = [
     sort: 5,
     start: 'open',
   },
-  // The history entry form: the exact label with its review state first,
-  // the mappings that make it count, then the derived users read-only.
+  // The history line form: the exact label and when the index first saw
+  // it, the explicit mappings of the line, then the derived users
+  // read-only.
   {
     collection: 'moodle_course_entries',
-    field: 'review',
+    field: 'line',
     headerIcon: 'history_edu',
-    members: ['label', 'review_state', 'review_reason'],
-    note: 'One exact Moodle history line and its review state. New lines arrive as "Needs mapping" from the index run.',
+    members: ['label', 'first_seen'],
     sort: 1,
     start: 'open',
   },

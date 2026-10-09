@@ -391,8 +391,11 @@ export class FakeCoordination {
       },
       history: fakeHistoryPort(
         () => data().history,
-        () => {
-          this.sourceWrite('moodle_course_entries');
+        {
+          now: () => stamp(this.#now),
+          onEntryStatement: () => {
+            this.sourceWrite('moodle_course_entries');
+          },
         },
         () => this.sourceIds.history,
       ),

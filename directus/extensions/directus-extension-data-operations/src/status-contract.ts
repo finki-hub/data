@@ -81,7 +81,6 @@ export const statusViewSchema = z.object({
     entries: count,
     indexedUsers: count,
     memberships: count,
-    needsMapping: count,
     users: count,
   }),
   importState: text,

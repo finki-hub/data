@@ -712,11 +712,11 @@ generation first; narrow it to one generation with Studio's native filter on
 ### Forms and relationships
 
 A course is the entry point: its form shows its curriculum links and
-equivalency members, its status and staff links, the
-Moodle history entries mapped to it per academic year, and its enrollment
-rules and derived counts. A history entry's form shows its exact label and
-review state (`needs_mapping`, `mapped`, `ignored`, with a reason), its
-mappings, and the users carrying it (the derived index, read-only).
+equivalency members, its status and staff links, its **Explicit mappings**
+of Moodle history lines per academic year, and its enrollment rules and
+derived counts. A **History line**'s form shows its exact label and
+**First seen**, its **Explicit mappings**, and the users carrying it (the
+derived index, read-only).
 
 - The curriculum entry picker of a course link and the program picker of an
   entry's program states offer only rows of the chosen generation (the
@@ -749,6 +749,11 @@ mappings, and the users carrying it (the derived index, read-only).
 - **Title**, **Position** and **Email** of a staff member and **Type** of a
   room are required, because `staff.json` and `rooms.json` carry them on
   every row; see [Publishing](#publishing).
+- **First seen** of a history line is the time the history index created
+  it; no later run changes it, also when a later snapshot carries the line
+  again. A line created any other way, such as over the API, has none. A
+  line has no review state: one that belongs to no course, such as an
+  administrative line, simply has no mapping.
 
 ## Day-to-day operation
 
@@ -1072,9 +1077,7 @@ published year without a count row), `enrollment_rule_missing` (without a
 rule, so it is never counted), `course_without_professor` (an Active
 course without a professor link, whose professors `courses.json` cannot
 publish). Today's warnings: `mapping_without_rule` (mappings nothing
-counts), `mapped_entry_awaiting_review`,
-`entry_needs_mapping` (Moodle lines nobody mapped, administrative ones
-included), `equivalency_without_course`, `equivalency_entry_unresolved` (an
+counts), `equivalency_without_course`, `equivalency_entry_unresolved` (an
 equivalency with a member label of a generation with a curriculum linked
 to no entry of that generation), `council_member_unresolved` (a council
 membership linked to no student), `snapshot_staged`,
@@ -1092,9 +1095,9 @@ publishes FALSE for it, as for every course without a link of that
 generation: a FALSE is kept, and a TRUE is the rule fix
 `unlinked_availability`.
 
-Unmapped Moodle lines only warn: map an entry, mark it `ignored` with a
-reason, or leave it counted by a reviewed legacy rule; administrative lines
-need no course.
+A Moodle history line without a mapping is no readiness issue:
+administrative lines belong to no course, and a legacy rule counts lines
+without one.
 
 A check's description, the tooltip of its code in the **Readiness** panel,
 states the fact only. What to do:
@@ -1107,7 +1110,6 @@ states the fact only. What to do:
 | `enrollment_count_missing` | Add the course's rule for that year (`enrollment_rule_missing`), or let the pending count run; a missing count is never published as 0. |
 | `enrollment_rule_missing` | Run **Add enrollment rules** for the year or the course. |
 | `course_without_professor` | Add a professor to the course's **Teaching staff**, or set its **Status** to All professors or Inactive. |
-| `entry_needs_mapping` | Map the entry, or mark it `ignored` with a reason. |
 | `mapping_without_rule` | Add the enrollment rule of the mapped course and year. |
 | `academic_year_unsorted`, `curriculum_generation_unsorted`, `study_program_unsorted` | Give the published row a `sort`. |
 | `academic_year_sort_shared`, `curriculum_generation_sort_shared`, `study_program_sort_shared` | Give each published row its own `sort` (a program within its generation). |
@@ -1122,8 +1124,6 @@ is kept. The views are generated from `exports/review-views.ts` and
 
 | Bookmark | Collection | Check | Lists |
 | --- | --- | --- | --- |
-| **Needs mapping** | `moodle_course_entries` | `entry_needs_mapping` | entries still `needs_mapping` without a mapping |
-| **Mapped entries awaiting review** | `moodle_course_entries` | `mapped_entry_awaiting_review` | entries still `needs_mapping` with a mapping, and its course and year |
 | **Equivalency labels without an entry** | `course_equivalency_members` | `equivalency_entry_unresolved` | member labels of a generation with a curriculum and no entry |
 | **Equivalencies without a course** | `course_equivalencies` | `equivalency_without_course` | equivalencies without a course, with their member generations and labels |
 | **Council members without a student** | `student_council` | `council_member_unresolved` | memberships without a student |
@@ -1179,9 +1179,11 @@ overwrites an edited one):
   publication uploaded some declared files), every declared public file
   with its last outcome, code, revision and size (the last publication's
   revision comes from these entries), the last run and the last run of each
-  scheduled Flow within the past 60 minutes; every readiness check with its
-  count and one link to its records (its Needs review bookmark when it has
-  one); and the academic years, curriculum generations and study programs
+  scheduled Flow within the past 60 minutes, and the Moodle snapshot's
+  import state with its counts (`Users`, `Indexed`, `History lines` and
+  `Courses Count mismatches`, never a profile); every readiness check with
+  its count and one link to its records (its Needs review bookmark when it
+  has one); and the academic years, curriculum generations and study programs
   whose `published` flags decide the public keys, each linked to its form.
   The lists come from the declarations and the status, never from a fixed
   set. Facts read `Label: value · Label: value`. A blocking last failure
@@ -1487,7 +1489,7 @@ fields, and the filter builder supports nested include/exclude conditions.
 | Spreadsheet helper | Directus replacement |
 | --- | --- |
 | `Пребарување` | **Search** view on `moodle_users`, with include/exclude course pickers and matching users. |
-| `Слушатели` | **Course Enrollment Rules** (one rule per course and year) and the derived **Course Enrollments** counts, both also in the course form's **Enrollment** group; history entries map to courses in **Moodle Course Mappings**. |
+| `Слушатели` | **Course Enrollment Rules** (one rule per course and year) and the derived **Course Enrollments** counts, both also in the course form's **Enrollment** group; history lines map to courses in **Explicit mappings**. |
 | `Индекси` / `Индекси (Export)` | Search/filter the canonical `students` collection, including `source_group`. |
 | `Предмети (Export)` | Browse the canonical `courses` collection and its form. |
 | `Предмети - 2023`, `Предмети - 2018` | **Curriculum by generation** on **Curriculum Entries**, narrowed with the Generation filter. |
@@ -1529,10 +1531,10 @@ Moodle histories, never from the history-entry table. Matching is
 case-sensitive against complete newline-separated entries of the raw
 `Courses` text, including year/semester, not substrings or regex; it does
 not go through the history index or the mappings, so a line that is
-unmapped, ignored or not indexed yet is found like any other. To reach the
+unmapped or not indexed yet is found like any other. To reach the
 mappings of a person's lines, open the person: the **History Memberships**
-list shows each line with its review state and the course and academic year
-of its mappings. Up to 20 selections are supported per group. Use **Refresh
+list shows each line with the course and academic year of its explicit
+mappings. Up to 20 selections are supported per group. Use **Refresh
 data** after importing a new snapshot to reload choices and results. Both
 private endpoints read as the signed-in user; no collection data is
 duplicated or published.
@@ -1714,12 +1716,12 @@ definition.
 | Study programs | rows of `study_programs`, with their `published` flag | `kn`, `siis`, `pit`, `imb`, `ki`, `ke`, `seis` (2018); `kn`, `siis`, `pit`, `imb`, `ki`, `ie`, `ssp`, `seis` (2023) |
 | Published files and their keys | `exports/index.ts` and one definition module per file | `courses.json`, `rooms.json`, `staff.json`, `students.json` |
 | Keys the data decides | `exports/key-sources.ts` | `published_years`, `published_generations`, `published_programs` |
-| Readiness checks and their review views | `exports/readiness-registry.ts` | `enrollment_count_missing`, `entry_needs_mapping`, ... |
+| Readiness checks and their review views | `exports/readiness-registry.ts` | `enrollment_count_missing`, `course_without_professor`, ... |
 | Dashboard actions | **Run operation** panels (Studio); the defaults in `src/data-model/operations-dashboard.ts` | Publish, Recalculate, Import Moodle snapshot, Add enrollment rules |
 | Collection roles (editable sources) | `coordination/collection-roles.ts` | `courses`, `curriculum_entries`, `moodle_course_mappings`, ... |
 | Rule modes | `rule-modes.ts` | `mapped_entries`, `legacy_regex` |
 | Managed Flow families | `flowFamilies` in `src/flows/registry.ts`, each under its two-digit code in `flowFamilyCodes` (`src/flows/flow-template.ts`) | History index, Snapshot import, Mapped enrollments, Legacy enrollments, Publication, Publish, Enrollment rules, Automatic processing |
-| Choices of an enumerated field | the field, in `src/data-model/*-collections.ts` | the review states of a history entry |
+| Choices of an enumerated field | the field, in `src/data-model/*-collections.ts` | the statuses of a course |
 | Scraper columns | `snapshot/contract.ts` (`snapshotFieldTable`) | the 38 headers of `profiles.csv` |
 
 Code paths in the table that do not start with `src/` are relative to
@@ -1740,7 +1742,7 @@ tests, among others).
    any mode are kept, so a rerun creates nothing, and no mapping is
    created. The rules are counted at the next tick (zero where no entry is
    mapped yet).
-3. Map the year's Moodle history entries (**Needs mapping**).
+3. Map the year's Moodle history lines in **Explicit mappings**.
 4. Set `published`. `courses.json` gains exactly one key per course, the
    year's label, among the other year keys newest first; readiness blocks
    until every course has a count for it and its `sort` is unique.

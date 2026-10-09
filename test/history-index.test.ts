@@ -170,6 +170,9 @@ const memberships = (fake: FakeCoordination) =>
 const labelsOf = (fake: FakeCoordination) =>
   fake.data.history.entries.map(({ label }) => label);
 
+const firstSeenOf = (fake: FakeCoordination) =>
+  fake.data.history.entries.map(({ first_seen, label }) => [label, first_seen]);
+
 const indexOptions = (rows: unknown) => ({
   action: 'index_page',
   page: firstPage,
@@ -463,11 +466,14 @@ describe('index writer', () => {
       [2, 4, 1],
       [2, 5, 2],
     ]);
-    expect(
-      fake.data.history.entries.every(
-        ({ review_state }) => review_state === 'needs_mapping',
-      ),
-    ).toBeTruthy();
+
+    // One statement created them, so they share its First seen.
+    const [created] = fake.data.history.entries;
+
+    expect(created?.first_seen).toBeTypeOf('string');
+    expect(firstSeenOf(fake)).toEqual(
+      labelsOf(fake).map((label) => [label, created?.first_seen]),
+    );
     // The entry statement bumped the revision like the source trigger
     // does; the claim adopted it, so the run can still complete.
     expect(fake.data.sourceRevision).toBe(before + 1);
@@ -503,11 +509,12 @@ describe('index writer', () => {
 
   test('never updates an existing entry and never deletes entries or mappings', async () => {
     const { fake, token } = await seeded();
+    // Created through the API, so it has no First seen; the index keeps it
+    // that way.
     fake.data.history.entries.push({
+      first_seen: null,
       id: 40,
       label: 'Alpha',
-      review_reason: 'checked by hand',
-      review_state: 'mapped',
     });
     fake.data.history.mappings.push({ academic_year: 1, course: 1, entry: 40 });
     fake.data.history.memberships.push(
@@ -523,10 +530,9 @@ describe('index writer', () => {
       membershipsWritten: 5,
     });
     expect(fake.data.history.entries[0]).toEqual({
+      first_seen: null,
       id: 40,
       label: 'Alpha',
-      review_reason: 'checked by hand',
-      review_state: 'mapped',
     });
     expect(fake.data.history.mappings).toEqual([
       { academic_year: 1, course: 1, entry: 40 },
@@ -557,6 +563,41 @@ describe('index writer', () => {
     ]);
   });
 
+  test('records First seen when it creates a line and keeps it when a later run sees the line again', async () => {
+    const { fake, token } = await seeded();
+    await indexPage(fake, { rows: pageRows(), token });
+    await runAction({ action: 'complete', token }, context(fake));
+    const before = firstSeenOf(fake);
+
+    // A later snapshot, one minute on: user 1 keeps Alpha and gains Gamma,
+    // user 2 keeps only Beta.
+    fake.advance(60_000);
+    fake.sourceWrite('moodle_users');
+    const later = await claimDomain(fake, history);
+    await planHistory(fake, later);
+
+    await expect(
+      indexPage(fake, {
+        rows: [
+          { entries: ['Alpha', 'Gamma'], id: 1 },
+          { entries: ['Beta'], id: 2 },
+          { entries: [], id: 3 },
+        ],
+        token: later,
+      }),
+    ).resolves.toMatchObject({ entriesCreated: 1 });
+
+    const after = firstSeenOf(fake);
+    const gamma = after.at(-1);
+
+    // Every earlier line keeps its First seen, seen again or not; the new
+    // line records the later run's.
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(gamma?.[0]).toBe('Gamma');
+    expect(gamma?.[1]).toBeTypeOf('string');
+    expect(gamma?.[1]).not.toBe(before[0]?.[1]);
+  });
+
   test('reports the index against the raw counts without listing anyone', async () => {
     const { fake, token } = await seeded();
     await indexPage(fake, { rows: pageRows(), token });
@@ -569,7 +610,6 @@ describe('index writer', () => {
         entries: 5,
         indexedUsers: 2,
         memberships: 5,
-        needsMapping: 5,
         users: 3,
       },
     });
@@ -688,10 +728,10 @@ describe('index guards', () => {
 
   test('writes memberships only after the writer opened the guard of its transaction', async () => {
     const data = freshHistory();
-    const port = fakeHistoryPort(
-      () => data,
-      () => {},
-    );
+    const port = fakeHistoryPort(() => data, {
+      now: () => null,
+      onEntryStatement: () => {},
+    });
 
     await expect(port.deleteMemberships([1])).rejects.toThrow(
       membershipGuardMessage,
@@ -843,7 +883,7 @@ describe('derived index guards', () => {
     }
   });
 
-  test('mark the index stale when an entry is deleted, not when it is reviewed', async () => {
+  test('mark the index stale when an entry is deleted, not when another of its columns changes', async () => {
     const { fake, token } = await seeded();
     await indexPage(fake, { rows: pageRows(), token });
     await runAction({ action: 'complete', token }, context(fake));

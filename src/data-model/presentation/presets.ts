@@ -138,11 +138,7 @@ const defaultViews: readonly TabularPreset[] = [
     ['Name', 'Mail', 'ID_old', 'ID_new', 'Courses Count'],
     ['Name'],
   ),
-  defaultView(
-    'moodle_course_entries',
-    ['label', 'review_state', 'review_reason'],
-    ['label'],
-  ),
+  defaultView('moodle_course_entries', ['label', 'first_seen'], ['label']),
   defaultView(
     'moodle_history_memberships',
     ['moodle_user', 'entry', 'sort'],

@@ -5,10 +5,9 @@ import type {
 import type { MembershipRow } from '../directus/extensions/directus-extension-data-operations/src/history-contract.js';
 
 type FakeEntry = {
+  first_seen: null | string;
   id: number;
   label: string;
-  review_reason: null | string;
-  review_state: string;
 };
 
 type FakeMapping = {
@@ -47,15 +46,23 @@ const membershipKey = (row: MembershipRow): string =>
 export const membershipGuardMessage =
   'Write refused: moodle_history_memberships (derived; writer: history index run)';
 
-// An in-memory stand-in for the history SQL port of one transaction.
-// `onEntryStatement` mirrors the statement-level source trigger of
-// moodle_course_entries: it fires once per INSERT statement, whether or
-// not a row was inserted. A membership write before openWriter fails like
-// the database guard of the schema-constraints migration. `userIds` are
-// the Moodle user ids the page planner reads.
+// What the fake port asks of its owner: the time a created entry records
+// as First seen (the database's `now()`, the transaction's time), and the
+// statement-level source trigger of moodle_course_entries, which fires
+// once per INSERT statement, whether or not a row was inserted.
+type EntryHooks = {
+  readonly now: () => null | string;
+  readonly onEntryStatement: () => void;
+};
+
+// An in-memory stand-in for the history SQL port of one transaction. A
+// created entry records `now()` as First seen; an existing one is never
+// touched. A membership write before openWriter fails like the database
+// guard of the schema-constraints migration. `userIds` are the Moodle user
+// ids the page planner reads.
 export const fakeHistoryPort = (
   data: () => FakeHistory,
-  onEntryStatement: () => void,
+  { now, onEntryStatement }: EntryHooks,
   userIds: () => readonly number[] = () => [],
 ): HistoryIndexPort => {
   let writerOpen = false;
@@ -72,10 +79,9 @@ export const fakeHistoryPort = (
           continue;
         }
         data().entries.push({
+          first_seen: now(),
           id: nextId(data().entries),
           label,
-          review_reason: null,
-          review_state: 'needs_mapping',
         });
         created += 1;
       }
@@ -121,9 +127,6 @@ export const fakeHistoryPort = (
         entries: entries.length,
         indexedUsers: indexed.size,
         memberships: memberships.length,
-        needsMapping: entries.filter(
-          ({ review_state }) => review_state === 'needs_mapping',
-        ).length,
         users: users.length,
       };
     },

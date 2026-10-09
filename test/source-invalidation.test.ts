@@ -489,7 +489,7 @@ describe('source-invalidation migration', () => {
     ).toHaveLength(1);
   });
 
-  test('marks the history index when a history entry is deleted or its label edited, never when it is reviewed', () => {
+  test('marks the history index when a history entry is deleted or its label edited, never for another column', () => {
     const functionStatement = functionOf(statements);
 
     expect(sourceTableDeletionDomains).toEqual({
@@ -508,9 +508,9 @@ describe('source-invalidation migration', () => {
     expect(functionStatement).toContain(
       "  IF TG_TABLE_NAME = 'moodle_course_entries' AND (TG_OP IN ('DELETE', 'TRUNCATE') OR TG_NAME = 'finki_hub_entry_label_invalidation') THEN\n    affected := affected || ARRAY['history_index'];\n  END IF;",
     );
-    // The label trigger fires only for an UPDATE that names the column (a
-    // review edit names review_state or review_reason) and runs the same
-    // function, which adds the history index by the trigger's name.
+    // The label trigger fires only for an UPDATE that names the column (an
+    // edit of another column, such as first_seen, does not) and runs the
+    // same function, which adds the history index by the trigger's name.
     expect(
       statements.filter((statement) =>
         statement.includes('"finki_hub_entry_label_invalidation"'),

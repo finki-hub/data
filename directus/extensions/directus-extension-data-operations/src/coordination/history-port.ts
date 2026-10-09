@@ -1,10 +1,10 @@
 import type { MembershipRow } from '../history-contract.js';
 
 // The history index writes, inside the coordinator's transaction. Entries
-// are only ever created (as needs_mapping) and looked up; a label that
-// exists keeps its review state, reason and mappings whatever the page
-// says. Memberships are the replaceable index: deleted per user and
-// re-inserted as unique pairs.
+// are only ever created (with their First seen) and looked up; a label
+// that exists keeps its First seen and mappings whatever the page says.
+// Memberships are the replaceable index: deleted per user and re-inserted
+// as unique pairs.
 export type HistoryIndexPort = {
   // One INSERT statement for the given labels; every one of them must be
   // missing, the statement-level source trigger fires once regardless.
@@ -28,15 +28,14 @@ export type HistoryIndexPort = {
 };
 
 // The bounded comparison of the derived index with the raw snapshot: how
-// many users carry memberships, how many entries still need a mapping and
-// how many users' distinct indexed entries differ from the scraper's own
-// `Courses Count`. Aggregates only, never a profile.
+// many users carry memberships, how many entries exist and how many users'
+// distinct indexed entries differ from the scraper's own `Courses Count`.
+// Aggregates only, never a profile.
 export type HistorySummary = {
   readonly countMismatches: number;
   readonly entries: number;
   readonly indexedUsers: number;
   readonly memberships: number;
-  readonly needsMapping: number;
   readonly users: number;
 };
 

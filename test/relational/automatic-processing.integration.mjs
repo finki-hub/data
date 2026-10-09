@@ -253,7 +253,9 @@ const zeroesDeletedMapping = async (t, target, state) => {
   });
 };
 
-// Fifty edits in parallel between two ticks: one claim, one run.
+// Fifty edits in parallel between two ticks: one claim, one run. Each
+// writes a history line's First seen over the API, a column other than
+// the label, so it marks enrollments and publication, never the index.
 const coalescesBurst = async (t, target, state) => {
   await afterTick(1_500);
   const since = wallClock();
@@ -264,7 +266,7 @@ const coalescesBurst = async (t, target, state) => {
   await Promise.all(
     Array.from({ length: 50 }, (_, index) =>
       patch(target, `/items/moodle_course_entries/${ids[index % ids.length]}`, {
-        review_reason: `Synthetic burst ${index}`,
+        first_seen: `2020-01-01T00:00:${String(index % 60).padStart(2, '0')}Z`,
       }),
     ),
   );

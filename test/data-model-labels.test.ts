@@ -183,12 +183,18 @@ describe('field and alias labels', () => {
     expect(new Set(unlabelled)).toEqual(new Set([absent]));
   });
 
-  test('labels only the course status and the teaching staff links', () => {
+  test('labels only the course status, the teaching staff links, the history lines and the explicit mappings', () => {
     expect(dataModelCollections.flatMap(declaredLabels)).toEqual([
       'courses.status: Status',
       'courses.assignments: Teaching staff',
+      'courses.history_mappings: Explicit mappings',
       'staff.assignments: Teaches',
       'teaching_assignments: Teaching staff / Teaching assignment',
+      'academic_years.mappings: Explicit mappings',
+      'moodle_course_entries: History lines / History line',
+      'moodle_course_entries.first_seen: First seen',
+      'moodle_course_entries.mappings: Explicit mappings',
+      'moodle_course_mappings: Explicit mappings / Explicit mapping',
     ]);
   });
 });
@@ -230,6 +236,7 @@ describe('collection labels', () => {
     });
     const labels = new Map([
       ['assignments', 'Teaching staff'],
+      ['history_mappings', 'Explicit mappings'],
       ['name', 'Course name'],
       ['status', 'Status'],
     ]);

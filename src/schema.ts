@@ -193,6 +193,7 @@ export type ModelRelationAlias = {
   readonly fields: readonly string[];
   readonly junction?: string;
   readonly label?: string;
+  readonly note?: string;
   readonly readOnly?: true;
   readonly template: string;
 };

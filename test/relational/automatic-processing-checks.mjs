@@ -398,8 +398,9 @@ const discardsOvertakenRuns = async (t, target, state) => {
   await markPending(target, ['enrollments']);
   await running(target);
   const [entry] = state.entries.values().toArray();
+  // First seen, written over the API: a source edit that is not a label.
   await patch(target, `/items/moodle_course_entries/${entry}`, {
-    review_reason: 'Synthetic mid-run edit',
+    first_seen: '2020-01-01T00:00:00Z',
   });
   const discarded = await overtaken(target, 'SOURCE_CHANGED');
   assert.equal(discarded.report.lastError.blocking, false);

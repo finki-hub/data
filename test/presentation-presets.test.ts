@@ -161,6 +161,18 @@ describe('presets', () => {
     });
   });
 
+  test('lists history lines by label with their First seen, and keeps no Needs review bookmark on them', () => {
+    expect(
+      defaultViewOf('moodle_course_entries')?.layout_query.tabular,
+    ).toMatchObject({ fields: ['label', 'first_seen'], sort: ['label'] });
+    expect(
+      presetDefinitions.filter(
+        ({ bookmark, collection }) =>
+          collection === 'moodle_course_entries' && bookmark !== null,
+      ),
+    ).toEqual([]);
+  });
+
   test('lists only fields that exist on the collection or its relation targets', () => {
     expect(unresolvedPresetPaths).toEqual([]);
 

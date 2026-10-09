@@ -15,12 +15,7 @@ import {
   userCollections,
   withDataModel,
 } from './relational/data-model-helpers.mjs';
-import {
-  get,
-  patch,
-  rebuild,
-  remove,
-} from './relational/history-index-helpers.mjs';
+import { get, rebuild, remove } from './relational/history-index-helpers.mjs';
 import {
   installHistoryRunner,
   removeHistoryRunner,
@@ -52,6 +47,7 @@ const yearLabel = '2094/2095';
 const exactLf = 'Exact LF';
 const profileEntry = 'Profile Entry';
 const mappedEntry = 'Mapped Entry';
+const unmappedEntry = 'Unmapped Entry';
 const usersPath = '/items/moodle_users?fields=id&limit=-1';
 
 // The ids of the current Moodle users.
@@ -158,8 +154,8 @@ const installsReviewViews = async ({ directus, t, target }) => {
 };
 
 // The first snapshot through the import Flow, indexed by the synthetic
-// runner; one line mapped to a course and year, one ignored, one mapped
-// but still awaiting review; beside them, rows that make the council and
+// runner; one line mapped to a course and year, one left unmapped, one
+// mapped to a second course; beside them, rows that make the council and
 // equivalency checks count.
 const importsAndMaps = async ({ state, target }) => {
   await importSnapshot(target, state, {
@@ -186,27 +182,12 @@ const importsAndMaps = async ({ state, target }) => {
     course: course.data.id,
     entry: entries.get(mappedEntry),
   });
-  await patch(
-    target,
-    `/items/moodle_course_entries/${entries.get(mappedEntry)}`,
-    {
-      review_state: 'mapped',
-    },
-  );
-  await patch(
-    target,
-    `/items/moodle_course_entries/${entries.get('Ignored Entry')}`,
-    {
-      review_reason: 'Synthetic administrative line',
-      review_state: 'ignored',
-    },
-  );
-  const awaiting = await createItem(target, 'courses', {
-    name: 'Synthetic Awaiting Course',
+  const second = await createItem(target, 'courses', {
+    name: 'Synthetic Second Course',
   });
   await createItem(target, 'moodle_course_mappings', {
     academic_year: year.data.id,
-    course: awaiting.data.id,
+    course: second.data.id,
     entry: entries.get('Tie Entry'),
   });
   await createItem(target, 'course_equivalencies', { course: null });
@@ -247,7 +228,7 @@ const listsWhatReadinessCounts = async ({ t, target }) => {
     if (listed > 0) compared.push(`${code} ${String(listed)}`);
   }
   assert.ok(
-    compared.length >= 4,
+    compared.length >= 2,
     'the seeded checks count through their views',
   );
   t.diagnostic(`views listing what readiness counts: ${compared.join(', ')}`);
@@ -319,12 +300,12 @@ const matchesRawEntries = async ({ target }) => {
   assert.equal(fewest.body.data[0].Name, 'Boundary Null');
 };
 
-// Mapped, ignored and never-indexed lines are raw labels like any other:
+// Mapped, unmapped and never-indexed lines are raw labels like any other:
 // options list them and Search matches them.
 const keepsRawLabels = async ({ target }) => {
   const token = target.token;
   const options = await optionsAs(target, token);
-  for (const label of [mappedEntry, 'Ignored Entry', exactLf]) {
+  for (const label of [mappedEntry, unmappedEntry, exactLf]) {
     assert.ok(options.body.data.includes(label), label);
   }
   await createItem(target, 'moodle_users', {
@@ -341,7 +322,7 @@ const keepsRawLabels = async ({ target }) => {
   assert.deepEqual(names(found), ['Unindexed Holder']);
   const withUnindexed = await optionsAs(target, token);
   assert.ok(withUnindexed.body.data.includes('Unindexed Entry'));
-  for (const label of [mappedEntry, 'Ignored Entry']) {
+  for (const label of [mappedEntry, unmappedEntry]) {
     const matched = await searchAs(target, token, { include: [label] });
     assert.equal(matched.body.total, 1, label);
   }
@@ -474,10 +455,10 @@ const survivesReplacement = async ({ state, target }) => {
   assert.equal(indexed.body.total, 0);
   const kept = await get(
     target,
-    '/items/moodle_course_entries?fields=label,review_state,mappings&filter[label][_eq]=Mapped%20Entry',
+    '/items/moodle_course_entries?fields=label,mappings&filter[label][_eq]=Mapped%20Entry',
   );
   assert.equal(kept.length, 1);
-  assert.equal(kept[0].review_state, 'mapped');
+  assert.equal(kept[0].mappings.length, 1);
   assert.deepEqual(
     await get(target, '/items/moodle_course_mappings?fields=id&limit=-1'),
     mappings,
@@ -511,7 +492,7 @@ test('keeps raw-history Search and installs the Needs review views of the regist
         () => matchesRawEntries(context),
       );
       await t.test(
-        'keeps mapped, ignored and unindexed lines as raw labels',
+        'keeps mapped, unmapped and unindexed lines as raw labels',
         () => keepsRawLabels(context),
       );
       await t.test(

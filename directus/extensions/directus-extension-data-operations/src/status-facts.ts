@@ -104,14 +104,12 @@ export const snapshotText = ({
   countMismatches,
   entries,
   indexedUsers,
-  needsMapping,
   users,
 }: StatusView['historyIndex']): string =>
   factsText([
     ['Users', users],
     ['Indexed', indexedUsers],
-    ['History entries', entries],
-    ['Needs mapping', needsMapping],
+    ['History lines', entries],
     ['Courses Count mismatches', countMismatches],
   ]);
 

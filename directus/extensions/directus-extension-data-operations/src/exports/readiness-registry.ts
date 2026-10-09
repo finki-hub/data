@@ -61,7 +61,6 @@ const blocker = declare('blocker', ['courses.json']);
 const warning = declare('warning', []);
 
 const enrollments = checkedBy(enrollmentCheck);
-const mappings = checkedBy(mappingCheck);
 
 export const readinessRegistry: readonly ReadinessEntry[] = [
   ...notCurrentCalculations.map(({ domain, state }) =>
@@ -153,25 +152,10 @@ export const readinessRegistry: readonly ReadinessEntry[] = [
     source: counted(councilWithoutStudent),
   }),
   warning({
-    code: 'entry_needs_mapping',
-    description: 'Moodle history entry marked needs_mapping without a mapping',
-    page: 'moodle_course_entries',
-    review: reviewViews.needsMapping,
-    source: mappings,
-  }),
-  warning({
-    code: 'mapped_entry_awaiting_review',
-    description:
-      'A Moodle history entry carries a mapping but is marked needs_mapping',
-    page: 'moodle_course_entries',
-    review: reviewViews.mappedAwaitingReview,
-    source: mappings,
-  }),
-  warning({
     code: 'mapping_without_rule',
     description:
       'Mapping without an enrollment rule for its course and academic year (not counted)',
     page: 'moodle_course_mappings',
-    source: mappings,
+    source: checkedBy(mappingCheck),
   }),
 ];

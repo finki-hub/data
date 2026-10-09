@@ -234,16 +234,8 @@ const promotesFirstSnapshot = async (target, state) => {
   });
   const [entry] = await get(
     target,
-    '/items/moodle_course_entries?fields=id&sort=id&limit=1',
+    '/items/moodle_course_entries?fields=id,first_seen&sort=id&limit=1',
   );
-  await call(target, `/items/moodle_course_entries/${entry.id}`, {
-    body: JSON.stringify({
-      review_reason: 'Checked by hand (synthetic)',
-      review_state: 'mapped',
-    }),
-    headers: { 'content-type': 'application/json' },
-    method: 'PATCH',
-  });
   const mapping = await createItem(target, 'moodle_course_mappings', {
     academic_year: year.data.id,
     course: course.data.id,
@@ -253,6 +245,7 @@ const promotesFirstSnapshot = async (target, state) => {
   Object.assign(state, {
     entries,
     entry: entry.id,
+    firstSeen: entry.first_seen,
     mapping: mapping.data.id,
     memberships,
   });
@@ -493,9 +486,10 @@ const promotesFullSnapshot = async (target, state, t) => {
   assert.equal(mapping.entry, state.entry);
   const entry = await get(
     target,
-    `/items/moodle_course_entries/${state.entry}?fields=review_state`,
+    `/items/moodle_course_entries/${state.entry}?fields=first_seen`,
   );
-  assert.equal(entry.review_state, 'mapped');
+  assert.equal(typeof state.firstSeen, 'string');
+  assert.equal(entry.first_seen, state.firstSeen);
   const status = await get(target, statusPath);
   assert.deepEqual(status.dirty, allDomains);
   assert.ok(status.revisions.source > before.revisions.source);

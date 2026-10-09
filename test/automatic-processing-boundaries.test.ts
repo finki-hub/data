@@ -118,7 +118,7 @@ describe('source invalidation of the completed source model', () => {
     ]);
   });
 
-  test('marks the history index for a deleted entry or a hand-edited label, never for a review', () => {
+  test('marks the history index for a deleted entry or a hand-edited label, never for another column', () => {
     expect(marks('moodle_course_entries', 'delete')).toEqual([
       history,
       enrollments,
@@ -129,12 +129,10 @@ describe('source invalidation of the completed source model', () => {
       enrollments,
       publication,
     ]);
-    expect(
-      marks('moodle_course_entries', 'update', [
-        'review_state',
-        'review_reason',
-      ]),
-    ).toEqual([enrollments, publication]);
+    expect(marks('moodle_course_entries', 'update', ['first_seen'])).toEqual([
+      enrollments,
+      publication,
+    ]);
   });
 });
 

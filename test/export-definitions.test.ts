@@ -120,8 +120,7 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   curriculum_entries: null,
   curriculum_entry_program_states: ['entry', 'program', 'state'],
   curriculum_generations: ['code', 'has_curriculum', 'id', 'published', 'sort'],
-  moodle_course_entries: ['id', 'review_state'],
-  moodle_course_mappings: ['academic_year', 'course', 'entry'],
+  moodle_course_mappings: ['academic_year', 'course'],
   rooms: null,
   staff: null,
   student_council: ['id', 'student'],
@@ -254,6 +253,7 @@ describe('the shipped export definitions', () => {
       'probe 1: data_operations.id',
       'probe 2: students.source_group',
       'probe 2: source_group',
+      'probe 3: moodle_course_mappings.entry',
       'probe 3: moodle_course_entries.label',
       'probe 3: entry.label',
     ]);

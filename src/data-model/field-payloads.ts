@@ -223,6 +223,7 @@ export const toAliasPayload = (
         layout: 'table',
         template: alias.template,
       },
+      ...(alias.note !== undefined && { note: alias.note }),
       readonly: !editable,
       required: false,
       sort,

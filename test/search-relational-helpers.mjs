@@ -49,7 +49,7 @@ const commonRows = (offset) => [
   person('Boundary Underscore', 'Under_score\nAnother', 2),
   person('Boundary Wildcard', 'UnderXscore', 1),
   person('Boundary Null', null, 0),
-  person('Ignored Holder', 'Ignored Entry', 1),
+  person('Unmapped Holder', 'Unmapped Entry', 1),
   ...Array.from({ length: tieRows }, (_, index) => ({
     ...person(tieName, 'Tie Entry', 3),
     Mail: `tie-${String(index + offset)}@search.example`,

@@ -587,16 +587,13 @@ describe('the enrollment and curriculum checks of courses.json', () => {
 });
 
 describe('the teaching and mapping checks of courses.json', () => {
-  test('warns about mappings no rule counts and entries awaiting review, never blocking on them', async () => {
+  test('warns about mappings no rule counts, never blocking on them, and counts no history line', async () => {
     const store = await importedStore();
     edit(
       store,
       'moodle_course_entries',
       append(
-        [1, 2, 3].map((id) => ({
-          id,
-          review_state: id === 3 ? 'mapped' : 'needs_mapping',
-        })),
+        [1, 2, 3].map((id) => ({ id, label: `Synthetic Line ${String(id)}` })),
       ),
     );
     edit(store, 'academic_years', append([{ id: 99, label: '2026/2027' }]));
@@ -613,11 +610,13 @@ describe('the teaching and mapping checks of courses.json', () => {
 
     expect(rowsOf(store, 'moodle_course_mappings')).toHaveLength(3);
     expect(decision.ready).toBeTruthy();
-    expect(decision.issueCounts).toMatchObject({
-      entry_needs_mapping: 1,
-      mapped_entry_awaiting_review: 1,
-      mapping_without_rule: 2,
-    });
+    expect(decision.issueCounts).toMatchObject({ mapping_without_rule: 2 });
+    expect(Object.keys(decision.issueCounts)).not.toContain(
+      'entry_needs_mapping',
+    );
+    expect(Object.keys(decision.issueCounts)).not.toContain(
+      'mapped_entry_awaiting_review',
+    );
   });
 
   test('answers codes, counts and pages, never a name or a label', async () => {

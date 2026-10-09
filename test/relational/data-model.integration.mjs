@@ -353,7 +353,8 @@ const keepsExactHistoryLabels = async (target) => {
     label: longLabel,
   });
   assert.equal(long.data.label, longLabel);
-  assert.equal(long.data.review_state, 'needs_mapping');
+  // Created over the API, not by the history index: no First seen.
+  assert.equal(long.data.first_seen, null);
   assert.equal(
     await rejectedItem(target, 'moodle_course_entries', { label: longLabel }),
     'RECORD_NOT_UNIQUE',

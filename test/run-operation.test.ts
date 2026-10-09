@@ -71,7 +71,6 @@ const idle: StatusView = {
     entries: 0,
     indexedUsers: 0,
     memberships: 0,
-    needsMapping: 0,
     users: 0,
   },
   importState: 'completed',

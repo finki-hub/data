@@ -21,6 +21,7 @@ import {
   registryProblems,
   registryReads,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
+import { equivalencyWithoutCourse } from '../directus/extensions/directus-extension-data-operations/src/exports/review-views.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { reviewPresets } from '../src/data-model/presentation/presets.js';
 import { storeReader } from '../src/projection/memory-reader.js';
@@ -139,16 +140,15 @@ describe('the readiness-check registry', () => {
       })),
     );
     expect(
-      reviewPresets().find(({ bookmark }) => bookmark === 'Needs mapping'),
+      reviewPresets().find(
+        ({ bookmark }) => bookmark === 'Equivalencies without a course',
+      ),
     ).toMatchObject({
-      collection: 'moodle_course_entries',
-      filter: {
-        _and: [
-          { review_state: { _eq: 'needs_mapping' } },
-          { mappings: { id: { _null: true } } },
-        ],
+      collection: 'course_equivalencies',
+      filter: { course: { _null: true } },
+      layout_query: {
+        tabular: { fields: ['members.generation', 'members.label', 'course'] },
       },
-      layout_query: { tabular: { fields: ['label', 'review_reason'] } },
     });
   });
 
@@ -200,7 +200,6 @@ describe('the readiness-check registry', () => {
       enrollment_count_missing: 'blocker/check',
       enrollments_failed: 'blocker/status',
       enrollments_pending: 'blocker/status',
-      entry_needs_mapping: 'warning/check',
       equivalency_entry_unresolved: 'warning/count',
       history_index_failed: 'blocker/status',
       history_index_pending: 'blocker/status',
@@ -316,31 +315,31 @@ describe('the registry rules', () => {
     ],
     [
       'two reviews of one bookmark',
-      changed('mapped_entry_awaiting_review', {
+      changed('equivalency_without_course', {
         review: {
-          bookmark: 'Needs mapping',
-          fields: ['label'],
-          filter: {},
-          sort: ['label'],
+          bookmark: 'Council members without a student',
+          fields: ['course'],
+          filter: equivalencyWithoutCourse,
+          sort: ['id'],
         },
       }),
-      'two readiness reviews share the bookmark Needs mapping',
+      'two readiness reviews share the bookmark Council members without a student',
     ],
     [
       'a review filter with _some',
-      changed('entry_needs_mapping', {
+      changed('mapping_without_rule', {
         review: {
-          bookmark: 'Needs mapping',
-          fields: ['label'],
+          bookmark: 'Mappings without a rule',
+          fields: ['entry'],
           filter: {
-            mappings: {
-              _some: { course: { _null: true }, entry: { _null: true } },
+            entry: {
+              _some: { label: { _null: true } },
             },
           },
-          sort: ['label'],
+          sort: ['entry'],
         },
       }),
-      'review of entry_needs_mapping filters with _some or _none',
+      'review of mapping_without_rule filters with _some or _none',
     ],
     [
       'a generation-scoped review that hides the generation',
@@ -413,12 +412,12 @@ describe('readiness derived from the registry', () => {
     );
   });
 
-  test('warns about a mapping without a rule, with its page and review, and still prepares every file', async () => {
+  test('warns about a mapping without a rule, with its page, and still prepares every file', async () => {
     const store = await importedStore();
     edit(
       store,
       'moodle_course_entries',
-      append([{ id: 1, review_state: 'needs_mapping' }]),
+      append([{ id: 1, label: 'Synthetic Line 1' }]),
     );
     edit(
       store,
@@ -448,22 +447,37 @@ describe('readiness derived from the registry', () => {
   });
 
   test('names the Needs review bookmark of a positive code that declares one', async () => {
-    const store = edit(
-      await importedStore(),
-      'moodle_course_entries',
-      append([{ id: 1, review_state: 'needs_mapping' }]),
+    const answer = await readinessAction(
+      exportDefinitions,
+      deps(await importedStore()),
     );
-
-    const answer = await readinessAction(exportDefinitions, deps(store));
 
     expect(answer.reviews).toEqual({
       // The imported fixture keeps an unmatched council index, two
       // equivalency labels without an entry (a generation-scoped review,
       // follow-up 51) and three equivalencies without a course.
       council_member_unresolved: 'Council members without a student',
-      entry_needs_mapping: 'Needs mapping',
       equivalency_entry_unresolved: 'Equivalency labels without an entry',
       equivalency_without_course: 'Equivalencies without a course',
     });
+  });
+
+  test('counts no history line and links no history line bookmark', () => {
+    expect(
+      readinessRegistry
+        .filter(
+          ({ code, page }) =>
+            page === 'moodle_course_entries' ||
+            ['entry_needs_mapping', 'mapped_entry_awaiting_review'].includes(
+              code,
+            ),
+        )
+        .map(({ code }) => code),
+    ).toEqual([]);
+    expect(
+      reviewPresets().filter(
+        ({ collection }) => collection === 'moodle_course_entries',
+      ),
+    ).toEqual([]);
   });
 });

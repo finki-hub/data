@@ -6,18 +6,17 @@ import {
 } from '../../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { courseTemplate } from './content-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
-import { enumField, labelledChoices, m2o, scalar } from './fields.js';
-
-const reviewStates = ['needs_mapping', 'mapped', 'ignored'] as const;
-
-const reviewChoices = labelledChoices(reviewStates, {
-  ignored: 'Ignored',
-  mapped: 'Mapped',
-  needs_mapping: 'Needs mapping',
-});
+import { m2o, scalar } from './fields.js';
 
 const moodleUserTemplate = '{{Name}}';
 const historyEntryTemplate = '{{label}}';
+
+// One history line mapped by hand to a course and academic year; its
+// aliases on the line, the course and the year carry the same name.
+const explicitMappings = {
+  plural: 'Explicit mappings',
+  singular: 'Explicit mapping',
+} as const;
 
 // The Moodle user columns: the scraper fields of the snapshot contract,
 // with the same names and kinds in the snapshot staging rows.
@@ -60,17 +59,17 @@ export const moodleCollections: readonly ModelCollection[] = [
         readOnly: true,
         unique: true,
       }),
-      enumField('review_state', reviewChoices, {
-        defaultValue: 'needs_mapping',
-        nullable: false,
-      }),
-      scalar('review_reason', 'text', {
-        note: 'Reason the entry is unmapped or ignored.',
+      // Written once, in the history index's INSERT that creates the
+      // entry; an entry created any other way keeps it empty.
+      scalar('first_seen', 'timestamp', {
+        label: 'First seen',
+        note: 'When the history index first created this line.',
+        readOnly: true,
       }),
     ],
     hidden: false,
     icon: 'history_edu',
-    note: 'Distinct Moodle course history entries with their mapping review state.',
+    label: { plural: 'History lines', singular: 'History line' },
     singleton: false,
     sort: 18,
   },
@@ -81,13 +80,12 @@ export const moodleCollections: readonly ModelCollection[] = [
       m2o('moodle_user', 'moodle_users', {
         alias: {
           field: 'history_memberships',
-          // Each raw history line with its review state and the course
-          // and year of its mappings, so a user opened from Search leads
-          // to the mappings of their lines without Search itself matching
-          // through them.
+          // Each raw history line with the course and year of its
+          // explicit mappings, so a user opened from Search leads to the
+          // mappings of their lines without Search itself matching through
+          // them.
           fields: [
             'entry',
-            'entry.review_state',
             'entry.mappings.course',
             'entry.mappings.academic_year',
             'sort',
@@ -131,6 +129,8 @@ export const moodleCollections: readonly ModelCollection[] = [
         alias: {
           field: 'mappings',
           fields: ['course', 'academic_year'],
+          label: explicitMappings.plural,
+          note: 'An explicit mapping replaces every pattern for this line.',
           template: '{{course.name}} ({{academic_year.label}})',
         },
         nullable: false,
@@ -140,6 +140,7 @@ export const moodleCollections: readonly ModelCollection[] = [
         alias: {
           field: 'history_mappings',
           fields: ['entry', 'academic_year'],
+          label: explicitMappings.plural,
           template: '{{entry.label}} ({{academic_year.label}})',
         },
         nullable: false,
@@ -149,6 +150,7 @@ export const moodleCollections: readonly ModelCollection[] = [
         alias: {
           field: 'mappings',
           fields: ['course', 'entry'],
+          label: explicitMappings.plural,
           template: '{{course.name}}: {{entry.label}}',
         },
         nullable: false,
@@ -157,7 +159,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     ],
     hidden: false,
     icon: 'alt_route',
-    note: 'Explicit mapping of a history entry to a course and academic year; edited from either side.',
+    label: explicitMappings,
     singleton: false,
     sort: 20,
   },

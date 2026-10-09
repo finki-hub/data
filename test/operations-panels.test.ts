@@ -325,7 +325,6 @@ const report: StatusReport = {
     entries: 2,
     indexedUsers: 1,
     memberships: 2,
-    needsMapping: 1,
     users: 1,
   },
   importState: 'completed',
@@ -586,7 +585,6 @@ describe('the status labels', () => {
       entries: 0,
       indexedUsers: 0,
       memberships: 0,
-      needsMapping: 0,
       users: 0,
     };
 
@@ -596,16 +594,15 @@ describe('the status labels', () => {
         countMismatches: 1,
         entries: 1,
         indexedUsers: 1,
-        needsMapping: 1,
         users: 1,
       }),
     ).toBe(
-      'Users: 1 · Indexed: 1 · History entries: 1 · Needs mapping: 1 · Courses Count mismatches: 1',
+      'Users: 1 · Indexed: 1 · History lines: 1 · Courses Count mismatches: 1',
     );
     expect(
       snapshotText({ ...none, entries: 12, indexedUsers: 2, users: 3 }),
     ).toBe(
-      'Users: 3 · Indexed: 2 · History entries: 12 · Needs mapping: 0 · Courses Count mismatches: 0',
+      'Users: 3 · Indexed: 2 · History lines: 12 · Courses Count mismatches: 0',
     );
   });
 

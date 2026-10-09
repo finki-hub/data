@@ -50,32 +50,12 @@ const append =
   (rows: readonly FakeItem[]) =>
   (existing: FakeItem[]): FakeItem[] => [...existing, ...rows];
 
-// Every counted record kind at least once: history entries with and
-// without mappings, a published year, generation and program without a
-// sort, and a council member and an equivalency with an empty link.
+// Every counted record kind at least once: a published year, generation
+// and program without a sort, and a council member and an equivalency
+// with an empty link.
 const everyIssue = async (): Promise<FakeStore> => {
   const store = await importedStore();
   const legacy = generationIdOf(store, '2018');
-  edit(
-    store,
-    'moodle_course_entries',
-    append(
-      [1, 2, 3, 4].map((id) => ({
-        id,
-        label: `Synthetic Line ${String(id)}`,
-        review_state: id === 3 ? 'mapped' : 'needs_mapping',
-      })),
-    ),
-  );
-  edit(
-    store,
-    'moodle_course_mappings',
-    append([
-      { academic_year: 1, course: 1, entry: 2, id: 1 },
-      { academic_year: 2, course: 1, entry: 2, id: 2 },
-      { academic_year: 1, course: 2, entry: 3, id: 3 },
-    ]),
-  );
   edit(
     store,
     'academic_years',
@@ -194,9 +174,7 @@ describe('the Needs review views', () => {
     ).toEqual([]);
     expect(issueCounts).toMatchObject({
       council_member_unresolved: 2,
-      entry_needs_mapping: 2,
       equivalency_without_course: 4,
-      mapped_entry_awaiting_review: 1,
     });
   });
 });

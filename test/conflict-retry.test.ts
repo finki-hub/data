@@ -276,10 +276,9 @@ describe('the install after a database conflict', () => {
     // it marks enrollments and publication, not the claimed index.
     const { context } = conflicting(fake, [deadlock()], () => {
       fake.data.history.entries.push({
+        first_seen: null,
         id: 41,
         label: 'Synthetic Course',
-        review_reason: null,
-        review_state: 'needs_mapping',
       });
       fake.sourceWrite('moodle_course_entries');
     });

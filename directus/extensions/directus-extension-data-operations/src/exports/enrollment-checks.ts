@@ -6,9 +6,8 @@ import { publishedThrough } from './key-sources.js';
 import { countIn, sourceRows } from './values.js';
 
 // The enrollment checks of courses.json: counts and rules of every
-// course and published year, and the mappings and entries behind them, as
-// bounded counts and native reads of ids, keys and states (never a label
-// or a history).
+// course and published year, and the mappings behind them, as bounded
+// counts and native reads of ids and keys (never a label or a history).
 
 const pairOf = (row: Row) =>
   `${String(row['course'])}/${String(row['academic_year'])}`;
@@ -46,47 +45,24 @@ export const enrollmentCheck: ReadinessCheck = {
   },
 };
 
-// The history entries still marked needs_mapping.
-export const awaitingMapping: Filter = {
-  review_state: { _eq: 'needs_mapping' },
-};
-
 // Mappings whose course and year have no rule are never counted
-// (follow-up 36); entries still marked needs_mapping are listed apart from
-// the ones that already carry a mapping. None of this blocks: Moodle lines
-// nobody mapped include administrative ones that belong to no course.
+// (follow-up 36). Only a warning: a published pair without a rule blocks
+// as enrollment_rule_missing.
 export const mappingCheck: ReadinessCheck = {
   evaluate: (sources): IssueCounts => {
     const ruled = new Set(
       sourceRows(sources, 'rules').map((rule) => pairOf(rule)),
     );
-    const mappings = sourceRows(sources, 'mappings');
-    const awaiting = new Set(
-      sourceRows(sources, 'entries').map(({ id }) => id),
-    );
-    const mapped = new Set(
-      mappings
-        .map((mapping) => mapping['entry'])
-        .filter((entry) => awaiting.has(entry)),
-    );
     return {
-      entry_needs_mapping: awaiting.size - mapped.size,
-      mapped_entry_awaiting_review: mapped.size,
-      mapping_without_rule: mappings.filter(
+      mapping_without_rule: sourceRows(sources, 'mappings').filter(
         (mapping) => !ruled.has(pairOf(mapping)),
       ).length,
     };
   },
   reads: {
-    entries: {
-      collection: 'moodle_course_entries',
-      fields: ['id'],
-      filter: awaitingMapping,
-      sort: ['id'],
-    },
     mappings: {
       collection: 'moodle_course_mappings',
-      fields: ['entry', 'course', 'academic_year'],
+      fields: ['course', 'academic_year'],
       sort: ['id'],
     },
     rules: {

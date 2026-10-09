@@ -56,9 +56,10 @@ const nothingToResume = () => Promise.resolve();
 const laterYear = '2026/2027';
 const sixteenYears = [laterYear, ...academicYears];
 const entries = 'moodle_course_entries';
-const reviewState = 'review_state';
+const coursesCollection = 'courses';
+const statusField = 'status';
 const oneValuePattern =
-  /^Field moodle_course_entries\.review_state: 1 value outside declared choices: /mu;
+  /^Field courses\.status: 1 value outside declared choices: /mu;
 const deferredPattern = /"deferred"/u;
 const refusalHeaderPattern = /^data model: \d+ incompatible definitions?$/u;
 const yearLabelPattern = /^\d{4}\/\d{4}$/u;
@@ -117,34 +118,41 @@ const rerunsAligned = async ({ directus }) => {
   assert.equal(model.fields.aligned, 0);
 };
 
-// review_state as an earlier version left it (without `ignored`): setup
-// adds the value back and keeps the Studio note and width.
+// The course status as an earlier version might have left it (without
+// `all_professors`): setup adds the value back and keeps the Studio note
+// and width.
 const realignsEnum = async ({ directus, target }) => {
   await driftEnum(target, {
-    collection: entries,
-    field: reviewState,
-    values: ['needs_mapping', 'mapped'],
+    collection: coursesCollection,
+    field: statusField,
+    values: ['active', 'inactive'],
   });
-  const ignored = { label: 'Synthetic ignored entry', review_state: 'ignored' };
+  const allProfessors = {
+    name: 'Synthetic All Professors Course',
+    status: 'all_professors',
+  };
   assert.equal(
-    await refusedCreate(target, entries, ignored),
+    await refusedCreate(target, coursesCollection, allProfessors),
     'FAILED_VALIDATION',
   );
   const recorder = recording(directus);
   const summary = await installDataModel(recorder.request);
   assert.equal(summary.fields.aligned, 1);
   assert.deepEqual(recorder.mutations(), [
-    { method: 'PATCH', pathname: `/fields/${entries}/${reviewState}` },
+    {
+      method: 'PATCH',
+      pathname: `/fields/${coursesCollection}/${statusField}`,
+    },
   ]);
   assert.ok(
     recorder.calls.some(
       ({ pathname }) =>
         pathname ===
-        `/items/${entries}?aggregate[count]=*&groupBy[]=${reviewState}&limit=-1`,
+        `/items/${coursesCollection}?aggregate[count]=*&groupBy[]=${statusField}&limit=-1`,
     ),
   );
-  const meta = await liveMeta(target, entries, reviewState);
-  const declared = declaredChoices(entries, reviewState);
+  const meta = await liveMeta(target, coursesCollection, statusField);
+  const declared = declaredChoices(coursesCollection, statusField);
   assert.equal(meta.note, 'Synthetic Studio note');
   assert.equal(meta.width, 'full');
   assert.deepEqual(meta.options.choices, declared.options.choices);
@@ -153,23 +161,27 @@ const realignsEnum = async ({ directus, target }) => {
     declared.display_options.choices,
   );
   assert.deepEqual(meta.validation, declared.validation);
-  const created = await post(target, `/items/${entries}`, ignored);
-  assert.equal(created.data.review_state, 'ignored');
-  await remove(target, `/items/${entries}/${created.data.id}`);
+  const created = await post(
+    target,
+    `/items/${coursesCollection}`,
+    allProfessors,
+  );
+  assert.equal(created.data.status, 'all_professors');
+  await remove(target, `/items/${coursesCollection}/${created.data.id}`);
 };
 
 // A stored value the declaration no longer accepts stops setup before any
 // write; clearing it lets the next run realign.
 const refusesOutOfSet = async ({ directus, target }) => {
-  const earlier = ['needs_mapping', 'mapped', 'ignored', 'deferred'];
+  const earlier = ['active', 'all_professors', 'inactive', 'deferred'];
   await driftEnum(target, {
-    collection: entries,
-    field: reviewState,
+    collection: coursesCollection,
+    field: statusField,
     values: earlier,
   });
-  const deferred = await post(target, `/items/${entries}`, {
-    label: 'Synthetic deferred entry',
-    review_state: 'deferred',
+  const deferred = await post(target, `/items/${coursesCollection}`, {
+    name: 'Synthetic Deferred Course',
+    status: 'deferred',
   });
   const recorder = recording(directus);
   await assert.rejects(runSetup(recorder.request), (error) => {
@@ -182,19 +194,19 @@ const refusesOutOfSet = async ({ directus, target }) => {
     return true;
   });
   assert.deepEqual(recorder.mutations(), []);
-  const kept = await liveMeta(target, entries, reviewState);
-  assert.deepEqual(kept.validation, { review_state: { _in: earlier } });
-  await remove(target, `/items/${entries}/${deferred.data.id}`);
+  const kept = await liveMeta(target, coursesCollection, statusField);
+  assert.deepEqual(kept.validation, { status: { _in: earlier } });
+  await remove(target, `/items/${coursesCollection}/${deferred.data.id}`);
   const summary = await installDataModel(directus);
   assert.equal(summary.fields.aligned, 1);
   assert.equal(
-    await refusedCreate(target, entries, {
-      label: 'Synthetic deferred entry',
-      review_state: 'deferred',
+    await refusedCreate(target, coursesCollection, {
+      name: 'Synthetic Deferred Course',
+      status: 'deferred',
     }),
     'FAILED_VALIDATION',
   );
-  assert.equal(declaredEnum(entries, reviewState).choices.length, 3);
+  assert.equal(declaredEnum(coursesCollection, statusField).choices.length, 3);
 };
 
 // A generated workbook whose listener sheet heads a 16th, later year.
@@ -355,7 +367,6 @@ const warnsUnruledMapping = async ({ state, target }) => {
     answer.links.mapping_without_rule,
     '/admin/content/moodle_course_mappings',
   );
-  assert.equal(answer.issueCounts.mapped_entry_awaiting_review, 1);
   assert.deepEqual(answer.blockers, []);
   assert.deepEqual(
     Object.keys(answer.issueCounts),

@@ -298,6 +298,62 @@ describe('field groups', () => {
   });
 });
 
+describe('the history line form', () => {
+  test('shows the label and First seen, then the explicit mappings, then the users read-only, without a group note', () => {
+    expect(
+      fieldGroups
+        .filter(({ collection }) => collection === 'moodle_course_entries')
+        .map(({ field, members, note, readOnly }) => ({
+          field,
+          members,
+          note,
+          readOnly,
+        })),
+    ).toEqual([
+      {
+        field: 'line',
+        members: ['label', 'first_seen'],
+        note: undefined,
+        readOnly: undefined,
+      },
+      {
+        field: 'mapping',
+        members: ['mappings'],
+        note: undefined,
+        readOnly: undefined,
+      },
+      {
+        field: 'usage',
+        members: ['memberships'],
+        note: undefined,
+        readOnly: true,
+      },
+    ]);
+  });
+
+  test('keeps the model notes of First seen and the explicit mappings, read-only First seen', () => {
+    expect(
+      effectiveFieldMeta('moodle_course_entries', 'first_seen'),
+    ).toMatchObject({
+      group: 'line',
+      interface: 'datetime',
+      note: 'When the history index first created this line.',
+      readonly: true,
+    });
+    expect(
+      effectiveFieldMeta('moodle_course_entries', 'mappings'),
+    ).toMatchObject({
+      group: 'mapping',
+      note: 'An explicit mapping replaces every pattern for this line.',
+    });
+    expect(
+      fieldPresentations
+        .filter(({ collection }) => collection === 'moodle_course_entries')
+        .map(({ field }) => field),
+    ).toEqual(['memberships']);
+  });
+});
+
 describe('curriculum generations in the forms', () => {
   test('keeps the curriculum of a course in its links only', () => {
     expect(fieldNames('courses')).toEqual(
@@ -437,7 +493,7 @@ describe('field presentation', () => {
     expect(owned).toEqual([]);
   });
 
-  test('labels the role and review-state dropdowns', () => {
+  test('labels the role dropdown', () => {
     expect(choicesOf('teaching_assignments', 'role')).toEqual([
       { text: 'Professor', value: 'professor' },
       { text: 'Assistant', value: 'assistant' },
@@ -445,11 +501,6 @@ describe('field presentation', () => {
     expect(effectiveFieldMeta('teaching_assignments', 'role')['display']).toBe(
       'labels',
     );
-    expect(
-      choicesOf('moodle_course_entries', 'review_state').map(
-        ({ value }) => value,
-      ),
-    ).toEqual(['needs_mapping', 'mapped', 'ignored']);
   });
 
   test('shows the course status first in the staff group, as a required dropdown starting Active', () => {
@@ -495,7 +546,6 @@ describe('field presentation', () => {
     expect(programs?.sort).toBe('sort');
     expect(history?.fields).toEqual([
       'entry',
-      'entry.review_state',
       'entry.mappings.course',
       'entry.mappings.academic_year',
       'sort',
@@ -574,7 +624,7 @@ describe('the Needs review bookmarks', () => {
     ]);
     expect(installed.length).toBeGreaterThan(2);
     expect(installed.map(({ bookmark }) => bookmark)).toContain(
-      'Needs mapping',
+      'Equivalencies without a course',
     );
     expect(reviewPresets()).toHaveLength(installed.length);
   });

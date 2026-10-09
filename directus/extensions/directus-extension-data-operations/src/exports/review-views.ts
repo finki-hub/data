@@ -3,7 +3,6 @@ import type { Filter } from '@directus/types';
 import type { ReviewView } from './readiness-types.js';
 
 import { unlinkedMember } from './curriculum-checks.js';
-import { awaitingMapping } from './enrollment-checks.js';
 
 // The Needs review views of the readiness-check registry: one shared
 // Studio bookmark per entry that declares one, on its page collection,
@@ -14,16 +13,6 @@ import { awaitingMapping } from './enrollment-checks.js';
 // others come from the check modules that count them. Curriculum views
 // show the generation and filter through the curriculum_generations
 // relation, never by a generation row, so a new generation needs no view.
-
-// The Moodle entries still marked needs_mapping, without a mapping (the
-// O2M path joins the mappings; a missing one leaves its id NULL) or with
-// one that nobody has reviewed yet.
-const unmapped: Filter = {
-  _and: [awaitingMapping, { mappings: { id: { _null: true } } }],
-};
-const mappedUnreviewed: Filter = {
-  _and: [awaitingMapping, { mappings: { id: { _nnull: true } } }],
-};
 
 // Council memberships and equivalencies whose own link is empty.
 export const councilWithoutStudent: Filter = { student: { _null: true } };
@@ -45,25 +34,6 @@ export const reviewViews = {
     filter: equivalencyWithoutCourse,
     icon: 'compare_arrows',
     sort: ['id'],
-  },
-  mappedAwaitingReview: {
-    bookmark: 'Mapped entries awaiting review',
-    fields: [
-      'label',
-      'mappings.course',
-      'mappings.academic_year',
-      'review_reason',
-    ],
-    filter: mappedUnreviewed,
-    icon: 'alt_route',
-    sort: ['label'],
-  },
-  needsMapping: {
-    bookmark: 'Needs mapping',
-    fields: ['label', 'review_reason'],
-    filter: unmapped,
-    icon: 'alt_route',
-    sort: ['label'],
   },
   unlinkedMembers: {
     bookmark: 'Equivalency labels without an entry',

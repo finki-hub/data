@@ -56,9 +56,10 @@ const dialogs = '#dialog-outlet';
 // The first grid row below the default panels.
 const freeRow = Math.max(...defaultPanels.map(({ height, y }) => y + height));
 
-// Three courses, a new unpublished academic year and a generated snapshot
-// CSV of synthetic users uploaded into the private folder. The courses are
-// All professors, so they publish without a staff link.
+// Three courses, a new unpublished academic year, an equivalency without
+// a course (a warning with a Needs review bookmark) and a generated
+// snapshot CSV of synthetic users uploaded into the private folder. The
+// courses are All professors, so they publish without a staff link.
 export const seedRows = async (
   target,
   state,
@@ -77,6 +78,7 @@ export const seedRows = async (
   const [year] = await createMany(target, 'academic_years', [
     { label: yearLabel, published: false, sort: 95 },
   ]);
+  await createMany(target, 'course_equivalencies', [{ course: null }]);
   const directory = await mkdtemp(
     path.join(os.tmpdir(), 'operations-browser-csv-'),
   );
@@ -328,21 +330,25 @@ export const reopensEmpty = async ({
   });
 };
 
-// The review link of a positive check opens its Needs review bookmark.
+// The review link of a positive check (the seeded equivalency without a
+// course) opens its Needs review bookmark.
 export const followsReview = async ({ admin, shot }) => {
-  await admin.command('wait', '[data-check="entry_needs_mapping"] a');
+  await admin.command('wait', '[data-check="equivalency_without_course"] a');
   await shot(admin, '12-readiness-review-link.png');
-  await admin.click('[data-check="entry_needs_mapping"] a');
+  await admin.click('[data-check="equivalency_without_course"] a');
   await admin.command(
     'wait',
     '--url',
-    '**/admin/content/moodle_course_entries?bookmark=*',
+    '**/admin/content/course_equivalencies?bookmark=*',
   );
   await admin.command('wait', '--load', 'networkidle');
   const page = await textOf(admin, 'body');
   assert.ok(!page.includes('Page Not Found'), 'the review link opens a page');
-  assert.ok(page.includes('Needs mapping'), 'the review bookmark is open');
-  await shot(admin, '13-needs-mapping.png');
+  assert.ok(
+    page.includes('Equivalencies without a course'),
+    'the review bookmark is open',
+  );
+  await shot(admin, '13-review-bookmark.png');
 };
 
 // No Moodle user's name or address, and no password, in the page text of
