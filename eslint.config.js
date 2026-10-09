@@ -63,7 +63,9 @@ const config = [
   },
   {
     files: [
+      'directus/extensions/directus-extension-data-operations/src/enrollment-lines.ts',
       'directus/flows/count-history-page.cjs',
+      'directus/flows/match-history-lines.cjs',
       'src/import/labels.ts',
       'src/workbook-enrollment-reader.ts',
       'test/curriculum-code.test.ts',
