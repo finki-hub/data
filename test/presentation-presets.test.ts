@@ -102,7 +102,7 @@ describe('presets', () => {
       ['rooms', ['location']],
       ['students', ['-source_group']],
       ['discord_channels', ['semester', 'channel']],
-      ['deans_office', ['-year']],
+      ['deans_office', ['-year', 'position']],
     ]);
   });
 

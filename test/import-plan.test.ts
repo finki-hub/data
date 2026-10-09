@@ -75,7 +75,6 @@ describe('the order the import writes in', () => {
       'rooms',
       'students',
       'discord_channels',
-      'deans_office',
       'moodle_users',
       'courses',
       'curriculum_entries',
@@ -86,6 +85,7 @@ describe('the order the import writes in', () => {
       'course_equivalencies',
       'course_equivalency_members',
       'student_council',
+      'deans_office',
     ]);
 
     expect(lateReferences(plan)).toEqual([]);

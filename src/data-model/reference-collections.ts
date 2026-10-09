@@ -1,7 +1,8 @@
 import type { ModelCollection } from '../schema.js';
 
-import { studentTemplate } from './content-collections.js';
-import { m2o, required, scalar } from './fields.js';
+import { deanPositions } from './choice-lists.js';
+import { staffTemplate, studentTemplate } from './content-collections.js';
+import { enumField, m2o, required, scalar } from './fields.js';
 
 // The reference lists the one-time workbook import fills beside the
 // content: the Discord channels the courses link to, and the council and
@@ -46,11 +47,24 @@ export const referenceCollections: readonly ModelCollection[] = [
   },
   {
     collection: 'deans_office',
-    displayTemplate: '{{year}} - {{name}}',
+    displayTemplate: '{{year}} {{position}}: {{staff.name}}',
     fields: [
       required('year', 'integer'),
-      required('name'),
-      required('position'),
+      // The holder of a term: one per year and position
+      // (deans_office_year_position_unique). A staff member who holds a
+      // term cannot be deleted (NO ACTION), and taking a term out of the
+      // staff form's list deletes it.
+      m2o('staff', 'staff', {
+        alias: {
+          field: 'dean_terms',
+          fields: ['year', 'position'],
+          template: '{{year}} {{position}}',
+        },
+        nullable: false,
+        onDelete: 'NO ACTION',
+        template: staffTemplate,
+      }),
+      enumField('position', deanPositions, { nullable: false }),
     ],
     hidden: false,
     icon: 'account_balance',

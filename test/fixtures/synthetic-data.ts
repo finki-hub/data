@@ -722,9 +722,15 @@ const makeStudentCouncil = (): readonly SyntheticRow[] => [
   },
 ];
 
+// Each term names its staff member by exact staff name.
 const makeDeansOffice = (): readonly SyntheticRow[] => [
-  { id: 1, year: 2_024, name: 'Synthetic Dean', position: 'Dean' },
-  { id: 2, year: 2_024, name: 'Synthetic Vice Dean', position: 'Vice Dean' },
+  { id: 1, year: 2_024, name: staffNames.active, position: 'Декан' },
+  {
+    id: 2,
+    year: 2_024,
+    name: staffNames.minimal,
+    position: 'Продекан за настава',
+  },
 ];
 
 export const makeSyntheticDataset = (): SyntheticDataset => ({

@@ -92,3 +92,21 @@ export const councilLinks =
     const student = member === undefined ? null : linkedRow(member.student);
     return { student: student === null ? null : ref('students', student) };
   };
+
+// The dean's office terms: every Деканат row with its year, position and
+// the staff row its name links, and no name. A row that links no staff
+// row is not planned; its blocker refuses the import (dean-links.ts).
+export const deanTerms = (
+  items: readonly WorkbookItem[],
+  deans: Candidates['deans'],
+): readonly PlannedRow[] => {
+  const holders = new Map(deans.map(({ id, staff }) => [id, staff]));
+  return contentRows(
+    { collection: 'deans_office', source: 'deans_office' },
+    items,
+    (id) => {
+      const staff = holders.get(id);
+      return staff === undefined ? {} : { staff: ref('staff', staff) };
+    },
+  ).filter(({ key }) => holders.has(Number(key)));
+};

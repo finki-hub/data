@@ -25,6 +25,7 @@ import {
   contentOf,
   planOf,
   rowsIn,
+  staffRow,
   uniqueDataset,
   withCourse,
   withTeaching,
@@ -501,40 +502,85 @@ describe('the refusal lines', () => {
         ],
         deans_office: [
           ...base.deans_office,
-          { ...base.deans_office[0], id: 3 },
+          { ...base.deans_office[0], id: 3, name: staffNames.inactive },
+        ],
+        student_council: [
+          ...base.student_council,
+          { ...base.student_council[2], id: 5 },
         ],
       }),
     ).toEqual([
       '- [ambiguous_course_name] Слушатели row 2: «Alpha Course» matches Предмети (Export) rows 2, 10',
       '- [ambiguous_course_name] Еквиваленции row 2: «Alpha Course» matches Предмети (Export) rows 2, 10',
       '- [ambiguous_course_name] Наставен Кадар row 2: «Alpha Course» matches Предмети (Export) rows 2, 10',
-      '- [duplicate_role_row] Деканат rows 2, 4: same year, person and position',
+      '- [duplicate_role_row] Деканат rows 2, 4: same year and position',
+      '- [duplicate_role_row] ФСС rows 4, 6: same year, person and position',
+    ]);
+  });
+
+  test('name a Деканат staff name no staff row or several carry by its cell', () => {
+    const base = uniqueDataset();
+    const twin = 'Synthetic Staff Twin';
+
+    expect(
+      linesOf({
+        ...base,
+        deans_office: [
+          ...base.deans_office,
+          {
+            id: 3,
+            name: 'Synthetic Staff Nobody',
+            position: 'Декан',
+            year: 2_023,
+          },
+          { id: 4, name: twin, position: 'Продекан за настава', year: 2_023 },
+        ],
+        staff: [...base.staff, staffRow(4, twin), staffRow(5, twin)],
+      }),
+    ).toEqual([
+      '- [ambiguous_staff_name] Деканат row 5, column "Име": matches Кадар (Export) rows 5, 6',
+      '- [unmatched_staff_name] Деканат row 4, column "Име": not found in Кадар (Export)',
     ]);
   });
 
   test("never name staff, students or the dean's office", () => {
     const base = makeSyntheticDataset();
-    const lines = linesOf({
+    const twin = 'Synthetic Staff Twin';
+    const dataset = {
       ...base,
-      deans_office: [...base.deans_office, { ...base.deans_office[0], id: 3 }],
+      deans_office: [
+        ...base.deans_office,
+        { ...base.deans_office[0], id: 3 },
+        {
+          id: 4,
+          name: 'Synthetic Staff Nobody',
+          position: 'Декан',
+          year: 2_023,
+        },
+        { id: 5, name: twin, position: 'Продекан за настава', year: 2_023 },
+      ],
+      staff: [...base.staff, staffRow(4, twin), staffRow(5, twin)],
       student_council: [
         ...base.student_council,
         { ...base.student_council[2], id: 5 },
       ],
-    }).join('\n');
+    };
+    const lines = linesOf(dataset).join('\n');
     const personal = [
-      ...base.staff.map((row) => row['name']),
+      ...dataset.staff.flatMap((row) => [row['name'], row['email']]),
       ...base.teaching_assignments.flatMap((row) => [
         row['professors'],
         row['assistants'],
       ]),
       ...base.students.flatMap((row) => [row['name'], row['index_number']]),
-      ...base.deans_office.map((row) => row['name']),
+      ...dataset.deans_office.map((row) => row['name']),
       ...base.student_council.map((row) => row['index_number']),
     ].filter((value) => typeof value === 'string' && value !== '');
 
     expect(lines).toContain('[ambiguous_student_index]');
     expect(lines).toContain('[duplicate_role_row]');
+    expect(lines).toContain('[ambiguous_staff_name] Деканат');
+    expect(lines).toContain('[unmatched_staff_name] Деканат');
 
     for (const value of personal) {
       expect(lines).not.toContain(value);

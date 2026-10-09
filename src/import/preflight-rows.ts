@@ -3,6 +3,7 @@ import type { Indexes } from './preflight-indexes.js';
 import type { WorkbookRows } from './workbook-rows.js';
 
 import { channelLinks } from './channel-links.js';
+import { deanLinks } from './dean-links.js';
 import { detailed, type Finding, finding } from './findings.js';
 import { type LinkCandidate, nonEmpty, resolveLabel } from './labels.js';
 import { duplicateRows } from './preflight-duplicates.js';
@@ -88,8 +89,9 @@ const council = (
 };
 
 // Row-level candidates and findings for every workbook row that links to
-// another by label (a Дискорд cell by each of its course names), plus the
-// duplicate rows the model must not guess about.
+// another by label (a Дискорд cell by each of its course names, a Деканат
+// row by its staff name), plus the duplicate rows the model must not guess
+// about.
 export const rowCandidates = (
   rows: WorkbookRows,
   indexes: Indexes,
@@ -100,17 +102,20 @@ export const rowCandidates = (
 } => {
   const channels = channelLinks(rows, indexes);
   const members = council(rows, indexes);
+  const deans = deanLinks(rows, indexes);
   const equivalencies = linkedRows.equivalencies(rows, indexes);
   return {
     candidates: {
       channels: channels.candidates,
       council: members.candidates,
+      deans: deans.candidates,
       equivalencies: equivalencies.candidates,
     },
     findings: [
       ...linkedRows.assignments(rows, indexes),
       ...channels.findings,
       ...members.findings,
+      ...deans.findings,
       ...equivalencies.findings,
       ...patternFindings(rows, indexes, new Set(academicYears)),
       ...duplicateRows(rows),

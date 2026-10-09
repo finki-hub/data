@@ -343,6 +343,7 @@ describe('domain keys', () => {
       ),
     ).toEqual([
       'unique teaching_assignments (course, staff, role)',
+      'unique deans_office (year, position)',
       'unique course_curricula (course, generation)',
       'unique study_programs (generation, code)',
       'unique curriculum_entry_program_states (entry, program)',

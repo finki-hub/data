@@ -12,9 +12,9 @@ const flag = z.boolean().nullable();
 // the values a planner moves into another shape. Every row carries its
 // ordinal as its id (1 for the first row read), so a finding names it by
 // sheet and row. The columns copied as they are (every staff, room,
-// student, dean's office and Moodle user column, a Discord channel's
-// semester and alias, and the course name and tags) are read from the
-// workbook data directly (plan-content.ts).
+// student and Moodle user column, a Discord channel's semester and alias,
+// a dean's office term's year and position, and the course name and tags)
+// are read from the workbook data directly (plan-content.ts).
 const courseRow = z.object({
   available_2018: flag,
   available_2023: flag,

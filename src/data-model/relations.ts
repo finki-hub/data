@@ -163,6 +163,13 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'unique',
     name: 'teaching_assignments_course_staff_role_unique',
   },
+  // One holder per year and position of the dean's office.
+  {
+    collection: 'deans_office',
+    columns: ['year', 'position'],
+    kind: 'unique',
+    name: 'deans_office_year_position_unique',
+  },
   {
     collection: 'course_curricula',
     columns: ['course', 'generation'],

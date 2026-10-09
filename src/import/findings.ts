@@ -8,13 +8,13 @@ import type { SheetCell } from '../workbook-values.js';
 // code, sheet, rows and course (src/import/refusal-text.ts).
 
 // Cases that refuse the import before its first write: a relationship
-// with more than one candidate (such as a teaching line several staff rows
-// carry), a row the model cannot hold (such as a curriculum code that
-// gives no level, or a teaching line no staff row carries), and a value
-// the published files carry that no relational row could hold as the
-// workbook states it. The operator corrects the workbook and imports
-// again. What a rule can fix is no blocker: the import fixes it and warns
-// (ruleFixCodes).
+// with more than one candidate (such as a teaching line or Деканат name
+// several staff rows carry), a row the model cannot hold (such as a
+// curriculum code that gives no level, or a teaching line or Деканат name
+// no staff row carries), and a value the published files carry that no
+// relational row could hold as the workbook states it. The operator
+// corrects the workbook and imports again. What a rule can fix is no
+// blocker: the import fixes it and warns (ruleFixCodes).
 export const blockerCodes = [
   'ambiguous_course_name',
   'ambiguous_curriculum_2018',

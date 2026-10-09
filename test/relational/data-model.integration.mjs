@@ -35,6 +35,8 @@ const courseLinkPath = '/relations/course_curricula/course';
 // collection-role registry.
 const expectedStatements = schemaConstraints.statements.length;
 const longLabel = `Synthetic history entry ${'x'.repeat(300)}`;
+const stillHoldsTerms =
+  /violates foreign key constraint \\"deans_office_staff_foreign\\"/u;
 const needsDatabase =
   databaseContainer === undefined
     ? 'DIRECTUS_AUTOMATIC_DATABASE_CONTAINER is not set'
@@ -279,6 +281,78 @@ const linksDiscordChannels = async (target) => {
   assert.deepEqual(await channelCourses(target, other.data.id), [
     'Synthetic Channel Course Two',
   ]);
+};
+
+// The terms a staff member holds, as the staff form lists them.
+const deanTerms = async (target, staff) => {
+  const body = await read(
+    await request(
+      target,
+      `/items/staff/${staff}?fields=dean_terms.year,dean_terms.position`,
+      { token: target.token },
+    ),
+    200,
+  );
+  return body.data.dean_terms
+    .map(({ position, year }) => `${year} ${position}`)
+    .toSorted();
+};
+
+// A dean's office term needs one of the four positions and has one holder
+// per year and position. A staff member who holds a term cannot be
+// deleted (NO ACTION; Directus 12.3.1 answers the database error as a
+// 500); taking the terms out of the staff form's list deletes them, and
+// the staff member can then be deleted.
+const keepsDeanTerms = async (target) => {
+  const staff = await createItem(target, 'staff', {
+    active: true,
+    email: 'synthetic.dean@staff.example',
+    name: 'Synthetic Dean Staff',
+    position: 'Synthetic Position',
+    title: 'Prof.',
+  });
+  const holder = staff.data.id;
+  const term = (year, position) => ({ position, staff: holder, year });
+  assert.equal(
+    await rejectedItem(target, 'deans_office', term(2_091, 'Dean')),
+    'FAILED_VALIDATION',
+  );
+  await createItem(target, 'deans_office', term(2_091, 'Декан'));
+  await createItem(target, 'deans_office', term(2_092, 'Продекан за настава'));
+  assert.equal(
+    await rejectedItem(target, 'deans_office', term(2_091, 'Декан')),
+    'RECORD_NOT_UNIQUE',
+  );
+  assert.deepEqual(await deanTerms(target, holder), [
+    '2091 Декан',
+    '2092 Продекан за настава',
+  ]);
+  const refused = await request(target, `/items/staff/${holder}`, {
+    method: 'DELETE',
+    token: target.token,
+  });
+  assert.equal(refused.status, 500);
+  assert.match(await refused.text(), stillHoldsTerms);
+  assert.deepEqual(await deanTerms(target, holder), [
+    '2091 Декан',
+    '2092 Продекан за настава',
+  ]);
+  await read(
+    await request(
+      target,
+      `/items/staff/${holder}`,
+      json('PATCH', { dean_terms: [] }, target.token),
+    ),
+    200,
+  );
+  assert.deepEqual(await deanTerms(target, holder), []);
+  await read(
+    await request(target, `/items/staff/${holder}`, {
+      method: 'DELETE',
+      token: target.token,
+    }),
+    204,
+  );
 };
 
 // The generation rows a curriculum test needs: 2013 label-only, 2018 and
@@ -535,6 +609,10 @@ test('installs the relational model idempotently and enforces its domain keys', 
     await t.test(
       'links courses to a Discord channel from either side and clears the link',
       () => linksDiscordChannels(target),
+    );
+    await t.test(
+      "keeps one holder per dean's office term and refuses deleting a holder",
+      () => keepsDeanTerms(target),
     );
     await t.test(
       'rejects mismatched generations and duplicate curriculum links',

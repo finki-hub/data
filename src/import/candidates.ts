@@ -55,6 +55,12 @@ export type Candidates = {
     readonly student: LinkCandidate;
   }>;
   readonly courses: readonly CourseCandidate[];
+  // The staff row each Деканат row names (ordinals); a row naming none or
+  // several has none and is not planned.
+  readonly deans: ReadonlyArray<{
+    readonly id: number;
+    readonly staff: number;
+  }>;
   readonly equivalencies: ReadonlyArray<{
     readonly course: LinkCandidate;
     readonly entry2018: LinkCandidate;

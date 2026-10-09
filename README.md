@@ -216,14 +216,16 @@ run the one-time import (below) in place of step 4.
    range, or a value outside the choices of a closed dropdown
    (`outside declared choices`). A
    blocking case is placed by the sheet and row it concerns, with the
-   course after its row (a curriculum code by its cell instead, and a
-   `Дискорд` course name by its cell and its position there, such as
+   course after its row (a curriculum code by its cell instead, a
+   `Деканат` name by its cell, such as `Деканат row 7, column "Име"`, and
+   a `Дискорд` course name by its cell and its position there, such as
    `Дискорд row 7, column 2, name 3`); the table below says what to
    change for each code. The dry run exits with code 1
    when the workbook cannot be read. The lines quote course and curriculum
    names, curriculum codes, 2018 labels, credits, availabilities and the
    Inactive text only, never a staff or student value (a teaching case
-   names its cell and line numbers); names, codes and labels stand between
+   names its cell and line numbers, a `Деканат` case its cell and the
+   `Кадар (Export)` rows it matches); names, codes and labels stand between
    « and », so a stray space in a cell shows. For example:
 
    ```text
@@ -241,10 +243,10 @@ run the one-time import (below) in place of step 4.
    | `ambiguous_course_name` | Give each course its own name. |
    | `ambiguous_curriculum_2018`, `ambiguous_curriculum_2023` | Give each subject its own name; when the rows list one subject, give every row its code. |
    | `ambiguous_legacy_equivalency` | Make the 2018 names of the equivalency rows agree, or fill in the course's 2018-name to choose one. |
-   | `ambiguous_staff_name` | Give each of the named `Кадар (Export)` rows its own name, and write the intended one on the line. |
+   | `ambiguous_staff_name` | Give each of the named `Кадар (Export)` rows its own name, and write the intended one on the line or in the `Деканат` cell. |
    | `ambiguous_student_index` | Correct the index, or keep one student row for it. |
    | `curriculum_code_without_level` | Correct the code to start with `F`, the generation's two digits, `L` and the level, such as `F18L3W055`, or clear it. |
-   | `duplicate_role_row` | Delete the repeated rows. |
+   | `duplicate_role_row` | Delete the repeated rows; a `Деканат` year and position keeps one holder. |
    | `inactive_course_assistants` | Clear the course's `Асистенти` cell, or write staff names in its professors cell to keep the course active. |
    | `invalid_regex` | Correct the pattern so that it compiles without its line breaks. |
    | `invalid_source_row` | Fill in the missing cell, or delete the row. |
@@ -252,7 +254,7 @@ run the one-time import (below) in place of step 4.
    | `unlinked_generation_values` | Fill in that generation's name, or clear the credits. |
    | `unmatched_curriculum_2018_label` | Correct the 2018 name in the equivalency sheet, or fill in the course's 2018-name. |
    | `unmatched_curriculum_2023_label` | Correct the 2023 name to the name of a 2023 subject. |
-   | `unmatched_staff_name` | Write each line as the exact name of a `Кадар (Export)` row, one name per line, or add that staff member. |
+   | `unmatched_staff_name` | Write each line, or the `Деканат` name, as the exact name of a `Кадар (Export)` row, one name per line, or add that staff member. |
 
 2. Run the one-time import against the empty project (steps 1 to 3 of
    [Fresh setup](#fresh-setup) first; the import runs setup itself):
@@ -286,11 +288,12 @@ Directus untouched:
   relationship with more than one candidate (a course name two courses
   carry, a curriculum name matching curriculum rows of different subjects,
   a council index two students share, two different 2018 labels for one
-  course, a teaching line several staff rows carry), a row the model
-  cannot hold (a course without a name, a pattern that is no Unicode
-  regular expression, a repeated council or dean's office row, a
-  curriculum code that gives no level, a teaching line no staff row
-  carries, an Inactive course with assistants), and the values the
+  course, a teaching line or `Деканат` name several staff rows carry), a
+  row the model cannot hold (a course without a name, a pattern that is
+  no Unicode regular expression, a repeated council row, a second holder
+  of a dean's office year and position, a curriculum code that gives no
+  level, a teaching line or `Деканат` name no staff row carries, an
+  Inactive course with assistants), and the values the
   published files carry that no relational row could hold: credits of a
   generation without its name (`unlinked_generation_values`), a curriculum
   name, 2018 override or 2018 equivalency label that matches no curriculum
@@ -386,18 +389,18 @@ The codes both summaries print (declared in `src/import/findings.ts`;
 | `ambiguous_curriculum_2018` | refuses | A course's 2018 name (its override or its equivalency label) matches several 2018 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
-| `ambiguous_staff_name` | refuses | A line of a teaching cell names a staff name several `Кадар (Export)` rows carry; the line places the cell and names the rows. |
+| `ambiguous_staff_name` | refuses | A line of a teaching cell, or a `Деканат` name, names a staff name several `Кадар (Export)` rows carry; the line places the cell and names the rows. |
 | `ambiguous_student_index` | refuses | Several students carry the index of a council row. |
 | `curriculum_code_without_level` | refuses | A curriculum row, linked or not, has a non-empty code that does not start with `F`, two digits, `L` and a digit, so it gives no level (the database refuses such a code as well); the line places it by sheet, row and column `Код`. |
-| `duplicate_role_row` | refuses | A council or dean's office row repeats the year, person and position of another. |
+| `duplicate_role_row` | refuses | A council row repeats the year, person and position of another, or a dean's office row the year and position of another (a term has one holder). |
 | `inactive_course_assistants` | refuses | A professors cell of `(неактивиран предмет)` with an assistants cell that is neither empty nor the same text. |
 | `invalid_regex` | refuses | A `Слушатели` pattern of a course is no Unicode regular expression once its line breaks are removed. A course name is no pattern: its own mapping escapes it. |
-| `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index. |
+| `invalid_source_row` | refuses | A row the model cannot hold: a course without a name, a pattern row without a course, year or pattern, a council row without an index, a dean's office row without a name. |
 | `missing_override_target` | refuses | A course's 2018 override matches no 2018 curriculum row. |
 | `unlinked_generation_values` | refuses | A course has credits of a generation but no name of that generation (an availability alone is a rule fix or no case). |
 | `unmatched_curriculum_2018_label` | refuses | The 2018 label of a course's first equivalency row matches no 2018 curriculum row. |
 | `unmatched_curriculum_2023_label` | refuses | A course's 2023 name matches no 2023 curriculum row. |
-| `unmatched_staff_name` | refuses | A line of a teaching cell matches no `Кадар (Export)` name exactly (no trimming); the line places the cell and the lines. |
+| `unmatched_staff_name` | refuses | A line of a teaching cell, or a `Деканат` name, matches no `Кадар (Export)` name exactly (no trimming); the line places the cell, and a teaching cell's lines. |
 | `duplicate_pattern` | skipped | An earlier pattern of a course and year; the last one applies. |
 | `merged_pattern` | skipped | A `Слушатели` pattern cell converted into an all-years pattern mapping of its course. |
 | `orphan_assignment` | skipped | A `Наставен Кадар` row naming no course. |
@@ -437,10 +440,11 @@ its coordination status row, is accepted. On an accepted project it:
    reference set to the id Directus answered for the row it names (see
    [What the workbook fills](#what-the-workbook-fills)): the academic years,
    curriculum generations and study programs; the staff, rooms, students,
-   Discord channels, dean's office and Moodle users; the courses with
-   their status and Discord channel; the curriculum entries with their
-   program states; the course links; the pattern mappings; the staff
-   links; the equivalencies with their members; the council. Every course is posted with an empty
+   Discord channels and Moodle users; the courses with their status and
+   Discord channel; the curriculum entries with their program states; the
+   course links; the pattern mappings; the staff links; the equivalencies
+   with their members; the council; the dean's office terms with their
+   staff members. Every course is posted with an empty
    list of pattern mappings, so Directus adds no default mapping: the
    import writes each course's mappings itself;
 3. creates the incomplete-data bookmarks: one per readiness check with a
@@ -699,7 +703,7 @@ relational rows straight from them:
 | `Слушатели` | `academic_years` from the labels heading its year column groups, and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import) and [Enrollment counts](#enrollment-counts)) |
 | `Дискорд` | `discord_channels`, one row per channel pair (its semester and channel); the course names cell is split on `" / "` exactly (a space, a slash and a space; a name may hold a comma or a bare slash), and each name links the course of exactly that name to the channel (`courses.discord_channel`); a course keeps the first channel naming it |
 | `ФСС` | `student_council`, linked to the student of its index |
-| `Деканат` | `deans_office` |
+| `Деканат` | `deans_office`, one term per row (its year and position), linked to the staff member whose `Кадар (Export)` name is exactly its `Име` (no trimming); a name no staff row or several carry refuses the import |
 | `Courses` | `moodle_users`, the active Moodle snapshot; the schedule builds its history index |
 
 Spreadsheet booleans and numbers become native Directus/PostgreSQL booleans
@@ -721,18 +725,18 @@ label that matches no single subject, a council index that matches no
 student) are kept as literal labels and counted by readiness. Nothing is
 guessed: an ambiguity a published value depends on, every value the
 published files carry that no relational row could hold, and every
-teaching line that names no single staff row, refuses the import instead
-(exit code 3). The exceptions: an availability of TRUE or FALSE of a
-generation a course has no name for holds no value, so the import links
-nothing and `courses.json` publishes FALSE for that availability, as for
-an empty cell; a second or later teaching row of a course is ignored and
-the first is used; a formula pattern cell is not read; a staff name
-listed again in one teaching cell is linked once; a course a `Дискорд`
-cell names again keeps its first channel. Each of these but FALSE is a
-rule fix, a warning placed under `fixes`. A `Дискорд` course name that
-matches no course links nothing and is placed there as well. Only rows no
-published file ever used are left out, and the import counts them (see
-[One-time workbook import](#one-time-workbook-import)).
+teaching line or `Деканат` name that names no single staff row, refuses
+the import instead (exit code 3). The exceptions: an availability of TRUE
+or FALSE of a generation a course has no name for holds no value, so the
+import links nothing and `courses.json` publishes FALSE for that
+availability, as for an empty cell; a second or later teaching row of a
+course is ignored and the first is used; a formula pattern cell is not
+read; a staff name listed again in one teaching cell is linked once; a
+course a `Дискорд` cell names again keeps its first channel. Each of these
+but FALSE is a rule fix, a warning placed under `fixes`. A `Дискорд`
+course name that matches no course links nothing and is placed there as
+well. Only rows no published file ever used are left out, and the import
+counts them (see [One-time workbook import](#one-time-workbook-import)).
 
 ### Editable, derived and bookkeeping collections
 
@@ -889,6 +893,16 @@ for**, and the users carrying it (the last two derived and read-only).
   `channel` and `<generation>-channel` in `courses.json` come from the
   **Channel** checkbox of the course's curriculum entries, which is kept
   apart from the link.
+- A dean's office term needs its year, its **Position** and its staff
+  member. The position is one of Dean, Vice-dean for teaching, Vice-dean
+  for science and cooperation and Vice-dean for finance, stored as the
+  workbook writes it (such as `Декан`). A year and position have one
+  holder: the database refuses a second (400 `RECORD_NOT_UNIQUE`). A staff
+  member's form lists their terms, and taking a term out of that list
+  deletes it. Deleting a staff member who holds a term is refused
+  (Directus 12.3.1 answers HTTP 500 naming `deans_office_staff_foreign`);
+  mark them inactive instead. Every holder is a staff row, so
+  `staff.json` publishes them; the terms publish nothing.
 - **Available** on a curriculum link is on or off, never empty; a new link
   starts on.
 - The **Code** of a curriculum entry gives its level, the digit after `L`
@@ -908,8 +922,9 @@ for**, and the users carrying it (the last two derived and read-only).
   so no existing value becomes invalid: a qualified state such as
   `задолжителен (4 г.)` stays as it is. Such a value is never checked,
   so a typo is published as typed. A closed dropdown, such as a course's
-  **Status** or a teaching link's role, accepts only its choices: Directus
-  refuses any other value (400 `FAILED_VALIDATION`).
+  **Status**, a teaching link's role or a dean's office term's
+  **Position**, accepts only its choices: Directus refuses any other value
+  (400 `FAILED_VALIDATION`).
 - **First seen** of a history line is the time the history index created
   it; no later run changes it, also when a later snapshot carries the line
   again. A line created any other way, such as over the API, has none. A

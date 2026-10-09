@@ -32,7 +32,7 @@ const statusChoices = labelledChoices(courseStatuses, statusLabels);
 const statusNote = `${statusLabels.all_professors} publishes "${teachingTexts.allProfessors}" as professors. ${statusLabels.inactive} publishes "${teachingTexts.inactive}" as professors and assistants.`;
 
 export const courseTemplate = '{{name}}';
-const staffTemplate = '{{name}}';
+export const staffTemplate = '{{name}}';
 export const studentTemplate = '{{index_number}} - {{name}}';
 const channelTemplate = '{{channel}} (semester {{semester}})';
 export const curriculumEntryTemplate =

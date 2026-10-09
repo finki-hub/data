@@ -103,7 +103,12 @@ const defaultViews: readonly TabularPreset[] = [
     ['semester', 'channel', 'courses'],
     ['semester', 'channel'],
   ),
-  defaultView('deans_office', ['year', 'name', 'position'], ['-year']),
+  // Newest year first, its terms by position.
+  defaultView(
+    'deans_office',
+    ['year', 'position', 'staff'],
+    ['-year', 'position'],
+  ),
   // The main Moodle users table.
   defaultView(
     'moodle_users',

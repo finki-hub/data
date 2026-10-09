@@ -21,6 +21,7 @@ import {
   contentRows,
   councilLinks,
   courseLinks,
+  deanTerms,
   equivalencyLinks,
 } from './plan-content.js';
 import { type PlannedCollection } from './planned.js';
@@ -34,7 +35,6 @@ const copiedParts = [
   'rooms',
   'students',
   'discord_channels',
-  'deans_office',
   'moodle_users',
 ] as const;
 
@@ -64,7 +64,8 @@ const formulaCellFinding = (cell: SheetCell): Finding =>
 // their status and Discord channel, the curriculum entries and their
 // program states, the course links, the pattern mappings (proven against
 // the Moodle histories here, src/import/pattern-mappings.ts), the teaching
-// role rows, the equivalencies with their members and the council.
+// role rows, the equivalencies with their members, the council and the
+// dean's office terms with their staff members.
 export const planImport = ({
   academicYears,
   data,
@@ -140,6 +141,10 @@ export const planImport = ({
         data.student_council,
         councilLinks(candidates.council),
       ),
+    },
+    {
+      collection: 'deans_office',
+      rows: deanTerms(data.deans_office, candidates.deans),
     },
   ];
   return {

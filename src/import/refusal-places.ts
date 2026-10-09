@@ -12,7 +12,7 @@ import { nonEmpty } from './labels.js';
 // the rows the check read them into. A line quotes course and curriculum
 // names, curriculum codes, 2018 labels, credits, availabilities and the
 // Inactive text only, never a staff or student value (a teaching case
-// names its cell and lines).
+// names its cell and lines, a Деканат case its cell).
 export type RefusalContext = {
   readonly places: WorkbookPlaces;
   readonly rows: WorkbookRows;

@@ -17,6 +17,7 @@ import {
   makeSyntheticDataset,
   metacharacterCourseName,
   privateSentinels,
+  staffNames,
   type SyntheticDataset,
   type SyntheticRow,
   withMetacharacterCourse,
@@ -590,11 +591,17 @@ describe('cases that refuse the import', () => {
     ]);
   });
 
-  test('blocks exact duplicate council and dean rows without naming anyone', () => {
+  test('blocks a council row repeating a year, person and position, and a dean row repeating a year and position, without naming anyone', () => {
     const base = uniqueDataset();
     const { findings } = checkOf({
       ...base,
-      deans_office: [...base.deans_office, { ...base.deans_office[0], id: 3 }],
+      deans_office: [
+        ...base.deans_office,
+        // Another holder of the first term.
+        { ...base.deans_office[0], id: 3, name: staffNames.inactive },
+        // The first holder again, in another position.
+        { ...base.deans_office[0], id: 4, position: 'Продекан за финансии' },
+      ],
       student_council: [
         ...base.student_council,
         { ...base.student_council[2], id: 5 },
@@ -604,6 +611,44 @@ describe('cases that refuse the import', () => {
     expect(shapes(findings, 'duplicate_role_row')).toEqual([
       { collection: 'deans_office', ids: [1, 3] },
       { collection: 'student_council', ids: [3, 5] },
+    ]);
+  });
+});
+
+describe("the staff member of a dean's office row", () => {
+  test('blocks a dean row whose name no staff row or several staff rows carry, and links the others', () => {
+    const base = uniqueDataset();
+    const twin = 'Synthetic Staff Twin';
+    const { candidates, findings } = checkOf({
+      ...base,
+      deans_office: [
+        ...base.deans_office,
+        {
+          id: 3,
+          name: 'Synthetic Staff Nobody',
+          position: 'Декан',
+          year: 2_023,
+        },
+        { id: 4, name: twin, position: 'Продекан за настава', year: 2_023 },
+      ],
+      staff: [...base.staff, staffRow(4, twin), staffRow(5, twin)],
+    });
+    const deanCases = findings.filter(
+      ({ collection }) => collection === 'deans_office',
+    );
+
+    expect(deanCases).toEqual([
+      {
+        code: 'ambiguous_staff_name',
+        collection: 'deans_office',
+        ids: [4],
+        related: [{ collection: 'staff', ids: [4, 5] }],
+      },
+      { code: 'unmatched_staff_name', collection: 'deans_office', ids: [3] },
+    ]);
+    expect(candidates.deans).toEqual([
+      { id: 1, staff: 1 },
+      { id: 2, staff: 3 },
     ]);
   });
 });
