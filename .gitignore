@@ -8,3 +8,5 @@ node_modules/
 !.env.example
 uploads/
 directus/extensions/*/dist/
+/test-results/
+/playwright-report/

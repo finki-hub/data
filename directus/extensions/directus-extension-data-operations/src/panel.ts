@@ -5,7 +5,7 @@ import {
   managedFlowNote,
   runOperationPanelId,
 } from './managed-flows.js';
-import RunOperationPanel from './panel.vue';
+import RunOperationPanel from './run-operation-panel.vue';
 
 // The generic Run operation panel: its one option picks an installed
 // manual Flow of a managed family; the panel renders that Flow's own

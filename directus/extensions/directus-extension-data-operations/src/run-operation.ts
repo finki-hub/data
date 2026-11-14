@@ -41,7 +41,7 @@ const flowAnswer = envelope(manualFlowSchema);
 
 export const useRunOperation = (
   flowKey: () => null | string,
-  now: Ref<unknown>,
+  now: Readonly<Ref<unknown>>,
 ) => {
   const api = useApi();
   const flow = ref<ManualFlow | null>(null);

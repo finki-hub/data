@@ -201,12 +201,17 @@ a project holding data:
   and `DIRECTUS_SEARCH_TEST_MARKER_VALUE`;
 - `npm run test:integration` (the public and private reads and every
   `/legacy` file) on a project setup has installed, named by
-  `DIRECTUS_INTEGRATION_URL` and `DIRECTUS_INTEGRATION_TOKEN`.
+  `DIRECTUS_INTEGRATION_URL` and `DIRECTUS_INTEGRATION_TOKEN`;
+- `npm run test:e2e` (Playwright: the course-history search and the Data
+  operations dashboard in Studio) on the same project, named by
+  `DIRECTUS_E2E_URL`, `DIRECTUS_E2E_EMAIL`, `DIRECTUS_E2E_PASSWORD` and
+  `DIRECTUS_E2E_TOKEN`.
 
 The **Integration** workflow runs all three on `main` and on this
 repository's pull requests: it starts the development compose project with
 the `DIRECTUS_LICENSE_KEY` secret, marks it, runs the CSV and search
-suites, runs setup twice and then the deployment suite.
+suites, runs setup twice and then the deployment and Studio suites; a
+failed Studio run uploads its Playwright traces.
 
 ## History
 

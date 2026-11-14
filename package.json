@@ -5,6 +5,7 @@
   "devDependencies": {
     "@directus/extensions-sdk": "^18.1.1",
     "@directus/types": "18.1.0",
+    "@playwright/test": "^1.65.1",
     "@tanstack/vue-virtual": "^3.13.52",
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",
@@ -29,6 +30,8 @@
     "lint": "eslint . --cache",
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:browsers": "playwright install --with-deps chromium",
     "test:integration": "node --import tsx --test test/deployment.integration.ts",
     "test:csv": "node --import tsx --test test/directus-csv-import.integration.ts",
     "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.ts"
