@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { before, test } from 'node:test';
+import { promisify } from 'node:util';
 import { z } from 'zod';
+
+import { directusDefaultPrompt, systemPrompt } from '../src/ai-prompt.js';
 
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
@@ -234,3 +238,41 @@ test('/legacy answers an unchanged file with 304', async () => {
   );
   assert.equal(again.status, 304);
 });
+
+const settingsPrompt = z.object({
+  data: z.object({ ai_system_prompt: z.string().nullable() }),
+});
+
+test('setup stores the AI assistant system prompt', async () => {
+  const response = await call('/settings?fields=ai_system_prompt');
+  const stored = settingsPrompt.parse(await response.json()).data;
+  assert.equal(stored.ai_system_prompt, systemPrompt);
+});
+
+// The repository keeps a copy of Directus's own system prompt, which the
+// custom one replaces; a Directus release that changes it fails here, so
+// the copy is refreshed. Needs the compose project (CI).
+const composeService = process.env['DIRECTUS_INTEGRATION_COMPOSE_SERVICE'];
+const defaultPromptPath =
+  '/directus/node_modules/@directus/api/dist/ai/chat/constants/system-prompt.js';
+const promptLiteral = /const SYSTEM_PROMPT = `(?<prompt>[\s\S]*?)`;/u;
+
+test(
+  "the stored copy of Directus's default prompt matches the running Directus",
+  { skip: composeService === undefined },
+  async () => {
+    const { stdout } = await promisify(execFile)('docker', [
+      'compose',
+      'exec',
+      '-T',
+      composeService ?? '',
+      'cat',
+      defaultPromptPath,
+    ]);
+    const running = promptLiteral
+      .exec(stdout)
+      ?.groups?.['prompt']?.replaceAll('\\`', '`')
+      .trim();
+    assert.equal(running, directusDefaultPrompt);
+  },
+);

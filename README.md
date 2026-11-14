@@ -64,6 +64,17 @@ Directus's built-in MCP server is enabled at
 `https://data.finki-hub.com/mcp`. It needs a static token of a user; the
 `MCP` role reads exactly what the public API reads.
 
+### AI assistant
+
+Studio's AI assistant uses the OpenAI key set in **Settings → AI**. Its
+system prompt is owned by this repository and installed by setup: Directus's
+own prompt (`directus/ai/directus-default-prompt.md`, repeated because a
+custom prompt replaces it) followed by the
+FINKI Hub context (`directus/ai/finki-hub-context.md`: the private
+collections, the derived data and that the schema lives in code). The
+Integration workflow fails when a Directus release changes its own prompt, so
+the copy is refreshed. Edit the files, not the setting.
+
 ## Data model
 
 The model is declared in `src/data-model/` and installed by
