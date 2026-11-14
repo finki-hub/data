@@ -159,8 +159,8 @@ CI builds and pushes `ghcr.io/finki-hub/data` on every push, and weekly so
 new Directus 12 releases arrive without a commit (a new major version only
 by changing the `FROM` line of the `Dockerfile`). `compose.prod.yaml`, the
 host's compose file, runs it with PostgreSQL; its secrets come from env
-files beside it (`secrets.env`, `licence.env` and `storage.env`, listed
-in the file), never from this repository. On the `finki-hub` host, Caddy proxies
+files beside it (`secrets.env`, `licence.env`, `storage.env` and
+`sso.env`, listed in the file), never from this repository. On the `finki-hub` host, Caddy proxies
 `data.finki-hub.com` to it.
 
 To deploy a change:
