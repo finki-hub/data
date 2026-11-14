@@ -79,6 +79,7 @@ describe('the Discord channels', () => {
   test('link to their courses through a junction whose two required links name the channel and the course', () => {
     expect(findCollection('courses').fields.map(({ field }) => field)).toEqual([
       'name',
+      'name_en',
       'abbreviation',
       'status',
       'tags',
@@ -184,10 +185,10 @@ describe('the Discord channels', () => {
         ({ collection, field }) =>
           collection === 'courses' && field === 'overview',
       )?.members,
-    ).toEqual(['name', 'abbreviation', 'tags', 'discord_channels']);
+    ).toEqual(['name', 'name_en', 'abbreviation', 'tags', 'discord_channels']);
     expect(effectiveFieldMeta('courses', 'discord_channels')).toMatchObject({
       group: 'overview',
-      sort: 4,
+      sort: 5,
     });
   });
 

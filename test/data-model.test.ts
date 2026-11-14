@@ -169,6 +169,7 @@ describe('target collections', () => {
       ]),
     ).toEqual([
       ['name', 'string', false],
+      ['name_en', 'string', true],
       ['abbreviation', 'string', true],
       ['status', 'enum', false],
       ['tags', 'string', true],

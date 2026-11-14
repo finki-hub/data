@@ -154,11 +154,13 @@ describe('published-year keys of the relational courses definition', () => {
       },
     });
     const reference = referenceKeys;
+    // The year keys start right after professors.
+    const firstYear = reference.indexOf('professors') + 1;
 
     expect(keys).toEqual([
-      ...reference.slice(0, 3),
+      ...reference.slice(0, firstYear),
       '2026/2027',
-      ...reference.slice(3),
+      ...reference.slice(firstYear),
     ]);
   });
 });

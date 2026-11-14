@@ -198,6 +198,7 @@ const groupFieldLabels = ({
 const englishLabels: readonly string[] = [
   'courses: Courses / Course',
   'courses.name: Name',
+  'courses.name_en: English name',
   'courses.abbreviation: Abbreviation',
   'courses.status: Status',
   'courses.tags: Tags',
@@ -507,6 +508,7 @@ describe('collection labels', () => {
       ['equivalencies', 'Equivalencies'],
       ['history_mappings', 'Explicit mappings'],
       ['name', 'Name'],
+      ['name_en', 'English name'],
       ['pattern_mappings', 'Pattern mappings'],
       ['status', 'Status'],
       ['tags', 'Tags'],
