@@ -173,6 +173,11 @@ describe('target collections', () => {
       ['abbreviation', 'string', true],
       ['status', 'enum', false],
       ['tags', 'string', true],
+      ['degree_cycle', 'enum', true],
+      ['objectives', 'text', true],
+      ['objectives_en', 'text', true],
+      ['content', 'text', true],
+      ['content_en', 'text', true],
     ]);
     expect(
       findCollection('discord_channel_courses').fields.map(

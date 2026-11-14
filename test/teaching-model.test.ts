@@ -84,6 +84,11 @@ describe('the course status', () => {
       'abbreviation',
       'status',
       'tags',
+      'degree_cycle',
+      'objectives',
+      'objectives_en',
+      'content',
+      'content_en',
     ]);
   });
 });

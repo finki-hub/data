@@ -246,6 +246,7 @@ describe('field groups', () => {
       'staff',
       'moodle',
       'enrollment',
+      'syllabus',
     ]);
     expect(sorted(courseGroups.flatMap(({ members }) => members))).toEqual(
       sorted(fieldNames('courses')),

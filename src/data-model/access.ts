@@ -51,6 +51,12 @@ export const publicReads: readonly PublicRead[] = [
       'enrollment',
       'discord_channels',
       'abbreviation',
+      'degree_cycle',
+      'objectives',
+      'objectives_en',
+      'content',
+      'content_en',
+      'syllabus',
     ],
   },
   {
