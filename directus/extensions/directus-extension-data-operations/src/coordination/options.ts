@@ -57,10 +57,9 @@ const token = z.preprocess(blank, z.uuid());
 const failureMessage = z
   .preprocess((value) => {
     const present = blank(value);
-    if (present === undefined || typeof present === 'string') {
-      return present;
-    }
-    return JSON.stringify(present);
+    return present === undefined || typeof present === 'string'
+      ? present
+      : JSON.stringify(present);
   }, z.string().optional())
   .transform((value) =>
     value === undefined ? null : value.slice(0, errorMessageLength),
@@ -113,7 +112,7 @@ const coordinatorInputSchema = z.discriminatedUnion('action', [
     domain: z.preprocess(blank, z.enum(claimTargets)),
     retry: z
       .preprocess(flag, z.boolean().optional())
-      .transform((value) => value ?? false),
+      .transform((value = false) => value),
   }),
   z.object({
     action: z.literal('plan_pages'),

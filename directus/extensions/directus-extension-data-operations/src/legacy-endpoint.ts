@@ -43,10 +43,9 @@ export const buildFile = async (
 export const findDefinition = (filename: string) =>
   exportDefinitions.find((definition) => definition.filename === filename);
 
-type Cached = { readonly at: number; readonly file: Promise<PreparedFile> };
-
 export default defineEndpoint({
   handler: (router, context) => {
+    type Cached = { readonly at: number; readonly file: Promise<PreparedFile> };
     const cache = new Map<string, Cached>();
     // The last file built without an error: answered while a later build
     // fails, so an edit that breaks a file never takes it away from the

@@ -200,7 +200,7 @@ export const useRunOperation = (
     dialogOpen,
     // The refusal of the last run, or null.
     failure: computed(() =>
-      outcome.value !== null && !outcome.value.ok ? outcome.value : null,
+      outcome.value === null || outcome.value.ok ? null : outcome.value,
     ),
     fields,
     flow,

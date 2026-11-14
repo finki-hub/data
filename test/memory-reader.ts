@@ -198,8 +198,7 @@ export const storeReader =
     const rows = rowsOf(store, read.collection).filter((row) =>
       matches(place, row, read.filter),
     );
-    if (read.aggregate !== undefined) {
-      return aggregated(read, rows);
-    }
-    return sorted(rows, read.sort).map((row) => pick(place, row, read.fields));
+    return read.aggregate === undefined
+      ? sorted(rows, read.sort).map((row) => pick(place, row, read.fields))
+      : aggregated(read, rows);
   };

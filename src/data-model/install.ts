@@ -52,9 +52,13 @@ export class SchemaRefusalError extends Error {
 export class CollectionLimitError extends Error {
   public override readonly name = 'CollectionLimitError';
 
-  public constructor(public readonly collection: string) {
+  public constructor(
+    public readonly collection: string,
+    options: ErrorOptions,
+  ) {
     super(
       `collection ${collection} not created: licence collection limit (LIMIT_EXCEEDED); model collections: ${String(dataModelCollections.length)}`,
+      options,
     );
   }
 }
@@ -135,7 +139,9 @@ const applyCollection = async (
       error instanceof DirectusRequestError &&
       error.code === 'LIMIT_EXCEEDED'
     ) {
-      throw new CollectionLimitError(action.collection.collection);
+      throw new CollectionLimitError(action.collection.collection, {
+        cause: error,
+      });
     }
     throw error;
   }

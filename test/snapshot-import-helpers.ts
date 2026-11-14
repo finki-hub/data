@@ -169,12 +169,14 @@ export class FakeSnapshot {
       },
       files: {
         describe: async (id) => this.files.get(id)?.facts ?? null,
-        open: async (id) => {
+        open: (id) => {
           const file = this.files.get(id);
           const upload = this.#data.uploads.get(id);
-          return (async function* () {
-            yield* file?.content ?? (upload === undefined ? [] : [upload]);
-          })();
+          return Promise.resolve(
+            (async function* () {
+              yield* file?.content ?? (upload === undefined ? [] : [upload]);
+            })(),
+          );
         },
         upload: async (content, title) => {
           let text = '';

@@ -126,11 +126,13 @@ const stageRecords = async (
     fingerprint.add(row);
     batch.push(row);
     chars += charsOf(row);
-    if (batch.length === batchRows || chars >= batchChars) {
-      await snapshot.insertStaging(batch);
-      batch = [];
-      chars = 0;
+    if (!(batch.length === batchRows || chars >= batchChars)) {
+      continue;
     }
+
+    await snapshot.insertStaging(batch);
+    batch = [];
+    chars = 0;
   }
   if (checks === null) {
     throw snapshotError('INVALID_HEADERS', 'File empty: no header row');

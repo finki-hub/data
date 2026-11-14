@@ -7,11 +7,11 @@
     "build": "directus-extension build"
   },
   "dependencies": {
-    "@directus/extensions-sdk": "^18.0.4",
-    "@directus/types": "16.2.0",
-    "@tanstack/vue-virtual": "^3.13.36",
-    "vue": "3.5.45",
-    "zod": "^4.5.4"
+    "@directus/extensions-sdk": "^18.1.1",
+    "@directus/types": "18.1.0",
+    "@tanstack/vue-virtual": "^3.13.52",
+    "vue": "3.5.43",
+    "zod": "^4.6.7"
   },
   "directus:extension": {
     "type": "bundle",

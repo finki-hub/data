@@ -62,10 +62,12 @@ export class ClaimKeeper {
       return;
     }
     this.#last = performance.now();
-    if (!(await this.#deps.heartbeat(this.#token))) {
-      this.lost = claimLost('backup');
-      throw this.lost;
+    if (await this.#deps.heartbeat(this.#token)) {
+      return;
     }
+
+    this.lost = claimLost('backup');
+    throw this.lost;
   }
 }
 

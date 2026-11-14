@@ -114,10 +114,9 @@ export const decideClaim = (
   const error = request.retry
     ? null
     : blockingFailure(state, domain, request.currentFingerprints);
-  if (error !== null) {
-    return { domain, error, kind: 'failed' };
-  }
-  return { dirtyDomains: pending, domain, kind: 'claim' };
+  return error === null
+    ? { dirtyDomains: pending, domain, kind: 'claim' }
+    : { domain, error, kind: 'failed' };
 };
 
 type ClaimCheck = {
