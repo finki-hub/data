@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+
 import type {
   ExportedRow,
   FileFacts,
@@ -173,9 +175,9 @@ export class FakeSnapshot {
           const file = this.files.get(id);
           const upload = this.#data.uploads.get(id);
           return Promise.resolve(
-            (async function* () {
-              yield* file?.content ?? (upload === undefined ? [] : [upload]);
-            })(),
+            Readable.from(
+              file?.content ?? (upload === undefined ? [] : [upload]),
+            ) as AsyncIterable<string>,
           );
         },
         upload: async (content, title) => {
