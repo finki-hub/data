@@ -132,7 +132,16 @@ lines no mapping counts.
 ## Replacing the Moodle snapshot
 
 The snapshot comes from
-[`courses-scraper`](https://github.com/finki-hub/courses-scraper), unchanged:
+[`courses-scraper`](https://github.com/finki-hub/courses-scraper), unchanged.
+It refreshes itself every Sunday: the host's `directus-moodle-sync.timer`
+(in `deploy/`) runs the `moodle-sync` service of `compose.prod.yaml`, which
+scrapes the new Moodle instance over the newest `profiles-*.csv` in
+**Moodle snapshots (private)** (the old instance no longer changes), checks
+that no profile was lost, uploads the result there and runs the import
+below. It keeps the newest 8 exports and 8 import backups, and a failure
+posts a Discord alert. To run it now: `systemctl start directus-moodle-sync`.
+
+By hand:
 
 1. Run the scraper to produce `profiles.csv` (its 38 headers, no `id`).
 2. Upload it to the File Library folder **Moodle snapshots (private)**.
@@ -159,8 +168,8 @@ CI builds and pushes `ghcr.io/finki-hub/data` on every push, and weekly so
 new Directus 12 releases arrive without a commit (a new major version only
 by changing the `FROM` line of the `Dockerfile`). `compose.prod.yaml`, the
 host's compose file, runs it with PostgreSQL; its secrets come from env
-files beside it (`secrets.env`, `licence.env`, `storage.env` and
-`sso.env`, listed in the file), never from this repository. On the `finki-hub` host, Caddy proxies
+files beside it (`secrets.env`, `licence.env`, `storage.env`, `sso.env`
+and `moodle-sync.env`, listed in the file), never from this repository. On the `finki-hub` host, Caddy proxies
 `data.finki-hub.com` to it.
 
 To deploy a change:
