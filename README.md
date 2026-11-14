@@ -42,7 +42,9 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `rooms`, `deans_office`, `discord_channels`, `discord_channel_courses`,
 `student_council`, `exam_sessions` and `anto_quotes`. Students are public only as council members (name and
 index number); every other student, every Moodle user and the operations
-bookkeeping stay private.
+bookkeeping stay private. These read permissions (and the `MCP` role's
+identical ones) are declared in `src/data-model/access.ts` and created by
+`npm run setup`.
 
 ### The legacy JSON files
 
@@ -161,7 +163,8 @@ To deploy a change:
 
 Setup is idempotent: it creates what is missing, realigns enum choices,
 applies the migrations and never overwrites a Studio edit of a preset,
-Flow, panel or folder. It never writes a data record.
+Flow, panel, folder or permission. It never writes a data record. A request
+the rate limiter refuses is retried, so setup runs with the limiter on.
 
 ## Changing the model
 

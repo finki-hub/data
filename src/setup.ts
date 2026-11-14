@@ -1,5 +1,6 @@
 import type { DirectusRequest } from './directus-request.js';
 
+import { installPublicAccess } from './data-model/access.js';
 import {
   applySchemaConstraints,
   applySourceInvalidation,
@@ -17,8 +18,8 @@ import { installSnapshotFolder } from './flows/snapshot-folder.js';
 // import creates the incomplete-data bookmarks), the private folder of the
 // Moodle snapshot files, every registered Flow family through one loop
 // (registry.ts: automatic processing last, so the first tick of its
-// schedule finds every child) and the Data operations dashboard whose
-// panels name those Flows. Every step is idempotent and installs once, so
+// schedule finds every child), the Data operations dashboard whose panels
+// name those Flows and the public and MCP read permissions. Every step is idempotent and installs once, so
 // a rerun preserves Studio edits to presets, the folder, Flows and the
 // dashboard.
 // None writes a data record; from then on the schedule computes the derived
@@ -33,8 +34,10 @@ export const runSetup = async (request: DirectusRequest) => {
   const folders = await installSnapshotFolder(request);
   const flows = await installFlowFamilies(request);
   const dashboard = await installOperationsDashboard(request);
+  const access = await installPublicAccess(request);
   return {
     ...summary,
+    access,
     constraints,
     dashboard,
     flows,

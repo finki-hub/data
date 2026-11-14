@@ -66,6 +66,25 @@ const parseDirectusError = (
 // How long one request may take.
 const requestTimeoutMs = 120_000;
 
+// How often a request the rate limiter refused (HTTP 429) is sent in all.
+// Setup sends many requests in a row; a refused one waits for the
+// limiter's Retry-After (at least minRetryDelayMs, growing per attempt)
+// and is sent again, so a rerun never needs the limiter turned off.
+export const rateLimitAttempts = 8;
+
+const minRetryDelayMs = 250;
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+export const retryDelayMs = (response: Response, attempt: number): number => {
+  const header = Number(response.headers.get('Retry-After'));
+  const advised = Number.isFinite(header) ? header * 1_000 : 0;
+  return Math.max(advised, minRetryDelayMs * attempt);
+};
+
 // How much of a response body that is no Directus error a message keeps.
 const bodyExcerptLength = 200;
 
@@ -129,14 +148,21 @@ export const createDirectusRequest =
     }
     const place = `${init?.method ?? 'GET'} ${url.pathname}`;
     let response: Response;
-    try {
-      response = await fetch(url, {
-        ...init,
-        headers,
-        signal: AbortSignal.timeout(requestTimeoutMs),
-      });
-    } catch (error) {
-      throw unanswered(place, error);
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        response = await fetch(url, {
+          ...init,
+          headers,
+          signal: AbortSignal.timeout(requestTimeoutMs),
+        });
+      } catch (error) {
+        throw unanswered(place, error);
+      }
+      if (response.status !== 429 || attempt >= rateLimitAttempts) {
+        break;
+      }
+      await response.body?.cancel();
+      await sleep(retryDelayMs(response, attempt));
     }
 
     if (!response.ok) {
