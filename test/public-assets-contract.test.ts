@@ -206,8 +206,9 @@ describe('generation keys of the relational courses definition', () => {
       '2028-semester',
       '2028-channel',
       '2028-prerequisite',
-      '2028-state-ab',
+      // Programs in creation order: id 91 before id 92.
       '2028-state-cd',
+      '2028-state-ab',
       '2028-credits',
       ...reference.slice(assistants),
     ]);

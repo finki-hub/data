@@ -26,8 +26,10 @@ const optedIn = { [optInField]: { _eq: true } };
 //
 // published_programs: every published study program of a published
 // generation with a curriculum, keyed by its code and nested under its
-// generation's block (`parent`), in code order. A new program row adds no
-// public key until it and its generation are published.
+// generation's block (`parent`), in creation order: the order of the
+// curriculum sheets' program columns, as the consumers' files list them. A
+// new program row adds no public key until it and its generation are
+// published, and then comes last.
 export const keySources: Readonly<Record<KeySourceName, KeySource>> = {
   published_generations: {
     collection: 'curriculum_generations',
@@ -50,7 +52,7 @@ export const keySources: Readonly<Record<KeySourceName, KeySource>> = {
     },
     key: 'code',
     parent: 'generation',
-    sort: ['generation', 'code'],
+    sort: ['generation', 'id'],
   },
   published_years: {
     collection: 'academic_years',

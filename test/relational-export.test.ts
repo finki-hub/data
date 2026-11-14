@@ -586,8 +586,9 @@ const generationKeys = [
   '2028-semester',
   '2028-channel',
   '2028-prerequisite',
-  '2028-state-ab',
+  // Programs in creation order: id 91 before id 92.
   '2028-state-cd',
+  '2028-state-ab',
   '2028-credits',
 ];
 
@@ -652,7 +653,7 @@ describe('curriculum generations and study programs as rows', () => {
     );
   });
 
-  test('publishing the generation and both programs adds its availability key and block, states in program code order, with no code change', async () => {
+  test('publishing the generation and both programs adds its availability key and block, states in program creation order, with no code change', async () => {
     const baseline = await keysOf(coursesFile);
     const store = withGeneration(await importedStore(), {
       generation: true,
