@@ -29,6 +29,7 @@
     "lint": "eslint . --cache",
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
+    "test:integration": "node --test test/deployment.integration.mjs",
     "test:csv": "node --import tsx --test test/directus-csv-import.integration.mjs",
     "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.mjs"
   },
