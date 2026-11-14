@@ -42,9 +42,18 @@ services:
       RETENTION_ENABLED: "true"
       SECRET: ${SECRET}
       SESSION_COOKIE_SECURE: "true"
+      # Uploads go to R2 (the first location); files uploaded before stay
+      # in the local volume.
       STORAGE_LOCAL_DRIVER: local
       STORAGE_LOCAL_ROOT: ./uploads
-      STORAGE_LOCATIONS: local
+      STORAGE_LOCATIONS: r2,local
+      STORAGE_R2_BUCKET: ${STORAGE_R2_BUCKET}
+      STORAGE_R2_DRIVER: s3
+      STORAGE_R2_ENDPOINT: ${STORAGE_R2_ENDPOINT}
+      STORAGE_R2_KEY: ${STORAGE_R2_KEY}
+      STORAGE_R2_REGION: auto
+      STORAGE_R2_ROOT: directus
+      STORAGE_R2_SECRET: ${STORAGE_R2_SECRET}
       TELEMETRY: "false"
       WEBSOCKETS_ENABLED: "false"
     healthcheck:

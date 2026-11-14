@@ -1,9 +1,9 @@
 import type { CompositeKey, ModelRelation } from '../schema-relations.js';
 import type {
   ModelCollection,
-  ModelCollectionKey,
   ModelRelationAlias,
   OnDelete,
+  RelatedCollection,
 } from '../schema.js';
 
 import { dataModelCollections } from './collections.js';
@@ -131,7 +131,7 @@ export const toRelationAlignmentPayload = (
 
 // The O2M reverse aliases that belong on the given "one" side collection.
 export const aliasesFor = (
-  collection: ModelCollectionKey,
+  collection: RelatedCollection,
 ): readonly AliasDeclaration[] =>
   modelRelations.flatMap((relation) =>
     relation.related === collection && relation.alias !== null

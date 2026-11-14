@@ -8,6 +8,7 @@ import type {
   Scalar,
 } from '../schema.js';
 
+import { isFileField } from './fields.js';
 import { type FieldTranslation, fieldTranslations } from './translations.js';
 
 type FieldSchemaPayload = {
@@ -165,6 +166,23 @@ const enumPayload = (field: ModelEnumField, sort: number): FieldPayload => ({
   type: 'string',
 });
 
+// A file field: the file's UUID, uploaded and replaced with the file
+// interface.
+const filePayload = (
+  field: ModelRelationField,
+  sort: number,
+): FieldPayload => ({
+  field: field.field,
+  meta: {
+    ...baseMeta(field, sort, 'half'),
+    display: 'file',
+    interface: 'file',
+    special: ['file'],
+  },
+  schema: { is_indexed: true, is_nullable: field.nullable },
+  type: 'uuid',
+});
+
 const relationPayload = (
   field: ModelRelationField,
   sort: number,
@@ -195,7 +213,9 @@ export const toFieldPayload = (
     return enumPayload(field, sort);
   }
   if (field.kind === 'm2o') {
-    return relationPayload(field, sort);
+    return isFileField(field)
+      ? filePayload(field, sort)
+      : relationPayload(field, sort);
   }
   return scalarPayload(field, sort);
 };

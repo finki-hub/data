@@ -106,6 +106,8 @@ const collectionRoles = [
   content('discord_channels'),
   content('discord_channel_courses'),
   content('deans_office'),
+  content('exam_sessions'),
+  content('anto_quotes'),
   {
     caseLast: true,
     collection: 'academic_years',

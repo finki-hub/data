@@ -144,8 +144,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(27);
-    expect(new Set(dataModelCollectionKeys).size).toBe(27);
+    expect(dataModelCollectionKeys).toHaveLength(29);
+    expect(new Set(dataModelCollectionKeys).size).toBe(29);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -613,11 +613,34 @@ describe('enumerations', () => {
   });
 });
 
+describe('file fields', () => {
+  test('stores a file field as the UUID of a Directus file, edited with the file interface', () => {
+    const file = modelRelations.filter(
+      ({ related }) => related === 'directus_files',
+    );
+
+    expect(file.map(({ collection, field }) => [collection, field])).toEqual([
+      ['exam_sessions', 'file'],
+    ]);
+    expect(toFieldPayload(findField('exam_sessions', 'file'), 2)).toMatchObject(
+      {
+        meta: { display: 'file', interface: 'file', special: ['file'] },
+        schema: { is_indexed: true, is_nullable: false },
+        type: 'uuid',
+      },
+    );
+  });
+});
+
 describe('relations and aliases', () => {
   test('relates every collection through integer ids to a modelled collection', () => {
     expect(modelRelations.length).toBeGreaterThan(0);
 
     for (const relation of modelRelations) {
+      if (relation.related === 'directus_files') {
+        continue;
+      }
+
       expect(dataModelCollectionKeys).toContain(relation.related);
 
       const payload = toFieldPayload(
@@ -855,7 +878,9 @@ describe('installDataModel on fresh and installed projects', () => {
       .map(({ body }) => relationBody.parse(body))
       .filter(
         ({ collection, related_collection }) =>
-          !created.has(collection) || !created.has(related_collection),
+          !created.has(collection) ||
+          (!created.has(related_collection) &&
+            related_collection !== 'directus_files'),
       );
 
     expect(dangling).toEqual([]);
