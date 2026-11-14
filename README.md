@@ -191,18 +191,22 @@ derived, staging or status) is declared once in
 | `npm run setup` | Install the model, migrations, presentation, Flows and dashboard into a running Directus. |
 | `npm run brand` | Apply the branding. |
 
-`npm run test:integration` runs setup's result end to end (the public and
-private reads, every `/legacy` file) against a disposable Directus on
-loopback named by `DIRECTUS_INTEGRATION_URL` and
-`DIRECTUS_INTEGRATION_TOKEN`. CI runs it on `main` and on this
-repository's pull requests: it starts the development compose project with
-the `DIRECTUS_LICENSE_KEY` secret, runs setup twice and then the tests.
+Three suites run against a disposable, licensed Directus on loopback, never
+a project holding data:
 
-`npm run test:search` and `npm run test:csv` run against a disposable,
-licensed Directus on loopback (never a project holding data), named by
-`DIRECTUS_SEARCH_TEST_URL`, `DIRECTUS_SEARCH_TEST_TOKEN`,
-`DIRECTUS_SEARCH_TEST_MARKER_COLLECTION` and
-`DIRECTUS_SEARCH_TEST_MARKER_VALUE`.
+- `npm run test:csv` (the UTF-8 fix of the CSV import) and
+  `npm run test:search` (the course search) on a bare project marked as
+  disposable, named by `DIRECTUS_SEARCH_TEST_URL`,
+  `DIRECTUS_SEARCH_TEST_TOKEN`, `DIRECTUS_SEARCH_TEST_MARKER_COLLECTION`
+  and `DIRECTUS_SEARCH_TEST_MARKER_VALUE`;
+- `npm run test:integration` (the public and private reads and every
+  `/legacy` file) on a project setup has installed, named by
+  `DIRECTUS_INTEGRATION_URL` and `DIRECTUS_INTEGRATION_TOKEN`.
+
+The **Integration** workflow runs all three on `main` and on this
+repository's pull requests: it starts the development compose project with
+the `DIRECTUS_LICENSE_KEY` secret, marks it, runs the CSV and search
+suites, runs setup twice and then the deployment suite.
 
 ## History
 

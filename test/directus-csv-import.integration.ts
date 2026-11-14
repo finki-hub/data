@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
+import { z } from 'zod';
 
-import { isolatedTargets } from './isolated-target.mjs';
+import { isolatedTarget } from './isolated-target.js';
 
-// Checks the UTF-8 fix of the local image (directus/patch-csv-import.cjs)
+type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
+
+// Checks the UTF-8 fix of the image (directus/patch-csv-import.cjs)
 // through Directus's native CSV import. Like every fixture suite it takes
 // only the explicit disposable target (DIRECTUS_SEARCH_TEST_URL, _TOKEN,
 // _MARKER_COLLECTION and _MARKER_VALUE: a loopback URL, a token and the
@@ -14,43 +17,35 @@ import { isolatedTargets } from './isolated-target.mjs';
 
 const missingTargetPattern = /DIRECTUS_SEARCH_TEST_URL/u;
 
-// Docker must not be asked anything: the suite needs no container.
-const noDocker = {
-  networks: () => assert.fail('no Docker command'),
-  ports: () => assert.fail('no Docker command'),
-  setting: () => assert.fail('no Docker command'),
-};
+const importedRows = z.object({
+  data: z.array(z.object({ value: z.string() })),
+});
 
 test('refuses a target named only by the lifecycle variables', async () => {
   await assert.rejects(
-    isolatedTargets(
-      {
-        DIRECTUS_ADMIN_TOKEN: 'synthetic-token',
-        DIRECTUS_TOKEN: 'synthetic-token',
-        DIRECTUS_URL: 'http://127.0.0.1:18055',
-      },
-      {},
-      noDocker,
-    ),
+    isolatedTarget({
+      DIRECTUS_ADMIN_TOKEN: 'synthetic-token',
+      DIRECTUS_TOKEN: 'synthetic-token',
+      DIRECTUS_URL: 'http://127.0.0.1:18055',
+    }),
     missingTargetPattern,
   );
 });
 
 test('native CSV import preserves UTF-8 across file read boundaries', async () => {
-  const { target } = await isolatedTargets(process.env, {}, noDocker);
+  const target = await isolatedTarget(process.env);
   const collection = `csv_utf8_test_${randomUUID().replaceAll('-', '')}`;
-  const request = async (path, options = {}) => {
+  const request = async (path: string, options: FetchInit = {}) => {
+    const headers = new Headers(options.headers);
+    headers.set('authorization', `Bearer ${target.token}`);
     const response = await fetch(new URL(path, target.base), {
       ...options,
-      headers: {
-        authorization: `Bearer ${target.token}`,
-        ...options.headers,
-      },
+      headers,
       signal: AbortSignal.timeout(60_000),
     });
     assert.ok(
       response.ok,
-      `${options.method ?? 'GET'} ${path}: HTTP ${response.status}`,
+      `${options.method ?? 'GET'} ${path}: HTTP ${String(response.status)}`,
     );
     return response;
   };
@@ -89,10 +84,10 @@ test('native CSV import preserves UTF-8 across file read boundaries', async () =
       method: 'POST',
     });
     const response = await request(`/items/${collection}?sort=id&limit=-1`);
-    const { data } = await response.json();
-    assert.equal(data.length, values.length);
-    assert.ok(
-      data.every((row, index) => row.value === values[index]),
+    const { data } = importedRows.parse(await response.json());
+    assert.deepEqual(
+      data.map(({ value }) => value),
+      values,
       'Imported Unicode differs from the synthetic CSV',
     );
   } finally {
