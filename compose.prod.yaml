@@ -8,6 +8,8 @@ name: directus
 #   licence.env  LICENSE_KEY
 #   storage.env  STORAGE_R2_KEY, STORAGE_R2_SECRET, STORAGE_R2_ENDPOINT,
 #                STORAGE_R2_BUCKET (the R2 bucket holding uploaded files)
+#   sso.env      AUTH_GITHUB_CLIENT_ID/_SECRET and AUTH_GOOGLE_CLIENT_ID/_SECRET
+#                (the "Directus" GitHub OAuth app and Google OAuth client)
 services:
   directus:
     # Built by CI from this repository (Directus, CSV-import patch,
@@ -25,6 +27,9 @@ services:
       - path: ./licence.env
         required: true
       - path: ./storage.env
+        required: true
+      # AUTH_GITHUB_CLIENT_ID/_SECRET, AUTH_GOOGLE_CLIENT_ID/_SECRET
+      - path: ./sso.env
         required: true
     environment:
       PUBLIC_URL: https://data.finki-hub.com
@@ -60,6 +65,25 @@ services:
       IP_CUSTOM_HEADER: cf-connecting-ip
       WEBSOCKETS_ENABLED: "false"
       LOG_LEVEL: info
+      # Single sign-on: only users already linked to a GitHub login or a
+      # Google email can sign in this way; nobody can register.
+      AUTH_PROVIDERS: github,google
+      AUTH_GITHUB_DRIVER: oauth2
+      AUTH_GITHUB_LABEL: GitHub
+      AUTH_GITHUB_ICON: github
+      AUTH_GITHUB_AUTHORIZE_URL: https://github.com/login/oauth/authorize
+      AUTH_GITHUB_ACCESS_URL: https://github.com/login/oauth/access_token
+      AUTH_GITHUB_PROFILE_URL: https://api.github.com/user
+      AUTH_GITHUB_SCOPE: read:user
+      AUTH_GITHUB_IDENTIFIER_KEY: login
+      AUTH_GITHUB_ALLOW_PUBLIC_REGISTRATION: "false"
+      AUTH_GOOGLE_DRIVER: openid
+      AUTH_GOOGLE_LABEL: Google
+      AUTH_GOOGLE_ICON: google
+      AUTH_GOOGLE_ISSUER_URL: https://accounts.google.com/.well-known/openid-configuration
+      AUTH_GOOGLE_SCOPE: openid email profile
+      AUTH_GOOGLE_IDENTIFIER_KEY: email
+      AUTH_GOOGLE_ALLOW_PUBLIC_REGISTRATION: "false"
     volumes:
       - uploads:/directus/uploads
     healthcheck:
