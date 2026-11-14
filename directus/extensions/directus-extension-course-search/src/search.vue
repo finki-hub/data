@@ -20,10 +20,10 @@ defineProps<{ controller: SearchController }>();
       <div class="criteria">
         <CoursePicker id="include" title="Has all these courses"
           :selected="controller.include" :blocked="controller.exclude" :courses="controller.courses" :loading="controller.loadingCourses"
-          @change="controller.include = $event" />
+          @change="controller.setInclude" />
         <CoursePicker id="exclude" title="Has none of these courses"
           :selected="controller.exclude" :blocked="controller.include" :courses="controller.courses" :loading="controller.loadingCourses"
-          @change="controller.exclude = $event" />
+          @change="controller.setExclude" />
       </div>
       <v-notice v-if="controller.coursesError" type="warning">{{ controller.coursesError }} <button class="retry" type="button" @click="controller.loadCourses">Retry</button></v-notice>
 
@@ -38,10 +38,10 @@ defineProps<{ controller: SearchController }>();
         <v-notice v-if="controller.error" type="danger">{{ controller.error }} <button class="retry" type="button" @click="controller.search">Retry</button></v-notice>
         <div v-else-if="controller.loading && !controller.people.length" class="empty-state"><v-progress-circular indeterminate /></div>
         <div v-else-if="!controller.people.length" class="empty-state"><v-icon name="person_search" large /><h3>No matching users</h3></div>
-        <Results v-else v-model:sort="controller.sort" :people="controller.people" :included="controller.include" :inert="controller.loading" :class="{ refreshing: controller.loading }" />
+        <Results v-else :sort="controller.sort" :people="controller.people" :included="controller.include" :inert="controller.loading" :class="{ refreshing: controller.loading }" @update:sort="controller.setSort" />
         <footer v-if="controller.total && !controller.error" class="pagination">
           <span>{{ rangeText(controller.page, controller.total) }}</span>
-          <v-pagination v-if="controller.pages > 1" v-model="controller.page" :length="controller.pages" :total-visible="5" :disabled="controller.loading" />
+          <v-pagination v-if="controller.pages > 1" :model-value="controller.page" :length="controller.pages" :total-visible="5" :disabled="controller.loading" @update:model-value="controller.setPage" />
         </footer>
       </section>
     </template>

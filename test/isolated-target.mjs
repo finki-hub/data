@@ -99,25 +99,26 @@ const bindContainers = async ({ containers, docker, target }) => {
       target.base,
     );
   }
-  if (containers.database !== null) {
-    const directus = containers.directus ?? '';
-    const settings = Object.fromEntries(
-      await Promise.all(
-        databaseSettingNames.map(async (name) => [
-          name,
-          await docker.setting(directus, name),
-        ]),
-      ),
-    );
-    const hosts = hostsOf(
-      {
-        name: containers.database,
-        networks: await docker.networks(containers.database),
-      },
-      await docker.networks(directus),
-    );
-    checkDatabaseOf(containers.database, settings, hosts);
+  if (containers.database === null) {
+    return;
   }
+  const directus = containers.directus ?? '';
+  const settings = Object.fromEntries(
+    await Promise.all(
+      databaseSettingNames.map(async (name) => [
+        name,
+        await docker.setting(directus, name),
+      ]),
+    ),
+  );
+  const hosts = hostsOf(
+    {
+      name: containers.database,
+      networks: await docker.networks(containers.database),
+    },
+    await docker.networks(directus),
+  );
+  checkDatabaseOf(containers.database, settings, hosts);
 };
 
 // Every target a suite needs, validated before it writes anything: the

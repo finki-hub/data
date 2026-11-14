@@ -16,7 +16,8 @@ function toggle(id: string | number, event: Event) {
 </script>
 
 <template>
-  <div class="results-scroll" role="region" aria-label="Matching users" tabindex="0">
+  <!-- Focusable so keyboard users can scroll a table wider than the panel. -->
+  <section class="results-scroll" aria-label="Matching users" tabindex="0">
     <table>
       <thead><tr>
         <th scope="col">User</th><th scope="col">Moodle profile</th>
@@ -50,7 +51,7 @@ function toggle(id: string | number, event: Event) {
         </tr>
       </tbody>
     </table>
-  </div>
+  </section>
 </template>
 
 <style scoped>

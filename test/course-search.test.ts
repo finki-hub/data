@@ -335,14 +335,10 @@ const syntheticItems = (users: readonly SyntheticUser[]) => {
   // The count segment readPage adds to the caller's filter, if any.
   const segment = (filter: Filter | null | undefined) => {
     const text = JSON.stringify(filter ?? {});
-    return (user: SyntheticUser) => {
-      if (text.includes('"_nnull":true')) {
-        return user['Courses Count'] !== null;
-      }
-      return text.includes('"_null":true')
-        ? user['Courses Count'] === null
-        : true;
-    };
+    return (user: SyntheticUser) =>
+      text.includes('"_nnull":true')
+        ? user['Courses Count'] !== null
+        : !text.includes('"_null":true') || user['Courses Count'] === null;
   };
   const value = (user: SyntheticUser, field: string) => {
     if (field === 'Name') {

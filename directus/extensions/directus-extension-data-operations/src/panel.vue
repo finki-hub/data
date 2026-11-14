@@ -26,9 +26,9 @@ const run = useRunOperation(() => flowKey.value, toRef(props, 'now'));
         <router-link v-if="run.settingsLink" :to="run.settingsLink" class="settings">Edit Flow</router-link>
       </div>
       <v-notice v-if="run.reason" type="warning">{{ run.reason }}</v-notice>
-      <p v-else-if="run.statusProblem" class="state status-problem" role="status"><v-icon name="error_outline" x-small /> {{ run.statusProblem }}</p>
+      <output v-else-if="run.statusProblem" class="state status-problem"><v-icon name="error_outline" x-small /> {{ run.statusProblem }}</output>
       <p v-else-if="run.waitingFor" class="state"><v-icon name="hourglass_top" x-small /> Waiting: {{ run.waitingFor }}</p>
-      <p v-if="run.running" class="state" role="status"><v-icon name="sync" x-small /> Running</p>
+      <output v-if="run.running" class="state"><v-icon name="sync" x-small /> Running</output>
       <div v-if="run.lines" class="outcome" aria-live="polite">
         <p class="finished"><v-icon name="check_circle" x-small /> Succeeded</p>
         <dl v-if="run.lines.length" class="answer">

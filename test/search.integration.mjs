@@ -208,17 +208,14 @@ test('matches exact LF and CRLF history entries through native filters', async (
 
 // Both pages of a count order over the users of 'Unscored Entry'.
 const unscoredPages = async (target, sort) => {
-  const pages = [];
-  for (const page of [1, 2]) {
-    pages.push(
-      await search(target, target.token, {
-        exclude: [],
-        include: ['Unscored Entry'],
-        page,
-        sort,
-      }),
-    );
-  }
+  const pages = await Array.fromAsync([1, 2], (page) =>
+    search(target, target.token, {
+      exclude: [],
+      include: ['Unscored Entry'],
+      page,
+      sort,
+    }),
+  );
   assert.deepEqual(
     pages.map(({ data, total }) => [data.length, total]),
     [

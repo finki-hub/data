@@ -68,7 +68,8 @@ type Same<Left, Right> = [Left] extends [Right]
     ? true
     : false
   : false;
-const registryIsTheModel: Same<RegisteredCollection, ModelCollectionKey> = true;
+// Compile-time: the registry declares exactly the model's collections.
+true satisfies Same<RegisteredCollection, ModelCollectionKey>;
 
 describe('source invalidation of the completed source model', () => {
   test('declares exactly one role for every model collection', () => {
@@ -76,7 +77,6 @@ describe('source invalidation of the completed source model', () => {
       ({ collection }) => collection,
     );
 
-    expect(registryIsTheModel).toBeTruthy();
     expect(new Set(registered).size).toBe(registered.length);
     expect(registered.toSorted(byText)).toEqual(
       dataModelCollectionKeys.toSorted(byText),

@@ -18,6 +18,20 @@ const config = [
   perfectionist,
   vitest,
   {
+    rules: {
+      // `cond ? [value] : []` filters and maps in one pass while narrowing
+      // the type, which filter().map() cannot.
+      'unicorn/no-unnecessary-array-flat-map': 'off',
+      // Small helpers keep their inputs explicit even with one caller.
+      'unicorn/no-unnecessary-parameters': 'off',
+      // Conditions are ordered to narrow types for the ones after them.
+      'unicorn/prefer-simple-condition-first': 'off',
+      // Type aliases are declared at module level, beside the code they
+      // describe.
+      'unicorn/prefer-smaller-scope': 'off',
+    },
+  },
+  {
     files: ['src/**/*.ts', 'test/**/*.ts', 'test/**/*.mjs'],
     rules: {
       camelcase: 'off',
@@ -65,30 +79,11 @@ const config = [
     files: [
       'directus/extensions/directus-extension-data-operations/src/enrollment-lines.ts',
       'directus/flows/match-history-lines.cjs',
-      'src/import/labels.ts',
-      'src/import/pattern-proof.ts',
-      'src/workbook-enrollment-reader.ts',
       'test/curriculum-code.test.ts',
     ],
     rules: {
       'no-new': 'off',
       'security/detect-non-literal-regexp': 'off',
-    },
-  },
-  {
-    // The suites write and read workbooks, snapshots and screenshots at
-    // temporary or operator-named paths.
-    files: [
-      'test/fixtures/stress-snapshot.ts',
-      'test/import-cli.test.ts',
-      'test/operations-browser-helpers.mjs',
-      'test/operations.browser.mjs',
-      'test/relational/export-projection.integration.mjs',
-      'test/relational/snapshot-import-helpers.mjs',
-      'test/relational/snapshot-import.integration.mjs',
-    ],
-    rules: {
-      'security/detect-non-literal-fs-filename': 'off',
     },
   },
   {
@@ -105,58 +100,6 @@ const config = [
     files: ['test/expected-exports.ts'],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',
-    },
-  },
-  {
-    // The restore rehearsal runs Docker (the source project's own Compose
-    // recreate, the disposable restore database and one-off containers
-    // that fill and read the restore volumes), streams the dump and the
-    // uploads archive through it, and writes, verifies and removes the
-    // backup set and the override under the operator-named private backup
-    // directory; its manifest records when the backup was taken (Node 24
-    // ships no Temporal). The private root asks Git whether the
-    // operator-named backup directory lies in a repository.
-    files: ['test/restore-docker.mjs', 'test/restore-private-root.ts'],
-    rules: {
-      'security/detect-non-literal-fs-filename': 'off',
-      'sonarjs/no-os-command-from-path': 'off',
-    },
-  },
-  {
-    files: [
-      'test/restore-backup.mjs',
-      'test/restore-private-root.test.ts',
-      'test/restore-switch.mjs',
-      'test/restore-verify.mjs',
-    ],
-    rules: {
-      'security/detect-non-literal-fs-filename': 'off',
-    },
-  },
-  {
-    files: ['test/restore-backup.mjs'],
-    rules: {
-      'unicorn/prefer-temporal': 'off',
-    },
-  },
-  {
-    // The stress scenario reads the memory files of the fixture containers'
-    // cgroups, whose directory is named by the container id.
-    files: ['test/relational/stress-helpers.mjs'],
-    rules: {
-      'security/detect-non-literal-fs-filename': 'off',
-    },
-  },
-  {
-    // Node 24 ships no Temporal; the automatic processing and stress suites
-    // read the coordinator's timestamps to measure how long the schedule
-    // took.
-    files: [
-      'test/relational/automatic-processing-helpers.mjs',
-      'test/relational/stress-helpers.mjs',
-    ],
-    rules: {
-      'unicorn/prefer-temporal': 'off',
     },
   },
   {

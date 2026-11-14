@@ -62,7 +62,9 @@ describe('the pattern guard', () => {
       const refusal = refusalOf(() => handler(payload));
 
       expect(refusal.message).toBe(`Invalid pattern mapping: ${reason}`);
-      expect(refusal.extensions.field).toBe(reason.split(':', 1)[0]);
+      expect(refusal.extensions.field).toBe(
+        reason.includes(':') ? reason.slice(0, reason.indexOf(':')) : reason,
+      );
     }
   });
 

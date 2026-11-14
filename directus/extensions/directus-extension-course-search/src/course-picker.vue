@@ -86,7 +86,10 @@ async function keydown(event: KeyboardEvent) {
   open.value = true;
   const count = matches.value.length;
   if (!count) return;
-  activeIndex.value = (activeIndex.value + (event.key === 'ArrowDown' ? 1 : activeIndex.value < 0 ? 0 : -1) + count) % count;
+  let step = -1;
+  if (event.key === 'ArrowDown') step = 1;
+  else if (activeIndex.value < 0) step = 0;
+  activeIndex.value = (activeIndex.value + step + count) % count;
   await nextTick();
   virtualizer.value.scrollToIndex(activeIndex.value, { align: 'auto' });
 }
@@ -127,7 +130,7 @@ function add(value: unknown) {
           <template #append><v-icon name="search" /></template>
         </v-input>
       </template>
-      <p v-if="!matches.length" class="empty-options" role="status">No matching courses</p>
+      <output v-if="!matches.length" class="empty-options">No matching courses</output>
       <div ref="scrollElement" class="course-options-scroll">
         <v-list :id="`${id}-options`" role="listbox" :aria-labelledby="`${id}-label`" class="course-options" :style="{ height: `${totalSize}px` }">
           <li v-for="row in virtualRows" :key="String(row.key)" :ref="measureRow" :data-index="row.index"
@@ -163,7 +166,7 @@ h3 { margin-block-end: 8px; font-weight: 600; font-size: 16px; color: var(--them
 .course-option { position: absolute; inset-block-start: 0; inset-inline: 0; padding-block: 2px; }
 .course-option :deep(.v-list-item) { margin: 0; }
 .course-label { white-space: normal; overflow-wrap: anywhere; }
-.empty-options { padding: 8px 12px; margin: 0; color: var(--theme--foreground-subdued); }
+.empty-options { display: block; padding: 8px 12px; margin: 0; color: var(--theme--foreground-subdued); }
 .selected-courses button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; inline-size: 28px; block-size: 28px; border-radius: var(--theme--border-radius); color: var(--theme--foreground-subdued); cursor: pointer; }
 .selected-courses button:hover { background: var(--theme--background-accent); color: var(--theme--foreground-accent); }
 .selected-courses button:focus-visible { outline: 2px solid var(--theme--primary); outline-offset: 2px; }

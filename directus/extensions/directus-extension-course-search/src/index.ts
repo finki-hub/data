@@ -30,11 +30,14 @@ const optionsSchema = z.object({ data: z.array(z.string()) });
 
 export type Person = z.infer<typeof personSchema>;
 
+// The layout's state as its component reads it. The component changes
+// the criteria, page and sort only through the setters, never by writing
+// to the prop.
 export type SearchController = {
-  include: string[];
-  exclude: string[];
-  page: number;
-  sort: 'Name' | 'Courses Count' | '-Courses Count';
+  readonly include: string[];
+  readonly exclude: string[];
+  readonly page: number;
+  readonly sort: 'Name' | 'Courses Count' | '-Courses Count';
   readonly courses: string[];
   readonly people: Person[];
   readonly total: number;
@@ -50,6 +53,10 @@ export type SearchController = {
   readonly loadCourses: () => Promise<void>;
   readonly search: () => Promise<void>;
   readonly refresh: () => Promise<void>;
+  readonly setInclude: (courses: string[]) => void;
+  readonly setExclude: (courses: string[]) => void;
+  readonly setPage: (page: number) => void;
+  readonly setSort: (sort: SearchController['sort']) => void;
 };
 
 const layout = defineLayout({
@@ -178,6 +185,18 @@ const layout = defineLayout({
         search,
         reset,
         refresh,
+        setInclude: (value: string[]) => {
+          include.value = value;
+        },
+        setExclude: (value: string[]) => {
+          exclude.value = value;
+        },
+        setPage: (value: number) => {
+          page.value = value;
+        },
+        setSort: (value: SearchController['sort']) => {
+          sort.value = value;
+        },
         pages: computed(() => Math.max(1, Math.ceil(total.value / pageSize))),
         hasCriteria: computed(
           () => include.value.length + exclude.value.length > 0,

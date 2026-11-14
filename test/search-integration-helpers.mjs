@@ -23,8 +23,7 @@ const read = async (httpResponse, status) => {
       `${httpResponse.url} returned HTTP ${httpResponse.status}: ${body}`,
     );
   }
-  if (status === 204) return null;
-  return httpResponse.json();
+  return status === 204 ? null : httpResponse.json();
 };
 
 const json = (body, token = null) => ({

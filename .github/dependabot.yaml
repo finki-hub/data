@@ -7,6 +7,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # Vue stays at the exact version the Directus release ships (and
+    # @directus/types requires); it moves with a Directus upgrade.
+    ignore:
+      - dependency-name: "vue"
 
   - package-ecosystem: "npm"
     directory: "/directus/extensions/directus-extension-data-operations"
@@ -15,6 +19,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # Vue stays at the exact version the Directus release ships (and
+    # @directus/types requires); it moves with a Directus upgrade.
+    ignore:
+      - dependency-name: "vue"
 
   - package-ecosystem: "npm"
     directory: "/directus/extensions/directus-extension-course-search"
@@ -23,3 +31,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # Vue stays at the exact version the Directus release ships (and
+    # @directus/types requires); it moves with a Directus upgrade.
+    ignore:
+      - dependency-name: "vue"

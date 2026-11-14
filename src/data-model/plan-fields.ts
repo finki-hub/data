@@ -53,14 +53,11 @@ const columnRefusal = (
     return { expected: 'required', live: 'nullable' };
   }
   const foreignTable = existing.schema.foreign_key_table ?? null;
-  if (
-    field.kind === 'm2o' &&
+  return field.kind === 'm2o' &&
     foreignTable !== null &&
     foreignTable !== field.related
-  ) {
-    return { expected: field.related, live: `references ${foreignTable}` };
-  }
-  return null;
+    ? { expected: field.related, live: `references ${foreignTable}` }
+    : null;
 };
 
 const wantsUnique = (field: ModelField): boolean =>

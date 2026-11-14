@@ -201,7 +201,7 @@ const fingerprintPattern = /^[\da-f]{64}$/u;
 export const promoteOptionsSchema = z.object({
   allow_empty: z
     .preprocess(flag, z.boolean().optional())
-    .transform((value) => value ?? false),
+    .transform((value = false) => value),
   confirm_replace: z.preprocess(flag, z.literal(true)),
   staging_fingerprint: z.preprocess(
     blank,
