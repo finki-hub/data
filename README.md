@@ -81,8 +81,11 @@ The model is declared in `src/data-model/` and installed by
 `npm run setup`. The main collections:
 
 - **Courses** (`courses`): name, English name (the official one from FINKI's
-  English subject pages, published as `name-en`), abbreviation, tags and
-  teaching status.
+  English subject pages, published as `name-en`), abbreviation, tags,
+  teaching status and the syllabus: degree cycle, objectives and content in
+  Macedonian and English, from FINKI's subject page of the course's 2023
+  curriculum entry (2018 for a course with none). The syllabus is in the API,
+  not in `courses.json`.
   Their curriculum lives in **Curriculum links** (`course_curricula`, one
   per generation), their staff in **Teaching staff**
   (`teaching_assignments`), their Discord channels in

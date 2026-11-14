@@ -28,6 +28,16 @@ const statusLabels = {
 
 const statusChoices = labelledChoices(courseStatuses, statusLabels);
 
+// The study cycle of FINKI's subject page (field 5), so second-cycle
+// courses can join later.
+export const degreeCycles = ['first', 'second', 'third'] as const;
+
+const degreeCycleChoices = labelledChoices(degreeCycles, {
+  first: 'First cycle',
+  second: 'Second cycle',
+  third: 'Third cycle',
+});
+
 // What the two statuses that replace names publish.
 const statusNote = `${statusLabels.all_professors} publishes "${teachingTexts.allProfessors}" as professors. ${statusLabels.inactive} publishes "${teachingTexts.inactive}" as professors and assistants.`;
 
@@ -63,6 +73,13 @@ export const contentCollections: readonly ModelCollection[] = [
         nullable: false,
       }),
       scalar('tags', 'string', { label: 'Tags' }),
+      // From FINKI's subject page of the course's 2023 curriculum entry
+      // (2018 when it has none), Macedonian and English.
+      enumField('degree_cycle', degreeCycleChoices, { label: 'Degree cycle' }),
+      scalar('objectives', 'text', { label: 'Objectives' }),
+      scalar('objectives_en', 'text', { label: 'English objectives' }),
+      scalar('content', 'text', { label: 'Content' }),
+      scalar('content_en', 'text', { label: 'English content' }),
     ],
     hidden: false,
     icon: 'school',

@@ -48,6 +48,21 @@ export const fieldGroups: readonly FieldGroup[] = [
     sort: 5,
     start: 'open',
   },
+  {
+    collection: 'courses',
+    field: 'syllabus',
+    headerIcon: 'description',
+    label: 'Syllabus',
+    members: [
+      'degree_cycle',
+      'objectives',
+      'objectives_en',
+      'content',
+      'content_en',
+    ],
+    sort: 6,
+    start: 'open',
+  },
   // The history line form: the exact label and when the index first saw
   // it, the explicit mappings of the line, the courses and years it is
   // counted for, then the derived users; the last two read-only.

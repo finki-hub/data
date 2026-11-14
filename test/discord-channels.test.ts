@@ -83,6 +83,11 @@ describe('the Discord channels', () => {
       'abbreviation',
       'status',
       'tags',
+      'degree_cycle',
+      'objectives',
+      'objectives_en',
+      'content',
+      'content_en',
     ]);
 
     const [channel, course] = findCollection('discord_channel_courses').fields;
