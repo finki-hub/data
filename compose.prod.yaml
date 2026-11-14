@@ -10,6 +10,8 @@ name: directus
 #                STORAGE_R2_BUCKET (the R2 bucket holding uploaded files)
 #   sso.env      AUTH_GITHUB_CLIENT_ID/_SECRET and AUTH_GOOGLE_CLIENT_ID/_SECRET
 #                (the "Directus" GitHub OAuth app and Google OAuth client)
+#   moodle-sync.env  FINKI_HUB_DATA_TOKEN (the "Moodle sync" admin user),
+#                COURSES_CAS_USERNAME and COURSES_CAS_PASSWORD
 services:
   directus:
     # Built by CI from this repository (Directus, CSV-import patch,
@@ -109,6 +111,24 @@ services:
       timeout: 5s
       retries: 10
 
+  # The weekly Moodle snapshot refresh, run by deploy/directus-moodle-sync.timer
+  # and never started with the stack: courses-scraper scrapes the new Moodle
+  # instance over the newest export in "Moodle snapshots (private)", uploads
+  # the result there and runs "Data / Import Moodle snapshot".
+  moodle-sync:
+    image: ghcr.io/finki-hub/courses-scraper:latest
+    profiles: [jobs]
+    pull_policy: always
+    env_file:
+      - path: ./moodle-sync.env
+        required: true
+    environment:
+      FINKI_HUB_DATA_URL: http://directus:8055
+    volumes:
+      # Resumable checkpoints of an interrupted scrape.
+      - moodle-sync:/app/output
+
 volumes:
   uploads:
   db:
+  moodle-sync:
