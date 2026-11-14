@@ -8,15 +8,25 @@ import { before, test } from 'node:test';
 // loopback and is written to, so it is named explicitly and never a
 // project holding data.
 
-const targetUrl = process.env.DIRECTUS_INTEGRATION_URL;
-const token = process.env.DIRECTUS_INTEGRATION_TOKEN;
-assert.ok(targetUrl, 'Set DIRECTUS_INTEGRATION_URL to a disposable Directus');
-assert.ok(token, 'Set DIRECTUS_INTEGRATION_TOKEN to its admin token');
-const base = new URL(targetUrl);
-assert.ok(
-  ['127.0.0.1', '[::1]', 'localhost'].includes(base.hostname),
-  'DIRECTUS_INTEGRATION_URL must be loopback-only',
-);
+const loopbackHosts = new Set(['127.0.0.1', '[::1]', 'localhost']);
+
+// The explicit, loopback-only target, refused before anything is sent.
+const targetOf = (environment) => {
+  const url = environment.DIRECTUS_INTEGRATION_URL;
+  const adminToken = environment.DIRECTUS_INTEGRATION_TOKEN;
+  if (!url || !adminToken) {
+    throw new Error(
+      'Set DIRECTUS_INTEGRATION_URL and DIRECTUS_INTEGRATION_TOKEN to a disposable Directus',
+    );
+  }
+  const target = new URL(url);
+  if (!loopbackHosts.has(target.hostname)) {
+    throw new Error('DIRECTUS_INTEGRATION_URL must be loopback-only');
+  }
+  return { base: target, token: adminToken };
+};
+
+const { base, token } = targetOf(process.env);
 
 const call = (path, init = {}, auth = true) => {
   const headers = new Headers(init.headers);
