@@ -83,10 +83,27 @@ describe('the plain legacy files', () => {
     expect(files.get('other.pdf')).toBeUndefined();
   });
 
-  test('refuses two sessions publishing the same file name', () => {
+  test('lets two sessions share one schedule file', async () => {
+    const sharedName = 'jun_sep.xlsx';
+    const shared = {
+      file: { filename_download: sharedName, id: 'file-1' },
+      id: 2,
+      name: 'Септември',
+    };
+    const rows = [session(1, 'Јуни', sharedName), shared];
+    const file = await buildPlainFile(examSessions, readerOf(rows));
+
+    expect(JSON.parse(file.body)).toEqual({
+      Јуни: sharedName,
+      Септември: sharedName,
+    });
+    expect(sessionFiles(rows).get(sharedName)?.id).toBe('file-1');
+  });
+
+  test('refuses two different files under one file name', () => {
     expect(() =>
       sessionFiles([session(1, 'A', 'same.pdf'), session(2, 'B', 'same.pdf')]),
-    ).toThrow('file name same.pdf is used twice');
+    ).toThrow('two files are named same.pdf');
   });
 
   test('refuses a session without a file', () => {
