@@ -143,11 +143,11 @@ button with no code change.
 ## Deployment
 
 CI builds and pushes `ghcr.io/finki-hub/data` on every push, and weekly so
-new Directus releases arrive without a commit. `compose.prod.yaml` runs it
-with PostgreSQL; its settings come from the environment (`SECRET`,
-`ADMIN_TOKEN`, `POSTGRES_PASSWORD`, `LICENSE_KEY`, `PUBLIC_URL`, SMTP and
-the `STORAGE_R2_*` key of the R2 bucket that holds uploaded files), never
-from this repository. On the `finki-hub` host, Caddy proxies
+new Directus 12 releases arrive without a commit (a new major version only
+by changing the `FROM` line of the `Dockerfile`). `compose.prod.yaml`, the
+host's compose file, runs it with PostgreSQL; its secrets come from env
+files beside it (`secrets.env`, `licence.env` and `storage.env`, listed
+in the file), never from this repository. On the `finki-hub` host, Caddy proxies
 `data.finki-hub.com` to it.
 
 To deploy a change:
@@ -190,6 +190,13 @@ derived, staging or status) is declared once in
 | `npm run generate:invalidation` | Rewrite `source-invalidation.sql` from the collection roles. |
 | `npm run setup` | Install the model, migrations, presentation, Flows and dashboard into a running Directus. |
 | `npm run brand` | Apply the branding. |
+
+`npm run test:integration` runs setup's result end to end (the public and
+private reads, every `/legacy` file) against a disposable Directus on
+loopback named by `DIRECTUS_INTEGRATION_URL` and
+`DIRECTUS_INTEGRATION_TOKEN`. CI runs it on `main` and on this
+repository's pull requests: it starts the development compose project with
+the `DIRECTUS_LICENSE_KEY` secret, runs setup twice and then the tests.
 
 `npm run test:search` and `npm run test:csv` run against a disposable,
 licensed Directus on loopback (never a project holding data), named by

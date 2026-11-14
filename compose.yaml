@@ -34,6 +34,8 @@ services:
       DB_USER: directus
       HOST: 0.0.0.0
       IMPORT_TIMEOUT: ${DIRECTUS_IMPORT_TIMEOUT:-15m}
+      # The model has more collections than an unlicensed Directus allows.
+      LICENSE_KEY: ${DIRECTUS_LICENSE_KEY:-}
       MAX_PAYLOAD_SIZE: 10mb
       PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
       SECRET: ${DIRECTUS_SECRET:-replace-this-local-secret-with-32-bytes}
@@ -41,6 +43,12 @@ services:
       STORAGE_LOCAL_ROOT: ./uploads
       STORAGE_LOCATIONS: local
       TELEMETRY: false
+    healthcheck:
+      test: [CMD-SHELL, wget -qO- http://127.0.0.1:8055/server/ping || exit 1]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     ports:
       - 127.0.0.1:${DIRECTUS_PORT:-8055}:8055
     volumes:

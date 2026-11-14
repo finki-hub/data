@@ -12,7 +12,9 @@ COPY directus/extensions/directus-extension-data-operations/src ./data-operation
 COPY directus/extensions/directus-extension-course-search/src ./course-search/src
 RUN npm run build --prefix data-operations && npm run build --prefix course-search
 
-FROM directus/directus:latest
+# The newest Directus 12 release: minor and patch releases arrive with the
+# weekly rebuild, a new major only by changing this line.
+FROM directus/directus:12
 
 COPY --chown=node:node directus/patch-csv-import.cjs /directus/patch-csv-import.cjs
 RUN node /directus/patch-csv-import.cjs && rm /directus/patch-csv-import.cjs

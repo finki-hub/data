@@ -1,87 +1,90 @@
-name: finki-hub-data
+name: directus
 
+# The production deployment on the finki-hub host (data.finki-hub.com, behind
+# Caddy and Cloudflare). The secrets are env files beside this file, never in
+# the repository:
+#   secrets.env  SECRET, ADMIN_EMAIL, ADMIN_TOKEN, DB_PASSWORD,
+#                POSTGRES_PASSWORD and the EMAIL_* SMTP settings
+#   licence.env  LICENSE_KEY
+#   storage.env  STORAGE_R2_KEY, STORAGE_R2_SECRET, STORAGE_R2_ENDPOINT,
+#                STORAGE_R2_BUCKET (the R2 bucket holding uploaded files)
 services:
   directus:
+    # Built by CI from this repository (Directus, CSV-import patch,
+    # extensions); Watchtower pulls new versions.
     image: ghcr.io/finki-hub/data:latest
     restart: unless-stopped
     depends_on:
-      database:
+      db:
         condition: service_healthy
+    ports:
+      - 127.0.0.1:8055:8055
+    env_file:
+      - path: ./secrets.env
+        required: true
+      - path: ./licence.env
+        required: true
+      - path: ./storage.env
+        required: true
     environment:
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ADMIN_TOKEN: ${ADMIN_TOKEN}
-      CACHE_ENABLED: "false"
-      CORS_CREDENTIALS: "false"
-      CORS_ENABLED: "true"
-      CORS_ORIGIN: "*"
-      DB_CLIENT: pg
-      DB_DATABASE: directus
-      DB_HOST: database
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_PORT: 5432
-      DB_USER: directus
-      EMAIL_FROM: ${EMAIL_FROM:-}
-      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
-      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD:-}
-      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-587}
-      EMAIL_SMTP_SECURE: ${EMAIL_SMTP_SECURE:-false}
-      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER:-}
-      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-sendmail}
+      PUBLIC_URL: https://data.finki-hub.com
       HOST: 0.0.0.0
+      DB_CLIENT: pg
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: directus
+      DB_USER: directus
       IMPORT_TIMEOUT: 15m
-      IP_CUSTOM_HEADER: ${IP_CUSTOM_HEADER:-false}
-      LICENSE_KEY: ${LICENSE_KEY}
       MAX_PAYLOAD_SIZE: 10mb
-      PUBLIC_URL: ${PUBLIC_URL}
-      RATE_LIMITER_DURATION: 1
-      RATE_LIMITER_ENABLED: "true"
-      RATE_LIMITER_POINTS: 50
-      RATE_LIMITER_STORE: memory
-      REFRESH_TOKEN_COOKIE_SECURE: "true"
-      RETENTION_ENABLED: "true"
-      SECRET: ${SECRET}
-      SESSION_COOKIE_SECURE: "true"
-      # Uploads go to R2 (the first location); files uploaded before stay
-      # in the local volume.
-      STORAGE_LOCAL_DRIVER: local
-      STORAGE_LOCAL_ROOT: ./uploads
+      # Uploads go to R2 (the first location, under directus/); files uploaded
+      # before stay in the local volume.
       STORAGE_LOCATIONS: r2,local
-      STORAGE_R2_BUCKET: ${STORAGE_R2_BUCKET}
       STORAGE_R2_DRIVER: s3
-      STORAGE_R2_ENDPOINT: ${STORAGE_R2_ENDPOINT}
-      STORAGE_R2_KEY: ${STORAGE_R2_KEY}
       STORAGE_R2_REGION: auto
       STORAGE_R2_ROOT: directus
-      STORAGE_R2_SECRET: ${STORAGE_R2_SECRET}
+      STORAGE_LOCAL_DRIVER: local
+      STORAGE_LOCAL_ROOT: ./uploads
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: "*"
+      CORS_CREDENTIALS: "false"
+      RATE_LIMITER_ENABLED: "true"
+      RATE_LIMITER_STORE: memory
+      RATE_LIMITER_POINTS: 50
+      RATE_LIMITER_DURATION: 1
+      CACHE_ENABLED: "false"
+      RETENTION_ENABLED: "true"
       TELEMETRY: "false"
+      SESSION_COOKIE_SECURE: "true"
+      REFRESH_TOKEN_COOKIE_SECURE: "true"
+      # The client address as Cloudflare reports it, for the rate limiter.
+      IP_CUSTOM_HEADER: cf-connecting-ip
       WEBSOCKETS_ENABLED: "false"
+      LOG_LEVEL: info
+    volumes:
+      - uploads:/directus/uploads
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8055/server/ping || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 60s
-    ports:
-      - 127.0.0.1:${DIRECTUS_PORT:-8055}:8055
-    volumes:
-      - uploads:/directus/uploads
 
-  database:
+  db:
     image: postgres:18-alpine
     restart: unless-stopped
+    env_file:
+      - ./secrets.env
     environment:
-      POSTGRES_DB: directus
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_USER: directus
+      POSTGRES_DB: directus
+    volumes:
+      - db:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U directus -d directus"]
       interval: 10s
       timeout: 5s
       retries: 10
-    volumes:
-      - database:/var/lib/postgresql
 
 volumes:
-  database:
   uploads:
+  db:
