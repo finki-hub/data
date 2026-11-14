@@ -31,6 +31,7 @@
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:browsers": "playwright install --with-deps chromium",
     "test:integration": "node --import tsx --test test/deployment.integration.ts",
     "test:csv": "node --import tsx --test test/directus-csv-import.integration.ts",
     "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.ts"
