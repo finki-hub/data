@@ -4,9 +4,13 @@
 -- transaction as the edit, so a rolled-back edit marks nothing and a
 -- committed edit becomes visible together with its mark. Nothing here
 -- calculates, maps or dispatches a Flow. Derived, staging and status tables
--- (moodle_history_memberships, course_enrollments, moodle_counted_lines,
--- moodle_import_rows, data_operations, data_operation_matches, directus_*)
--- carry no trigger.
+-- (staff, rooms, students, curriculum_entries, course_curricula,
+-- curriculum_generations, study_programs, curriculum_entry_program_states,
+-- teaching_assignments, student_council, course_equivalencies,
+-- course_equivalency_members, discord_channels, discord_channel_courses,
+-- deans_office, moodle_history_memberships, course_enrollments,
+-- moodle_counted_lines, moodle_import_rows, data_operations,
+-- data_operation_matches, directus_*) carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
 -- a mapping to another course or year, and any DELETE, marks the domain,
@@ -42,13 +46,8 @@ DECLARE
   affected text[];
 BEGIN
   affected := CASE TG_TABLE_NAME
-    WHEN 'courses' THEN ARRAY['enrollments', 'publication']
-    WHEN 'moodle_users' THEN ARRAY['history_index', 'enrollments', 'publication']
-    WHEN 'moodle_course_entries' THEN ARRAY['enrollments', 'publication']
-    WHEN 'moodle_course_mappings' THEN ARRAY['enrollments', 'publication']
-    WHEN 'moodle_pattern_mappings' THEN ARRAY['enrollments', 'publication']
-    WHEN 'academic_years' THEN ARRAY['enrollments', 'publication']
-    ELSE ARRAY['publication']
+    WHEN 'moodle_users' THEN ARRAY['history_index', 'enrollments']
+    ELSE ARRAY['enrollments']
   END;
   -- Deleting a history entry cascades its memberships away, and a label
   -- edited by hand (the label belongs to the index writer, which only
@@ -60,8 +59,7 @@ BEGIN
   END IF;
   -- A calculation's input revision moves with every statement that marks
   -- it or an upstream domain, so a run of it is overtaken (and a failure
-  -- of it lifted) by those statements only, never by a publication-only
-  -- edit; publication follows the source revision itself.
+  -- of it lifted) by those statements only.
   UPDATE "data_operations" SET
     "source_revision" = "source_revision" + 1,
     "requested_revision" = "source_revision" + 1,
@@ -69,7 +67,7 @@ BEGIN
     "enrollments_input_revision" = CASE WHEN affected && ARRAY['history_index', 'enrollments'] THEN "source_revision" + 1 ELSE "enrollments_input_revision" END,
     "dirty_domains" = (
       SELECT COALESCE(json_agg(domain ORDER BY position), '[]'::json)
-      FROM unnest(ARRAY['history_index', 'enrollments', 'publication']) WITH ORDINALITY AS known(domain, position)
+      FROM unnest(ARRAY['history_index', 'enrollments']) WITH ORDINALITY AS known(domain, position)
       WHERE domain = ANY(affected)
         OR EXISTS (
           SELECT 1
@@ -87,36 +85,6 @@ END
 $$
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "courses" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "staff" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "rooms" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "students" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_entries" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_curricula" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_generations" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "study_programs" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "curriculum_entry_program_states" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "teaching_assignments" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "student_council" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_equivalencies" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "course_equivalency_members" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "discord_channels" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "discord_channel_courses" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
-;
-CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "deans_office" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;
 CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "academic_years" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()
 ;

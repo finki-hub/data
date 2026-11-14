@@ -14,7 +14,6 @@ import { normaliseDomains } from './domains.js';
 import { touchesInputs } from './failures.js';
 import { fingerprintsOfGraph, graphRowsSchema } from './fingerprint.js';
 import { historySqlPort } from './history-sql.js';
-import { releasedPublicationState } from './outcomes.js';
 import { affected, first, json, matched, openGuard, run } from './sql-run.js';
 import { stateRow, toState } from './sql-state.js';
 import {
@@ -27,7 +26,6 @@ import {
   lockWaitSql,
   markSql,
   planSql,
-  recordSql,
   releaseSql,
   retriesSql,
   stagedSql,
@@ -96,15 +94,12 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   finish: (input) =>
     matched(client, finishSql, [
       json(input.dirtyDomains),
-      input.files === null ? null : json(input.files),
       input.token,
       input.owner,
       input.claimRevision,
-      input.superseded,
       input.fingerprint,
     ]),
-  heartbeat: (token, owner, leaseMs = 0) =>
-    matched(client, heartbeatSql, [leaseMs, token, owner]),
+  heartbeat: (token, owner) => matched(client, heartbeatSql, [token, owner]),
   history: historySqlPort(client),
   insertCandidates: async (input: StagedRows) => {
     await openGuard(client, 'data_operation_matches');
@@ -143,29 +138,14 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
   },
   readState: async (lock): Promise<OperationsState> =>
     toState(stateRow.parse(await first(client, stateSql(lock)))),
-  recordOutcomes: (token, owner, files) =>
-    matched(client, recordSql, [json(files), token, owner]),
   recordStagedPage: (token, owner, page) =>
     matched(client, stagedSql, [page, token, owner]),
-  // Every caller holds the singleton lock: the row read here is the one
-  // the release updates.
-  release: async (input: ReleaseInput) => {
-    const { claim, publicationOutcomes } = toState(
-      stateRow.parse(await first(client, stateSql(false))),
-    );
-    const files = input.files ?? null;
-    return matched(client, releaseSql, [
+  release: (input: ReleaseInput) =>
+    matched(client, releaseSql, [
       input.code,
       input.message ?? null,
-      releasedPublicationState(
-        input.failed,
-        files ?? publicationOutcomes,
-        claim?.revision ?? null,
-      ),
-      files === null ? null : json(files),
       input.token,
-    ]);
-  },
+    ]),
   sourceIds: async (source: PageSource) => {
     const result = await run(
       client,
@@ -182,7 +162,6 @@ export const sqlPort = (client: SqlClient): CoordinationPort => ({
       input.domain,
       input.fingerprint,
       json(normaliseDomains(input.dirtyDomains)),
-      input.domain,
       input.sourceRevision,
     ]),
 });

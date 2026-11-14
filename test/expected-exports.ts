@@ -9,8 +9,7 @@ import { z } from 'zod';
 // exact text. Bytes, digests, layout, key order and row order are not
 // compared; the engine's own tests cover those. A change to the published
 // data edits these values by hand and never regenerates them from the
-// engine. enrollments.json holds the count of every "<course>/<academic
-// year>" and council.json the student name of every council membership.
+// engine.
 
 const directory = path.join(
   import.meta.dirname,
@@ -18,22 +17,17 @@ const directory = path.join(
   'expected-exports',
 );
 
-export const publicFileNames = [
-  'courses',
-  'rooms',
-  'staff',
-  'students',
-] as const;
+export const publicFileNames = ['courses', 'rooms', 'staff'] as const;
 
 export type PublicFileName = (typeof publicFileNames)[number];
 
 export type PublicRow = Readonly<Record<string, string>>;
 
-// The cases that hold all four public files.
+// The cases that hold all three public files.
 const fullCases = ['parity', 'synthetic'] as const;
 
-// The cases whose rooms, staff and students equal parity's: each holds
-// its courses.json alone and takes the other three from parity.
+// The cases whose rooms and staff equal parity's: each holds its
+// courses.json alone and takes the other two from parity.
 const coursesCases = ['renamed-current', 'unmatched-legacy'] as const;
 
 export type ExportCase =
@@ -46,19 +40,13 @@ export const exportCases: readonly ExportCase[] = [
   ...coursesCases,
 ];
 
-// The cases that hold enrollments.json.
-const enrollmentCases = ['synthetic'] as const;
-
-type EnrollmentCase = (typeof enrollmentCases)[number];
-
 // The keys that pair a published row with its expected row: a course and
-// a staff member by name, a room by location and name (room names repeat)
-// and a student by index (indexes repeat).
+// a staff member by name, and a room by location and name (room names
+// repeat).
 const matchKeys: Readonly<Record<PublicFileName, readonly string[]>> = {
   courses: ['name'],
   rooms: ['location', 'name'],
   staff: ['name'],
-  students: ['index'],
 };
 
 // Code-unit order: total and independent of the locale.
@@ -98,7 +86,6 @@ export const filesData = (
   courses: asData('courses', files.courses),
   rooms: asData('rooms', files.rooms),
   staff: asData('staff', files.staff),
-  students: asData('students', files.students),
 });
 
 // A committed file's text, by its case/file path.
@@ -125,7 +112,7 @@ export const committedFiles = async (): Promise<readonly string[]> => {
 };
 
 // Where a case's public file is committed: in its own directory, or in
-// parity's for the rooms, staff and students of a courses-only case.
+// parity's for the rooms and staff of a courses-only case.
 export const casePath = (name: ExportCase, file: PublicFileName): string => {
   const holder = file === 'courses' || holdsAll.has(name) ? name : 'parity';
   return `${holder}/${file}.json`;
@@ -138,8 +125,6 @@ export const oracleFiles: readonly string[] = [
       publicFileNames.map((file) => casePath(name, file)),
     ),
     ...publicFileNames.map((file) => `keys/${file}.json`),
-    ...enrollmentCases.map((name) => `${name}/enrollments.json`),
-    'synthetic/council.json',
   ]),
 ].toSorted(byText);
 
@@ -152,7 +137,7 @@ export const expectedRows = async (
 ): Promise<readonly PublicRow[]> =>
   rowsSchema.parse(await committedJson(casePath(name, file)));
 
-// The four public files of a case as data.
+// The three public files of a case as data.
 export const expectedData = async (
   name: ExportCase,
 ): Promise<Record<PublicFileName, PublicRow[]>> =>
@@ -160,7 +145,6 @@ export const expectedData = async (
     courses: await expectedRows(name, 'courses'),
     rooms: await expectedRows(name, 'rooms'),
     staff: await expectedRows(name, 'staff'),
-    students: await expectedRows(name, 'students'),
   });
 
 // The keys of each public file (the fifteen synthetic years and both
@@ -170,20 +154,3 @@ export const expectedKeys = async (
   file: PublicFileName,
 ): Promise<readonly string[]> =>
   z.array(z.string().min(1)).parse(await committedJson(`keys/${file}.json`));
-
-// The counts of a case keyed "<course>/<academic year>".
-export const expectedEnrollments = async (
-  name: EnrollmentCase,
-): Promise<Readonly<Record<string, number>>> =>
-  z
-    .record(z.string(), z.number().int().nonnegative())
-    .parse(await committedJson(`${name}/enrollments.json`));
-
-// The student name of every council membership of the synthetic dataset:
-// the first student row carrying the member's index.
-export const expectedCouncil = async (): Promise<
-  ReadonlyArray<{ readonly id: number; readonly name: null | string }>
-> =>
-  z
-    .array(z.object({ id: z.number().int(), name: z.string().nullable() }))
-    .parse(await committedJson('synthetic/council.json'));

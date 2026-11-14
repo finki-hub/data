@@ -113,8 +113,12 @@ const provenCollections: ReadonlySet<string> = new Set([
 // moodle_course_mappings and that comment reverted, it hashes to the
 // earlier
 // fb51bf2ad9b6a504b7262b7eb20e75249582ab8f798156825086f7d00229022c.
+// Retiring publication (2026-11-14) made the tables that marked it alone
+// content tables without a trigger and the enrollment counts the default
+// domain: with publication declared again, it hashes to the earlier
+// 36692985aecb5d66c28fd6c6c0ac280b7351164cfaa06e0ba909bef7c4c90883.
 const provenSha256 =
-  '36692985aecb5d66c28fd6c6c0ac280b7351164cfaa06e0ba909bef7c4c90883';
+  '6daceeba60ea63e88ee1dc085229f3a97edce77a2bbc9c271f46929470e0ba65';
 
 // The statements the migration of a registry holds: the singleton row, its
 // index and the trigger function, then the triggers of every source (its
@@ -173,33 +177,6 @@ const invalidOptions: readonly unknown[] = [
     token: uuid,
   },
   { action: 'complete' },
-  {
-    action: 'complete',
-    files: { courses: { outcome: 'uploaded' } },
-    token: uuid,
-  },
-  {
-    action: 'complete',
-    files: { '../x.json': { outcome: 'uploaded' } },
-    token: uuid,
-  },
-  {
-    action: 'fail',
-    code: 'X',
-    files: { 'a.json': { code: 'X'.repeat(65), outcome: 'failed' } },
-    token: uuid,
-  },
-  { action: 'complete', files: { 'a.json': 'uploaded' }, token: uuid },
-  {
-    action: 'complete',
-    files: Object.fromEntries(
-      Array.from({ length: 65 }, (_, index) => [
-        `f${index}.json`,
-        { outcome: 'uploaded' },
-      ]),
-    ),
-    token: uuid,
-  },
   { action: 'fail', code: 'has space', token: uuid },
   { action: 'fail', code: 'x'.repeat(65), token: uuid },
 ];
@@ -295,20 +272,15 @@ describe('option contract', () => {
       'complete',
       'fail',
       'heartbeat',
-      'record',
       'status',
     ]);
     // The Studio form lists the zod-free declaration; both are one list.
     expect(coordinatorActions).toEqual([...coordinatorActionNames]);
 
     const blanks = {
-      bytes: '',
       code: null,
       domain: null,
       domains: null,
-      filename: null,
-      files: '',
-      outcome: null,
       page: null,
       retry: null,
       rows: null,
@@ -330,17 +302,17 @@ describe('option contract', () => {
       parseCoordinatorInput({
         ...blanks,
         action: 'claim',
-        domain: 'publication',
+        domain: 'history_index',
         retry: 'true',
       }),
-    ).toEqual({ action: 'claim', domain: 'publication', retry: true });
+    ).toEqual({ action: 'claim', domain: 'history_index', retry: true });
     expect(
       parseCoordinatorInput({
         ...blanks,
         action: 'mark',
-        domains: '["publication","enrollments"]',
+        domains: '["enrollments","history_index"]',
       }),
-    ).toEqual({ action: 'mark', domains: ['publication', 'enrollments'] });
+    ).toEqual({ action: 'mark', domains: ['enrollments', 'history_index'] });
     expect(
       parseCoordinatorInput({
         ...blanks,
@@ -370,20 +342,9 @@ describe('option contract', () => {
       parseCoordinatorInput({
         ...blanks,
         action: 'complete',
-        files: {
-          'courses.json': { bytes: 2, outcome: 'uploaded' },
-          'rooms.json': { code: 'PUBLISH_UPLOAD_FAILED', outcome: 'failed' },
-        },
         token: uuid,
       }),
-    ).toEqual({
-      action: 'complete',
-      files: {
-        'courses.json': { bytes: 2, outcome: 'uploaded' },
-        'rooms.json': { code: 'PUBLISH_UPLOAD_FAILED', outcome: 'failed' },
-      },
-      token: uuid,
-    });
+    ).toEqual({ action: 'complete', token: uuid });
     expect(
       parseCoordinatorInput({
         ...blanks,
@@ -400,38 +361,6 @@ describe('option contract', () => {
     expect(
       parseCoordinatorInput({ ...blanks, action: 'heartbeat', token: uuid }),
     ).toEqual({ action: 'heartbeat', token: uuid });
-    expect(
-      parseCoordinatorInput({
-        ...blanks,
-        action: 'record',
-        bytes: 5_439,
-        filename: 'courses.json',
-        outcome: 'uploaded',
-        token: uuid,
-      }),
-    ).toEqual({
-      action: 'record',
-      bytes: 5_439,
-      filename: 'courses.json',
-      outcome: 'uploaded',
-      token: uuid,
-    });
-    expect(
-      parseCoordinatorInput({
-        ...blanks,
-        action: 'record',
-        code: 'PUBLISH_UPLOAD_FAILED',
-        filename: 'rooms.json',
-        outcome: 'failed',
-        token: uuid,
-      }),
-    ).toEqual({
-      action: 'record',
-      code: 'PUBLISH_UPLOAD_FAILED',
-      filename: 'rooms.json',
-      outcome: 'failed',
-      token: uuid,
-    });
   });
 
   test('rejects unknown actions, arbitrary names, malformed tokens and bad rows as a 400', () => {
@@ -474,7 +403,7 @@ describe('source-invalidation migration', () => {
 
     expect(proven).toHaveLength(provenCollections.size);
     expect(sha256(golden)).toBe(provenSha256);
-    expect(goldenStatements).toHaveLength(23);
+    expect(goldenStatements).toHaveLength(9);
 
     for (const statement of goldenStatements) {
       expect(statement).not.toMatch(dropPattern);
@@ -555,10 +484,10 @@ describe('source-invalidation migration', () => {
     ]);
   });
 
-  test('maps every source to its domains inside the trigger function, publication being the default', () => {
+  test('maps every source to its domains inside the trigger function, enrollments being the default', () => {
     const functionStatement = functionOf(statements);
     const listed = tableDomains.filter(
-      ([, domains]) => domains.join(',') !== 'publication',
+      ([, domains]) => domains.join(',') !== 'enrollments',
     );
 
     expect(functionStatement).toContain(
@@ -570,7 +499,7 @@ describe('source-invalidation migration', () => {
     expect(functionStatement).toContain(
       '"requested_revision" = "source_revision" + 1',
     );
-    expect(functionStatement).toContain("ELSE ARRAY['publication']");
+    expect(functionStatement).toContain("ELSE ARRAY['enrollments']");
     expect(functionStatement).toContain(
       "RAISE EXCEPTION 'Change to % refused: data_operations status row missing', TG_TABLE_NAME;",
     );
@@ -580,7 +509,7 @@ describe('source-invalidation migration', () => {
     );
 
     const defaults = tableDomains.filter(
-      ([, domains]) => domains.join(',') === 'publication',
+      ([, domains]) => domains.join(',') === 'enrollments',
     );
 
     for (const [table, domains] of listed) {
@@ -628,7 +557,6 @@ describe('source-invalidation migration', () => {
       'last_failed_domain',
       'last_failed_fingerprint',
       'calculation_fingerprint',
-      'publication_fingerprint',
     ]) {
       expect(fields).toContain(column);
     }
@@ -644,7 +572,7 @@ describe('a registry that declares one more collection', () => {
   test('gives a test-only extra source exactly one more trigger and nothing else', () => {
     const plain = withExtra({
       collection: 'synthetic_extra_source',
-      invalidates: ['publication'],
+      invalidates: ['enrollments'],
       role: 'source',
     });
 
@@ -660,16 +588,16 @@ describe('a registry that declares one more collection', () => {
       'CREATE OR REPLACE TRIGGER "finki_hub_source_invalidation" AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "synthetic_extra_source" FOR EACH STATEMENT EXECUTE FUNCTION "finki_hub_source_invalidation"()',
     ]);
 
-    // A source that feeds a calculation gets its arm in the function too.
+    // A source that feeds the history index gets its arm in the function too.
     const counted = withExtra({
       collection: 'synthetic_extra_input',
-      invalidates: ['enrollments', 'publication'],
+      invalidates: ['history_index', 'enrollments'],
       role: 'source',
     });
 
     expect(counted).toHaveLength(statements.length + 1);
     expect(functionOf(counted)).toContain(
-      "WHEN 'synthetic_extra_input' THEN ARRAY['enrollments', 'publication']",
+      "WHEN 'synthetic_extra_input' THEN ARRAY['history_index', 'enrollments']",
     );
     expect(triggerTablesOf(counted).at(-1)).toBe('synthetic_extra_input');
 

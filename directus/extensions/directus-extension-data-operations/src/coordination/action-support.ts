@@ -1,6 +1,5 @@
-import type { StoredOutcomes } from './outcomes.js';
 import type { CoordinationPort, CoordinationStore } from './port.js';
-import type { Claim, OperationsState } from './state.js';
+import type { OperationsState } from './state.js';
 
 import { retryingConflicts } from './conflict-retry.js';
 import { abandonedClaim } from './decisions.js';
@@ -9,9 +8,6 @@ import { abandonmentCode, interruptedCode } from './failures.js';
 
 export type ActionContext = {
   readonly owner: string;
-  // The filenames a publication may report outcomes for, in publication
-  // order; the export definitions' (declaredFilenames) when absent.
-  readonly publishedFiles?: readonly string[];
   readonly staleAfterMs: number;
   readonly store: CoordinationStore;
 };
@@ -19,52 +15,29 @@ export type ActionContext = {
 // Why a claim was released without a caller left to receive a refusal
 // (an abandoned claim), or when a change overtook its run: one template,
 // `<Claim kind> <state>: <fact>`, plus a short statement of any state the
-// outcome does not imply. An upload cannot be discarded, so a released
-// publication says that its revision is not published.
-const revisionUnpublished = 'Revision not published';
-
+// outcome does not imply.
 const released = (head: string, ...states: readonly string[]): string =>
   [head, ...states].join('. ');
 
 const silence = (staleAfterMs: number): string =>
   `no heartbeat for ${String(Math.round(staleAfterMs / 1_000))} s`;
 
-// The status of an abandoned publication keeps the outcome each file
-// recorded; an upload running at that moment may have finished unrecorded.
-export const abandonedPublicationMessage = (staleAfterMs: number): string =>
-  released(
-    `Publication claim abandoned: ${silence(staleAfterMs)}`,
-    revisionUnpublished,
-    'Last upload possibly unrecorded',
-  );
-
-const abandonmentMessage = (
-  code: string,
-  claim: Claim,
-  staleAfterMs: number,
-): string => {
-  if (code === interruptedCode) {
-    return released(
-      `Claim interrupted: ${silence(staleAfterMs)}`,
-      'Automatic rerun: once',
-    );
-  }
-  return claim.domain === 'publication'
-    ? abandonedPublicationMessage(staleAfterMs)
+const abandonmentMessage = (code: string, staleAfterMs: number): string =>
+  code === interruptedCode
+    ? released(
+        `Claim interrupted: ${silence(staleAfterMs)}`,
+        'Automatic rerun: once',
+      )
     : released(`Claim abandoned: ${silence(staleAfterMs)}`);
-};
 
 const overtakings: Readonly<Record<Overtaking, string>> = {
   fingerprint_changed: 'Flow graph changed',
   source_changed: 'Source changed',
 };
 
-// A run overtaken by a source or graph change; an overtaken publication
-// keeps the outcome of each file it uploaded.
-const overtakenMessage = (reason: Overtaking, publication: boolean): string =>
-  publication
-    ? released(`${overtakings[reason]} during publication`, revisionUnpublished)
-    : `${overtakings[reason]} during run`;
+// A run overtaken by a source or graph change.
+const overtakenMessage = (reason: Overtaking): string =>
+  `${overtakings[reason]} during run`;
 
 export type Outcome<T> =
   Overtaken | { readonly kind: 'done'; readonly value: T };
@@ -72,8 +45,6 @@ export type Outcome<T> =
 type Mismatch = 'claim_mismatch' | 'owner_mismatch';
 
 type Overtaken = {
-  // The outcomes of an overtaken publication, kept with its release.
-  readonly files?: StoredOutcomes;
   readonly kind: 'overtaken';
   readonly reason: Overtaking;
 };
@@ -82,13 +53,10 @@ type Overtaking = 'fingerprint_changed' | 'source_changed';
 
 export const done = <T>(value: T): Outcome<T> => ({ kind: 'done', value });
 
-export const overtaken = (
-  reason: Overtaking,
-  files?: StoredOutcomes,
-): Overtaken =>
-  files === undefined
-    ? { kind: 'overtaken', reason }
-    : { files, kind: 'overtaken', reason };
+export const overtaken = (reason: Overtaking): Overtaken => ({
+  kind: 'overtaken',
+  reason,
+});
 
 export const unreachable = (value: never): never => {
   throw new TypeError(`Unexpected coordination case: ${String(value)}`);
@@ -103,16 +71,13 @@ export const mismatch = (verdict: Mismatch): CoordinationError =>
       );
 
 // Releases a claim whose run cannot be accepted any more. The failure
-// details are kept for status; a plain overtaking (source or graph change)
-// leaves the publication state idle, a real failure marks it failed. The
-// singleton is written before the candidate rows so that every path locks
+// details are kept for status. The singleton is written before the candidate rows so that every path locks
 // the two in the same order.
 export const releaseClaim = async (
   port: CoordinationPort,
   release: {
     readonly code: string;
     readonly failed: boolean;
-    readonly files?: StoredOutcomes;
     readonly message: null | string;
     readonly token: string;
   },
@@ -158,15 +123,9 @@ export const guarded = async <T>(
     outcome.reason === 'source_changed'
       ? 'SOURCE_CHANGED'
       : 'FINGERPRINT_CHANGED';
-  const { files } = outcome;
-  const message = overtakenMessage(outcome.reason, files !== undefined);
+  const message = overtakenMessage(outcome.reason);
   await claimTransaction(context, token, (port) =>
-    releaseClaim(
-      port,
-      files === undefined
-        ? { code, failed: false, message, token }
-        : { code, failed: false, files, message, token },
-    ),
+    releaseClaim(port, { code, failed: false, message, token }),
   );
   throw coordinationError(code, message);
 };
@@ -189,7 +148,7 @@ export const recoverInside = async (
   await releaseClaim(port, {
     code,
     failed: true,
-    message: abandonmentMessage(code, stale, context.staleAfterMs),
+    message: abandonmentMessage(code, context.staleAfterMs),
     token: stale.token,
   });
   return { released: true, state: await port.readState(true) };

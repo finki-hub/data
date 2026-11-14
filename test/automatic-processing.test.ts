@@ -10,7 +10,6 @@ import {
 import {
   graphKindsOf,
   neutralActions,
-  pageStepActions,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/fingerprint.js';
 import { parseCoordinatorInput } from '../directus/extensions/directus-extension-data-operations/src/coordination/options.js';
 import {
@@ -31,14 +30,11 @@ import {
 import { historyIndexFlows } from '../src/flows/index-histories.js';
 import { markPendingFlow } from '../src/flows/mark-pending.js';
 import { matchFlow, matchingFlows } from '../src/flows/match-history-lines.js';
-import { publicationFlows } from '../src/flows/prepare-public-assets.js';
 import {
   automaticProcessingFlows,
   processPendingCron,
   processPendingFlow,
 } from '../src/flows/process-pending.js';
-import { publishFileFlow } from '../src/flows/publish-one-file.js';
-import { publishFlows } from '../src/flows/publish-public-assets.js';
 import { snapshotImportFlows } from '../src/flows/snapshot-import.js';
 import {
   claimNext,
@@ -62,14 +58,14 @@ const collator = new Intl.Collator('en');
 const triggerClaim = '{{ $trigger.claim }}';
 const history = 'history_index';
 const enrollments = 'enrollments';
-const publication = 'publication';
+const pageStepActions = ['plan_pages', 'stage_page', 'index_page'];
 const next = 'next_calculation';
 
 const stateOf = (overrides: Parameters<typeof stateRowOf>[0] = {}) =>
   toState(stateRow.parse(stateRowOf(overrides)));
 
 describe('the scheduled claim', () => {
-  test('picks the first pending calculation domain in dependency order and never publication', () => {
+  test('picks the first pending calculation domain in dependency order', () => {
     const request = {
       currentFingerprints: graphFingerprints,
       domain: next,
@@ -83,16 +79,13 @@ describe('the scheduled claim', () => {
       decideClaim(stateOf({ dirty_domains: [history, enrollments] }), request),
     ).toMatchObject({ domain: history, kind: 'claim' });
     expect(
-      decideClaim(
-        stateOf({ dirty_domains: [enrollments, publication] }),
-        request,
-      ),
+      decideClaim(stateOf({ dirty_domains: [enrollments] }), request),
     ).toMatchObject({ domain: enrollments, kind: 'claim' });
     // A graph change alone queues both calculations, history first.
     expect(
       decideClaim(stateOf({ calculation_fingerprint: 'graph-old' }), request),
     ).toEqual({
-      dirtyDomains: [history, enrollments, publication],
+      dirtyDomains: [history, enrollments],
       domain: history,
       kind: 'claim',
     });
@@ -132,7 +125,7 @@ describe('the scheduled claim', () => {
       claimed: false,
       reason: 'nothing_pending',
     });
-    expect(fake.data.dirtyDomains).toEqual([publication]);
+    expect(fake.data.dirtyDomains).toEqual([]);
   });
 
   test('reads the status row and the Flow graph only on an idle tick, whatever the answer', async () => {
@@ -145,10 +138,10 @@ describe('the scheduled claim', () => {
         claim_owner: 'process-b',
         claim_revision: 7,
         claim_token: 'held',
-        dirty_domains: [enrollments, publication],
+        dirty_domains: [enrollments],
       }),
       stateRowOf({
-        dirty_domains: [enrollments, publication],
+        dirty_domains: [enrollments],
         last_error_code: 'MATCH_FAILED',
         last_failed_domain: enrollments,
         last_failed_fingerprint: graphFingerprints.calculation,
@@ -261,7 +254,7 @@ describe('failures and changes during a run', () => {
     await expect(finish(fake, run.token)).rejects.toMatchObject({
       code: 'COORDINATION_SOURCE_CHANGED',
     });
-    expect(fake.data.dirtyDomains).toEqual([enrollments, publication]);
+    expect(fake.data.dirtyDomains).toEqual([enrollments]);
     expect(fake.data.lastError?.code).toBe('SOURCE_CHANGED');
     expect(fake.data.lastError?.message).toBe('Source changed during run');
 
@@ -292,11 +285,6 @@ describe('status', () => {
       current: false,
       state: 'pending',
       waitingFor: [history],
-    });
-    expect(report.domains['publication']).toMatchObject({
-      current: false,
-      state: 'pending',
-      waitingFor: [history, enrollments],
     });
 
     const run = await claimNext(fake);
@@ -369,11 +357,7 @@ const allTemplates = [
 ];
 
 // Every template setup installs, for the fingerprint partition.
-const installedTemplates = [
-  ...allTemplates,
-  ...publicationFlows,
-  ...publishFlows,
-];
+const installedTemplates = allTemplates;
 
 const byText = (left: string, right: string): number =>
   collator.compare(left, right);
@@ -394,11 +378,7 @@ const calculationFlows = [
   processPendingFlow,
 ];
 
-const ungraphedFlows = [
-  markPendingFlow,
-  ...snapshotImportFlows,
-  ...publicationFlows,
-];
+const ungraphedFlows = [markPendingFlow, ...snapshotImportFlows];
 
 // The templates with one Flow replaced by an edited copy.
 const replaced = (
@@ -420,8 +400,6 @@ const withOptions = (
       : operation,
   ),
 });
-
-const quoted = (value: string): string => `'${value}'`;
 
 // The Flows a template's Trigger Flow steps name.
 const triggerTargets = ({ operations }: FlowTemplate): unknown[] =>
@@ -543,25 +521,19 @@ describe('the scheduled Flow', () => {
 });
 
 describe('the Flow-graph fingerprints', () => {
-  test('partition the templates: calculation Flows, publish Flows, and neither', () => {
+  test('partition the templates: calculation Flows and the others', () => {
     const calculation = graphFlowIds(installedTemplates, 'calculation');
-    const published = graphFlowIds(installedTemplates, 'publication');
 
     // History, the matching page Flow, the dispatcher and the schedule.
     expect(inGraph(calculation, calculationFlows)).toEqual(
       idsOf(calculationFlows),
     );
-    expect(inGraph(published, calculationFlows)).toEqual([]);
-    // The publish parent and the child it reaches.
-    expect(inGraph(published, publishFlows)).toEqual(idsOf(publishFlows));
-    expect(inGraph(calculation, publishFlows)).toEqual([]);
-    // Mark pending (mark and status only), the snapshot import and the
-    // readiness and preparation buttons belong to neither.
+    // Mark pending (mark and status only) and the snapshot import belong
+    // to none.
     expect(inGraph(calculation, ungraphedFlows)).toEqual([]);
-    expect(inGraph(published, ungraphedFlows)).toEqual([]);
   });
 
-  test('change as their graph changes: a dialog never, a publish step only publication, a calculation step both', () => {
+  test('change as their graph changes: a dialog never, a calculation step always', () => {
     const base = templateFingerprints(installedTemplates);
     // Rewording the Mark pending dialog and its confirmation.
     const dialog = templateFingerprints(
@@ -574,13 +546,6 @@ describe('the Flow-graph fingerprints', () => {
         },
       }),
     );
-    // A Studio edit of a publish step (the storage location).
-    const publishEdit = templateFingerprints(
-      replaced(
-        installedTemplates,
-        withOptions(publishFileFlow, 'upload', { storage: 'local' }),
-      ),
-    );
     // An option of a calculation step.
     const calculationEdit = templateFingerprints(
       replaced(
@@ -590,10 +555,7 @@ describe('the Flow-graph fingerprints', () => {
     );
 
     expect(dialog).toEqual(base);
-    expect(publishEdit.calculation).toBe(base.calculation);
-    expect(publishEdit.publication).not.toBe(base.publication);
     expect(calculationEdit.calculation).not.toBe(base.calculation);
-    expect(calculationEdit.publication).not.toBe(base.publication);
   });
 
   // The dispatcher reaches its page Flow through a Trigger Flow step with
@@ -611,9 +573,6 @@ describe('the Flow-graph fingerprints', () => {
         ?.options['flow'],
     ).toBe(matchFlow.id);
     expect(calculation.has(matchFlow.id)).toBeTruthy();
-    expect(
-      graphFlowIds(installedTemplates, 'publication').has(matchFlow.id),
-    ).toBeFalsy();
     expect(graphSql).not.toContain('runners');
 
     const base = templateFingerprints(installedTemplates);
@@ -625,30 +584,24 @@ describe('the Flow-graph fingerprints', () => {
     );
 
     expect(pageEdit.calculation).not.toBe(base.calculation);
-    expect(pageEdit.publication).not.toBe(base.publication);
   });
 
-  test('root a Flow by what its coordinate step does, and a templated claim in both graphs', () => {
-    const both = ['calculation', 'publication'];
+  test('root a Flow by what its coordinate step does, a templated one included', () => {
+    const calculation = ['calculation'];
 
-    expect(graphKindsOf({ action: 'claim', domain: next })).toEqual([
-      'calculation',
-    ]);
+    expect(graphKindsOf({ action: 'claim', domain: next })).toEqual(
+      calculation,
+    );
     expect(
       calculationDomains.map((domain) =>
         graphKindsOf({ action: 'claim', domain }),
       ),
-    ).toEqual(calculationDomains.map(() => ['calculation']));
-    expect(graphKindsOf({ action: 'claim', domain: publication })).toEqual([
-      'publication',
-    ]);
+    ).toEqual(calculationDomains.map(() => calculation));
     expect(pageStepActions.map((action) => graphKindsOf({ action }))).toEqual(
-      pageStepActions.map(() => ['calculation']),
+      pageStepActions.map(() => calculation),
     );
     expect(
-      neutralActions.map((action) =>
-        graphKindsOf({ action, domain: publication }),
-      ),
+      neutralActions.map((action) => graphKindsOf({ action, domain: next })),
     ).toEqual(neutralActions.map(() => []));
     expect(
       [
@@ -658,7 +611,13 @@ describe('the Flow-graph fingerprints', () => {
         {},
         null,
       ].map((options) => graphKindsOf(options)),
-    ).toEqual([both, both, both, both, both]);
+    ).toEqual([
+      calculation,
+      calculation,
+      calculation,
+      calculation,
+      calculation,
+    ]);
     // Every declared action is placed once.
     expect(
       [...neutralActions, ...pageStepActions, 'claim'].toSorted(byText),
@@ -671,16 +630,7 @@ describe('the Flow-graph fingerprints', () => {
     expect(graphSql).toContain(`o."type" = 'trigger'`);
     expect(graphSql).toContain(`o."options"->>'flow'`);
     expect(graphSql).toContain(
-      `WHEN o."options"->>'action' IN ('mark', 'status', 'heartbeat', 'record', 'complete', 'fail') THEN false`,
-    );
-    expect(graphSql).toContain(
-      `WHEN o."options"->>'action' IN (${pageStepActions.map(quoted).join(', ')}) THEN kinds."graph" = 'calculation'`,
-    );
-    expect(graphSql).toContain(
-      `o."options"->>'domain' IN ('history_index', 'enrollments', 'next_calculation')`,
-    );
-    expect(graphSql).toContain(
-      `o."options"->>'domain' IN ('publication') THEN kinds."graph" = 'publication'`,
+      `(o."options"->>'action' IS NULL OR o."options"->>'action' NOT IN ('mark', 'status', 'heartbeat', 'complete', 'fail'))`,
     );
     // It hashes no name, description, icon, colour, position, status or
     // accountability.

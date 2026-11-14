@@ -292,14 +292,15 @@ $$`,
     }
   });
 
-  test('are a source: every statement marks the counts and publication pending', () => {
+  test('are a source: every statement marks the counts pending', () => {
     expect(declarationOf(collection)).toEqual({
       collection,
-      invalidates: ['enrollments', 'publication'],
+      invalidates: ['enrollments'],
       role: 'source',
     });
-    expect(sourceInvalidationSql).toContain(
-      "WHEN 'moodle_pattern_mappings' THEN ARRAY['enrollments', 'publication']",
+    // The counts are the default domain: no arm of its own.
+    expect(sourceInvalidationSql).not.toContain(
+      "WHEN 'moodle_pattern_mappings'",
     );
     expect(sourceInvalidationSql).toContain(
       'AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON "moodle_pattern_mappings" FOR EACH STATEMENT',

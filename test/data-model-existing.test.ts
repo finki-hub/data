@@ -391,17 +391,17 @@ describe('installDataModel enum realignment', () => {
     state.fields['data_operations'] = (
       state.fields['data_operations'] ?? []
     ).map((field) =>
-      field.field === 'publication_state'
+      field.field === 'import_state'
         ? {
             ...field,
             meta: {
               ...field.meta,
-              validation: { publication_state: { _in: ['idle', 'running'] } },
+              validation: { import_state: { _in: ['idle', 'importing'] } },
             },
           }
         : field,
     );
-    state.values = { 'data_operations.publication_state': ['running'] };
+    state.values = { 'data_operations.import_state': ['importing'] };
     const { request, requests } = fakeDirectus(state);
 
     const summary = await installDataModel(request);
@@ -410,9 +410,9 @@ describe('installDataModel enum realignment', () => {
       requests
         .map(({ pathname }) => pathname)
         .filter((path) => path.startsWith('/items/')),
-    ).toEqual(['/items/data_operations?fields=publication_state']);
+    ).toEqual(['/items/data_operations?fields=import_state']);
     expect(mutations(requests).map(({ pathname }) => pathname)).toEqual([
-      '/fields/data_operations/publication_state',
+      '/fields/data_operations/import_state',
     ]);
     expect(summary.fields.aligned).toBe(1);
   });

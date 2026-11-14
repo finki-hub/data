@@ -1,0 +1,2659 @@
+{
+  "academic_years": [
+    {
+      "label": "2025/2026",
+      "published": true,
+      "id": 1
+    },
+    {
+      "label": "2024/2025",
+      "published": true,
+      "id": 2
+    },
+    {
+      "label": "2023/2024",
+      "published": true,
+      "id": 3
+    },
+    {
+      "label": "2022/2023",
+      "published": true,
+      "id": 4
+    },
+    {
+      "label": "2021/2022",
+      "published": true,
+      "id": 5
+    },
+    {
+      "label": "2020/2021",
+      "published": true,
+      "id": 6
+    },
+    {
+      "label": "2019/2020",
+      "published": true,
+      "id": 7
+    },
+    {
+      "label": "2018/2019",
+      "published": true,
+      "id": 8
+    },
+    {
+      "label": "2017/2018",
+      "published": true,
+      "id": 9
+    },
+    {
+      "label": "2016/2017",
+      "published": true,
+      "id": 10
+    },
+    {
+      "label": "2015/2016",
+      "published": true,
+      "id": 11
+    },
+    {
+      "label": "2014/2015",
+      "published": true,
+      "id": 12
+    },
+    {
+      "label": "2013/2014",
+      "published": true,
+      "id": 13
+    },
+    {
+      "label": "2012/2013",
+      "published": true,
+      "id": 14
+    },
+    {
+      "label": "2011/2012",
+      "published": true,
+      "id": 15
+    }
+  ],
+  "course_curricula": [
+    {
+      "course": 1,
+      "entry": 1,
+      "generation": 3,
+      "credits": 6,
+      "available": true,
+      "id": 1
+    },
+    {
+      "course": 1,
+      "entry": 10,
+      "generation": 2,
+      "credits": 6,
+      "available": false,
+      "id": 2
+    },
+    {
+      "course": 2,
+      "entry": 3,
+      "generation": 3,
+      "credits": 6,
+      "available": true,
+      "id": 3
+    },
+    {
+      "course": 2,
+      "entry": 12,
+      "generation": 2,
+      "credits": 0,
+      "available": true,
+      "id": 4
+    },
+    {
+      "course": 3,
+      "entry": 4,
+      "generation": 3,
+      "credits": 6,
+      "available": true,
+      "id": 5
+    },
+    {
+      "course": 5,
+      "entry": 5,
+      "generation": 3,
+      "credits": 6,
+      "available": true,
+      "id": 6
+    },
+    {
+      "course": 5,
+      "entry": 14,
+      "generation": 2,
+      "credits": 6,
+      "available": true,
+      "id": 7
+    },
+    {
+      "course": 6,
+      "entry": 6,
+      "generation": 3,
+      "credits": 0,
+      "available": false,
+      "id": 8
+    },
+    {
+      "course": 6,
+      "entry": 15,
+      "generation": 2,
+      "credits": null,
+      "available": false,
+      "id": 9
+    },
+    {
+      "course": 7,
+      "entry": 7,
+      "generation": 3,
+      "credits": 6,
+      "available": true,
+      "id": 10
+    },
+    {
+      "course": 7,
+      "entry": 16,
+      "generation": 2,
+      "credits": 6,
+      "available": true,
+      "id": 11
+    },
+    {
+      "course": 8,
+      "entry": 8,
+      "generation": 3,
+      "credits": 6,
+      "available": true,
+      "id": 12
+    }
+  ],
+  "course_enrollments": [
+    {
+      "course": 1,
+      "academic_year": 1,
+      "count": 2,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 1
+    },
+    {
+      "course": 1,
+      "academic_year": 2,
+      "count": 2,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 2
+    },
+    {
+      "course": 1,
+      "academic_year": 3,
+      "count": 1,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 3
+    },
+    {
+      "course": 1,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 4
+    },
+    {
+      "course": 1,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 5
+    },
+    {
+      "course": 1,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 6
+    },
+    {
+      "course": 1,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 7
+    },
+    {
+      "course": 1,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 8
+    },
+    {
+      "course": 1,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 9
+    },
+    {
+      "course": 1,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 10
+    },
+    {
+      "course": 1,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 11
+    },
+    {
+      "course": 1,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 12
+    },
+    {
+      "course": 1,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 13
+    },
+    {
+      "course": 1,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 14
+    },
+    {
+      "course": 1,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 15
+    },
+    {
+      "course": 2,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 16
+    },
+    {
+      "course": 2,
+      "academic_year": 2,
+      "count": 2,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 17
+    },
+    {
+      "course": 2,
+      "academic_year": 3,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 18
+    },
+    {
+      "course": 2,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 19
+    },
+    {
+      "course": 2,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 20
+    },
+    {
+      "course": 2,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 21
+    },
+    {
+      "course": 2,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 22
+    },
+    {
+      "course": 2,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 23
+    },
+    {
+      "course": 2,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 24
+    },
+    {
+      "course": 2,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 25
+    },
+    {
+      "course": 2,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 26
+    },
+    {
+      "course": 2,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 27
+    },
+    {
+      "course": 2,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 28
+    },
+    {
+      "course": 2,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 29
+    },
+    {
+      "course": 2,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 30
+    },
+    {
+      "course": 3,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 31
+    },
+    {
+      "course": 3,
+      "academic_year": 2,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 32
+    },
+    {
+      "course": 3,
+      "academic_year": 3,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 33
+    },
+    {
+      "course": 3,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 34
+    },
+    {
+      "course": 3,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 35
+    },
+    {
+      "course": 3,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 36
+    },
+    {
+      "course": 3,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 37
+    },
+    {
+      "course": 3,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 38
+    },
+    {
+      "course": 3,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 39
+    },
+    {
+      "course": 3,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 40
+    },
+    {
+      "course": 3,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 41
+    },
+    {
+      "course": 3,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 42
+    },
+    {
+      "course": 3,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 43
+    },
+    {
+      "course": 3,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 44
+    },
+    {
+      "course": 3,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 45
+    },
+    {
+      "course": 4,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 46
+    },
+    {
+      "course": 4,
+      "academic_year": 2,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 47
+    },
+    {
+      "course": 4,
+      "academic_year": 3,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 48
+    },
+    {
+      "course": 4,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 49
+    },
+    {
+      "course": 4,
+      "academic_year": 5,
+      "count": 1,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 50
+    },
+    {
+      "course": 4,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 51
+    },
+    {
+      "course": 4,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 52
+    },
+    {
+      "course": 4,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 53
+    },
+    {
+      "course": 4,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 54
+    },
+    {
+      "course": 4,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 55
+    },
+    {
+      "course": 4,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 56
+    },
+    {
+      "course": 4,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 57
+    },
+    {
+      "course": 4,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 58
+    },
+    {
+      "course": 4,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 59
+    },
+    {
+      "course": 4,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 60
+    },
+    {
+      "course": 5,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 61
+    },
+    {
+      "course": 5,
+      "academic_year": 2,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 62
+    },
+    {
+      "course": 5,
+      "academic_year": 3,
+      "count": 1,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 63
+    },
+    {
+      "course": 5,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 64
+    },
+    {
+      "course": 5,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 65
+    },
+    {
+      "course": 5,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 66
+    },
+    {
+      "course": 5,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 67
+    },
+    {
+      "course": 5,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 68
+    },
+    {
+      "course": 5,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 69
+    },
+    {
+      "course": 5,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 70
+    },
+    {
+      "course": 5,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 71
+    },
+    {
+      "course": 5,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 72
+    },
+    {
+      "course": 5,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 73
+    },
+    {
+      "course": 5,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 74
+    },
+    {
+      "course": 5,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 75
+    },
+    {
+      "course": 6,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 76
+    },
+    {
+      "course": 6,
+      "academic_year": 2,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 77
+    },
+    {
+      "course": 6,
+      "academic_year": 3,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 78
+    },
+    {
+      "course": 6,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 79
+    },
+    {
+      "course": 6,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 80
+    },
+    {
+      "course": 6,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 81
+    },
+    {
+      "course": 6,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 82
+    },
+    {
+      "course": 6,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 83
+    },
+    {
+      "course": 6,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 84
+    },
+    {
+      "course": 6,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 85
+    },
+    {
+      "course": 6,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 86
+    },
+    {
+      "course": 6,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 87
+    },
+    {
+      "course": 6,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 88
+    },
+    {
+      "course": 6,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 89
+    },
+    {
+      "course": 6,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 90
+    },
+    {
+      "course": 7,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 91
+    },
+    {
+      "course": 7,
+      "academic_year": 2,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 92
+    },
+    {
+      "course": 7,
+      "academic_year": 3,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 93
+    },
+    {
+      "course": 7,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 94
+    },
+    {
+      "course": 7,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 95
+    },
+    {
+      "course": 7,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 96
+    },
+    {
+      "course": 7,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 97
+    },
+    {
+      "course": 7,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 98
+    },
+    {
+      "course": 7,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 99
+    },
+    {
+      "course": 7,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 100
+    },
+    {
+      "course": 7,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 101
+    },
+    {
+      "course": 7,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 102
+    },
+    {
+      "course": 7,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 103
+    },
+    {
+      "course": 7,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 104
+    },
+    {
+      "course": 7,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 105
+    },
+    {
+      "course": 8,
+      "academic_year": 1,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 106
+    },
+    {
+      "course": 8,
+      "academic_year": 2,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 107
+    },
+    {
+      "course": 8,
+      "academic_year": 3,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 108
+    },
+    {
+      "course": 8,
+      "academic_year": 4,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 109
+    },
+    {
+      "course": 8,
+      "academic_year": 5,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 110
+    },
+    {
+      "course": 8,
+      "academic_year": 6,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 111
+    },
+    {
+      "course": 8,
+      "academic_year": 7,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 112
+    },
+    {
+      "course": 8,
+      "academic_year": 8,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 113
+    },
+    {
+      "course": 8,
+      "academic_year": 9,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 114
+    },
+    {
+      "course": 8,
+      "academic_year": 10,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 115
+    },
+    {
+      "course": 8,
+      "academic_year": 11,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 116
+    },
+    {
+      "course": 8,
+      "academic_year": 12,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 117
+    },
+    {
+      "course": 8,
+      "academic_year": 13,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 118
+    },
+    {
+      "course": 8,
+      "academic_year": 14,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 119
+    },
+    {
+      "course": 8,
+      "academic_year": 15,
+      "count": 0,
+      "computed_revision": 1,
+      "computed_at": null,
+      "id": 120
+    }
+  ],
+  "course_equivalencies": [
+    {
+      "course": 1,
+      "id": 1
+    },
+    {
+      "course": null,
+      "id": 2
+    },
+    {
+      "course": 2,
+      "id": 3
+    },
+    {
+      "course": 3,
+      "id": 4
+    },
+    {
+      "course": 5,
+      "id": 5
+    },
+    {
+      "course": 6,
+      "id": 6
+    },
+    {
+      "course": 7,
+      "id": 7
+    },
+    {
+      "course": null,
+      "id": 8
+    },
+    {
+      "course": null,
+      "id": 9
+    }
+  ],
+  "course_equivalency_members": [
+    {
+      "equivalency": 1,
+      "generation": 3,
+      "label": "Alpha Course",
+      "entry": 2,
+      "id": 1
+    },
+    {
+      "equivalency": 1,
+      "generation": 2,
+      "label": "Alpha Legacy",
+      "entry": 10,
+      "id": 2
+    },
+    {
+      "equivalency": 1,
+      "generation": 1,
+      "label": "Alpha Ancient",
+      "entry": null,
+      "id": 3
+    },
+    {
+      "equivalency": 2,
+      "generation": 3,
+      "label": "Alpha Course (2023)",
+      "entry": 1,
+      "id": 4
+    },
+    {
+      "equivalency": 2,
+      "generation": 2,
+      "label": "Alpha Legacy Decoy",
+      "entry": null,
+      "id": 5
+    },
+    {
+      "equivalency": 3,
+      "generation": 3,
+      "label": "Beta Course",
+      "entry": 3,
+      "id": 6
+    },
+    {
+      "equivalency": 3,
+      "generation": 2,
+      "label": "Beta Legacy Equivalent",
+      "entry": 13,
+      "id": 7
+    },
+    {
+      "equivalency": 3,
+      "generation": 1,
+      "label": "Beta Ancient",
+      "entry": null,
+      "id": 8
+    },
+    {
+      "equivalency": 4,
+      "generation": 3,
+      "label": "Gamma Course",
+      "entry": 4,
+      "id": 9
+    },
+    {
+      "equivalency": 4,
+      "generation": 1,
+      "label": "Gamma Ancient",
+      "entry": null,
+      "id": 10
+    },
+    {
+      "equivalency": 5,
+      "generation": 3,
+      "label": "Epsilon Course",
+      "entry": 5,
+      "id": 11
+    },
+    {
+      "equivalency": 5,
+      "generation": 2,
+      "label": "Epsilon Legacy",
+      "entry": 14,
+      "id": 12
+    },
+    {
+      "equivalency": 6,
+      "generation": 3,
+      "label": "Zeta Course",
+      "entry": 6,
+      "id": 13
+    },
+    {
+      "equivalency": 6,
+      "generation": 2,
+      "label": "Zeta Legacy",
+      "entry": 15,
+      "id": 14
+    },
+    {
+      "equivalency": 7,
+      "generation": 3,
+      "label": "Theta Course",
+      "entry": 7,
+      "id": 15
+    },
+    {
+      "equivalency": 7,
+      "generation": 2,
+      "label": "Theta Legacy",
+      "entry": 16,
+      "id": 16
+    },
+    {
+      "equivalency": 7,
+      "generation": 1,
+      "label": "Theta Ancient",
+      "entry": null,
+      "id": 17
+    },
+    {
+      "equivalency": 8,
+      "generation": 3,
+      "label": "Orphan Equivalent Course",
+      "entry": null,
+      "id": 18
+    },
+    {
+      "equivalency": 8,
+      "generation": 2,
+      "label": "Orphan Legacy Course",
+      "entry": 17,
+      "id": 19
+    },
+    {
+      "equivalency": 8,
+      "generation": 1,
+      "label": "Orphan Ancient",
+      "entry": null,
+      "id": 20
+    },
+    {
+      "equivalency": 9,
+      "generation": 1,
+      "label": "Ancient Only",
+      "entry": null,
+      "id": 21
+    }
+  ],
+  "courses": [
+    {
+      "name": "Alpha Course",
+      "status": "active",
+      "tags": "synthetic;alpha",
+      "id": 1
+    },
+    {
+      "name": "Beta Course",
+      "status": "active",
+      "tags": "",
+      "id": 2
+    },
+    {
+      "name": "Gamma Course",
+      "status": "active",
+      "tags": "synthetic;gamma",
+      "id": 3
+    },
+    {
+      "name": "Delta Course",
+      "status": "inactive",
+      "tags": null,
+      "id": 4
+    },
+    {
+      "name": "Epsilon Course",
+      "status": "all_professors",
+      "tags": "synthetic;epsilon",
+      "id": 5
+    },
+    {
+      "name": "Zeta Course",
+      "status": "all_professors",
+      "tags": null,
+      "id": 6
+    },
+    {
+      "name": "Theta Course",
+      "status": "active",
+      "tags": null,
+      "id": 7
+    },
+    {
+      "name": "Iota 2.0 Course",
+      "status": "active",
+      "tags": null,
+      "id": 8
+    }
+  ],
+  "curriculum_entries": [
+    {
+      "generation": 3,
+      "name": "Alpha Course (2023)",
+      "catalog_order": 1,
+      "url": "https://curriculum.example/2023/1",
+      "code": "F23L1W001",
+      "semester": 1,
+      "prerequisites": null,
+      "channel": true,
+      "id": 1
+    },
+    {
+      "generation": 3,
+      "name": "Alpha Course",
+      "catalog_order": 3,
+      "url": "https://curriculum.example/2023/3",
+      "code": "F23L8S900",
+      "semester": 8,
+      "prerequisites": null,
+      "channel": false,
+      "id": 2
+    },
+    {
+      "generation": 3,
+      "name": "Beta Course",
+      "catalog_order": 4,
+      "url": "https://curriculum.example/2023/4",
+      "code": "F23L2W002",
+      "semester": 3,
+      "prerequisites": "SYN23-001",
+      "channel": false,
+      "id": 3
+    },
+    {
+      "generation": 3,
+      "name": "Gamma Course",
+      "catalog_order": 5,
+      "url": "https://curriculum.example/2023/5",
+      "code": "F23L1S003",
+      "semester": 2,
+      "prerequisites": null,
+      "channel": false,
+      "id": 4
+    },
+    {
+      "generation": 3,
+      "name": "Epsilon Course",
+      "catalog_order": 6,
+      "url": "https://curriculum.example/2023/6",
+      "code": "F23L3W005",
+      "semester": 5,
+      "prerequisites": "SYN23-002",
+      "channel": true,
+      "id": 5
+    },
+    {
+      "generation": 3,
+      "name": "Zeta Course",
+      "catalog_order": 7,
+      "url": "https://curriculum.example/2023/7",
+      "code": "",
+      "semester": 6,
+      "prerequisites": "",
+      "channel": null,
+      "id": 6
+    },
+    {
+      "generation": 3,
+      "name": "Theta Course",
+      "catalog_order": 8,
+      "url": "https://curriculum.example/2023/8",
+      "code": "F23L2S007",
+      "semester": 4,
+      "prerequisites": null,
+      "channel": true,
+      "id": 7
+    },
+    {
+      "generation": 3,
+      "name": "Iota 2.0 Course",
+      "catalog_order": 9,
+      "url": "https://curriculum.example/2023/9",
+      "code": "F23L1W008",
+      "semester": 1,
+      "prerequisites": null,
+      "channel": false,
+      "id": 8
+    },
+    {
+      "generation": 3,
+      "name": "Orphan Current Course",
+      "catalog_order": 10,
+      "url": "https://curriculum.example/2023/10",
+      "code": "F23L1W999",
+      "semester": 1,
+      "prerequisites": null,
+      "channel": true,
+      "id": 9
+    },
+    {
+      "generation": 2,
+      "name": "Alpha Legacy",
+      "catalog_order": 1,
+      "url": "https://curriculum.example/2018/1",
+      "code": "F18L1S001",
+      "semester": 2,
+      "prerequisites": null,
+      "channel": false,
+      "id": 10
+    },
+    {
+      "generation": 2,
+      "name": "Alpha Legacy Duplicate",
+      "catalog_order": 2,
+      "url": "https://curriculum.example/2018/2",
+      "code": "F18L9W001",
+      "semester": 9,
+      "prerequisites": null,
+      "channel": true,
+      "id": 11
+    },
+    {
+      "generation": 2,
+      "name": "Beta Legacy Manual",
+      "catalog_order": 3,
+      "url": "https://curriculum.example/2018/3",
+      "code": "F18L2S002",
+      "semester": 4,
+      "prerequisites": "SYN18-001",
+      "channel": true,
+      "id": 12
+    },
+    {
+      "generation": 2,
+      "name": "Beta Legacy Equivalent",
+      "catalog_order": 4,
+      "url": "https://curriculum.example/2018/4",
+      "code": "F18L7W002",
+      "semester": 7,
+      "prerequisites": null,
+      "channel": false,
+      "id": 13
+    },
+    {
+      "generation": 2,
+      "name": "Epsilon Legacy",
+      "catalog_order": 5,
+      "url": "https://curriculum.example/2018/5",
+      "code": "F18L3S005",
+      "semester": 6,
+      "prerequisites": "SYN18-002-MANUAL",
+      "channel": true,
+      "id": 14
+    },
+    {
+      "generation": 2,
+      "name": "Zeta Legacy",
+      "catalog_order": 6,
+      "url": "https://curriculum.example/2018/6",
+      "code": "F18L1W006",
+      "semester": 1,
+      "prerequisites": null,
+      "channel": false,
+      "id": 15
+    },
+    {
+      "generation": 2,
+      "name": "Theta Legacy",
+      "catalog_order": 7,
+      "url": "https://curriculum.example/2018/7",
+      "code": "F18L2W007",
+      "semester": 3,
+      "prerequisites": null,
+      "channel": false,
+      "id": 16
+    },
+    {
+      "generation": 2,
+      "name": "Orphan Legacy Course",
+      "catalog_order": 8,
+      "url": "https://curriculum.example/2018/8",
+      "code": "F18L1W999",
+      "semester": 1,
+      "prerequisites": null,
+      "channel": true,
+      "id": 17
+    },
+    {
+      "generation": 2,
+      "name": "Alpha Course",
+      "catalog_order": 10,
+      "url": "https://curriculum.example/2018/10",
+      "code": "F18L8S900",
+      "semester": 8,
+      "prerequisites": null,
+      "channel": true,
+      "id": 18
+    }
+  ],
+  "curriculum_entry_program_states": [
+    {
+      "entry": 1,
+      "program": 1,
+      "state": "mandatory",
+      "id": 1
+    },
+    {
+      "entry": 1,
+      "program": 2,
+      "state": "elective",
+      "id": 2
+    },
+    {
+      "entry": 1,
+      "program": 5,
+      "state": "elective",
+      "id": 3
+    },
+    {
+      "entry": 1,
+      "program": 6,
+      "state": "mandatory",
+      "id": 4
+    },
+    {
+      "entry": 1,
+      "program": 7,
+      "state": "elective",
+      "id": 5
+    },
+    {
+      "entry": 1,
+      "program": 8,
+      "state": "mandatory",
+      "id": 6
+    },
+    {
+      "entry": 2,
+      "program": 1,
+      "state": "decoy-must-lose",
+      "id": 7
+    },
+    {
+      "entry": 3,
+      "program": 1,
+      "state": "elective",
+      "id": 8
+    },
+    {
+      "entry": 3,
+      "program": 2,
+      "state": "mandatory",
+      "id": 9
+    },
+    {
+      "entry": 4,
+      "program": 3,
+      "state": "mandatory",
+      "id": 10
+    },
+    {
+      "entry": 5,
+      "program": 1,
+      "state": "kn-state",
+      "id": 11
+    },
+    {
+      "entry": 5,
+      "program": 2,
+      "state": "siis-state",
+      "id": 12
+    },
+    {
+      "entry": 5,
+      "program": 3,
+      "state": "pit-state",
+      "id": 13
+    },
+    {
+      "entry": 5,
+      "program": 4,
+      "state": "imb-state",
+      "id": 14
+    },
+    {
+      "entry": 5,
+      "program": 5,
+      "state": "ki-state",
+      "id": 15
+    },
+    {
+      "entry": 5,
+      "program": 6,
+      "state": "ie-state",
+      "id": 16
+    },
+    {
+      "entry": 5,
+      "program": 7,
+      "state": "ssp-state",
+      "id": 17
+    },
+    {
+      "entry": 5,
+      "program": 8,
+      "state": "seis-state",
+      "id": 18
+    },
+    {
+      "entry": 7,
+      "program": 5,
+      "state": "mandatory",
+      "id": 19
+    },
+    {
+      "entry": 10,
+      "program": 9,
+      "state": "mandatory",
+      "id": 20
+    },
+    {
+      "entry": 10,
+      "program": 11,
+      "state": "elective",
+      "id": 21
+    },
+    {
+      "entry": 10,
+      "program": 14,
+      "state": "elective",
+      "id": 22
+    },
+    {
+      "entry": 12,
+      "program": 9,
+      "state": "elective",
+      "id": 23
+    },
+    {
+      "entry": 13,
+      "program": 9,
+      "state": "equivalent-must-lose",
+      "id": 24
+    },
+    {
+      "entry": 14,
+      "program": 9,
+      "state": "kn-legacy",
+      "id": 25
+    },
+    {
+      "entry": 14,
+      "program": 10,
+      "state": "siis-legacy",
+      "id": 26
+    },
+    {
+      "entry": 14,
+      "program": 11,
+      "state": "pit-legacy",
+      "id": 27
+    },
+    {
+      "entry": 14,
+      "program": 12,
+      "state": "imb-legacy",
+      "id": 28
+    },
+    {
+      "entry": 14,
+      "program": 13,
+      "state": "ki-legacy",
+      "id": 29
+    },
+    {
+      "entry": 14,
+      "program": 14,
+      "state": "ke-legacy",
+      "id": 30
+    },
+    {
+      "entry": 14,
+      "program": 15,
+      "state": "seis-legacy",
+      "id": 31
+    },
+    {
+      "entry": 16,
+      "program": 14,
+      "state": "mandatory",
+      "id": 32
+    },
+    {
+      "entry": 18,
+      "program": 9,
+      "state": "decoy-must-lose",
+      "id": 33
+    }
+  ],
+  "curriculum_generations": [
+    {
+      "code": "2013",
+      "label": "Curriculum 2013",
+      "has_curriculum": false,
+      "published": false,
+      "id": 1
+    },
+    {
+      "code": "2018",
+      "label": "Curriculum 2018",
+      "has_curriculum": true,
+      "published": true,
+      "id": 2
+    },
+    {
+      "code": "2023",
+      "label": "Curriculum 2023",
+      "has_curriculum": true,
+      "published": true,
+      "id": 3
+    }
+  ],
+  "data_operations": [
+    {
+      "id": 1
+    }
+  ],
+  "deans_office": [
+    {
+      "year": 2024,
+      "staff": 1,
+      "position": "Декан",
+      "id": 1
+    },
+    {
+      "year": 2024,
+      "staff": 3,
+      "position": "Продекан за настава",
+      "id": 2
+    }
+  ],
+  "discord_channel_courses": [
+    {
+      "discord_channel": 1,
+      "course": 3,
+      "id": 1
+    },
+    {
+      "discord_channel": 1,
+      "course": 4,
+      "id": 2
+    },
+    {
+      "discord_channel": 2,
+      "course": 6,
+      "id": 3
+    }
+  ],
+  "discord_channels": [
+    {
+      "semester": 1,
+      "channel": "gamma-and-delta",
+      "id": 1
+    },
+    {
+      "semester": 6,
+      "channel": "zeta",
+      "id": 2
+    }
+  ],
+  "moodle_pattern_mappings": [
+    {
+      "course": 1,
+      "pattern": "Alpha Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 1
+    },
+    {
+      "course": 1,
+      "pattern": "Alpha Honors-2025/2026",
+      "year_pattern": null,
+      "only_in_year": 1,
+      "id": 2
+    },
+    {
+      "course": 2,
+      "pattern": "Beta Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 3
+    },
+    {
+      "course": 3,
+      "pattern": "Gamma Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 4
+    },
+    {
+      "course": 4,
+      "pattern": "Delta Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 5
+    },
+    {
+      "course": 5,
+      "pattern": "Epsilon Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 6
+    },
+    {
+      "course": 6,
+      "pattern": "Zeta Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 7
+    },
+    {
+      "course": 7,
+      "pattern": "Theta Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 8
+    },
+    {
+      "course": 7,
+      "pattern": "Theta Course-2021/2022\\r?\\nTheta Lab-2021/2022",
+      "year_pattern": null,
+      "only_in_year": 5,
+      "id": 9
+    },
+    {
+      "course": 8,
+      "pattern": "Iota 2\\.0 Course-",
+      "year_pattern": "(?<start>\\d{4})/(?<end>\\d{4})",
+      "only_in_year": null,
+      "id": 10
+    }
+  ],
+  "moodle_users": [
+    {
+      "ID_old": 1001,
+      "ID_new": 2001,
+      "Name": "Synthetic Moodle User 001",
+      "Mail": "SENTINEL_PRIVATE_MAIL.001@moodle-users.example",
+      "Courses": "Alpha Course-2025/2026\nAlpha Course-2024/2025\nBeta Course-2024/2025",
+      "Courses Count": 3,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-001",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-001",
+      "AIM_new": "synthetic-aim-new-001",
+      "AIM_old": "synthetic-aim-old-001",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-001.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-001.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 001",
+      "Description_old": "Synthetic description (old) 001",
+      "ICQ_new": "synthetic-icq-new-001",
+      "ICQ_old": "synthetic-icq-old-001",
+      "Images_new": "https://moodle.example/images/synthetic-new-001.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-001.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-001",
+      "MSN_old": "synthetic-msn-old-001",
+      "MoodleNet_new": "synthetic-moodlenet-new-001",
+      "MoodleNet_old": "synthetic-moodlenet-old-001",
+      "Skype_new": "synthetic-skype-new-001",
+      "Skype_old": "synthetic-skype-old-001",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/001",
+      "Web_old": "https://synthetic-web.example/old/001",
+      "Yahoo_new": "synthetic-yahoo-new-001",
+      "Yahoo_old": "synthetic-yahoo-old-001",
+      "id": 1
+    },
+    {
+      "ID_old": 1002,
+      "ID_new": 2002,
+      "Name": "Synthetic Moodle User 002",
+      "Mail": "SENTINEL_PRIVATE_MAIL.002@moodle-users.example",
+      "Courses": "Alpha Honors-2025/2026\r\nBeta Course-2024/2025\r\nEpsilon Course-2023/2024",
+      "Courses Count": 3,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-002",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-002",
+      "AIM_new": "synthetic-aim-new-002",
+      "AIM_old": "synthetic-aim-old-002",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-002.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-002.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 002",
+      "Description_old": "Synthetic description (old) 002",
+      "ICQ_new": "synthetic-icq-new-002",
+      "ICQ_old": "synthetic-icq-old-002",
+      "Images_new": "https://moodle.example/images/synthetic-new-002.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-002.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-002",
+      "MSN_old": "synthetic-msn-old-002",
+      "MoodleNet_new": "synthetic-moodlenet-new-002",
+      "MoodleNet_old": "synthetic-moodlenet-old-002",
+      "Skype_new": "synthetic-skype-new-002",
+      "Skype_old": "synthetic-skype-old-002",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/002",
+      "Web_old": "https://synthetic-web.example/old/002",
+      "Yahoo_new": "synthetic-yahoo-new-002",
+      "Yahoo_old": "synthetic-yahoo-old-002",
+      "id": 2
+    },
+    {
+      "ID_old": 1003,
+      "ID_new": 2003,
+      "Name": "Synthetic Moodle User 003",
+      "Mail": "SENTINEL_PRIVATE_MAIL.003@moodle-users.example",
+      "Courses": "Alpha Course-2024/2025\nAlpha Course-2024/2025\nAlpha Honors-2025/2026",
+      "Courses Count": 42,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-003",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-003",
+      "AIM_new": "synthetic-aim-new-003",
+      "AIM_old": "synthetic-aim-old-003",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-003.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-003.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 003",
+      "Description_old": "Synthetic description (old) 003",
+      "ICQ_new": "synthetic-icq-new-003",
+      "ICQ_old": "synthetic-icq-old-003",
+      "Images_new": "https://moodle.example/images/synthetic-new-003.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-003.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-003",
+      "MSN_old": "synthetic-msn-old-003",
+      "MoodleNet_new": "synthetic-moodlenet-new-003",
+      "MoodleNet_old": "synthetic-moodlenet-old-003",
+      "Skype_new": "synthetic-skype-new-003",
+      "Skype_old": "synthetic-skype-old-003",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/003",
+      "Web_old": "https://synthetic-web.example/old/003",
+      "Yahoo_new": "synthetic-yahoo-new-003",
+      "Yahoo_old": "synthetic-yahoo-old-003",
+      "id": 3
+    },
+    {
+      "ID_old": 1004,
+      "ID_new": 2004,
+      "Name": "Synthetic Moodle User 004",
+      "Mail": "SENTINEL_PRIVATE_MAIL.004@moodle-users.example",
+      "Courses": "Theta Course-2021/2022\nTheta Lab-2021/2022",
+      "Courses Count": 2,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-004",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-004",
+      "AIM_new": "synthetic-aim-new-004",
+      "AIM_old": "synthetic-aim-old-004",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-004.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-004.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 004",
+      "Description_old": "Synthetic description (old) 004",
+      "ICQ_new": "synthetic-icq-new-004",
+      "ICQ_old": "synthetic-icq-old-004",
+      "Images_new": "https://moodle.example/images/synthetic-new-004.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-004.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-004",
+      "MSN_old": "synthetic-msn-old-004",
+      "MoodleNet_new": "synthetic-moodlenet-new-004",
+      "MoodleNet_old": "synthetic-moodlenet-old-004",
+      "Skype_new": "synthetic-skype-new-004",
+      "Skype_old": "synthetic-skype-old-004",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/004",
+      "Web_old": "https://synthetic-web.example/old/004",
+      "Yahoo_new": "synthetic-yahoo-new-004",
+      "Yahoo_old": "synthetic-yahoo-old-004",
+      "id": 4
+    },
+    {
+      "ID_old": 1005,
+      "ID_new": 2005,
+      "Name": "Synthetic Moodle User 005",
+      "Mail": "SENTINEL_PRIVATE_MAIL.005@moodle-users.example",
+      "Courses": "Theta Course-2021/2022\r\nTheta Lab-2021/2022",
+      "Courses Count": 2,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-005",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-005",
+      "AIM_new": "synthetic-aim-new-005",
+      "AIM_old": "synthetic-aim-old-005",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-005.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-005.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 005",
+      "Description_old": "Synthetic description (old) 005",
+      "ICQ_new": "synthetic-icq-new-005",
+      "ICQ_old": "synthetic-icq-old-005",
+      "Images_new": "https://moodle.example/images/synthetic-new-005.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-005.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-005",
+      "MSN_old": "synthetic-msn-old-005",
+      "MoodleNet_new": "synthetic-moodlenet-new-005",
+      "MoodleNet_old": "synthetic-moodlenet-old-005",
+      "Skype_new": "synthetic-skype-new-005",
+      "Skype_old": "synthetic-skype-old-005",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/005",
+      "Web_old": "https://synthetic-web.example/old/005",
+      "Yahoo_new": "synthetic-yahoo-new-005",
+      "Yahoo_old": "synthetic-yahoo-old-005",
+      "id": 5
+    },
+    {
+      "ID_old": 1006,
+      "ID_new": 2006,
+      "Name": "Synthetic Moodle User 006",
+      "Mail": "SENTINEL_PRIVATE_MAIL.006@moodle-users.example",
+      "Courses": "Theta Course-2021/2022\nDelta Course-2021/2022\nTheta Lab-2021/2022",
+      "Courses Count": 3,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-006",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-006",
+      "AIM_new": "synthetic-aim-new-006",
+      "AIM_old": "synthetic-aim-old-006",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-006.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-006.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 006",
+      "Description_old": "Synthetic description (old) 006",
+      "ICQ_new": "synthetic-icq-new-006",
+      "ICQ_old": "synthetic-icq-old-006",
+      "Images_new": "https://moodle.example/images/synthetic-new-006.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-006.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-006",
+      "MSN_old": "synthetic-msn-old-006",
+      "MoodleNet_new": "synthetic-moodlenet-new-006",
+      "MoodleNet_old": "synthetic-moodlenet-old-006",
+      "Skype_new": "synthetic-skype-new-006",
+      "Skype_old": "synthetic-skype-old-006",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/006",
+      "Web_old": "https://synthetic-web.example/old/006",
+      "Yahoo_new": "synthetic-yahoo-new-006",
+      "Yahoo_old": "synthetic-yahoo-old-006",
+      "id": 6
+    },
+    {
+      "ID_old": 1007,
+      "ID_new": 2007,
+      "Name": "Synthetic Moodle User 007",
+      "Mail": "SENTINEL_PRIVATE_MAIL.007@moodle-users.example",
+      "Courses": null,
+      "Courses Count": null,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-007",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-007",
+      "AIM_new": "synthetic-aim-new-007",
+      "AIM_old": "synthetic-aim-old-007",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-007.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-007.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 007",
+      "Description_old": "Synthetic description (old) 007",
+      "ICQ_new": "synthetic-icq-new-007",
+      "ICQ_old": "synthetic-icq-old-007",
+      "Images_new": "https://moodle.example/images/synthetic-new-007.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-007.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-007",
+      "MSN_old": "synthetic-msn-old-007",
+      "MoodleNet_new": "synthetic-moodlenet-new-007",
+      "MoodleNet_old": "synthetic-moodlenet-old-007",
+      "Skype_new": "synthetic-skype-new-007",
+      "Skype_old": "synthetic-skype-old-007",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/007",
+      "Web_old": "https://synthetic-web.example/old/007",
+      "Yahoo_new": "synthetic-yahoo-new-007",
+      "Yahoo_old": "synthetic-yahoo-old-007",
+      "id": 7
+    },
+    {
+      "ID_old": 1008,
+      "ID_new": 2008,
+      "Name": "Synthetic Moodle User 008",
+      "Mail": "SENTINEL_PRIVATE_MAIL.008@moodle-users.example",
+      "Courses": "Advanced Alpha Course-2023/2024\nIota 2X0 Course-2022/2023",
+      "Courses Count": 2,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-008",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-008",
+      "AIM_new": "synthetic-aim-new-008",
+      "AIM_old": "synthetic-aim-old-008",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-008.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-008.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 008",
+      "Description_old": "Synthetic description (old) 008",
+      "ICQ_new": "synthetic-icq-new-008",
+      "ICQ_old": "synthetic-icq-old-008",
+      "Images_new": "https://moodle.example/images/synthetic-new-008.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-008.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-008",
+      "MSN_old": "synthetic-msn-old-008",
+      "MoodleNet_new": "synthetic-moodlenet-new-008",
+      "MoodleNet_old": "synthetic-moodlenet-old-008",
+      "Skype_new": "synthetic-skype-new-008",
+      "Skype_old": "synthetic-skype-old-008",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/008",
+      "Web_old": "https://synthetic-web.example/old/008",
+      "Yahoo_new": "synthetic-yahoo-new-008",
+      "Yahoo_old": "synthetic-yahoo-old-008",
+      "id": 8
+    },
+    {
+      "ID_old": 1009,
+      "ID_new": 2009,
+      "Name": "Synthetic Moodle User 009",
+      "Mail": "SENTINEL_PRIVATE_MAIL.009@moodle-users.example",
+      "Courses": "",
+      "Courses Count": 0,
+      "Profile_old": "https://moodle-old.example/user/profile.php?id=SENTINEL_PRIVATE_ID-old-009",
+      "Profile_new": "https://moodle.example/user/profile.php?id=SENTINEL_PRIVATE_ID-new-009",
+      "AIM_new": "synthetic-aim-new-009",
+      "AIM_old": "synthetic-aim-old-009",
+      "Avatar_new": "https://moodle.example/avatars/synthetic-new-009.png",
+      "Avatar_old": "https://moodle-old.example/avatars/synthetic-old-009.png",
+      "City_new": "Synthetic City (new)",
+      "City_old": "Synthetic City (old)",
+      "Country_new": "Synthetic Country (new)",
+      "Country_old": "Synthetic Country (old)",
+      "Description_new": "Synthetic description (new) 009",
+      "Description_old": "Synthetic description (old) 009",
+      "ICQ_new": "synthetic-icq-new-009",
+      "ICQ_old": "synthetic-icq-old-009",
+      "Images_new": "https://moodle.example/images/synthetic-new-009.png",
+      "Images_old": "https://moodle-old.example/images/synthetic-old-009.png",
+      "Interests_new": "synthetic interests (new)",
+      "Interests_old": "synthetic interests (old)",
+      "Last Access_new": "2026-01-01 00:00",
+      "Last Access_old": "2020-01-01 00:00",
+      "MSN_new": "synthetic-msn-new-009",
+      "MSN_old": "synthetic-msn-old-009",
+      "MoodleNet_new": "synthetic-moodlenet-new-009",
+      "MoodleNet_old": "synthetic-moodlenet-old-009",
+      "Skype_new": "synthetic-skype-new-009",
+      "Skype_old": "synthetic-skype-old-009",
+      "Timezone_new": "Etc/UTC",
+      "Timezone_old": "Etc/UTC",
+      "Web_new": "https://synthetic-web.example/new/009",
+      "Web_old": "https://synthetic-web.example/old/009",
+      "Yahoo_new": "synthetic-yahoo-new-009",
+      "Yahoo_old": "synthetic-yahoo-old-009",
+      "id": 9
+    }
+  ],
+  "rooms": [
+    {
+      "name": "Synthetic Room 101",
+      "type": "lab",
+      "location": "Synthetic Building A",
+      "description": "Ground floor laboratory",
+      "floor": 0,
+      "capacity": 24,
+      "mrbs": "https://mrbs.example/rooms/101",
+      "id": 1
+    },
+    {
+      "name": "Synthetic Hall 2",
+      "type": "hall",
+      "location": "Synthetic Building B",
+      "description": "",
+      "floor": 2,
+      "capacity": 0,
+      "mrbs": null,
+      "id": 2
+    },
+    {
+      "name": "Synthetic Storage",
+      "type": "storage",
+      "location": "Synthetic Building A",
+      "description": "",
+      "floor": -1,
+      "capacity": null,
+      "mrbs": "",
+      "id": 3
+    }
+  ],
+  "staff": [
+    {
+      "name": "Synthetic Staff Active",
+      "active": true,
+      "title": "Prof.",
+      "position": "Professor",
+      "email": "active.staff@staff.example",
+      "cabinet": "A-101",
+      "profile": "https://staff.example/profiles/active",
+      "courses": "Alpha Course, Beta Course, Course Missing From Courses Table",
+      "consultations": "Mondays 10:00-12:00",
+      "id": 1
+    },
+    {
+      "name": "Synthetic Staff Inactive",
+      "active": false,
+      "title": "Asst.",
+      "position": "Assistant",
+      "email": "inactive.staff@staff.example",
+      "cabinet": "",
+      "profile": "",
+      "courses": "Free text; not linked to any course row",
+      "consultations": null,
+      "id": 2
+    },
+    {
+      "name": "Synthetic Staff Minimal",
+      "active": true,
+      "title": "Prof.",
+      "position": "Professor",
+      "email": "minimal.staff@staff.example",
+      "cabinet": null,
+      "profile": null,
+      "courses": null,
+      "consultations": null,
+      "id": 3
+    },
+    {
+      "name": "Prof. Zed Alpha",
+      "active": true,
+      "title": "Prof.",
+      "position": "Professor",
+      "email": "prof.zed.alpha@staff.example",
+      "cabinet": null,
+      "profile": null,
+      "courses": null,
+      "consultations": null,
+      "id": 4
+    },
+    {
+      "name": "Prof. Abe Alpha",
+      "active": true,
+      "title": "Prof.",
+      "position": "Professor",
+      "email": "prof.abe.alpha@staff.example",
+      "cabinet": null,
+      "profile": null,
+      "courses": null,
+      "consultations": null,
+      "id": 5
+    },
+    {
+      "name": "Prof. Theta",
+      "active": true,
+      "title": "Prof.",
+      "position": "Professor",
+      "email": "prof.theta@staff.example",
+      "cabinet": null,
+      "profile": null,
+      "courses": null,
+      "consultations": null,
+      "id": 6
+    },
+    {
+      "name": "Asst. Theta",
+      "active": true,
+      "title": "Asst.",
+      "position": "Assistant",
+      "email": "asst.theta@staff.example",
+      "cabinet": null,
+      "profile": null,
+      "courses": null,
+      "consultations": null,
+      "id": 7
+    }
+  ],
+  "student_council": [
+    {
+      "year": 2024,
+      "index_number": "SYN-0001",
+      "position": "President",
+      "student": 1,
+      "id": 1
+    },
+    {
+      "year": 2024,
+      "index_number": "SYN-9999",
+      "position": "Member",
+      "student": null,
+      "id": 2
+    },
+    {
+      "year": 2023,
+      "index_number": "SYN-0002",
+      "position": "Member",
+      "student": 2,
+      "id": 3
+    },
+    {
+      "year": 2023,
+      "index_number": "SYN-0003",
+      "position": "Member",
+      "student": 3,
+      "id": 4
+    }
+  ],
+  "students": [
+    {
+      "index_number": "SYN-0001",
+      "name": "Synthetic Student One",
+      "source_group": "SENTINEL_PRIVATE_SOURCE_GROUP:year-list",
+      "id": 1
+    },
+    {
+      "index_number": "SYN-0002",
+      "name": "Synthetic Student Two",
+      "source_group": "SENTINEL_PRIVATE_SOURCE_GROUP:year-list",
+      "id": 2
+    },
+    {
+      "index_number": "SYN-0003",
+      "name": "Synthetic Student Three",
+      "source_group": "SENTINEL_PRIVATE_SOURCE_GROUP:other-list",
+      "id": 3
+    }
+  ],
+  "study_programs": [
+    {
+      "generation": 3,
+      "code": "kn",
+      "name": "КН",
+      "description": null,
+      "published": true,
+      "id": 1
+    },
+    {
+      "generation": 3,
+      "code": "siis",
+      "name": "СИИС",
+      "description": null,
+      "published": true,
+      "id": 2
+    },
+    {
+      "generation": 3,
+      "code": "pit",
+      "name": "ПИТ",
+      "description": null,
+      "published": true,
+      "id": 3
+    },
+    {
+      "generation": 3,
+      "code": "imb",
+      "name": "ИМБ",
+      "description": null,
+      "published": true,
+      "id": 4
+    },
+    {
+      "generation": 3,
+      "code": "ki",
+      "name": "КИ",
+      "description": null,
+      "published": true,
+      "id": 5
+    },
+    {
+      "generation": 3,
+      "code": "ie",
+      "name": "ИЕ",
+      "description": null,
+      "published": true,
+      "id": 6
+    },
+    {
+      "generation": 3,
+      "code": "ssp",
+      "name": "ССП",
+      "description": null,
+      "published": true,
+      "id": 7
+    },
+    {
+      "generation": 3,
+      "code": "seis",
+      "name": "SEIS",
+      "description": null,
+      "published": true,
+      "id": 8
+    },
+    {
+      "generation": 2,
+      "code": "kn",
+      "name": "КН",
+      "description": null,
+      "published": true,
+      "id": 9
+    },
+    {
+      "generation": 2,
+      "code": "siis",
+      "name": "СИИС",
+      "description": null,
+      "published": true,
+      "id": 10
+    },
+    {
+      "generation": 2,
+      "code": "pit",
+      "name": "ПИТ",
+      "description": null,
+      "published": true,
+      "id": 11
+    },
+    {
+      "generation": 2,
+      "code": "imb",
+      "name": "ИМБ",
+      "description": null,
+      "published": true,
+      "id": 12
+    },
+    {
+      "generation": 2,
+      "code": "ki",
+      "name": "КИ",
+      "description": null,
+      "published": true,
+      "id": 13
+    },
+    {
+      "generation": 2,
+      "code": "ke",
+      "name": "КЕ",
+      "description": null,
+      "published": true,
+      "id": 14
+    },
+    {
+      "generation": 2,
+      "code": "seis",
+      "name": "SEIS",
+      "description": null,
+      "published": true,
+      "id": 15
+    }
+  ],
+  "teaching_assignments": [
+    {
+      "course": 1,
+      "staff": 3,
+      "role": "professor",
+      "sort": 1,
+      "id": 1
+    },
+    {
+      "course": 1,
+      "staff": 1,
+      "role": "professor",
+      "sort": 2,
+      "id": 2
+    },
+    {
+      "course": 1,
+      "staff": 2,
+      "role": "assistant",
+      "sort": 3,
+      "id": 3
+    },
+    {
+      "course": 2,
+      "staff": 1,
+      "role": "professor",
+      "sort": 1,
+      "id": 4
+    },
+    {
+      "course": 3,
+      "staff": 3,
+      "role": "professor",
+      "sort": 1,
+      "id": 5
+    },
+    {
+      "course": 6,
+      "staff": 3,
+      "role": "assistant",
+      "sort": 1,
+      "id": 6
+    },
+    {
+      "course": 7,
+      "staff": 3,
+      "role": "professor",
+      "sort": 1,
+      "id": 7
+    },
+    {
+      "course": 7,
+      "staff": 1,
+      "role": "assistant",
+      "sort": 2,
+      "id": 8
+    },
+    {
+      "course": 8,
+      "staff": 1,
+      "role": "professor",
+      "sort": 1,
+      "id": 9
+    },
+    {
+      "course": 8,
+      "staff": 2,
+      "role": "professor",
+      "sort": 2,
+      "id": 10
+    },
+    {
+      "course": 8,
+      "staff": 3,
+      "role": "assistant",
+      "sort": 3,
+      "id": 11
+    }
+  ]
+}

@@ -88,6 +88,7 @@ const entryColumns = [
 export const courses: ExportDefinition = {
   fields: [
     { key: 'name', required: true, rule: 'text', value: 'name' },
+    { key: 'abbreviation', rule: 'text', value: 'abbreviation' },
     { key: 'professors', required: true, rule: 'text', value: professors },
     // The published-year rule: one key per published academic year, its
     // label, newest first, valued by the course's count for that year.
@@ -149,7 +150,7 @@ export const courses: ExportDefinition = {
   },
   rows: {
     collection: 'courses',
-    fields: ['id', 'name', 'tags', 'status'],
+    fields: ['id', 'name', 'abbreviation', 'tags', 'status'],
     sort: ['id'],
   },
 };

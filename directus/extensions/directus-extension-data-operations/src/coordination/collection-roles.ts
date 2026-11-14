@@ -6,6 +6,7 @@ import type { Domain } from './domains.js';
 // migration and their Directus hooks are read from the other roles. It
 // stays in code: an editable row could drop a trigger or open a guard.
 export const collectionRoleNames = [
+  'content',
   'source',
   'derived',
   'candidate',
@@ -14,13 +15,23 @@ export const collectionRoleNames = [
 ] as const;
 
 export type CollectionDeclaration =
-  BookkeepingDeclaration | GuardedDeclaration | SourceDeclaration;
+  | BookkeepingDeclaration
+  | ContentDeclaration
+  | GuardedDeclaration
+  | SourceDeclaration;
 
 // An UPDATE that names the column marks these domains on top of the
 // table's own, through a statement trigger of this name on the column.
 export type ColumnRefinement = {
   readonly domains: DomainList;
   readonly trigger: string;
+};
+
+// An editable table nothing is derived from: its statements mark no
+// domain, so it carries no trigger.
+export type ContentDeclaration = {
+  readonly collection: string;
+  readonly role: 'content';
 };
 
 export type GuardedDeclaration = {
@@ -69,44 +80,41 @@ type WriteGuard = {
   readonly writtenBy: string;
 };
 
-const publication = ['publication'] as const;
-
-// A source whose statements mark publication only, the default.
-const publishes = <const Collection extends string>(collection: Collection) =>
-  ({ collection, invalidates: publication, role: 'source' }) as const;
+const content = <const Collection extends string>(collection: Collection) =>
+  ({ collection, role: 'content' }) as const;
 
 // Sources in the order their triggers are installed, then the others.
 const collectionRoles = [
   // Every course is counted in every academic year.
   {
     collection: 'courses',
-    invalidates: ['enrollments', 'publication'],
+    invalidates: ['enrollments'],
     role: 'source',
   },
-  publishes('staff'),
-  publishes('rooms'),
-  publishes('students'),
-  publishes('curriculum_entries'),
-  publishes('course_curricula'),
-  publishes('curriculum_generations'),
-  publishes('study_programs'),
-  publishes('curriculum_entry_program_states'),
-  publishes('teaching_assignments'),
-  publishes('student_council'),
-  publishes('course_equivalencies'),
-  publishes('course_equivalency_members'),
-  publishes('discord_channels'),
-  publishes('discord_channel_courses'),
-  publishes('deans_office'),
+  content('staff'),
+  content('rooms'),
+  content('students'),
+  content('curriculum_entries'),
+  content('course_curricula'),
+  content('curriculum_generations'),
+  content('study_programs'),
+  content('curriculum_entry_program_states'),
+  content('teaching_assignments'),
+  content('student_council'),
+  content('course_equivalencies'),
+  content('course_equivalency_members'),
+  content('discord_channels'),
+  content('discord_channel_courses'),
+  content('deans_office'),
   {
     caseLast: true,
     collection: 'academic_years',
-    invalidates: ['enrollments', 'publication'],
+    invalidates: ['enrollments'],
     role: 'source',
   },
   {
     collection: 'moodle_users',
-    invalidates: ['history_index', 'enrollments', 'publication'],
+    invalidates: ['history_index', 'enrollments'],
     role: 'source',
   },
   {
@@ -117,19 +125,19 @@ const collectionRoles = [
         trigger: 'finki_hub_entry_label_invalidation',
       },
     },
-    invalidates: ['enrollments', 'publication'],
+    invalidates: ['enrollments'],
     onDelete: ['history_index'],
     role: 'source',
     why: 'Deleting a history entry cascades its memberships away, and a label edited by hand (the label belongs to the index writer, which only inserts entries) no longer names the lines its memberships came from: either way the derived index no longer matches the raw histories until it is rebuilt. The label case arrives through the column trigger below.',
   },
   {
     collection: 'moodle_course_mappings',
-    invalidates: ['enrollments', 'publication'],
+    invalidates: ['enrollments'],
     role: 'source',
   },
   {
     collection: 'moodle_pattern_mappings',
-    invalidates: ['enrollments', 'publication'],
+    invalidates: ['enrollments'],
     role: 'source',
   },
   {

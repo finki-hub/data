@@ -4,7 +4,6 @@ import {
   calculationDomains,
   coordinationDomains,
   type Domain,
-  domainDeclarations,
 } from './domains.js';
 
 // The trigger function and the statement triggers of the
@@ -15,9 +14,7 @@ const invalidation = 'finki_hub_source_invalidation';
 const commentWidth = 76;
 
 // What every source marks when the trigger function lists no arm for it.
-const defaultDomains: readonly Domain[] = domainDeclarations
-  .filter(({ kind }) => kind === 'publication')
-  .map(({ name }) => name);
+const defaultDomains: readonly Domain[] = ['enrollments'];
 
 const quoted = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(', ');
@@ -120,8 +117,7 @@ export const triggerFunction = (
     ...sources.flatMap(refinements),
     "  -- A calculation's input revision moves with every statement that marks",
     '  -- it or an upstream domain, so a run of it is overtaken (and a failure',
-    '  -- of it lifted) by those statements only, never by a publication-only',
-    '  -- edit; publication follows the source revision itself.',
+    '  -- of it lifted) by those statements only.',
     '  UPDATE "data_operations" SET',
     '    "source_revision" = "source_revision" + 1,',
     '    "requested_revision" = "source_revision" + 1,',

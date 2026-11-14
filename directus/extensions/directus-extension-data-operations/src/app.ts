@@ -5,7 +5,6 @@ import {
   coordinationDomains,
   coordinatorActionNames,
   domainLabel,
-  fileOutcomes,
   isDomain,
   nextCalculation,
 } from './coordination/domains.js';
@@ -128,41 +127,10 @@ export default defineOperationApp({
       type: 'json',
     },
     {
-      field: 'filename',
-      meta: {
-        interface: 'input',
-        note: 'record: the published file whose outcome is recorded, for example {{ $trigger.filename }}.',
-        width: 'half',
-      },
-      name: 'Published file',
-      type: 'string',
-    },
-    {
-      field: 'outcome',
-      meta: {
-        interface: 'select-dropdown',
-        note: 'record: what happened to the file (skipped: not attempted).',
-        options: { allowNone: true, choices: choices(fileOutcomes) },
-        width: 'half',
-      },
-      name: 'File outcome',
-      type: 'string',
-    },
-    {
-      field: 'bytes',
-      meta: {
-        interface: 'input',
-        note: 'record: the bytes written, for example {{ upload.bytes }}.',
-        width: 'half',
-      },
-      name: 'Bytes written',
-      type: 'string',
-    },
-    {
       field: 'code',
       meta: {
         interface: 'input',
-        note: 'fail: a short failure code kept in the status; record: the code of a failed or skipped file, for example {{ upload.code }}.',
+        note: 'fail: a short failure code kept in the status.',
         width: 'half',
       },
       name: 'Failure code',
@@ -177,17 +145,6 @@ export default defineOperationApp({
       },
       name: 'Failure message',
       type: 'string',
-    },
-    {
-      field: 'files',
-      meta: {
-        interface: 'input-code',
-        note: 'complete, fail (publication): outcome per declared file, keyed by filename, for example { "courses.json": { "outcome": "uploaded", "bytes": 5439 } }.',
-        options: { language: 'json' },
-        width: 'full',
-      },
-      name: 'Published files',
-      type: 'json',
     },
   ],
   overview: (options: Record<string, unknown>) => [

@@ -1,6 +1,5 @@
 import type { PageRange } from '../page-state.js';
-import type { CalculationDomain, ClaimDomain, Domain } from './domains.js';
-import type { StoredOutcomes } from './outcomes.js';
+import type { ClaimDomain, Domain } from './domains.js';
 
 // A failure message kept in the status is cut to this many characters, so
 // a caller can pass a whole failure record without a size check of its own.
@@ -20,30 +19,13 @@ export const pageSourceTables: Readonly<Record<PageSource, string>> = {
   history: 'moodle_users',
 };
 
-// A publication records at most this many per-file outcomes, keyed by
-// the published filename (courses.json, ...).
-export const maxPublishedFiles = 64;
-
 export const operationId = 'finki-hub-data-coordinate';
 
 // A claim whose heartbeat is older than this is abandoned: its process died
 // or its Flow stopped without calling fail. A running job refreshes the
-// heartbeat with every plan_pages, stage_page, heartbeat or record call, so
-// a live claim is never taken away by time alone.
+// heartbeat with every plan_pages, stage_page or heartbeat call, so a live
+// claim is never taken away by time alone.
 export const claimStaleAfterMs = 60_000;
-
-// A heartbeat of a publication claim leases it for the upload that follows
-// (the claim counts as alive until the lease ends), so recovery never
-// releases a claim whose upload may still write its object: a later
-// publication would otherwise be overwritten by the older body without a
-// trace. Directus replaces a file through three S3 calls before the object
-// itself is written (PutObject of a temp object, ListObjectsV2 of the id
-// prefix, CopyObject), each tried three times by the SDK with the S3
-// driver's 5 s connection and 120 s socket timeouts: about 19 minutes at
-// worst. The `record` of the file's outcome ends the lease. A Directus that
-// dies in the middle of an upload therefore holds every claim until the
-// lease and the stale window have passed.
-export const publicationUploadLeaseMs = 20 * 60_000;
 
 // How long a claim waits for the singleton row lock. A source transaction
 // holds that lock from its first statement to its commit (a long import
@@ -74,8 +56,6 @@ export type Claim = {
   // abandoned.
   readonly domain: ClaimDomain | null;
   readonly fingerprint: string;
-  // Negative while a publication's upload lease runs: the heartbeat is
-  // dated to the end of the lease.
   readonly heartbeatAgeMs: number;
   readonly heartbeatAt: string;
   readonly owner: string;
@@ -114,19 +94,12 @@ export type OperationsState = {
   readonly finishedAt: null | string;
   readonly importState: string;
   // Per calculation domain, the source revision of the last statement or
-  // mark that touched its inputs (its own domain or an upstream one), so a
-  // publication-only edit never overtakes or retries a calculation. The
+  // mark that touched its inputs (its own domain or an upstream one). The
   // source revision itself stands in while a column was never written.
-  readonly inputRevisions: Readonly<Record<CalculationDomain, number>>;
+  readonly inputRevisions: Readonly<Record<Domain, number>>;
   readonly lastError: LastError | null;
   // The last completed claim's retries after a database conflict.
   readonly lastRunRetries: number;
-  readonly publicationFingerprint: null | string;
-  // The outcome of each declared file of the last publication that
-  // recorded one (a completion, a failed run that attempted its files, or
-  // an overtaken one), keyed by filename; null when none was recorded.
-  readonly publicationOutcomes: null | StoredOutcomes;
-  readonly publicationState: string;
   readonly requestedRevision: number;
   readonly sourceRevision: number;
   readonly startedAt: null | string;

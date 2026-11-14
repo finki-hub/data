@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { ReadinessEntry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-types.js';
 import type {
   ExportDefinition,
   RowContext,
@@ -25,17 +24,14 @@ import {
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import { registryReads } from '../directus/extensions/directus-extension-data-operations/src/exports/registry-rules.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { staff } from '../directus/extensions/directus-extension-data-operations/src/exports/staff.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';
 import { aliasesFor, findModelRelation } from '../src/data-model/relations.js';
-import { storeReader } from '../src/projection/memory-reader.js';
 import { forbiddenPrivateFields } from './fixtures/synthetic-data.js';
-import { readinessEntry } from './registry-test-helpers.js';
+import { storeReader } from './memory-reader.js';
 import {
   edit,
   importedStore,
@@ -48,12 +44,10 @@ import {
 const publicRows = (body: string) =>
   z.array(z.record(z.string(), z.string())).parse(JSON.parse(body));
 
-// Every read the export layer makes: the readiness registry's and every
-// definition's.
-const everyRead = [
-  ...registryReads(readinessRegistry),
-  ...exportDefinitions.flatMap((definition) => definitionReads(definition)),
-];
+// Every read the export layer makes.
+const everyRead = exportDefinitions.flatMap((definition) =>
+  definitionReads(definition),
+);
 
 // The collection a relational step reaches: the target of an M2O field,
 // or the rows (junction rows for an M2M) an O2M or M2M alias lists.
@@ -217,7 +211,6 @@ describe('the shipped export definitions', () => {
   });
 
   test('never read Moodle users, a private collection or a private field', () => {
-    expect(registryReads(readinessRegistry).length).toBeGreaterThan(0);
     expect(everyRead.flatMap(privateReadsOf)).toEqual([]);
     // The checker itself sees each kind of private read.
     expect(
@@ -600,57 +593,6 @@ describe('the definition rules', () => {
   ] as const)('names %j', (change, problem) => {
     expect(broken(change).join('; ')).toContain(problem);
   });
-
-  // The council entry with its count read changed.
-  const council = readinessEntry('council_member_unresolved');
-  const withRead = (change: Partial<SourceRead>): ReadinessEntry[] =>
-    readinessRegistry.map((entry) =>
-      entry === council
-        ? {
-            ...entry,
-            source: {
-              check: {
-                evaluate: () => ({}),
-                reads: {
-                  members: {
-                    collection: 'student_council',
-                    fields: change.fields ?? ['id'],
-                    sort: ['id'],
-                    ...(change.filter !== undefined && {
-                      filter: change.filter,
-                    }),
-                  },
-                },
-              },
-              kind: 'check',
-            },
-          }
-        : entry,
-    );
-
-  test.each<readonly [Partial<SourceRead>, string]>([
-    [
-      { fields: ['*'] },
-      'readiness check of council_member_unresolved read members selects a wildcard',
-    ],
-    [
-      { filter: { student: { _some: { id: { _null: true } } } } },
-      'readiness check of council_member_unresolved read members filters with _some or _none',
-    ],
-    [
-      { fields: [] },
-      'readiness check of council_member_unresolved read members selects no field',
-    ],
-  ])(
-    'applies the read rules to the readiness registry too: %j',
-    (change, problem) => {
-      expect(council).toBeDefined();
-      expect(definitionProblems(exportDefinitions, withRead(change))).toContain(
-        problem,
-      );
-      expect(definitionProblems(exportDefinitions)).toEqual([]);
-    },
-  );
 
   test('refuses two files of one name before anything is read', () => {
     expect(() => {

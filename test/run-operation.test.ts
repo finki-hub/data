@@ -77,12 +77,6 @@ const idle: StatusView = {
   keySources: [],
   lastError: null,
   lastRun: { finishedAt: null, retries: 0, startedAt: null },
-  publication: {
-    complete: false,
-    files: [],
-    lastRevision: null,
-    state: 'idle',
-  },
   revisions: { completed: 1, requested: 1, source: 1 },
   schedule: [],
 };

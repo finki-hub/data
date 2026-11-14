@@ -1,3 +1,5 @@
+# A local development project. The production deployment keeps its own
+# compose file and secrets beside the repository on the host.
 services:
   database:
     image: postgres:18-alpine
@@ -15,7 +17,7 @@ services:
 
   directus:
     build: ./directus
-    image: finki-hub-directus:12.3.1-utf8
+    image: finki-hub-directus:local
     pull_policy: build
     depends_on:
       database:
@@ -37,14 +39,7 @@ services:
       SECRET: ${DIRECTUS_SECRET:-replace-this-local-secret-with-32-bytes}
       STORAGE_LOCAL_DRIVER: local
       STORAGE_LOCAL_ROOT: ./uploads
-      STORAGE_LOCATIONS: local,publish
-      STORAGE_PUBLISH_BUCKET: ${STORAGE_PUBLISH_BUCKET:-}
-      STORAGE_PUBLISH_ENDPOINT: ${STORAGE_PUBLISH_ENDPOINT:-}
-      STORAGE_PUBLISH_FORCE_PATH_STYLE: ${STORAGE_PUBLISH_FORCE_PATH_STYLE:-false}
-      STORAGE_PUBLISH_KEY: ${STORAGE_PUBLISH_KEY:-}
-      STORAGE_PUBLISH_REGION: ${STORAGE_PUBLISH_REGION:-auto}
-      STORAGE_PUBLISH_SECRET: ${STORAGE_PUBLISH_SECRET:-}
-      STORAGE_PUBLISH_DRIVER: s3
+      STORAGE_LOCATIONS: local
       TELEMETRY: false
     ports:
       - 127.0.0.1:${DIRECTUS_PORT:-8055}:8055

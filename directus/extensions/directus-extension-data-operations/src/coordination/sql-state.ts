@@ -6,7 +6,6 @@ import {
   isClaimDomain,
   normaliseDomains,
 } from './domains.js';
-import { storedOutcomeSchema } from './outcomes.js';
 import { type OperationsState } from './state.js';
 
 const isoText = (column: string, alias: string): string =>
@@ -40,10 +39,7 @@ export const columns = [
   '"last_failed_fingerprint"',
   '"last_error_retries"',
   '"calculation_fingerprint"',
-  '"publication_fingerprint"',
   '"import_state"',
-  '"publication_state"',
-  '"publication_outcomes"',
   isoText('"started_at"', 'started_iso'),
   isoText('"finished_at"', 'finished_iso'),
   '"last_run_retries"',
@@ -65,7 +61,7 @@ export const claimClear = [
 
 // The input revision of the claimed domain, as inputRevision computes it:
 // a calculation's own column (the source revision while it was never
-// written), the source revision for publication and a snapshot claim.
+// written), the source revision for a snapshot claim.
 export const claimInputRevision = `CASE "claim_domain" ${calculationDomains
   .map(
     (domain) =>
@@ -129,14 +125,6 @@ export const stateRow = z.object({
   last_failed_fingerprint: optionalString,
   last_failed_revision: optionalInt,
   last_run_retries: retries,
-  publication_fingerprint: optionalString,
-  // A value edited out of shape by hand (or an outcome map of an earlier
-  // shape) is reported as no outcome.
-  publication_outcomes: z
-    .record(z.string(), storedOutcomeSchema)
-    .nullable()
-    .catch(null),
-  publication_state: z.string(),
   requested_revision: z.number().int(),
   source_revision: z.number().int(),
   started_iso: optionalString,
@@ -198,9 +186,6 @@ export const toState = (row: StateRow): OperationsState => ({
           revision: row.last_failed_revision,
         },
   lastRunRetries: row.last_run_retries,
-  publicationFingerprint: row.publication_fingerprint,
-  publicationOutcomes: row.publication_outcomes,
-  publicationState: row.publication_state,
   requestedRevision: row.requested_revision,
   sourceRevision: row.source_revision,
   startedAt: row.started_iso,

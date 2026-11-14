@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
@@ -10,8 +9,6 @@ import {
   type FlowTemplate,
   type OperationTemplate,
 } from '../src/flows/flow-template.js';
-import { matchingFlows } from '../src/flows/match-history-lines.js';
-import { publishFlows } from '../src/flows/publish-public-assets.js';
 import {
   flowFamilies,
   type FlowFamily,
@@ -32,11 +29,8 @@ const installedFlowIds = [
   // Batch 1, step 15: the history line matching family, in place of the
   // mapped (11) and legacy (12) families.
   '1701',
-  '1404',
-  '1405',
-  // Task 15: the publish family, the child before its parent.
-  '1502',
-  '1501',
+  // Retiring publication (2026-11-14) removed the publication (1404,
+  // 1405) and publish (1502, 1501) families.
   // Batch 1, step 17: the rule seeding family of Task 16 (1602, 1601) is
   // removed with the enrollment rules.
   '1301',
@@ -92,23 +86,6 @@ const ruleSeedingIds = idsIn(
   ['31', '33'],
 );
 
-// The 171 operation ids the fixture held before Task 15, sorted and
-// hashed.
-const operationIdsSha256 =
-  '6858e870a5fb769ab5e64a027b3d56deb9364915d519cdf3161a950b08173ee8';
-
-// What Task 15 added: every operation of the publish family, and the
-// schedule's enrollment route and unknown-domain branch. What batch 1 step
-// 15 added: every operation of the matching family. (Task 16 added the
-// rule seeding family, which step 17 removed.)
-const addedOperationIds = new Set([
-  ...publishFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
-  familyId('13', '3a'),
-  familyId('13', '4a'),
-  familyId('13', '49'),
-  ...matchingFlows.flatMap(({ operations }) => operations.map(({ id }) => id)),
-]);
-
 // The two steps each manual Flow of families 10, 13 and 14 started with
 // until 2026-10-03, part of the pinned ids above.
 const pinnedGateIds = [
@@ -116,10 +93,10 @@ const pinnedGateIds = [
   familyId('10', '21'),
   familyId('13', '51'),
   familyId('13', '55'),
-  familyId('14', '41'),
-  familyId('14', '42'),
-  familyId('14', '51'),
-  familyId('14', '52'),
+  anyFamilyId('14', '41'),
+  anyFamilyId('14', '42'),
+  anyFamilyId('14', '51'),
+  anyFamilyId('14', '52'),
 ];
 
 // The steps removed later, part of the pinned ids above: the dispatcher
@@ -141,8 +118,8 @@ const removedOperationIds = [
 // reused one would fail there with RECORD_NOT_UNIQUE.
 const retiredOperationIds = [
   ...removedOperationIds,
-  familyId('15', '11'),
-  familyId('15', '12'),
+  anyFamilyId('15', '11'),
+  anyFamilyId('15', '12'),
   anyFamilyId('16', '11'),
   anyFamilyId('16', '21'),
   ...retiredRunnerIds,
@@ -233,26 +210,21 @@ describe('the Flow family registry', () => {
     );
   });
 
-  test('keeps the installed Flow and operation ids unchanged', () => {
+  test('keeps the installed Flow ids unchanged and uses no retired family code', () => {
     const templates = flowTemplates();
-    const operations = templates.flatMap(operationIds).toSorted(byText);
-
-    const kept = operations.filter((id) => !addedOperationIds.has(id));
-    const before = [...kept, ...removedOperationIds].toSorted(byText);
+    const operations = templates.flatMap(operationIds);
 
     expect(templates.map(({ id }) => id.slice(-4))).toEqual(installedFlowIds);
-    expect(before).toHaveLength(171);
-    expect(createHash('sha256').update(before.join(',')).digest('hex')).toBe(
-      operationIdsSha256,
-    );
     expect(operations.filter((id) => removedOperationIds.includes(id))).toEqual(
       [],
     );
-    expect(operations).toHaveLength(
-      171 - removedOperationIds.length + addedOperationIds.size,
-    );
-    expect(templates.map(({ id }) => id)).toContain(familyId('14', '04'));
-    expect(templates.map(({ id }) => id)).toContain(familyId('14', '05'));
+    // The retired families: the rule families (11, 12), publication (14),
+    // publish (15) and rule seeding (16).
+    expect(
+      [...templates.map(({ id }) => id), ...operations].filter((id) =>
+        ['11', '12', '14', '15', '16'].includes(codeOf(id)),
+      ),
+    ).toEqual([]);
   });
 
   // No template tests its caller: the operations that need a caller check
@@ -393,7 +365,7 @@ describe('the one install loop', () => {
 
   test('installs a family added to the list without any other change', async () => {
     const extra: FlowFamily = {
-      code: flowFamilyCodes.publication,
+      code: flowFamilyCodes.snapshot,
       name: 'Synthetic family',
       templates: [],
     };
@@ -405,7 +377,7 @@ describe('the one install loop', () => {
     ]);
 
     expect(summary.families.at(-1)).toEqual({
-      code: flowFamilyCodes.publication,
+      code: flowFamilyCodes.snapshot,
       created: [],
       name: 'Synthetic family',
       skipped: [],

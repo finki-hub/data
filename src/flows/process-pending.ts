@@ -1,4 +1,4 @@
-import type { CalculationDomain } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
+import type { Domain } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 
 import {
   dispatcherFlow,
@@ -38,55 +38,54 @@ const claimToken = '{{ claim.token }}';
 // so a new calculation domain names its child here or does not compile.
 // Each child releases the claim itself (complete or fail); the scheduler
 // fails it only when the child could not.
-const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
-  {
-    enrollments: {
-      answered: { key: 'counted', suffix: '39' },
-      child: dispatcherFlowId,
-      crashed: branch({
-        code: enrollmentsFailureCode,
-        message: '{{ count.message }}',
-        position: [73, 73],
-        stage: 'enrollments_run',
-        suffixes: ['45', '46'],
-      }),
-      missing: missingBranch(dispatcherFlow.name, {
-        code: enrollmentsFailureCode,
-        position: [91, 73],
-        stage: 'enrollments_missing',
-        suffixes: ['47', '48'],
-      }),
-      payload: { claim: claimToken, revision: '{{ claim.revision }}' },
-      route: {
-        key: 'route_enrollments',
-        name: 'Enrollment counts?',
-        suffix: '3a',
-      },
-      row: 55,
-      run: { key: 'count', name: 'Count enrollments', suffix: '38' },
+const calculationRoutes: Readonly<Record<Domain, CalculationRoute>> = {
+  enrollments: {
+    answered: { key: 'counted', suffix: '39' },
+    child: dispatcherFlowId,
+    crashed: branch({
+      code: enrollmentsFailureCode,
+      message: '{{ count.message }}',
+      position: [73, 73],
+      stage: 'enrollments_run',
+      suffixes: ['45', '46'],
+    }),
+    missing: missingBranch(dispatcherFlow.name, {
+      code: enrollmentsFailureCode,
+      position: [91, 73],
+      stage: 'enrollments_missing',
+      suffixes: ['47', '48'],
+    }),
+    payload: { claim: claimToken, revision: '{{ claim.revision }}' },
+    route: {
+      key: 'route_enrollments',
+      name: 'Enrollment counts?',
+      suffix: '3a',
     },
-    history_index: {
-      answered: { key: 'refreshed', suffix: '35' },
-      child: refreshFlow.id,
-      crashed: branch({
-        code: 'INDEX_FAILED',
-        message: '{{ refresh.message }}',
-        position: [73, 19],
-        stage: 'history_run',
-        suffixes: ['41', '42'],
-      }),
-      missing: missingBranch(refreshFlow.name, {
-        code: 'INDEX_FAILED',
-        position: [91, 19],
-        stage: 'history_missing',
-        suffixes: ['43', '44'],
-      }),
-      payload: { claim: claimToken },
-      route: { key: 'route', name: 'History index?', suffix: '33' },
-      row: 1,
-      run: { key: 'refresh', name: 'Refresh the history index', suffix: '34' },
-    },
-  };
+    row: 55,
+    run: { key: 'count', name: 'Count enrollments', suffix: '38' },
+  },
+  history_index: {
+    answered: { key: 'refreshed', suffix: '35' },
+    child: refreshFlow.id,
+    crashed: branch({
+      code: 'INDEX_FAILED',
+      message: '{{ refresh.message }}',
+      position: [73, 19],
+      stage: 'history_run',
+      suffixes: ['41', '42'],
+    }),
+    missing: missingBranch(refreshFlow.name, {
+      code: 'INDEX_FAILED',
+      position: [91, 19],
+      stage: 'history_missing',
+      suffixes: ['43', '44'],
+    }),
+    payload: { claim: claimToken },
+    route: { key: 'route', name: 'History index?', suffix: '33' },
+    row: 1,
+    run: { key: 'refresh', name: 'Refresh the history index', suffix: '34' },
+  },
+};
 
 // The native scheduler of automatic processing. Every tick goes through
 // the coordinator's atomic claim, which also releases a claim whose
@@ -96,8 +95,8 @@ const calculationRoutes: Readonly<Record<CalculationDomain, CalculationRoute>> =
 // upstream dirty, or a failure at this revision) reads the status row and
 // the Flow graph and ends at `idle`; it reads no collection. A claimed
 // tick runs exactly one domain, the first pending one in dependency order
-// (the history index before the enrollment counts; publication never,
-// that is the publish Flow's), through the child that completes or fails
+// (the history index before the enrollment counts), through the child
+// that completes or fails
 // the claim; the next tick takes the next domain. A failure stays failed
 // until an edit, Mark pending or a graph change: no timed retry. The
 // schedule has no caller and no accountability, so every item read in the

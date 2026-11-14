@@ -16,102 +16,24 @@ import {
   fileShape,
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
-import { importWorkbook } from '../src/import-workbook.js';
-import { type ImportPlan, planImport } from '../src/import/plan.js';
-import { projectedCounts } from '../src/projection/counts.js';
-import { readWorkbookContent } from '../src/workbook.js';
-import {
-  courseNames,
-  type SyntheticDataset,
-} from './fixtures/synthetic-data.js';
-import {
-  lifecycleDataset,
-  reloaded,
-  syntheticWorkbook,
-} from './fixtures/synthetic-workbook.js';
-import { planOf } from './import-plan-helpers.js';
-import { emptyStore, fakeImportDirectus } from './import-test-helpers.js';
-
-// The lifecycle dataset as the committed parity files state it: one
-// teaching row per course (the lifecycle dataset's second Alpha row, which
-// the import ignores with a duplicate_assignment warning, removed). Gamma
-// keeps its 2018 availability of FALSE without a 2018 name, which links
-// nothing: Gamma publishes "2018-available" FALSE, as for an empty cell.
-export const parityDataset = (): SyntheticDataset => {
-  const base = lifecycleDataset();
-  return {
-    ...base,
-    teaching_assignments: base.teaching_assignments.filter(
-      (row) => row.id !== 2,
-    ),
-  };
-};
+import parityRows from './fixtures/stores/parity.json' with { type: 'json' };
 
 // A label no curriculum row of either generation carries.
 export const unmatchedLabel = 'Synthetic Label Without Entry';
 
-// Iota's 2023 name changed to a label no 2023 curriculum row carries.
-export const renamedCurrent = (
-  dataset: SyntheticDataset,
-): SyntheticDataset => ({
-  ...dataset,
-  courses: dataset.courses.map((course) =>
-    course['name'] === courseNames.iota
-      ? { ...course, name_2023: unmatchedLabel }
-      : course,
-  ),
-});
-
-// Zeta's equivalency pointed at a 2018 label no 2018 curriculum row
-// carries.
-export const unmatchedLegacy = (
-  dataset: SyntheticDataset,
-): SyntheticDataset => ({
-  ...dataset,
-  course_equivalencies: dataset.course_equivalencies.map((row) =>
-    row['course_2023'] === courseNames.zeta
-      ? { ...row, course_2018: unmatchedLabel }
-      : row,
-  ),
-});
-
 export const rowsOf = (store: FakeStore, collection: string) =>
   store.items.get(collection) ?? [];
 
-// The count rows the enrollments run installs for a store: its pattern
-// mappings resolved over its Moodle users' history lines, one row per
-// course and published academic year (src/projection/counts.ts).
-const countRows = (store: FakeStore): FakeItem[] =>
-  projectedCounts(store).rows.map((row) => ({ ...row, computed_revision: 1 }));
-
-// The relational rows of an import plan: the workbook import of it into an
-// empty fake project, with the count rows its pattern mappings produce. A
-// plan with blockers fails here.
-const plannedStore = async (plan: ImportPlan): Promise<FakeStore> => {
-  if (plan.blockers.length > 0) {
-    throw new Error(
-      `The import refuses the dataset: ${plan.blockers.map(({ code }) => code).join(', ')}`,
-    );
-  }
-  const fake = fakeImportDirectus(emptyStore());
-  await importWorkbook(fake.request, plan.collections, fake.io);
-  fake.store.items.set('course_enrollments', countRows(fake.store));
-  return fake.store;
-};
-
-// The relational rows of a dataset, planned from the rows the reader would
-// read from it.
-export const importedStore = (
-  dataset: SyntheticDataset = parityDataset(),
-): Promise<FakeStore> => plannedStore(planOf(dataset));
-
-// The relational rows of the workbook written from a dataset, saved and
-// read back as the import reads a file, with that workbook. Columns the
-// reader does not read (Ниво) are written and reach no row.
-export const workbookStore = async (dataset: SyntheticDataset) => {
-  const workbook = await reloaded(syntheticWorkbook(dataset));
-  const store = await plannedStore(planImport(readWorkbookContent(workbook)));
-  return { store, workbook };
+// The relational rows of the parity fixture, as the one-time workbook
+// import wrote them (test/fixtures/stores/parity.json): a fresh copy per
+// call, so a test may edit it.
+export const importedStore = (): Promise<FakeStore> => {
+  const rows = z
+    .record(z.string(), z.array(z.looseObject({ id: z.number() })))
+    .parse(structuredClone(parityRows));
+  return Promise.resolve({
+    items: new Map(Object.entries(rows).map(([key, list]) => [key, list])),
+  });
 };
 
 export const edit = (

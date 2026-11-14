@@ -355,15 +355,14 @@ describe('the counted lines and staged matches in the database', () => {
 });
 
 describe('every course counted', () => {
-  test('a course marks the counts and publication pending, and the counts name it as a source', () => {
+  test('a course marks the counts pending, and the counts name it as a source', () => {
     expect(declarationOf('courses')).toEqual({
       collection: 'courses',
-      invalidates: ['enrollments', 'publication'],
+      invalidates: ['enrollments'],
       role: 'source',
     });
-    expect(sourceInvalidationSql).toContain(
-      "WHEN 'courses' THEN ARRAY['enrollments', 'publication']",
-    );
+    // The counts are the default domain: no arm of its own.
+    expect(sourceInvalidationSql).not.toContain("WHEN 'courses'");
     expect(declarationOf('course_enrollments')).toMatchObject({
       guard: {
         hint: 'Source: courses, moodle_pattern_mappings, moodle_course_mappings, moodle_users; rebuilt by: Data / Process pending',

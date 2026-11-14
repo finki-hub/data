@@ -11,9 +11,7 @@ import {
   installFlowTemplates,
 } from './install-flows.js';
 import { matchingFlows } from './match-history-lines.js';
-import { publicationFlows } from './prepare-public-assets.js';
 import { automaticProcessingFlows } from './process-pending.js';
-import { publishFlows } from './publish-public-assets.js';
 import { snapshotImportFlows } from './snapshot-import.js';
 
 // One managed Flow family: its declared code (every id of its templates
@@ -26,8 +24,8 @@ export type FlowFamily = {
 };
 
 // Every managed Flow family in installation order: the history index,
-// the snapshot import, the history line matching, the publication buttons
-// and the publish Flows before automatic processing, whose dispatcher
+// the snapshot import and the history line matching before automatic
+// processing, whose dispatcher
 // calls the matching Flow and whose schedule runs last, so its first tick
 // finds every child. A later family is one entry here, before automatic
 // processing.
@@ -46,16 +44,6 @@ export const flowFamilies: readonly FlowFamily[] = [
     code: flowFamilyCodes.matching,
     name: 'History line matching',
     templates: matchingFlows,
-  },
-  {
-    code: flowFamilyCodes.publication,
-    name: 'Publication',
-    templates: publicationFlows,
-  },
-  {
-    code: flowFamilyCodes.publish,
-    name: 'Publish',
-    templates: publishFlows,
   },
   {
     code: flowFamilyCodes.automation,

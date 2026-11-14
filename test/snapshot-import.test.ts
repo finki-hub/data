@@ -710,7 +710,6 @@ describe('snapshot promotion operation', () => {
     expect(world.coordination.data.dirtyDomains).toEqual([
       'history_index',
       'enrollments',
-      'publication',
     ]);
     expect(world.coordination.data.sourceRevision).toBe(revision + 2);
     expect(world.data.state).toMatchObject({
@@ -720,7 +719,7 @@ describe('snapshot promotion operation', () => {
     expect(world.stateLog.slice(-2)).toEqual(['promoting', 'completed']);
     expect(result).toMatchObject({
       membershipsRemoved: 1,
-      pending: ['history_index', 'enrollments', 'publication'],
+      pending: ['history_index', 'enrollments'],
       previousRows: 2,
       revision: revision + 2,
       rows: 3,
@@ -829,45 +828,45 @@ describe('snapshot promotion failures', () => {
     const { world } = await prepared();
     const { coordination } = world;
     coordination.data.calculationFingerprint = coordination.graphs.calculation;
-    coordination.data.dirtyDomains = ['publication'];
+    coordination.data.dirtyDomains = ['history_index'];
     await world.store.transaction(({ coordination: port }) =>
       port.takeClaim({
-        dirtyDomains: ['publication'],
-        domain: 'publication',
-        fingerprint: coordination.graphs.publication,
+        dirtyDomains: ['history_index'],
+        domain: 'history_index',
+        fingerprint: coordination.graphs.calculation,
         owner,
         sourceRevision: coordination.data.sourceRevision,
-        token: 'publish',
+        token: 'index',
       }),
     );
     await world.store.transaction(({ coordination: port }) =>
       port.release({
-        code: 'SYNTHETIC_PUBLISH_FAILURE',
+        code: 'SYNTHETIC_INDEX_FAILURE',
         failed: true,
-        token: 'publish',
+        token: 'index',
       }),
     );
-    const publication = async () =>
+    const historyIndex = async () =>
       decideClaim(
         await world.store.transaction(({ coordination: port }) =>
           port.readState(false),
         ),
         {
           currentFingerprints: coordination.graphs,
-          domain: 'publication',
+          domain: 'history_index',
           retry: false,
         },
       ).kind;
     const failedBefore = structuredClone(coordination.data.lastError);
 
-    await expect(publication()).resolves.toBe('failed');
+    await expect(historyIndex()).resolves.toBe('failed');
 
     world.hooks.corruptUpload = (text) => `${text}"Synthetic Extra"\r\n`;
     const backup = await errorOf(promote(world));
 
     expect(backup.code).toBe('SNAPSHOT_BACKUP_FAILED');
     expect(coordination.data.lastError).toEqual(failedBefore);
-    await expect(publication()).resolves.toBe('failed');
+    await expect(historyIndex()).resolves.toBe('failed');
     expect(world.data.state.error).toContain('SNAPSHOT_BACKUP_FAILED');
   });
 

@@ -11,18 +11,8 @@ import {
 } from './action-support.js';
 import { decideStage, verifyClaim, verifyOwnership } from './decisions.js';
 import { coordinationError } from './errors.js';
-import {
-  boundedCode,
-  checkReportedFiles,
-  declaredFilenames,
-  mergedOutcomes,
-} from './outcomes.js';
 import { domainMismatch, pageUnplanned } from './refusals.js';
-import {
-  type PageSource,
-  pageSourceDomains,
-  publicationUploadLeaseMs,
-} from './state.js';
+import { type PageSource, pageSourceDomains } from './state.js';
 
 type Input<Action extends CoordinatorInput['action']> = Extract<
   CoordinatorInput,
@@ -130,8 +120,7 @@ export const stagePageAction = (
     return done({ page: input.page, replaced, staged });
   });
 
-// A heartbeat of a publication claim comes right before an upload and
-// leases the claim until that upload can no longer write (state.ts).
+// A heartbeat keeps a long-running claim alive.
 export const heartbeatAction = (token: string, context: ActionContext) =>
   context.store.transaction(async (port) => {
     const state = await port.readState(true);
@@ -139,45 +128,8 @@ export const heartbeatAction = (token: string, context: ActionContext) =>
     if (verdict !== 'ok') {
       throw mismatch(verdict);
     }
-    const leaseMs =
-      state.claim?.domain === 'publication' ? publicationUploadLeaseMs : 0;
-    if (!(await port.heartbeat(token, context.owner, leaseMs))) {
+    if (!(await port.heartbeat(token, context.owner))) {
       throw mismatch('claim_mismatch');
     }
     return { heartbeat: true };
-  });
-
-// The outcome of one published file, recorded as soon as the publish loop
-// knows it, at the claimed revision, so a run that stops before its final
-// complete or fail (a restart, a refused step) still shows every file it
-// uploaded. A source change does not refuse it: an upload cannot be taken
-// back. It refreshes the heartbeat, which ends the upload lease.
-export const recordAction = (input: Input<'record'>, context: ActionContext) =>
-  context.store.transaction(async (port) => {
-    const state = await port.readState(true);
-    const verdict = verifyOwnership(state, {
-      owner: context.owner,
-      token: input.token,
-    });
-    if (verdict !== 'ok' || state.claim === null) {
-      throw mismatch(verdict === 'ok' ? 'claim_mismatch' : verdict);
-    }
-    const { revision } = state.claim;
-    const code = input.outcome === 'uploaded' ? null : boundedCode(input.code);
-    const entry = { bytes: input.bytes ?? null, code, outcome: input.outcome };
-    const declared = context.publishedFiles ?? declaredFilenames;
-    checkReportedFiles(
-      { [input.filename]: entry },
-      state.claim.domain,
-      declared,
-    );
-    const files = mergedOutcomes(
-      state.publicationOutcomes,
-      { [input.filename]: { ...entry, revision } },
-      declared,
-    );
-    if (!(await port.recordOutcomes(input.token, context.owner, files))) {
-      throw mismatch('claim_mismatch');
-    }
-    return { filename: input.filename, outcome: input.outcome, revision };
   });

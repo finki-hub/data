@@ -230,7 +230,6 @@ describe('snapshot claim domain', () => {
     expect([...claimDomains]).toEqual([
       'history_index',
       'enrollments',
-      'publication',
       'snapshot',
     ]);
     // One declaration: the model builds its choices from the extension's

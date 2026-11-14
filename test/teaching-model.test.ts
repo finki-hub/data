@@ -80,6 +80,7 @@ describe('the course status', () => {
   test('leaves no typed professors text on a course', () => {
     expect(findCollection('courses').fields.map(({ field }) => field)).toEqual([
       'name',
+      'abbreviation',
       'status',
       'tags',
     ]);

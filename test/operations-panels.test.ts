@@ -11,11 +11,6 @@ import type { DirectusRequest } from '../src/directus-request.js';
 import extensionManifest from '../directus/extensions/directus-extension-data-operations/package.json' with { type: 'json' };
 import { coordinationDomains } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
-  declaredFilenames,
-  type StoredOutcome,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
-import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
-import {
   dataStatusPanelId,
   humanize,
   isManagedFlowName,
@@ -38,17 +33,12 @@ import {
   runPlan,
   triggerBody,
 } from '../directus/extensions/directus-extension-data-operations/src/panel-contract.js';
-import {
-  readinessView,
-  reviewBookmarks,
-} from '../directus/extensions/directus-extension-data-operations/src/readiness-view.js';
 import { importOptionsSchema } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import {
   domainStates,
   isBusy,
   nextReadMs,
   pollMs,
-  readinessViewSchema,
   retryCapMs,
   statusViewSchema,
 } from '../directus/extensions/directus-extension-data-operations/src/status-contract.js';
@@ -59,15 +49,12 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/status-facts.js';
 import {
   ageText,
-  checkLinkText,
   collectionText,
   instantText,
-  orderedChecks,
   stateLabel,
   toneOf,
   waitingText,
 } from '../directus/extensions/directus-extension-data-operations/src/status-labels.js';
-import { bookmarkKey } from '../directus/extensions/directus-extension-data-operations/src/status-reads.js';
 import { statusView } from '../directus/extensions/directus-extension-data-operations/src/status-view.js';
 import { useStudioName } from '../directus/extensions/directus-extension-data-operations/src/studio-name.js';
 import {
@@ -184,7 +171,7 @@ describe('the Run operation panel contract', () => {
     expect(reasons).toEqual(
       [
         'trigger not manual',
-        'name without a "Data / " or "Publish / " prefix',
+        'name without a "Data / " prefix',
         'Flow inactive',
         'no collection',
         'requires item selection',
@@ -316,28 +303,20 @@ const failedDomain: DomainStatus = {
   state: 'failed',
 };
 
-const uploadedAt = (revision: number): StoredOutcome => ({
-  bytes: 10,
-  code: null,
-  outcome: 'uploaded',
-  revision,
-});
-
-// The coordinator status of an idle project with one partial publication.
+// The coordinator status of an idle project with failed enrollment counts.
 const report: StatusReport = {
   candidates: 0,
   claim: null,
-  dirty: ['publication'],
+  dirty: ['enrollments'],
   domains: Object.fromEntries(
     coordinationDomains.map((domain) => [
       domain,
-      domain === 'publication' ? failedDomain : idle,
+      domain === 'enrollments' ? failedDomain : idle,
     ]),
   ),
   fingerprints: {
     calculation: 'c'.repeat(64),
-    current: { calculation: 'c'.repeat(64), publication: 'p'.repeat(64) },
-    publication: 'p'.repeat(64),
+    current: { calculation: 'c'.repeat(64) },
   },
   historyIndex: {
     countMismatches: 0,
@@ -350,27 +329,15 @@ const report: StatusReport = {
   lastError: {
     at: '2026-09-24T10:00:00.000Z',
     blocking: true,
-    code: 'PUBLICATION_PARTIAL',
-    domain: 'publication',
-    message: 'rooms.json (PUBLISH_UPLOAD_FAILED)',
+    code: 'MATCH_FAILED',
+    domain: 'enrollments',
+    message: 'Pattern mapping 4: invalid regular expression',
     retries: 0,
     revision: 7,
   },
   lastRun: { finishedAt: null, retries: 0, startedAt: null },
-  pending: ['publication'],
+  pending: ['enrollments'],
   process: 'synthetic-process-owner',
-  publication: {
-    files: {
-      'courses.json': uploadedAt(7),
-      'rooms.json': {
-        bytes: null,
-        code: 'PUBLISH_UPLOAD_FAILED',
-        outcome: 'failed',
-        revision: 7,
-      },
-    },
-    state: 'partial',
-  },
   revisions: {
     completed: 6,
     inputs: { enrollments: 6, history_index: 6 },
@@ -387,31 +354,17 @@ const read = (failures: number, refused = false, busy = false) =>
 const viewOf = () => statusView({ keySources: [], report, schedule: [] });
 
 describe('the status view', () => {
-  test('lists every declared domain and file, with the outcome it holds', () => {
+  test('lists every declared domain with its state', () => {
     const view = statusViewSchema.parse(viewOf());
 
     expect(view.domains.map(({ name }) => name)).toEqual(coordinationDomains);
-    expect(view.publication.files.map(({ filename }) => filename)).toEqual(
-      declaredFilenames,
+    expect(view.domains.map(({ state }) => state)).toEqual([
+      'current',
+      'failed',
+    ]);
+    expect(view.lastError?.message).toBe(
+      'Pattern mapping 4: invalid regular expression',
     );
-    expect(
-      view.publication.files.map(({ filename, outcome }) => [
-        filename,
-        outcome,
-      ]),
-    ).toEqual(
-      declaredFilenames.map((filename) => [
-        filename,
-        { 'courses.json': 'uploaded', 'rooms.json': 'failed' }[filename] ??
-          null,
-      ]),
-    );
-    expect(view.publication).toMatchObject({
-      complete: false,
-      lastRevision: 7,
-      state: 'partial',
-    });
-    expect(view.lastError?.message).toBe('rooms.json (PUBLISH_UPLOAD_FAILED)');
     expect(view.lastError?.retries).toBe(0);
   });
 
@@ -423,26 +376,14 @@ describe('the status view', () => {
     }
   });
 
-  test('counts a publication complete only when every declared file was uploaded at its revision', () => {
-    const uploaded = Object.fromEntries(
-      declaredFilenames.map((filename) => [filename, uploadedAt(9)]),
-    );
-    const view = statusView({
-      keySources: [],
-      report: {
-        ...report,
-        publication: { files: uploaded, state: 'completed' },
-      },
-      schedule: [],
-    });
+  test('is busy while a claim is held', () => {
+    const view = viewOf();
 
-    expect(view.publication).toMatchObject({ complete: true, lastRevision: 9 });
     expect(isBusy(view)).toBe(false);
     expect(
       isBusy({
         ...view,
         claim: {
-          ...view.claim,
           domain: 'x',
           heartbeatAt: null,
           label: 'X',
@@ -451,28 +392,6 @@ describe('the status view', () => {
         },
       }),
     ).toBeTruthy();
-  });
-
-  test('shows a failed publication that uploaded some declared files as partial', () => {
-    const states = (publication: typeof report.publication) =>
-      Object.fromEntries(
-        statusView({
-          keySources: [],
-          report: { ...report, publication },
-          schedule: [],
-        }).domains.map(({ name, state }) => [name, state]),
-      );
-
-    expect(states(report.publication)).toMatchObject({
-      enrollments: 'current',
-      publication: 'partial',
-    });
-    expect(
-      states({ files: report.publication.files, state: 'failed' }),
-    ).toMatchObject({ publication: 'failed' });
-    expect(statusViewSchema.parse(viewOf()).domains).toHaveLength(
-      coordinationDomains.length,
-    );
   });
 
   test('reads a failed status again with a growing pause, but not a refusal', () => {
@@ -488,7 +407,7 @@ describe('the status view', () => {
     expect(read(0, false, true)).toBe(pollMs);
   });
 
-  test('polls for pending calculations and running work, not for a publication that waits for the Publish button', () => {
+  test('polls for pending calculations and running work', () => {
     const view = viewOf();
     const withStates = (states: Readonly<Record<string, string>>) => ({
       ...view,
@@ -499,108 +418,9 @@ describe('the status view', () => {
       })),
     });
 
-    expect(isBusy(withStates({ publication: 'pending' }))).toBe(false);
-    expect(isBusy(withStates({ publication: 'failed' }))).toBe(false);
-    expect(isBusy(withStates({ publication: 'running' }))).toBeTruthy();
+    expect(isBusy(withStates({ enrollments: 'failed' }))).toBe(false);
     expect(isBusy(withStates({ history_index: 'pending' }))).toBeTruthy();
     expect(isBusy(withStates({ enrollments: 'running' }))).toBeTruthy();
-  });
-});
-
-describe('the readiness view', () => {
-  // The checks that declare a review view.
-  const reviewedCodes = new Set(
-    readinessRegistry.flatMap(({ code, review }) =>
-      review === undefined ? [] : [code],
-    ),
-  );
-  const counts = new Map(
-    readinessRegistry.map(({ code }, index) => [code, index % 3]),
-  );
-  const answer = {
-    blockedFiles: ['courses.json'],
-    blockers: [],
-    issueCounts: Object.fromEntries(counts),
-    links: {},
-    ready: false,
-    reviews: {},
-    revision: 7,
-    warnings: [],
-  };
-
-  test('has one row per declared check, in registry order, with one link each', () => {
-    const view = readinessViewSchema.parse(
-      readinessView({ answer, bookmarks: new Map() }),
-    );
-
-    expect(view.checks.map(({ code }) => code)).toEqual(
-      readinessRegistry.map(({ code }) => code),
-    );
-    expect(
-      view.checks.every(({ link }) => link.startsWith('/content/')),
-    ).toBeTruthy();
-  });
-
-  test('links a check to its incomplete-data bookmark while it exists, named by it', () => {
-    const [name] = reviewBookmarks();
-    const entry = readinessRegistry.find(
-      ({ review }) => review?.bookmark === name,
-    );
-    if (name === undefined || entry === undefined) {
-      throw new Error('The registry declares no review bookmark');
-    }
-    const view = readinessView({
-      answer,
-      bookmarks: new Map([[bookmarkKey(entry.page, name), 41]]),
-    });
-    const check = view.checks.find(({ code }) => code === entry.code);
-
-    expect(check).toMatchObject({
-      link: `/content/${entry.page}?bookmark=41`,
-      review: name,
-    });
-    expect(check === undefined ? null : checkLinkText(check)).toBe(name);
-    expect(
-      orderedChecks(view.checks).findIndex(({ count }) => count === 0),
-    ).toBeGreaterThan(0);
-  });
-
-  test('links a check whose bookmark is missing or deleted to its collection, named by it', () => {
-    const view = readinessView({ answer, bookmarks: new Map() });
-    const reviewed = view.checks.filter(({ code }) => reviewedCodes.has(code));
-
-    expect(reviewed.length).toBeGreaterThan(0);
-    expect(
-      reviewed.map(({ link, page, review }) => ({ link, page, review })),
-    ).toEqual(
-      reviewed.map(({ page }) => ({
-        link: `/content/${page}`,
-        page,
-        review: null,
-      })),
-    );
-    expect(reviewed.map((check) => checkLinkText(check))).toEqual(
-      reviewed.map(({ page }) => humanize(page)),
-    );
-  });
-
-  test('names a check whose bookmark is missing by the name Studio shows for its collection, else by the humanized key', () => {
-    const view = readinessView({ answer, bookmarks: new Map() });
-    const check = view.checks.find(
-      ({ page, review }) => page === 'course_equivalencies' && review === null,
-    );
-    if (check === undefined) {
-      throw new Error('No check links the equivalencies');
-    }
-
-    expect(checkLinkText(check, 'Equivalencies')).toBe('Equivalencies');
-    expect(checkLinkText(check)).toBe('Course equivalencies');
-    expect(
-      checkLinkText(
-        { ...check, review: 'Equivalencies without a course' },
-        'Equivalencies',
-      ),
-    ).toBe('Equivalencies without a course');
   });
 });
 
@@ -630,10 +450,9 @@ describe('the status labels', () => {
   test('names a current domain idle and colours each state', () => {
     expect(stateLabel('current')).toBe('Idle');
     expect(stateLabel(null)).toBe('Never');
-    expect(stateLabel('partial')).toBe('Partial');
     expect(
-      ['current', 'pending', 'running', 'failed', 'partial', 'x'].map(toneOf),
-    ).toEqual(['success', 'warning', 'info', 'danger', 'warning', 'neutral']);
+      ['current', 'pending', 'running', 'failed', 'x'].map(toneOf),
+    ).toEqual(['success', 'warning', 'info', 'danger', 'neutral']);
     expect(instantText('2026-09-24T16:20:01.123Z')).toBe(
       '2026-09-24 16:20:01 UTC',
     );
@@ -732,7 +551,6 @@ describe('the Data operations dashboard', () => {
     });
 
     expect(flows).toEqual([
-      'Publish / Public assets',
       'Data / Mark pending',
       'Data / Import Moodle snapshot',
     ]);
@@ -744,11 +562,9 @@ describe('the Data operations dashboard', () => {
     expect(Object.values(flowFamilyCodes)).not.toContain(dashboardCode);
     expect(operationsDashboardId).toBe('6a1d9f0e-2b3c-4d5e-8f70-0000000016d0');
     expect(defaultPanels.map(({ id }) => id.slice(-4))).toEqual([
-      '16d1',
       '16d2',
       '16d3',
       '16d5',
-      '16d6',
       '16d7',
     ]);
     expect(

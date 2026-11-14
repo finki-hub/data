@@ -1,5 +1,3 @@
-import type { ReadinessEntry } from './readiness-types.js';
-
 import { boundedText } from '../text.js';
 import { exportError } from './errors.js';
 import {
@@ -11,27 +9,26 @@ import {
 } from './field-map.js';
 import { keySources } from './key-sources.js';
 import { readProblems } from './read-rules.js';
-import { readinessRegistry } from './readiness-registry.js';
-import {
-  type LabelledRead,
-  registryProblems,
-  registryReads,
-} from './registry-rules.js';
 import {
   type BlockPart,
   type ExportDefinition,
-  publicFilenamePattern,
+  type SourceRead,
 } from './types.js';
 
 // The structural rules every export definition obeys, checked before any
 // read so a malformed definition fails at once and names itself: a
-// filename the storage writer accepts and no two files alike, distinct
+// root-level JSON filename and no two files alike, distinct
 // fixed keys, an id field and every source path selected by the read, a
 // grouping field selected by each related read, a key field (and the
 // parent field of a nested source) selected by each key source, blocks
 // with a default layout and distinct parts, and every read under the read
-// rules (read-rules.ts). The readiness-check registry is checked in the
-// same pass.
+// rules (read-rules.ts).
+
+// A read with the label a refusal names it by.
+export type LabelledRead = readonly [string, SourceRead];
+
+// The filename rule of a public file: one root-level JSON name.
+export const publicFilenamePattern = /^[a-z0-9][a-z0-9._-]*\.json$/u;
 
 const partLabel = (part: BlockPart): string =>
   isNested(part) ? `${part.infix}:${part.nested}` : part.suffix;
@@ -135,21 +132,15 @@ export const definitionReads = (
   ]),
 ];
 
-// Every structural problem of the definitions and of the readiness-check
-// registry (the shipped one unless another is named).
+// Every structural problem of the definitions.
 export const definitionProblems = (
   definitions: readonly ExportDefinition[],
-  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): string[] => {
   const filenames = definitions.map(({ filename }) => filename);
   return [
     ...(new Set(filenames).size === filenames.length
       ? []
       : ['two definitions publish the same filename']),
-    ...registryProblems(registry, filenames),
-    ...registryReads(registry).flatMap(([label, read]) =>
-      readProblems(label, read),
-    ),
     ...definitions.flatMap((definition) => [
       ...(publicFilenamePattern.test(definition.filename)
         ? []
@@ -162,13 +153,11 @@ export const definitionProblems = (
   ];
 };
 
-// Refuses malformed definitions or a malformed registry before anything is
-// read.
+// Refuses malformed definitions before anything is read.
 export const checkDefinitions = (
   definitions: readonly ExportDefinition[],
-  registry: readonly ReadinessEntry[] = readinessRegistry,
 ): void => {
-  const problems = definitionProblems(definitions, registry);
+  const problems = definitionProblems(definitions);
   if (problems.length > 0) {
     throw exportError(
       'INVALID_DEFINITION',

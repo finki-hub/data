@@ -99,19 +99,19 @@ describe('the data comparator', () => {
   });
 
   test('compares every value as text, each row key set and the row multiset', () => {
-    const students = [{ index: 'S-1', name: 'One' }, { index: 'S-1' }];
+    const staff = [{ name: 'One', title: 'Prof.' }, { name: 'One' }];
 
-    expect(asData('students', students)).not.toEqual(
-      asData('students', [{ index: 'S-1', name: 'One ' }, { index: 'S-1' }]),
+    expect(asData('staff', staff)).not.toEqual(
+      asData('staff', [{ name: 'One', title: 'Prof. ' }, { name: 'One' }]),
     );
-    expect(asData('students', students)).not.toEqual(
-      asData('students', [
-        { index: 'S-1', name: 'One' },
-        { index: 'S-1', name: '' },
+    expect(asData('staff', staff)).not.toEqual(
+      asData('staff', [
+        { name: 'One', title: 'Prof.' },
+        { name: 'One', title: '' },
       ]),
     );
-    expect(asData('students', students)).not.toEqual(
-      asData('students', [...students, { index: 'S-1' }]),
+    expect(asData('staff', staff)).not.toEqual(
+      asData('staff', [...staff, { name: 'One' }]),
     );
     expect(asData('courses', [{ name: 'A', count: '0' }])).not.toEqual(
       asData('courses', [{ name: 'A', count: '00' }]),

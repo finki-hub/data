@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "exceljs": "^4.4.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -18,11 +17,6 @@
   },
   "license": "MIT",
   "name": "finki-hub-data-migration",
-  "overrides": {
-    "exceljs": {
-      "uuid": "^11.1.1"
-    }
-  },
   "private": true,
   "scripts": {
     "brand": "node --env-file-if-exists=.env --import tsx src/branding-cli.ts",
@@ -30,20 +24,13 @@
     "build:search": "npm --prefix directus/extensions/directus-extension-course-search run build",
     "check": "tsc --noEmit && npm run check:sfc",
     "check:sfc": "vue-tsc --noEmit --project tsconfig.sfc.json",
-    "compare:live": "node --import tsx src/live-check-cli.ts",
     "format": "eslint . --cache --fix",
     "generate:invalidation": "node --import tsx src/source-invalidation-snapshot.ts",
-    "import": "node --import tsx src/cli.ts",
-    "import:dry-run": "node --import tsx src/cli.ts --dry-run",
     "lint": "eslint . --cache",
     "setup": "node --import tsx src/setup-cli.ts",
     "test": "vitest run",
     "test:csv": "node --import tsx --test test/directus-csv-import.integration.mjs",
-    "test:operations": "node --import tsx test/relational/run-scenarios.mjs --scenario operations && node --import tsx --test test/operations.browser.mjs",
-    "test:relational": "node --import tsx test/relational/run-scenarios.mjs",
-    "test:restore": "node --import tsx --test test/restore.integration.mjs",
-    "test:s3": "node --import tsx --test --test-concurrency=1 test/publish-flow.integration.mjs test/publish-workflow.integration.mjs",
-    "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.mjs test/search-relational.integration.mjs"
+    "test:search": "node --import tsx --test --test-concurrency=1 test/search.integration.mjs"
   },
   "type": "module",
   "version": "0.0.0"

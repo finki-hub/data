@@ -4,8 +4,8 @@ import { scalar } from './fields.js';
 
 // The status of the controlled Moodle snapshot import and promotion,
 // written only by the finki-hub-snapshot-import and -promote operations
-// (Task 10). `import_state` itself is declared beside `publication_state`
-// in operations-collections.ts, which labels every field of the singleton.
+// (Task 10). `import_state` itself is declared in operations-collections.ts,
+// which labels every field of the singleton.
 export const snapshotImportFields = [
   scalar('import_file', 'string', { readOnly: true }),
   scalar('import_token', 'string', { readOnly: true }),

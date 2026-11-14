@@ -7,14 +7,12 @@ import {
 } from './managed-flows.js';
 import DataStatusPanel from './status-panel.vue';
 
-// The generic status panel: the domains, the per-file publication outcomes,
-// the readiness checks and the published key-source rows, read from the
-// authorized status endpoint as lists (a new domain, file, check or key
+// The generic status panel: the domains and the published key-source rows,
+// read from the authorized status endpoint as lists (a new domain or key
 // source shows with no change here). Its option picks the sections.
 export default definePanel({
   component: DataStatusPanel,
-  description:
-    'Shows the data status: calculations, published files, readiness checks and published keys.',
+  description: 'Shows the data status: calculations and published keys.',
   icon: 'monitor_heart',
   id: dataStatusPanelId,
   minHeight: 10,

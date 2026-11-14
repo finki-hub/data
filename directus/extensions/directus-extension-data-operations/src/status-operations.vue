@@ -2,11 +2,10 @@
 import type { StatusView } from './status-contract.js';
 
 import StatusBadge from './status-badge.vue';
-import { claimText, lastErrorText, lastRunText, publicationText, snapshotText, waitsForText } from './status-facts.js';
-import { bytesText } from './status-labels.js';
+import { claimText, lastErrorText, lastRunText, snapshotText, waitsForText } from './status-facts.js';
 
-// The calculation domains, the running claim, the last failure, every
-// declared file with its last outcome, and the Moodle snapshot.
+// The calculation domains, the running claim, the last failure and the
+// Moodle snapshot.
 defineProps<{ status: StatusView }>();
 </script>
 
@@ -24,25 +23,6 @@ defineProps<{ status: StatusView }>();
     </table>
     <p v-if="status.claim" class="note">{{ claimText(status.claim) }}</p>
     <p class="note">{{ lastRunText(status.lastRun) }}</p>
-  </section>
-
-  <section class="block" aria-label="Published files">
-    <h4>Published files <StatusBadge :state="status.publication.state" /></h4>
-    <table class="rows">
-      <thead>
-        <tr><th scope="col">File</th><th scope="col">Outcome</th><th scope="col">Code</th><th scope="col" class="number">Revision</th><th scope="col" class="number">Size</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="file in status.publication.files" :key="file.filename" :data-file="file.filename">
-          <th scope="row">{{ file.filename }}</th>
-          <td><StatusBadge :state="file.outcome" /></td>
-          <td class="note code">{{ file.code ?? '' }}</td>
-          <td class="note number">{{ file.revision ?? '--' }}</td>
-          <td class="note number">{{ bytesText(file.bytes) }}</td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="note">{{ publicationText(status.publication) }}</p>
   </section>
 
   <section class="block" aria-label="Moodle snapshot">

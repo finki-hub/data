@@ -4,33 +4,23 @@ import {
   SchemaRefusalError,
 } from './data-model/install.js';
 import { IncompleteFlowError } from './flows/install-flows.js';
-import { ImportInterruptedError } from './import-interruption.js';
-import { ExistingDataError } from './import-state.js';
 import { SetupConfigError } from './setup-config.js';
 import { errorText } from './text.js';
 
-// Exit codes of the commands (`npm run setup`, `npm run import`, its dry
-// run, `npm run brand` and `npm run compare:live`), each with the outcome
-// word its first line carries: 0 succeeded; 1 failed, before any row was
-// written; 2 refused, the invocation or the project in a state the command
-// does not accept, before any record was written; 3 blocked (import and
-// live check only), workbook cases named by sheet and row, before
-// Directus or the live files are contacted; 4 interrupted (import only),
-// after rows were written. README lists what to do.
+// Exit codes of the commands (`npm run setup`, `npm run brand`), each with
+// the outcome word its first line carries: 0 succeeded; 1 failed; 2
+// refused, the invocation or the project in a state the command does not
+// accept, before any record was written.
 export const exitCodes = {
-  blocked: 3,
   failed: 1,
-  interrupted: 4,
   ok: 0,
   refused: 2,
 } as const;
 
-// The command a first line names; `Import dry run` heads the dry run's
-// blocked header only.
-export type CommandName =
-  'Branding' | 'Import' | 'Import dry run' | 'Live check' | 'Setup';
+// The command a first line names.
+export type CommandName = 'Branding' | 'Setup';
 
-type Outcome = 'blocked' | 'failed' | 'interrupted' | 'refused' | 'succeeded';
+type Outcome = 'failed' | 'refused' | 'succeeded';
 
 // The first line of a command's outcome: `<Command> <outcome>[: <reason>]`.
 export const outcomeLine = (
@@ -45,28 +35,23 @@ export const outcomeLine = (
 const refusals = [
   CollectionLimitError,
   DataOperationsUnavailableError,
-  ExistingDataError,
   IncompleteFlowError,
   SchemaRefusalError,
   SetupConfigError,
 ] as const;
 
-// An incompatible state: no target named, a populated project offered to
-// the fresh importer, existing definitions the model cannot carry, a
-// half-installed Flow, or a Directus without the data-operations bundle.
+// An incompatible state: no target named, existing definitions the model
+// cannot carry, a half-installed Flow, or a Directus without the
+// data-operations bundle.
 export const isRefusal = (error: unknown): boolean =>
   refusals.some((refusal) => error instanceof refusal);
 
 const endingOf = (
   error: unknown,
-): { readonly code: number; readonly outcome: Outcome } => {
-  if (isRefusal(error)) {
-    return { code: exitCodes.refused, outcome: 'refused' };
-  }
-  return error instanceof ImportInterruptedError
-    ? { code: exitCodes.interrupted, outcome: 'interrupted' }
+): { readonly code: number; readonly outcome: Outcome } =>
+  isRefusal(error)
+    ? { code: exitCodes.refused, outcome: 'refused' }
     : { code: exitCodes.failed, outcome: 'failed' };
-};
 
 type StderrIo = { readonly stderr: (line: string) => void };
 

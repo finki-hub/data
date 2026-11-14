@@ -2,18 +2,15 @@ import assert from 'node:assert/strict';
 
 import {
   checkDatabaseOf,
-  checkSameDirectus,
   checkServesTarget,
   databaseSettingNames,
 } from './container-binding.js';
+import { hostsOf } from './docker-ports.js';
 import { dockerReads } from './docker-reads.mjs';
-import { hostsOf, s3TargetFrom } from './s3-target.js';
 
 // The isolated targets every fixture suite takes, shared: an explicit
 // disposable Directus (URL and token, loopback only, with its synthetic
-// marker collection and value), a separate local S3 target when a suite
-// requires one (s3-target.ts refuses anything that could be production),
-// and the optional Docker containers of that Directus and its database for
+// marker collection and value), and the optional Docker containers of that Directus and its database for
 // the restart and read-only statistics scenarios, each shown to belong to
 // the target before a suite touches it. Nothing defaults to a live
 // project; a suite reports statuses and counts only.
@@ -92,17 +89,15 @@ export const containersFrom = (environment) => ({
 
 // The containers a suite named belong to its target, read through Docker
 // (`docker`, read-only commands): the Directus container publishes the
-// target's port (and is the one the S3 target names), and the database
+// target's port, and the database
 // container is the PostgreSQL server that Directus connects to.
-const bindContainers = async ({ containers, docker, s3, target }) => {
+const bindContainers = async ({ containers, docker, target }) => {
   if (containers.directus !== null) {
     checkServesTarget(
       containers.directus,
       await docker.ports(containers.directus),
       target.base,
     );
-    if (s3 !== null)
-      checkSameDirectus(containers.directus, s3.directusContainer);
   }
   if (containers.database !== null) {
     const directus = containers.directus ?? '';
@@ -126,23 +121,16 @@ const bindContainers = async ({ containers, docker, s3, target }) => {
 };
 
 // Every target a suite needs, validated before it writes anything: the
-// Directus target and its marker, the S3 target (required or none) and the
-// containers it requires. Only the required containers are
+// Directus target and its marker and the containers it requires. Only the required containers are
 // answered, each bound to the target; the database container is bound
 // through the Directus one, which it therefore requires too. `docker`
 // runs the read-only Docker commands (a test passes its own).
 export const isolatedTargets = async (
   environment,
-  { containers: needed = [], s3 = 'none' } = {},
+  { containers: needed = [] } = {},
   docker = dockerReads,
 ) => {
   const target = targetFrom(environment);
-  const s3Targets = {
-    none: () => null,
-    required: () => s3TargetFrom(environment),
-  };
-  assert.ok(Object.hasOwn(s3Targets, s3), `Unknown S3 requirement ${s3}`);
-  const s3Target = s3Targets[s3]();
   const required = new Set(
     needed.includes('database') ? [...needed, 'directus'] : needed,
   );
@@ -162,6 +150,6 @@ export const isolatedTargets = async (
     );
   }
   await assertMarkerPresent(target);
-  await bindContainers({ containers, docker, s3: s3Target, target });
-  return { containers, s3: s3Target, target };
+  await bindContainers({ containers, docker, target });
+  return { containers, target };
 };

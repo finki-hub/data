@@ -1,11 +1,7 @@
 import { useApi } from '@directus/extensions-sdk';
 import { computed, onScopeDispose, reactive, ref, type Ref, watch } from 'vue';
 
-import {
-  readinessPath,
-  statusPath,
-  type StatusSection,
-} from './managed-flows.js';
+import { statusPath, type StatusSection } from './managed-flows.js';
 import { readFailureText, refusalOf } from './panel-answers.js';
 import { runSignal, runsInFlight } from './run-signal.js';
 import {
@@ -13,21 +9,15 @@ import {
   isBusy,
   isRefusal,
   nextReadMs,
-  type ReadinessView,
-  readinessViewSchema,
   type StatusView,
   statusViewSchema,
 } from './status-contract.js';
 
-// The state of one status panel: the data status and, when the panel shows
-// it, readiness, both from the authorized status read. While work is in
-// flight the status is polled, and a failed read that may pass later is
-// repeated with a growing pause; readiness (which counts every check) is
-// read again once the work settled, on a refresh and on the dashboard's
-// own refresh.
+// The state of one status panel: the data status from the authorized
+// status read. While work is in flight the status is polled, and a failed
+// read that may pass later is repeated with a growing pause.
 
 const statusAnswer = envelope(statusViewSchema);
-const readinessAnswer = envelope(readinessViewSchema);
 
 export const useDataStatus = (
   sections: () => readonly StatusSection[],
@@ -35,33 +25,14 @@ export const useDataStatus = (
 ) => {
   const api = useApi();
   const status = ref<null | StatusView>(null);
-  const readiness = ref<null | ReadinessView>(null);
   const statusError = ref<null | string>(null);
-  const readinessError = ref<null | string>(null);
   const loading = ref(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let wasBusy = false;
   let failures = 0;
   let refused = false;
 
   const shows = (section: StatusSection): boolean =>
     sections().includes(section);
-
-  const readReadiness = async (): Promise<void> => {
-    if (!shows('readiness')) {
-      return;
-    }
-    try {
-      const answer = await api.get(readinessPath);
-      readiness.value = readinessAnswer.parse(answer.data).data;
-      readinessError.value = null;
-    } catch (error) {
-      readinessError.value = readFailureText(
-        'Readiness checks',
-        refusalOf(error),
-      );
-    }
-  };
 
   const schedule = (again: () => Promise<void>): void => {
     clearTimeout(timer);
@@ -78,7 +49,6 @@ export const useDataStatus = (
           }, delay);
   };
 
-  // The status alone; readiness again once the work in flight settled.
   const poll = async (): Promise<void> => {
     try {
       const answer = await api.get(statusPath);
@@ -92,19 +62,13 @@ export const useDataStatus = (
       failures += 1;
       refused = isRefusal(refusal.status);
     }
-    const busy = isBusy(status.value);
-    const settled = wasBusy && !busy;
-    wasBusy = busy;
     schedule(poll);
-    if (settled) {
-      await readReadiness();
-    }
   };
 
   const refresh = async (): Promise<void> => {
     loading.value = true;
     try {
-      await Promise.all([poll(), readReadiness()]);
+      await poll();
     } finally {
       loading.value = false;
     }
@@ -118,7 +82,7 @@ export const useDataStatus = (
     { immediate: true },
   );
   // A run started or ended in a Run operation panel of this page: read
-  // the status and readiness again.
+  // the status again.
   watch(runSignal, () => {
     void refresh();
   });
@@ -130,8 +94,6 @@ export const useDataStatus = (
   return reactive({
     busy: computed(() => isBusy(status.value)),
     loading,
-    readiness,
-    readinessError,
     refresh,
     shows,
     status,

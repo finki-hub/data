@@ -16,8 +16,6 @@ export const flowFamilyCodes = {
   automation: '13',
   history: '09',
   matching: '17',
-  publication: '14',
-  publish: '15',
   snapshot: '10',
 } as const;
 
@@ -49,14 +47,6 @@ export const automationId = familyIds(flowFamilyCodes.automation);
 // the enrollment dispatcher runs once per planned page.
 export const matchingId = familyIds(flowFamilyCodes.matching);
 
-// The publication family (Data / Validate readiness and Publish / Prepare
-// public assets).
-export const publicationId = familyIds(flowFamilyCodes.publication);
-
-// The publish family (Publish / Public assets and its per-file child
-// Publish / One file).
-export const publishId = familyIds(flowFamilyCodes.publish);
-
 // The Data operations dashboard and its default panels keep the code of
 // the retired enrollment-rules family, 16, so their installed ids stay. No
 // Flow family carries it.
@@ -65,10 +55,6 @@ export const dashboardCode = '16';
 // An id of the dashboard or one of its panels.
 export const dashboardId = (suffix: string): string =>
   `${idPrefix}${dashboardCode}${suffix}`;
-
-// The storage writer every published file goes through: the existing
-// publish-json operation, one single-entry filename map per call.
-export const publishJsonOperation = 'finki-hub-publish-json';
 
 export type OperationTemplate = {
   readonly id: string;

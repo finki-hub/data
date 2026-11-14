@@ -4,14 +4,13 @@ import { z } from 'zod';
 import { courses as coursesDefinition } from '../directus/extensions/directus-extension-data-operations/src/exports/courses.js';
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { storeReader } from '../src/projection/memory-reader.js';
 import { asData, expectedData, expectedKeys } from './expected-exports.js';
 import {
   academicYears,
   forbiddenPrivateFields,
   makeSyntheticDataset,
 } from './fixtures/synthetic-data.js';
-import { syntheticPrograms } from './fixtures/synthetic-workbook.js';
+import { storeReader } from './memory-reader.js';
 import { engineAssets, injecting } from './relational-export-helpers.js';
 import { storeFromDataset } from './store-test-helpers.js';
 
@@ -21,10 +20,9 @@ import { storeFromDataset } from './store-test-helpers.js';
 // courses definition resolves from published years, generations and
 // programs.
 
-// The files read from their own collection alone: rooms, staff and
-// students. The synthetic course rows carry the curriculum ambiguities the
-// import refuses, so courses.json is proven over the parity dataset
-// (relational-export.test.ts).
+// The files read from their own collection alone: rooms and staff. The
+// synthetic course rows carry curriculum ambiguities, so courses.json is
+// proven over the parity store (relational-export.test.ts).
 const directoryDefinitions = exportDefinitions.filter(
   ({ filename }) => filename !== 'courses.json',
 );
@@ -34,13 +32,12 @@ const rowsSchema = z.array(z.record(z.string(), z.string()));
 const directoriesSchema = z.strictObject({
   rooms: rowsSchema,
   staff: rowsSchema,
-  students: rowsSchema,
 });
 
 describe('the synthetic directories through the export engine', () => {
-  test('publish exactly the committed synthetic rooms, staff and students data, private columns on every row or not', async () => {
+  test('publish exactly the committed synthetic rooms and staff data, private columns on every row or not', async () => {
     const reader = storeReader(storeFromDataset(makeSyntheticDataset()));
-    const { rooms, staff, students } = await expectedData('synthetic');
+    const { rooms, staff } = await expectedData('synthetic');
 
     for (const read of [reader, injecting(reader, forbiddenPrivateFields)]) {
       const files = directoriesSchema.parse(
@@ -50,8 +47,7 @@ describe('the synthetic directories through the export engine', () => {
       expect({
         rooms: asData('rooms', files.rooms),
         staff: asData('staff', files.staff),
-        students: asData('students', files.students),
-      }).toEqual({ rooms, staff, students });
+      }).toEqual({ rooms, staff });
     }
   });
 });
@@ -82,12 +78,21 @@ const generationRows = [
   { code: '2023', id: 3 },
 ];
 
-const programRows = syntheticPrograms
-  .map(({ code, generation }, index) => ({
+// The study programs of the synthetic curriculum sheets: 2023's, then
+// 2018's, each in sheet order.
+const syntheticPrograms = [
+  ...['kn', 'siis', 'pit', 'imb', 'ki', 'ie', 'ssp', 'seis'].map((code) => ({
     code,
-    generation: generation === '2023' ? 3 : 2,
-    id: 10 + index,
-  }))
+    generation: 3,
+  })),
+  ...['kn', 'siis', 'pit', 'imb', 'ki', 'ke', 'seis'].map((code) => ({
+    code,
+    generation: 2,
+  })),
+];
+
+const programRows = syntheticPrograms
+  .map(({ code, generation }, index) => ({ code, generation, id: 10 + index }))
   .toReversed();
 
 const curriculumKeyRows = {
@@ -151,9 +156,9 @@ describe('published-year keys of the relational courses definition', () => {
     const reference = referenceKeys;
 
     expect(keys).toEqual([
-      ...reference.slice(0, 2),
+      ...reference.slice(0, 3),
       '2026/2027',
-      ...reference.slice(2),
+      ...reference.slice(3),
     ]);
   });
 });

@@ -53,7 +53,6 @@ import {
 
 const history = 'history_index';
 const enrollments = 'enrollments';
-const publication = 'publication';
 const nextClaim = {
   action: 'claim',
   domain: 'next_calculation',
@@ -86,7 +85,7 @@ const afterStatement = (
   );
 
 describe('which statements overtake a run', () => {
-  test('only a statement that touched the claimed domain’s inputs, while a publication claim reads everything', () => {
+  test('only a statement that touched the claimed domain’s inputs', () => {
     expect(
       afterStatement(enrollments, { enrollments: 8, history_index: 7 }),
     ).toBe('source_changed');
@@ -99,19 +98,16 @@ describe('which statements overtake a run', () => {
     expect(afterStatement(history, { enrollments: 8, history_index: 7 })).toBe(
       'ok',
     );
-    expect(
-      afterStatement(publication, { enrollments: 7, history_index: 7 }),
-    ).toBe('source_changed');
   });
 });
 
 describe('input revisions and interruptions', () => {
-  test('keeps a calculation running and its failure blocking through publication-only edits', async () => {
+  test('keeps a calculation running and its failure blocking through content edits', async () => {
     const fake = settled('moodle_pattern_mappings');
     const run = await claimNext(fake);
 
     // A room, a staff member and a teaching link are saved mid-run: none
-    // of them feeds the counts, so the run is not discarded.
+    // of them feeds the counts, so they mark nothing.
     for (const table of ['rooms', 'staff', 'teaching_assignments']) {
       fake.sourceWrite(table);
     }
@@ -122,8 +118,8 @@ describe('input revisions and interruptions', () => {
       revision: run.revision,
     });
     expect(fake.data.completedRevision).toBe(run.revision);
-    expect(fake.data.sourceRevision).toBe(run.revision + 3);
-    expect(fake.data.dirtyDomains).toEqual([publication]);
+    expect(fake.data.sourceRevision).toBe(run.revision);
+    expect(fake.data.dirtyDomains).toEqual([]);
 
     // A history run is not discarded by an edit of the counts' own inputs
     // either; the counts stay dirty for the next tick.
@@ -135,7 +131,7 @@ describe('input revisions and interruptions', () => {
       completed: true,
       domain: history,
     });
-    expect(fake.data.dirtyDomains).toEqual([enrollments, publication]);
+    expect(fake.data.dirtyDomains).toEqual([enrollments]);
 
     const counts = await claimNext(fake);
     await fail(
@@ -145,7 +141,6 @@ describe('input revisions and interruptions', () => {
     );
     fake.sourceWrite('rooms');
     fake.sourceWrite('discord_channels');
-    await runAction({ action: 'mark', domains: [publication] }, context(fake));
 
     await expect(tick(fake)).resolves.toMatchObject({
       claimed: false,
@@ -175,16 +170,15 @@ describe('input revisions and interruptions', () => {
 
     fake.sourceWrite('moodle_course_mappings');
 
-    expect(inputs()).toEqual({ enrollments: 2, history_index: 0 });
+    expect(inputs()).toEqual({ enrollments: 1, history_index: 0 });
 
     fake.sourceWrite('moodle_course_entries', 'delete');
 
-    expect(inputs()).toEqual({ enrollments: 3, history_index: 3 });
+    expect(inputs()).toEqual({ enrollments: 2, history_index: 2 });
 
     for (const [domains, expected] of [
-      [[publication], { enrollments: 3, history_index: 3 }],
-      [[enrollments], { enrollments: 5, history_index: 3 }],
-      [[history], { enrollments: 6, history_index: 6 }],
+      [[enrollments], { enrollments: 3, history_index: 2 }],
+      [[history], { enrollments: 4, history_index: 4 }],
     ] as const) {
       await runAction({ action: 'mark', domains: [...domains] }, context(fake));
 
@@ -194,8 +188,8 @@ describe('input revisions and interruptions', () => {
     const report = await status(fake);
 
     expect(report.revisions).toMatchObject({
-      inputs: { enrollments: 6, history_index: 6 },
-      source: 6,
+      inputs: { enrollments: 4, history_index: 4 },
+      source: 4,
     });
   });
 
@@ -319,14 +313,13 @@ describe('the claim transaction', () => {
     };
     const store = sqlStore({ raw, transaction: (work) => work({ raw }) });
 
-    const marks: Domain[][] = [[publication], [enrollments], [history]];
+    const marks: Domain[][] = [[enrollments], [history]];
 
     for (const domains of marks) {
       await store.transaction((port) => port.markDomains(domains));
     }
 
     expect(sent).toEqual([
-      [false, false, '["publication"]'],
       [false, true, '["enrollments"]'],
       [true, true, '["history_index"]'],
     ]);

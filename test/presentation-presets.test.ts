@@ -10,11 +10,10 @@ import {
   unmappedLinesBookmark,
 } from '../src/data-model/presentation/bookmarks.js';
 import { presetDefinitions } from '../src/data-model/presentation/presets.js';
-import { incompleteDataPresets } from '../src/import/incomplete-data-bookmarks.js';
 import { resolves } from './presentation-test-helpers.js';
 
 // The shared presets setup installs: the default table views, Search and
-// Unmapped history lines. The incomplete-data bookmarks are the import's.
+// Unmapped history lines.
 
 const isTabular = (preset: PresetDefinition): preset is TabularPreset =>
   preset.layout === 'tabular';
@@ -27,8 +26,8 @@ const defaultViewOf = (collection: string) =>
       (preset) => preset.bookmark === null && preset.collection === collection,
     );
 
-// The paths of every tabular preset setup or the import creates.
-const unresolvedPresetPaths = [...presetDefinitions, ...incompleteDataPresets()]
+// The paths of every tabular preset setup creates.
+const unresolvedPresetPaths = presetDefinitions
   .filter(isTabular)
   .flatMap((preset) =>
     [...preset.layout_query.tabular.fields, ...preset.layout_query.tabular.sort]
@@ -147,7 +146,7 @@ describe('presets', () => {
     });
   });
 
-  test('lists history lines by label with their First seen, and keeps no incomplete-data bookmark on them', () => {
+  test('lists history lines by label with their First seen', () => {
     expect(
       defaultViewOf('moodle_course_entries')?.layout_query.tabular,
     ).toMatchObject({ fields: ['label', 'first_seen'], sort: ['label'] });
@@ -159,11 +158,6 @@ describe('presets', () => {
         )
         .map(({ bookmark }) => bookmark),
     ).toEqual(['Unmapped history lines']);
-    expect(
-      incompleteDataPresets().filter(
-        ({ collection }) => collection === 'moodle_course_entries',
-      ),
-    ).toEqual([]);
   });
 
   test('declares Unmapped history lines once: the lines without a counted line, newest First seen first', () => {

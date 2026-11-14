@@ -38,7 +38,6 @@ const byText = (left: string, right: string): number =>
   collator.compare(left, right);
 
 const enrollments = 'enrollments';
-const publication = 'publication';
 
 // The domains an edit marks, read back from the fake's mirror of the
 // statement triggers.
@@ -96,7 +95,10 @@ describe('source invalidation of the completed source model', () => {
       );
     }
     for (const declaration of collectionDeclarations) {
-      const guarded = isSource(declaration) || refused(declaration.collection);
+      const guarded =
+        isSource(declaration) ||
+        declaration.role === 'content' ||
+        refused(declaration.collection);
 
       expect(guarded).toBeTruthy();
     }
@@ -107,31 +109,24 @@ describe('source invalidation of the completed source model', () => {
       for (const operation of ['update', 'delete'] as const) {
         expect(marks(table, operation, ['course', 'academic_year'])).toEqual([
           enrollments,
-          publication,
         ]);
       }
     }
 
-    expect(marks('academic_years', 'delete')).toEqual([
-      enrollments,
-      publication,
-    ]);
+    expect(marks('academic_years', 'delete')).toEqual([enrollments]);
   });
 
   test('marks the history index for a deleted entry or a hand-edited label, never for another column', () => {
     expect(marks('moodle_course_entries', 'delete')).toEqual([
       history,
       enrollments,
-      publication,
     ]);
     expect(marks('moodle_course_entries', 'update', ['label'])).toEqual([
       history,
       enrollments,
-      publication,
     ]);
     expect(marks('moodle_course_entries', 'update', ['first_seen'])).toEqual([
       enrollments,
-      publication,
     ]);
   });
 });
@@ -177,9 +172,9 @@ describe('Mark pending', () => {
     ]);
     expect(
       runScript(chosenDomainsScript, {
-        $trigger: { body: { domains: [publication] } },
+        $trigger: { body: { domains: [enrollments] } },
       }),
-    ).toEqual([publication]);
+    ).toEqual([enrollments]);
     expect(runScript(chosenDomainsScript, { $trigger: null })).toEqual([
       history,
       enrollments,

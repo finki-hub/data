@@ -12,14 +12,9 @@ import {
 import { blockingFailure, inputRevision } from './failures.js';
 import { type Claim, type LastError, type OperationsState } from './state.js';
 
-// The fingerprint of the last successful run of the domain's kind.
-const fingerprintFor = (
-  state: OperationsState,
-  domain: Domain,
-): null | string =>
-  kindOf(domain) === 'publication'
-    ? state.publicationFingerprint
-    : state.calculationFingerprint;
+// The fingerprint of the last successful calculation run.
+const fingerprintFor = (state: OperationsState): null | string =>
+  state.calculationFingerprint;
 
 // The current fingerprint a claim of this domain runs under.
 export const currentFor = (
@@ -37,7 +32,7 @@ export const pendingDomains = (
   coordinationDomains.filter(
     (domain) =>
       state.dirtyDomains.includes(domain) ||
-      fingerprintFor(state, domain) !== currentFor(current, domain),
+      fingerprintFor(state) !== currentFor(current, domain),
   );
 
 export const upstreamOf = (domain: Domain): readonly Domain[] =>
@@ -79,8 +74,7 @@ type ClaimRequest = {
 
 // The domain a claim names: itself while pending, or for next_calculation
 // the first pending calculation domain in dependency order, so the
-// scheduled Flow runs the history index before the enrollment counts and
-// never publication.
+// scheduled Flow runs the history index before the enrollment counts.
 const requestedDomain = (
   pending: readonly Domain[],
   target: ClaimTarget,
@@ -147,8 +141,8 @@ type ClaimVerdict = 'source_changed' | OwnershipVerdict;
 
 // A claim is usable while its token and owner match and no source
 // transaction that touched the claimed domain's inputs committed since it
-// was taken; a publication or snapshot claim reads everything, so any
-// source transaction counts for it.
+// was taken; a snapshot claim reads everything, so any source transaction
+// counts for it.
 export const verifyClaim = (
   state: OperationsState,
   check: ClaimCheck,
@@ -184,7 +178,6 @@ export type CompletionDecision =
   | { readonly kind: 'fingerprint_changed' }
   | { readonly kind: 'ok' }
   | { readonly kind: 'pages_missing'; readonly missing: readonly string[] }
-  | { readonly kind: 'superseded' }
   | { readonly kind: 'unplanned' }
   | { readonly kind: Exclude<ClaimVerdict, 'ok'> };
 
@@ -193,27 +186,17 @@ export type CompletionDecision =
 // the claim and a calculation run (history index
 // or enrollments) planned its pages and staged every one of them; a
 // partial batch, or a run that never planned, is never labelled current.
-// A source without rows plans no page and completes. A publication's files
-// were prepared and validated at its claimed revision before the first
-// upload (the export stage refuses otherwise), so a source change that
-// commits while they upload leaves them a complete publication of that
-// revision: it is superseded, recorded as published at the claimed
-// revision, and the newer revision stays pending.
+// A source without rows plans no page and completes.
 export const decideCompletion = (
   state: OperationsState,
   check: ClaimCheck & { readonly currentFingerprint: string },
 ): CompletionDecision => {
   const verdict = verifyClaim(state, check);
-  const superseded =
-    verdict === 'source_changed' && state.claim?.domain === 'publication';
-  if ((verdict !== 'ok' && !superseded) || state.claim === null) {
+  if (verdict !== 'ok' || state.claim === null) {
     return { kind: verdict === 'ok' ? 'claim_mismatch' : verdict };
   }
   if (state.claim.fingerprint !== check.currentFingerprint) {
     return { kind: 'fingerprint_changed' };
-  }
-  if (state.claim.domain === 'publication') {
-    return { kind: superseded ? 'superseded' : 'ok' };
   }
   if (state.claim.pages === null) {
     return { kind: 'unplanned' };

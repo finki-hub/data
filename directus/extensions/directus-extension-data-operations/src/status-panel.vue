@@ -6,7 +6,6 @@ import { sectionsOf } from './managed-flows.js';
 import { toolbarText } from './status-facts.js';
 import StatusKeys from './status-keys.vue';
 import StatusOperations from './status-operations.vue';
-import StatusReadiness from './status-readiness.vue';
 
 const props = defineProps<{ now?: unknown; sections?: unknown; showHeader?: boolean }>();
 
@@ -24,7 +23,6 @@ const data = useDataStatus(() => sections.value, toRef(props, 'now'));
     </div>
     <v-notice v-if="data.statusError" type="danger">{{ data.statusError }}</v-notice>
     <StatusOperations v-if="data.status && data.shows('operations')" :status="data.status" />
-    <StatusReadiness v-if="data.shows('readiness')" :readiness="data.readiness" :error="data.readinessError" />
     <StatusKeys v-if="data.status && data.shows('keys')" :sources="data.status.keySources" />
   </div>
 </template>

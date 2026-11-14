@@ -3,30 +3,21 @@ import { describe, expect, test } from 'vitest';
 import type { StatusView } from '../directus/extensions/directus-extension-data-operations/src/status-contract.js';
 
 import { requestRefusal } from '../directus/extensions/directus-extension-data-operations/src/access.js';
-import {
-  importStates,
-  publicationStates,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
-import { readinessRegistry } from '../directus/extensions/directus-extension-data-operations/src/exports/readiness-registry.js';
+import { importStates } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import { unknownMigrationText } from '../directus/extensions/directus-extension-data-operations/src/index.js';
 import { managedFlowNote } from '../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { readFailureText } from '../directus/extensions/directus-extension-data-operations/src/panel-answers.js';
 import {
   claimText,
   lastErrorText,
-  publicationText,
-  readinessText,
   toolbarText,
   waitsForText,
 } from '../directus/extensions/directus-extension-data-operations/src/status-facts.js';
 import { stateLabel } from '../directus/extensions/directus-extension-data-operations/src/status-labels.js';
-import {
-  importChoices,
-  publicationChoices,
-} from '../src/data-model/operations-vocabularies.js';
+import { importChoices } from '../src/data-model/operations-vocabularies.js';
 
-// The texts of the dashboard, its status endpoint and the readiness
-// tooltips: one wording per situation, facts as `Label: value`, no advice.
+// The texts of the dashboard and its status endpoint: one wording per
+// situation, facts as `Label: value`, no advice.
 
 const claim = {
   domain: 'history_index',
@@ -39,15 +30,12 @@ const claim = {
 const lastError = {
   at: '2026-09-24T16:20:01.123Z',
   blocking: true,
-  code: 'PUBLICATION_FAILED',
-  domain: 'publication',
+  code: 'MATCH_FAILED',
+  domain: 'enrollments',
   message: null,
   retries: 1,
   revision: 42,
 };
-
-// A trailing period, a Flow instruction or an internal task reference.
-const adviceOrPeriod = /\.$|Data \/ (?:Add|Mark|Process)|follow-up/u;
 
 describe('a failed read of a dashboard panel', () => {
   test('is refused for the caller and failed otherwise, with the server message only', () => {
@@ -133,54 +121,19 @@ describe('the status fact lines', () => {
     );
   });
 
-  test('state the last publication, the last failure and the readiness summary as facts', () => {
-    const files: StatusView['publication']['files'] = [];
-
-    expect(
-      publicationText({ complete: true, files, lastRevision: 42, state: 'x' }),
-    ).toBe('Last publication: revision 42 (complete)');
-    expect(
-      publicationText({ complete: false, files, lastRevision: 42, state: 'x' }),
-    ).toBe('Last publication: revision 42 (incomplete)');
-    expect(
-      publicationText({
-        complete: false,
-        files,
-        lastRevision: null,
-        state: 'x',
-      }),
-    ).toBe('Last publication: none');
+  test('state the last failure as facts', () => {
     expect(lastErrorText(lastError)).toBe(
-      'Domain: Publication · Revision: 42 · At: 2026-09-24 16:20:01 UTC · Retries: 1',
+      'Domain: Enrollment counts · Revision: 42 · At: 2026-09-24 16:20:01 UTC · Retries: 1',
     );
     expect(
       lastErrorText({ ...lastError, domain: null, retries: 0, revision: null }),
     ).toBe('Domain: unknown · Revision: -- · At: 2026-09-24 16:20:01 UTC');
-
-    const readiness = {
-      blockedFiles: [],
-      checks: [],
-      ready: true,
-      revision: 42,
-    } as const;
-
-    expect(readinessText(readiness)).toBe(
-      'Source revision: 42 · Held back: none',
-    );
-    expect(
-      readinessText({ ...readiness, blockedFiles: ['courses.json'] }),
-    ).toBe('Source revision: 42 · Held back: courses.json');
   });
 
   test('give each stored state the label Studio shows for it', () => {
-    for (const [values, choices] of [
-      [importStates, importChoices],
-      [publicationStates, publicationChoices],
-    ] as const) {
-      expect(choices.map(({ label }) => label)).toEqual(
-        values.map((value) => stateLabel(value)),
-      );
-    }
+    expect(importChoices.map(({ label }) => label)).toEqual(
+      importStates.map((value) => stateLabel(value)),
+    );
 
     expect(stateLabel('ready')).toBe('Staged');
   });
@@ -205,28 +158,8 @@ describe('the status endpoint and the migrations endpoint', () => {
   });
 });
 
-describe('the readiness tooltips and the Run panel option', () => {
-  test('state a short fact per check, without a Flow instruction or a trailing period', () => {
-    const described = new Map(
-      readinessRegistry.map(({ code, description }) => [code, description]),
-    );
-
-    expect(described.get('history_index_failed')).toBe(
-      'Moodle history index failed: derived rows behind the source revision',
-    );
-    expect(described.get('enrollment_count_missing')).toBe(
-      'Course without a count row for a published academic year',
-    );
-    expect(
-      readinessRegistry.filter(({ description }) =>
-        adviceOrPeriod.test(description),
-      ),
-    ).toEqual([]);
-  });
-
+describe('the Run panel option', () => {
   test('names the Flows a Run panel offers', () => {
-    expect(managedFlowNote).toBe(
-      'Installed manual Flow named "Data / …" or "Publish / …".',
-    );
+    expect(managedFlowNote).toBe('Installed manual Flow named "Data / …".');
   });
 });

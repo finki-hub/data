@@ -1,4 +1,4 @@
-import type { CheckView, StatusView } from './status-contract.js';
+import type { StatusView } from './status-contract.js';
 
 import {
   domainLabel,
@@ -7,28 +7,22 @@ import {
 } from './coordination/domains.js';
 import { humanize } from './managed-flows.js';
 
-// How the dashboard names and colours a state, an outcome or a severity
-// of the status read. Unknown values keep their own name and a neutral
+// How the dashboard names and colours a state of the status read. Unknown values keep their own name and a neutral
 // tone. Timestamps arrive as ISO-8601 text rendered by the database and
 // ages as seconds by its clock, so nothing here parses a date.
 
 export type Tone = 'danger' | 'info' | 'neutral' | 'success' | 'warning';
 
 const tones: Readonly<Record<string, Tone>> = {
-  blocker: 'danger',
   completed: 'success',
   current: 'success',
   failed: 'danger',
   importing: 'info',
-  partial: 'warning',
   pending: 'warning',
   promoting: 'info',
   ready: 'warning',
   running: 'info',
-  skipped: 'warning',
-  uploaded: 'success',
   validating: 'info',
-  warning: 'warning',
 };
 
 // The stored states keep the one label Studio shows too (stateLabels); a
@@ -74,24 +68,6 @@ export const ageText = (seconds: null | number): string => {
     : `${String(Math.floor(seconds / 3_600))} h`;
 };
 
-const rank = (check: CheckView): number => {
-  if (check.count === 0) {
-    return 2;
-  }
-  return check.severity === 'blocker' ? 0 : 1;
-};
-
-// Positive blockers first, then positive warnings, then the clear checks,
-// each group in registry order.
-export const orderedChecks = (checks: readonly CheckView[]): CheckView[] =>
-  checks
-    .map((check, index) => ({ check, index }))
-    .toSorted(
-      (left, right) =>
-        rank(left.check) - rank(right.check) || left.index - right.index,
-    )
-    .map(({ check }) => check);
-
 // A collection as the dashboard names it: by the name Studio shows for it
 // (its label, read from the app; studio-name.ts), else by its humanized
 // key, as for a collection the app does not list.
@@ -99,21 +75,6 @@ export const collectionText = (
   collection: string,
   studioName?: string,
 ): string => studioName ?? humanize(collection);
-
-// The words of a Studio link to the records behind a check: its
-// incomplete-data bookmark while it exists, else its collection.
-export const checkLinkText = (check: CheckView, studioName?: string): string =>
-  check.review ?? collectionText(check.page, studioName);
-
-// Bytes as "5.3 kB".
-export const bytesText = (bytes: null | number): string => {
-  if (bytes === null) {
-    return '--';
-  }
-  return bytes < 1_000
-    ? `${String(bytes)} B`
-    : `${(bytes / 1_000).toFixed(1)} kB`;
-};
 
 // What a Run button waits for: the server's claim, or a run another
 // panel of this page started (it takes the claim), or nothing.

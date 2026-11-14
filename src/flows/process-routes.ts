@@ -1,6 +1,6 @@
 import {
-  type CalculationDomain,
   calculationDomains,
+  type Domain,
 } from '../../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
 import {
   automationId,
@@ -76,7 +76,7 @@ const unknownDomain = branch({
 // The route steps in declaration order: each domain's condition rejects
 // into the next domain's, the last one into the unknown-domain branch.
 export const routeSteps = (
-  routes: Readonly<Record<CalculationDomain, CalculationRoute>>,
+  routes: Readonly<Record<Domain, CalculationRoute>>,
 ): OperationTemplate[] => {
   const ordered = calculationDomains.map((domain) => ({
     domain,

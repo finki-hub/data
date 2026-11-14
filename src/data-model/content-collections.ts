@@ -54,6 +54,7 @@ export const contentCollections: readonly ModelCollection[] = [
     displayTemplate: courseTemplate,
     fields: [
       required('name', 'string', { label: 'Name' }),
+      scalar('abbreviation', 'string', { label: 'Abbreviation' }),
       enumField('status', statusChoices, {
         defaultValue: 'active',
         label: 'Status',
@@ -61,8 +62,6 @@ export const contentCollections: readonly ModelCollection[] = [
         nullable: false,
       }),
       scalar('tags', 'string', { label: 'Tags' }),
-      // The course's Discord channels come through discord_channel_courses
-      // (reference-collections.ts).
     ],
     hidden: false,
     icon: 'school',

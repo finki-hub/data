@@ -7,8 +7,6 @@ import { readFileSources } from '../directus/extensions/directus-extension-data-
 import { resolveFields } from '../directus/extensions/directus-extension-data-operations/src/exports/field-map.js';
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
-import { storeReader } from '../src/projection/memory-reader.js';
 import {
   expectedData,
   expectedKeys,
@@ -21,34 +19,27 @@ import {
   academicYears,
   courseNames,
   forbiddenPrivateFields,
-  makeSyntheticDataset,
   privateSentinels,
   staffNames,
 } from './fixtures/synthetic-data.js';
-import { lifecycleDataset } from './fixtures/synthetic-workbook.js';
-import { codes, planOf, withCourse } from './import-plan-helpers.js';
+import { storeReader } from './memory-reader.js';
 import {
   edit,
   engineAssets,
   generationIdOf,
   importedStore,
   injecting,
-  parityDataset,
   refusalOf,
-  renamedCurrent,
   reversed,
   rowsOf,
   unmatchedLabel,
-  unmatchedLegacy,
   withLinkedLabel,
-  workbookStore,
 } from './relational-export-helpers.js';
 
 const assetsSchema = z.strictObject({
   courses: z.array(z.record(z.string(), z.string())),
   rooms: z.array(z.record(z.string(), z.string())),
   staff: z.array(z.record(z.string(), z.string())),
-  students: z.array(z.record(z.string(), z.string())),
 });
 
 type Assets = z.infer<typeof assetsSchema>;
@@ -59,7 +50,7 @@ const projected = async (
 ): Promise<Assets> =>
   assetsSchema.parse(await engineAssets(exportDefinitions, reader));
 
-// The four files the definitions publish over a store, as data, to
+// The three files the definitions publish over a store, as data, to
 // compare with the committed expected files.
 const publishedData = async (store: Parameters<typeof storeReader>[0]) =>
   filesData(await projected(store));
@@ -68,25 +59,6 @@ const publishedData = async (store: Parameters<typeof storeReader>[0]) =>
 // form count, not only deep equality.
 const sameJson = (left: unknown, right: unknown): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
-
-// Readiness over a store, with current calculations and a promoted
-// snapshot: only the checks of the definitions decide.
-const readinessOf = (store: Parameters<typeof storeReader>[0]) =>
-  readinessAction(exportDefinitions, {
-    coordination: () =>
-      Promise.resolve({
-        calculation: 'graph-a',
-        domains: { enrollments: 'current', history_index: 'current' },
-        revision: 1,
-      }),
-    reader: storeReader(store),
-    snapshot: () =>
-      Promise.resolve({
-        activeMatchesPromotion: true,
-        activeRows: 9,
-        state: 'completed',
-      }),
-  });
 
 const courseNamed = (assets: Pick<Assets, 'courses'>, name: string) =>
   assets.courses.find((row) => row['name'] === name);
@@ -180,7 +152,7 @@ const crossedLink =
 
 describe('parity with the committed public files', () => {
   test('projects the imported fixture into exactly the committed parity data', async () => {
-    const store = await importedStore(parityDataset());
+    const store = await importedStore();
     const assets = await projected(store);
 
     expect(filesData(assets)).toEqual(await expectedData('parity'));
@@ -212,7 +184,6 @@ describe('parity with the committed public files', () => {
       'courses.json',
       'rooms.json',
       'staff.json',
-      'students.json',
     ]);
 
     for (const file of publicFileNames) {
@@ -229,17 +200,6 @@ describe('parity with the committed public files', () => {
     expect(numeric.flat()).toEqual(['2023-channel', '2018-channel', 'active']);
   });
 
-  test('refuses to import the ambiguous synthetic dataset instead of guessing', () => {
-    expect(
-      planOf(makeSyntheticDataset()).blockers.map(({ code }) => code),
-    ).toEqual(
-      expect.arrayContaining([
-        'ambiguous_curriculum_2018',
-        'ambiguous_curriculum_2023',
-      ]),
-    );
-  });
-
   test('orders every file by canonical id whatever order the reads answer', async () => {
     const store = await importedStore();
 
@@ -251,107 +211,31 @@ describe('parity with the committed public files', () => {
     ).toBeTruthy();
   });
 
-  test('exports an empty project as four empty files', async () => {
+  test('exports an empty project as three empty files', async () => {
     const empty = await projected({ items: new Map() });
 
-    expect(empty).toEqual({ courses: [], rooms: [], staff: [], students: [] });
+    expect(empty).toEqual({ courses: [], rooms: [], staff: [] });
   });
 });
 
-describe('the cases where the committed files differ from what the import writes', () => {
-  test('imports the lifecycle dataset with the first teaching row of Alpha and a warning for the second, and publishes exactly the parity files', async () => {
-    const plan = planOf(lifecycleDataset());
-
-    expect(plan.blockers).toEqual([]);
-    expect(
-      plan.warnings
-        .filter(({ code }) => code === 'duplicate_assignment')
-        .map(({ ids }) => ids),
-    ).toEqual([[2]]);
-
-    const lifecycle = await importedStore(lifecycleDataset());
-
-    await expect(readinessOf(lifecycle)).resolves.toMatchObject({
-      ready: true,
-    });
-    await expect(publishedData(lifecycle)).resolves.toEqual(
-      await expectedData('parity'),
-    );
-    await expect(
-      expectedCourse('parity', courseNames.alpha),
-    ).resolves.toHaveProperty(
-      'professors',
-      `${staffNames.minimal}\n${staffNames.active}`,
-    );
-  });
-
-  test.each([
-    { cell: 'cleared', value: null, warnings: [] },
-    { cell: 'FALSE', value: false, warnings: [] },
-    { cell: 'TRUE', value: true, warnings: ['unlinked_availability'] },
-  ] as const)(
-    "publishes Gamma's 2018 availability without a 2018 name as FALSE when the cell is $cell",
-    async ({ value, warnings }) => {
-      const dataset = withCourse(parityDataset(), courseNames.gamma, {
-        available_2018: value,
-      });
-      const plan = planOf(dataset);
-      const store = await importedStore(dataset);
-
-      expect(plan.blockers).toEqual([]);
-      expect(
-        codes(plan.warnings).filter((code) => code.startsWith('unlinked_')),
-      ).toEqual(warnings);
-      await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
-      await expect(publishedData(store)).resolves.toEqual(
-        await expectedData('parity'),
-      );
-      await expect(
-        expectedCourse('parity', courseNames.gamma),
-      ).resolves.toHaveProperty('2018-available', 'FALSE');
-    },
-  );
-
-  test('publishes FALSE for a linked course whose availability cell is empty', async () => {
-    const store = await importedStore(
-      withCourse(parityDataset(), courseNames.alpha, { available_2023: null }),
-    );
-
-    expect(
-      rowsOf(store, 'course_curricula')
-        .filter((row) => row['course'] === 1)
-        .map((row) => row['available']),
-    ).toEqual([false, false]);
-    expect(
-      courseNamed(await projected(store), courseNames.alpha),
-    ).toMatchObject({ '2018-available': 'FALSE', '2023-available': 'FALSE' });
-  });
-
+describe('the cases whose committed files differ from the parity files', () => {
   test.each([
     {
-      change: renamedCurrent,
-      code: 'unmatched_curriculum_2023_label',
       expected: 'renamed-current',
       generation: '2023',
       label: 'a 2023 name',
       name: courseNames.iota,
     },
     {
-      change: unmatchedLegacy,
-      code: 'unmatched_curriculum_2018_label',
       expected: 'unmatched-legacy',
       generation: '2018',
       label: 'an equivalency 2018 name',
       name: courseNames.zeta,
     },
   ] as const)(
-    '$label that matches no entry refuses the import; an entry carrying it, linked in Studio, publishes exactly the committed file',
-    async ({ change, code, expected, generation, name }) => {
-      expect(
-        planOf(change(parityDataset())).blockers.map((blocker) => blocker.code),
-      ).toEqual([code]);
-
-      const store = await importedStore(parityDataset());
+    '$label that no entry carried, linked in Studio, publishes exactly the committed file',
+    async ({ expected, generation, name }) => {
+      const store = await importedStore();
       const course = rowsOf(store, 'courses').find(
         (row) => row['name'] === name,
       );
@@ -363,7 +247,6 @@ describe('the cases where the committed files differ from what the import writes
 
       withLinkedLabel(store, Number(course?.id), generation);
 
-      await expect(readinessOf(store)).resolves.toMatchObject({ ready: true });
       await expect(publishedData(store)).resolves.toEqual(
         await expectedData(expected),
       );
@@ -619,31 +502,6 @@ describe('the curriculum level from the code', () => {
       ['L2W002', undefined],
       ['F23L5W5', '5'],
     ]);
-  });
-
-  test('publishes the parity data from a workbook whose Ниво disagrees with every code', async () => {
-    // Every curriculum row states Ниво 6, which no code gives (Theta's
-    // F23L2S007 publishes 2023-level 2).
-    const base = parityDataset();
-    const { store, workbook } = await workbookStore({
-      ...base,
-      curriculum_2018: base.curriculum_2018.map((row) => ({
-        ...row,
-        level: 6,
-      })),
-      curriculum_2023: base.curriculum_2023.map((row) => ({
-        ...row,
-        level: 6,
-      })),
-    });
-    const levelCells = (sheet: string) =>
-      [1, 2].map((row) => workbook.getWorksheet(sheet)?.getCell(row, 5).value);
-
-    expect(levelCells('Предмети - 2018')).toEqual(['Ниво', 6]);
-    expect(levelCells('Предмети - 2023')).toEqual(['Ниво', 6]);
-    await expect(publishedData(store)).resolves.toEqual(
-      await expectedData('parity'),
-    );
   });
 });
 
@@ -932,20 +790,5 @@ describe('the private data boundary', () => {
     for (const sentinel of privateSentinels) {
       expect(JSON.stringify(assets)).not.toContain(sentinel);
     }
-  });
-
-  test('exports students as index and name only', async () => {
-    const store = edit(await importedStore(), 'students', () => [
-      {
-        id: 9,
-        index_number: 'SYN-0003',
-        name: '',
-        source_group: 'SENTINEL_PRIVATE_SOURCE_GROUP:x',
-      },
-    ]);
-
-    const { students } = await projected(store);
-
-    expect(students).toEqual([{ index: 'SYN-0003' }]);
   });
 });

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { isCalculation } from './coordination/domains.js';
 
 // The answers of the status endpoint (status-endpoint.ts), declared once:
-// the endpoint builds them (status-view.ts, readiness-view.ts) and the
+// the endpoint builds them (status-view.ts) and the
 // dashboard panels parse them. Everything in them is a state, a code, a
 // count, a timestamp, a declared name or a Studio link; never a record of
 // a Moodle user, a file body, a token or a claim owner.
@@ -21,28 +21,12 @@ export const domainStates = [
   'failed',
 ] as const;
 
-// A domain as the dashboard shows it: a failed publication that uploaded
-// some declared files at its revision reads partial.
-const domainViewStates = [...domainStates, 'partial'] as const;
-
-const fileOutcomeStates = ['uploaded', 'failed', 'skipped'] as const;
-
 const domainView = z.object({
   kind: text,
   label: text,
   name: text,
-  state: z.enum(domainViewStates),
+  state: z.enum(domainStates),
   waitingFor: z.array(text),
-});
-
-// One declared file: its last recorded outcome (null before its first
-// publication), the code of a failure and the revision it holds.
-const fileView = z.object({
-  bytes: count.nullable(),
-  code: maybeText,
-  filename: text,
-  outcome: z.enum(fileOutcomeStates).nullable(),
-  revision,
 });
 
 // One row of a key source: its key text, its own opt-in flag and whether
@@ -101,13 +85,6 @@ export const statusViewSchema = z.object({
     retries: count,
     startedAt: maybeText,
   }),
-  publication: z.object({
-    // Every declared file uploaded at lastRevision.
-    complete: z.boolean(),
-    files: z.array(fileView),
-    lastRevision: revision,
-    state: text,
-  }),
   revisions: z.object({ completed: count, requested: count, source: count }),
   // Each scheduled Flow and its last run within the look-back window.
   schedule: z.array(
@@ -123,36 +100,9 @@ export const statusViewSchema = z.object({
 
 export type DomainView = z.infer<typeof domainView>;
 
-export type FileView = z.infer<typeof fileView>;
-
 export type KeySourceView = z.infer<typeof keySourceView>;
 
 export type StatusView = z.infer<typeof statusViewSchema>;
-
-const checkView = z.object({
-  code: text,
-  count,
-  description: text,
-  gates: z.array(text),
-  // The Studio page of the records: the check's incomplete-data bookmark
-  // while it exists, else the collection page.
-  link: text,
-  page: text,
-  // The name of that bookmark while it exists, else null.
-  review: maybeText,
-  severity: z.enum(['blocker', 'warning']),
-});
-
-export const readinessViewSchema = z.object({
-  blockedFiles: z.array(text),
-  checks: z.array(checkView),
-  ready: z.boolean(),
-  revision: count,
-});
-
-export type CheckView = z.infer<typeof checkView>;
-
-export type ReadinessView = z.infer<typeof readinessViewSchema>;
 
 // The data envelope of a Directus answer.
 export const envelope = <Schema extends z.ZodType>(schema: Schema) =>
@@ -189,9 +139,7 @@ export const nextReadMs = ({
 };
 
 // Work in flight: a claim, a running domain, or a pending calculation the
-// schedule picks up on its own. A pending publication waits for the
-// Publish button, so it is not in flight (a panel would otherwise poll for
-// as long as nothing is published).
+// schedule picks up on its own.
 export const isBusy = (status: null | StatusView): boolean =>
   status !== null &&
   (status.claim !== null ||

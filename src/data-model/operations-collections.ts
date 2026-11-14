@@ -4,12 +4,7 @@ import { automaticProcessingFields } from './automatic-processing-fields.js';
 import { courseTemplate } from './content-collections.js';
 import { academicYearTemplate } from './curriculum-collections.js';
 import { enumField, labelledFields, m2o, scalar } from './fields.js';
-import {
-  claimChoices,
-  importChoices,
-  publicationChoices,
-  publicationStateNote,
-} from './operations-vocabularies.js';
+import { claimChoices, importChoices } from './operations-vocabularies.js';
 import { snapshotImportFields } from './snapshot-fields.js';
 
 // The coordination singleton's fields, labelled below.
@@ -37,12 +32,6 @@ const dataOperationsFields = [
     defaultValue: 'idle',
     nullable: false,
   }),
-  enumField('publication_state', publicationChoices, {
-    defaultValue: 'idle',
-    note: publicationStateNote,
-    nullable: false,
-  }),
-  scalar('publication_outcomes', 'json', { readOnly: true }),
   // Coordination status written by the finki-hub-data-coordinate
   // operation and the source-invalidation trigger.
   scalar('source_revision', 'integer', {
@@ -75,7 +64,6 @@ const dataOperationsFields = [
     readOnly: true,
   }),
   scalar('calculation_fingerprint', 'string', { readOnly: true }),
-  scalar('publication_fingerprint', 'string', { readOnly: true }),
   ...snapshotImportFields,
   ...automaticProcessingFields,
 ];
@@ -124,9 +112,6 @@ const dataOperationsLabels: Readonly<Record<DataOperationsField, string>> = {
   last_failed_fingerprint: 'Failed fingerprint',
   last_failed_revision: 'Failed revision',
   last_run_retries: 'Retries',
-  publication_fingerprint: 'Publication fingerprint',
-  publication_outcomes: 'Publication outcomes',
-  publication_state: 'Publication',
   requested_revision: 'Requested revision',
   source_revision: 'Source revision',
   started_at: 'Started',

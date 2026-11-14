@@ -1,5 +1,3 @@
-import path from 'node:path';
-
 import { loadTargetConfig, SetupConfigError } from './setup-config.js';
 import { listText, pluralText } from './text.js';
 
@@ -8,20 +6,13 @@ export type DirectusConfig = {
   readonly url: URL;
 };
 
-type ImportConfig = {
-  // null for --dry-run, which never contacts Directus.
-  readonly directus: DirectusConfig | null;
-  readonly workbookPath: string;
-};
-
-// `<fact> argument[s]: <list>`, such as `duplicate argument: --dry-run`.
+// `<fact> argument[s]: <list>`, such as `unexpected argument: --x`.
 const argumentsFact = (fact: string, names: readonly string[]): string =>
   `${fact} ${pluralText(names.length, 'argument', 'arguments')}: ${listText(names)}`;
 
 // Refuses every argument outside `accepted` and every accepted one given
 // more than once, one fact each, joined by "; ":
-// `unexpected argument: --x (accepted: --dry-run)`,
-// `duplicate argument: --dry-run`.
+// `unexpected argument: --x (accepted: none)`.
 const refuseArguments = (
   arguments_: readonly string[],
   accepted: readonly string[],
@@ -57,36 +48,4 @@ export const loadBrandingConfig = (
     defaultUrl: 'http://localhost:8055',
     readsEnvFile: true,
   });
-};
-
-// The workbook import's configuration. `--dry-run` only reads the workbook
-// and never needs credentials; a real import names its target explicitly,
-// like setup, with no default URL.
-export const loadImportConfig = (
-  arguments_: readonly string[],
-  environment: Readonly<Record<string, string | undefined>>,
-): ImportConfig => {
-  refuseArguments(arguments_, ['--dry-run']);
-  return {
-    directus: arguments_.includes('--dry-run')
-      ? null
-      : loadTargetConfig(environment),
-    workbookPath: path.resolve(
-      environment['WORKBOOK_PATH'] ?? 'finki-hub.xlsx',
-    ),
-  };
-};
-
-// The live check's workbook. It takes no argument and has no default
-// workbook: `WORKBOOK_PATH` names the file on the invocation.
-export const loadLiveCheckConfig = (
-  arguments_: readonly string[],
-  environment: Readonly<Record<string, string | undefined>>,
-): { readonly workbookPath: string } => {
-  refuseArguments(arguments_, []);
-  const workbookPath = environment['WORKBOOK_PATH'] ?? '';
-  if (workbookPath === '') {
-    throw new SetupConfigError('WORKBOOK_PATH not set');
-  }
-  return { workbookPath: path.resolve(workbookPath) };
 };

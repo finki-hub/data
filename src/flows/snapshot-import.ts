@@ -49,7 +49,7 @@ export const replacementNote = [
   'Replaced: Directus-only edits to Moodle users; history memberships cleared',
   'Never touched: course mappings, history entries, curricula, staff, students',
   `Backup first: "${snapshotFolder.name}"/moodle-users-backup-<time>.csv`,
-  'Marked pending: history index, enrollment counts, publication',
+  'Marked pending: history index, enrollment counts',
 ]
   .map((fact) => `${fact}.`)
   .join(' ');

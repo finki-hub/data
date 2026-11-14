@@ -4,9 +4,11 @@ import type {
   CoordinationStore,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/port.js';
 
-import { sourceDeclarations } from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
 import {
-  type CalculationDomain,
+  declarationOf,
+  sourceDeclarations,
+} from '../directus/extensions/directus-extension-data-operations/src/coordination/collection-roles.js';
+import {
   type ClaimDomain,
   type Domain,
   normaliseDomains,
@@ -16,10 +18,6 @@ import {
   inputRevision,
   touchesInputs,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
-import {
-  releasedPublicationState,
-  type StoredOutcomes,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
 import {
   type OperationsState,
   type PageSource,
@@ -147,12 +145,9 @@ type FakeData = {
   enrollments: FakeEnrollment[];
   finishedAtMs: null | number;
   history: FakeHistory;
-  inputRevisions: Record<CalculationDomain, number>;
+  inputRevisions: Record<Domain, number>;
   lastError: OperationsState['lastError'];
   lastRunRetries: number;
-  publicationFingerprint: null | string;
-  publicationOutcomes: null | StoredOutcomes;
-  publicationState: string;
   requestedRevision: number;
   sourceRevision: number;
   startedAtMs: null | number;
@@ -171,9 +166,6 @@ const freshData = (): FakeData => ({
   inputRevisions: { enrollments: 0, history_index: 0 },
   lastError: null,
   lastRunRetries: 0,
-  publicationFingerprint: null,
-  publicationOutcomes: null,
-  publicationState: 'idle',
   requestedRevision: 0,
   sourceRevision: 0,
   startedAtMs: null,
@@ -186,11 +178,9 @@ const stamp = (ms: null | number): null | string =>
 // rollback on a thrown transaction, one transaction at a time, and a
 // clock the test advances to age a heartbeat.
 // The same fingerprint for both graphs, as a test that changes a
-// calculation step sees them (a publication-only change moves only the
-// publication fingerprint).
+// calculation step sees them.
 export const bothGraphs = (fingerprint: string): Fingerprints => ({
   calculation: fingerprint,
-  publication: fingerprint,
 });
 
 export class FakeCoordination {
@@ -247,7 +237,6 @@ export class FakeCoordination {
     }
     this.#release(claim, {
       code: abandonmentCode(state, state.claim),
-      failed: true,
       message: null,
     });
     return true;
@@ -267,6 +256,10 @@ export class FakeCoordination {
       ({ collection }) => collection === table,
     );
     if (source === undefined) {
+      // A content table carries no trigger: its statements mark nothing.
+      if (declarationOf(table)?.role === 'content') {
+        return;
+      }
       throw new Error(`${table} is no registered source table`);
     }
     const refined = source.columns ?? {};
@@ -342,9 +335,6 @@ export class FakeCoordination {
       inputRevisions: { ...data.inputRevisions },
       lastError: data.lastError,
       lastRunRetries: data.lastRunRetries,
-      publicationFingerprint: data.publicationFingerprint,
-      publicationOutcomes: data.publicationOutcomes,
-      publicationState: data.publicationState,
       requestedRevision: data.requestedRevision,
       sourceRevision: data.sourceRevision,
       startedAt: stamp(data.startedAtMs),
@@ -357,8 +347,6 @@ export class FakeCoordination {
     claim: FakeClaim,
     input: {
       readonly code: string;
-      readonly failed: boolean;
-      readonly files?: null | StoredOutcomes;
       readonly message?: null | string;
     },
   ): void {
@@ -372,15 +360,6 @@ export class FakeCoordination {
         retries: claim.retries,
         revision: claim.revision,
       };
-    }
-    if (claim.domain === 'publication') {
-      this.#data.publicationOutcomes =
-        input.files ?? this.#data.publicationOutcomes;
-      this.#data.publicationState = releasedPublicationState(
-        input.failed,
-        this.#data.publicationOutcomes,
-        claim.revision,
-      );
     }
     this.#data.claim = null;
   }
@@ -436,9 +415,7 @@ export class FakeCoordination {
       },
       ensureSingleton: async () => {},
       finish: async (input) => {
-        const superseded =
-          input.superseded && data().claim?.domain === 'publication';
-        const claim = this.#liveClaim(input.token, input.owner, !superseded);
+        const claim = this.#liveClaim(input.token, input.owner, true);
         if (
           claim?.revision !== input.claimRevision ||
           claim.fingerprint !== input.fingerprint
@@ -447,25 +424,19 @@ export class FakeCoordination {
         }
         data().dirtyDomains = normaliseDomains(input.dirtyDomains);
         data().completedRevision = claim.revision;
-        if (claim.domain === 'publication') {
-          data().publicationFingerprint = claim.fingerprint;
-          data().publicationState = 'completed';
-          data().publicationOutcomes = input.files;
-        } else {
-          data().calculationFingerprint = claim.fingerprint;
-        }
+        data().calculationFingerprint = claim.fingerprint;
         data().lastRunRetries = claim.retries;
         data().startedAtMs = claim.startedAtMs;
         data().finishedAtMs = this.#now;
         data().claim = null;
         return true;
       },
-      heartbeat: async (token, owner, leaseMs = 0) => {
+      heartbeat: async (token, owner) => {
         const claim = this.#liveClaim(token, owner, false);
         if (claim === null) {
           return false;
         }
-        claim.heartbeatAtMs = this.#now + leaseMs;
+        claim.heartbeatAtMs = this.#now;
         return true;
       },
       history: fakeHistoryPort(
@@ -531,15 +502,6 @@ export class FakeCoordination {
         this.readLocks.push(lock);
         return this.#state();
       },
-      recordOutcomes: async (token, owner, files) => {
-        const claim = this.#liveClaim(token, owner, false);
-        if (claim?.domain !== 'publication') {
-          return false;
-        }
-        data().publicationOutcomes = files;
-        claim.heartbeatAtMs = this.#now;
-        return true;
-      },
       recordStagedPage: async (token, owner, page) => {
         const claim = this.#liveClaim(token, owner, true);
         if (claim === null) {
@@ -590,9 +552,6 @@ export class FakeCoordination {
           token: input.token,
         };
         data().dirtyDomains = normaliseDomains(input.dirtyDomains);
-        if (input.domain === 'publication') {
-          data().publicationState = 'running';
-        }
         return true;
       },
     };

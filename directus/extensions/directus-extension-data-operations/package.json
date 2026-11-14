@@ -24,8 +24,8 @@
       { "type": "hook", "name": "finki-hub-course-default-mapping", "source": "src/course-default-mapping.ts" },
       { "type": "operation", "name": "finki-hub-snapshot-import", "source": { "app": "src/snapshot-import-app.ts", "api": "src/snapshot-import.ts" } },
       { "type": "operation", "name": "finki-hub-snapshot-promote", "source": { "app": "src/snapshot-promote-app.ts", "api": "src/snapshot-promote.ts" } },
-      { "type": "operation", "name": "finki-hub-exports", "source": { "app": "src/exports-app.ts", "api": "src/exports-operation.ts" } },
       { "type": "endpoint", "name": "finki-hub-data-status", "source": "src/status-endpoint.ts" },
+      { "type": "endpoint", "name": "legacy", "source": "src/legacy-endpoint.ts" },
       { "type": "panel", "name": "finki-hub-run-operation", "source": "src/panel.ts" },
       { "type": "panel", "name": "finki-hub-data-status-panel", "source": "src/status-panel.ts" }
     ],

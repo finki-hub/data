@@ -10,7 +10,6 @@ import {
 } from '../../directus/extensions/directus-extension-data-operations/src/managed-flows.js';
 import { dashboardId } from '../flows/flow-template.js';
 import { markPendingFlowId } from '../flows/mark-pending.js';
-import { publishAssetsFlowId } from '../flows/publish-public-assets.js';
 import { snapshotFlowId } from '../flows/snapshot-import.js';
 
 // The Data operations dashboard npm run setup installs once: one Insights
@@ -18,7 +17,7 @@ import { snapshotFlowId } from '../flows/snapshot-import.js';
 // deterministic ids. A rerun creates what is missing (a deleted panel comes
 // back) and never overwrites an edit of the dashboard or a panel. Another
 // action is a Run operation panel added in Studio for any installed
-// Data / or Publish / Flow; no code changes.
+// Data / Flow; no code changes.
 
 export const operationsDashboardId = dashboardId('d0');
 
@@ -27,7 +26,7 @@ const operationsDashboard = {
   icon: 'monitor_heart',
   id: operationsDashboardId,
   name: 'Data operations',
-  note: 'Calculations, published files, readiness checks, published keys and manual data operations.',
+  note: 'Calculations, published keys and manual data operations.',
 } as const;
 
 type PanelDeclaration = {
@@ -63,29 +62,19 @@ const statusPanel = (
   type: dataStatusPanelId,
 });
 
-// Publish, Recalculate and Import snapshot in the first row, as wide as
-// the status rows below. The ids keep their suffixes: d4 held the retired
-// Add enrollment rules panel.
+// Recalculate and Import snapshot in the first row, as wide as the status
+// rows below. The ids keep their suffixes: d1 held the retired Publish
+// panel, d4 the retired Add enrollment rules panel and d6 the retired
+// Readiness panel.
 export const defaultPanels: readonly PanelDeclaration[] = [
-  runPanel(
-    {
-      icon: 'cloud_upload',
-      id: dashboardId('d1'),
-      name: 'Publish',
-      note: 'Publishes every declared public file.',
-      width: 17,
-      x: 1,
-    },
-    publishAssetsFlowId,
-  ),
   runPanel(
     {
       icon: 'update',
       id: dashboardId('d2'),
       name: 'Recalculate',
       note: 'Marks domains pending; also retries a failed calculation.',
-      width: 18,
-      x: 18,
+      width: 26,
+      x: 1,
     },
     markPendingFlowId,
   ),
@@ -95,8 +84,8 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       id: dashboardId('d3'),
       name: 'Import Moodle snapshot',
       note: 'Replaces the active Moodle snapshot with a private CSV.',
-      width: 17,
-      x: 36,
+      width: 26,
+      x: 27,
     },
     snapshotFlowId,
   ),
@@ -105,26 +94,13 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       height: 32,
       icon: 'monitor_heart',
       id: dashboardId('d5'),
-      name: 'Calculations and published files',
-      note: 'Shows calculation domains and published files.',
-      width: 26,
+      name: 'Calculations',
+      note: 'Shows the calculation domains and the Moodle snapshot.',
+      width: 52,
       x: 1,
       y: 13,
     },
     ['operations'],
-  ),
-  statusPanel(
-    {
-      height: 32,
-      icon: 'fact_check',
-      id: dashboardId('d6'),
-      name: 'Readiness',
-      note: 'Shows readiness checks with one Studio link each.',
-      width: 26,
-      x: 27,
-      y: 13,
-    },
-    ['readiness'],
   ),
   statusPanel(
     {

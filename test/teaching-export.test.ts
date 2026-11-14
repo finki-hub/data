@@ -4,9 +4,8 @@ import { z } from 'zod';
 import type { FakeStore } from './store-test-helpers.js';
 
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { readinessAction } from '../directus/extensions/directus-extension-data-operations/src/exports/prepare.js';
-import { storeReader } from '../src/projection/memory-reader.js';
 import { courseNames, staffNames } from './fixtures/synthetic-data.js';
+import { storeReader } from './memory-reader.js';
 import {
   edit,
   engineAssets,
@@ -32,25 +31,6 @@ const thetaRow = async (store: FakeStore) => {
   const courses = await coursesOf(store);
   return courses.find((row) => row['name'] === courseNames.theta);
 };
-
-// Readiness over a store, with current calculations and a promoted
-// snapshot: only the checks of the definitions decide.
-const readinessOf = (store: FakeStore) =>
-  readinessAction(exportDefinitions, {
-    coordination: () =>
-      Promise.resolve({
-        calculation: 'graph-a',
-        domains: { enrollments: 'current', history_index: 'current' },
-        revision: 1,
-      }),
-    reader: storeReader(store),
-    snapshot: () =>
-      Promise.resolve({
-        activeMatchesPromotion: true,
-        activeRows: 9,
-        state: 'completed',
-      }),
-  });
 
 // The store with the course's status set.
 const withStatus = (store: FakeStore, course: number, status: string) =>
@@ -115,19 +95,12 @@ describe('teaching staff by status', () => {
     ['no professor link', unchanged],
     ['a professor link without staff', withStafflessProfessor],
   ])(
-    'blocks readiness for an Active course with %s and refuses the file',
+    'refuses the file for an Active course with %s',
     async (_label, change) => {
       const store = change(
         withoutLinks(await importedStore(), theta, 'professor'),
       );
-      const answer = await readinessOf(store);
 
-      expect(answer).toMatchObject({
-        issueCounts: { course_without_professor: 1 },
-        links: { course_without_professor: '/admin/content/courses' },
-        ready: false,
-      });
-      expect(answer.blockers).toContain('course_without_professor');
       await expect(refusalOf(() => coursesOf(store))).resolves.toMatchObject({
         code: 'EXPORT_UNRESOLVED',
       });
@@ -149,7 +122,6 @@ describe('teaching staff by status', () => {
   });
 
   test('needs no professor link for an Inactive or All professors course', async () => {
-    const parity = await readinessOf(await importedStore());
     const inactive = withStatus(
       withoutLinks(await importedStore(), theta, 'professor'),
       theta,
@@ -157,13 +129,7 @@ describe('teaching staff by status', () => {
     );
 
     // Delta (Inactive), Epsilon and Zeta (All professors) have none.
-    expect(parity).toMatchObject({
-      issueCounts: { course_without_professor: 0 },
-      ready: true,
-    });
-    await expect(readinessOf(inactive)).resolves.toMatchObject({
-      issueCounts: { course_without_professor: 0 },
-      ready: true,
-    });
+    await expect(coursesOf(await importedStore())).resolves.toHaveLength(8);
+    await expect(coursesOf(inactive)).resolves.toHaveLength(8);
   });
 });

@@ -1,23 +1,14 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
-import {
-  calculationDomains,
-  domainDeclarations,
-  type DomainKind,
-  domainKinds,
-  nextCalculation,
-} from './domains.js';
+import { type DomainKind, domainKinds } from './domains.js';
 import { textCollator } from './state.js';
 
-// The fingerprints of the managed Flow graph, one per domain kind: a
-// calculation runs under the calculation fingerprint, a publication under
-// the publication fingerprint, which includes the calculation fingerprint,
-// so a calculation change requeues publication too and a publish-only
-// change never requeues a calculation.
+// The fingerprint of the managed Flow graph, one per domain kind: every
+// calculation runs under the calculation fingerprint, so a change to its
+// Flows requeues the calculations.
 export type Fingerprints = {
   readonly calculation: string;
-  readonly publication: string;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -39,36 +30,21 @@ export const canonicalJson = (value: unknown): string => {
   return JSON.stringify(value ?? null);
 };
 
-// What makes a Flow a root of a graph, by the action of a coordinate step
-// it holds: a claim of a calculation domain or next_calculation and the
-// page steps (plan, stage, index) root the calculation graph, a claim of
-// publication the publication graph. Mark, status, heartbeat, record,
-// complete and fail root neither: a Flow holding only those (Mark pending
-// and its dialog) is in no graph, and a child that records or completes a
-// claim's work is reached from the Flow that claimed. A templated, unknown
-// or missing action or claim domain roots both. graphSql applies the same
-// rule in SQL.
-export const pageStepActions = ['plan_pages', 'stage_page', 'index_page'];
+// What makes a Flow a root of the graph, by the action of a coordinate
+// step it holds: a claim and the page steps (plan, stage, index) root the
+// calculation graph. Mark, status, heartbeat, complete and fail root none:
+// a Flow holding only those (Mark pending and its dialog) is in no graph,
+// and a child that completes a claim's work is reached from the Flow that
+// claimed. A templated, unknown or missing action roots it too. graphSql
+// applies the same rule in SQL.
 
 export const neutralActions = [
   'mark',
   'status',
   'heartbeat',
-  'record',
   'complete',
   'fail',
 ];
-
-export const calculationTargets: readonly string[] = [
-  ...calculationDomains,
-  nextCalculation,
-];
-
-// The claim domains that root the publication graph: the declared
-// publication domains.
-export const publicationTargets: readonly string[] = domainDeclarations
-  .filter(({ kind }) => kind === 'publication')
-  .map(({ name }) => name);
 
 const textOf = (options: unknown, key: string): null | string => {
   const value = isRecord(options) ? options[key] : undefined;
@@ -78,22 +54,9 @@ const textOf = (options: unknown, key: string): null | string => {
 // The graphs a coordinate step with these options roots its Flow in.
 export const graphKindsOf = (options: unknown): readonly DomainKind[] => {
   const action = textOf(options, 'action');
-  if (action !== null && neutralActions.includes(action)) {
-    return [];
-  }
-  if (action !== null && pageStepActions.includes(action)) {
-    return ['calculation'];
-  }
-  const domain = textOf(options, 'domain');
-  if (action === 'claim' && domain !== null) {
-    if (calculationTargets.includes(domain)) {
-      return ['calculation'];
-    }
-    if (publicationTargets.includes(domain)) {
-      return ['publication'];
-    }
-  }
-  return ['calculation', 'publication'];
+  return action !== null && neutralActions.includes(action)
+    ? []
+    : ['calculation'];
 };
 
 // One row per operation of every Flow of a graph (graphSql: the Flows a
@@ -135,43 +98,36 @@ export const graphRowsSchema = z.array(
 const digest = (text: string): string =>
   createHash('sha256').update(text).digest('hex');
 
-const rowsOf = (rows: readonly GraphRow[], kind: DomainKind) =>
-  rows
-    .filter(({ graph }) => graph === kind)
-    .map(
-      ({
-        entry,
-        flow,
-        flow_options,
-        key,
-        operation,
-        options,
-        reject,
-        resolve,
-        trigger,
-        type,
-      }) => ({
-        entry,
-        flow,
-        flow_options,
-        key,
-        operation,
-        options,
-        reject,
-        resolve,
-        trigger,
-        type,
-      }),
-    );
+// Every graph row is the calculation graph's, the one graph there is.
+const rowsOf = (rows: readonly GraphRow[]) =>
+  rows.map(
+    ({
+      entry,
+      flow,
+      flow_options,
+      key,
+      operation,
+      options,
+      reject,
+      resolve,
+      trigger,
+      type,
+    }) => ({
+      entry,
+      flow,
+      flow_options,
+      key,
+      operation,
+      options,
+      reject,
+      resolve,
+      trigger,
+      type,
+    }),
+  );
 
 export const fingerprintsOfGraph = (
   rows: readonly GraphRow[],
-): Fingerprints => {
-  const calculation = digest(canonicalJson(rowsOf(rows, 'calculation')));
-  return {
-    calculation,
-    publication: digest(
-      canonicalJson({ calculation, graph: rowsOf(rows, 'publication') }),
-    ),
-  };
-};
+): Fingerprints => ({
+  calculation: digest(canonicalJson(rowsOf(rows))),
+});

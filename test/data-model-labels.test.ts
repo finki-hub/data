@@ -198,6 +198,7 @@ const groupFieldLabels = ({
 const englishLabels: readonly string[] = [
   'courses: Courses / Course',
   'courses.name: Name',
+  'courses.abbreviation: Abbreviation',
   'courses.status: Status',
   'courses.tags: Tags',
   'courses.equivalencies: Equivalencies',
@@ -452,10 +453,10 @@ describe('field and alias labels', () => {
         .filter(({ collection }) => collection === 'data_operations')
         .map(groupFieldLabels),
     ).toEqual([
-      'Revisions: Source revision; History index input revision; Enrollment input revision; Requested revision; Completed revision; Pending domains; Calculation fingerprint; Publication fingerprint',
+      'Revisions: Source revision; History index input revision; Enrollment input revision; Requested revision; Completed revision; Pending domains; Calculation fingerprint',
       'Running job: Claim token; Claim owner; Claim domain; Claim revision; Claim fingerprint; Claim started; Claim heartbeat; Claim pages; Staged pages; Claim retries',
       'Last failure: Error code; Error message; Failed at; Failed revision; Failed domain; Failed fingerprint; Failed run retries',
-      'Last run: Snapshot import; Publication; Started; Finished; Retries; Publication outcomes',
+      'Last run: Snapshot import; Started; Finished; Retries',
       'Moodle snapshot: Staged file; Staged rows; Staged fingerprint; Warnings; Error; Started; Finished; Backup file; Backup rows; Backup fingerprint; Active rows; Active fingerprint; Promoted at; Guard token',
     ]);
   });
@@ -492,6 +493,7 @@ describe('collection labels', () => {
   test('carries the labels of its fields and aliases inline', () => {
     const payload = toCollectionPayload(findCollection('courses'));
     const labels = new Map([
+      ['abbreviation', 'Abbreviation'],
       ['assignments', 'Teaching staff'],
       ['counted_lines', 'Counted lines'],
       ['curricula', 'Curriculum links'],

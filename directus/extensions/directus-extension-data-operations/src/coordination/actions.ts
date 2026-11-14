@@ -16,7 +16,6 @@ import { completeAction, failAction } from './release-actions.js';
 import {
   heartbeatAction,
   planPagesAction,
-  recordAction,
   stagePageAction,
 } from './run-actions.js';
 import { claimLockWaitMs } from './state.js';
@@ -152,8 +151,6 @@ export const runAction = (
         { source: input.source, token: input.token },
         context,
       );
-    case 'record':
-      return recordAction(input, context);
     case 'stage_page':
       return stagePageAction(input, context);
     case 'status':

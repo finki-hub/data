@@ -204,9 +204,6 @@ const liveState = (claim: object): OperationsState => ({
   inputRevisions: { enrollments: 1, history_index: 1 },
   lastError: null,
   lastRunRetries: 0,
-  publicationFingerprint: null,
-  publicationOutcomes: null,
-  publicationState: 'idle',
   requestedRevision: 1,
   sourceRevision: 1,
   startedAt: null,
@@ -478,11 +475,7 @@ describe('index writer', () => {
     // does; the claim adopted it, so the run can still complete.
     expect(fake.data.sourceRevision).toBe(before + 1);
     expect(fake.data.claim?.revision).toBe(before + 1);
-    expect(fake.data.dirtyDomains).toEqual([
-      history,
-      'enrollments',
-      'publication',
-    ]);
+    expect(fake.data.dirtyDomains).toEqual([history, 'enrollments']);
 
     // A replay creates nothing, replaces the same rows and bumps nothing.
     await expect(indexPage(fake, { rows: pageRows(), token })).resolves.toEqual(
@@ -504,7 +497,7 @@ describe('index writer', () => {
       retries: 0,
       revision: before + 1,
     });
-    expect(fake.data.dirtyDomains).toEqual(['enrollments', 'publication']);
+    expect(fake.data.dirtyDomains).toEqual(['enrollments']);
   });
 
   test('never updates an existing entry and never deletes entries or mappings', async () => {
@@ -667,7 +660,7 @@ describe('multi-page runs', () => {
       revision: start + 2,
     });
     expect(fake.data.history.memberships).toHaveLength(pageSize * 2 + 6);
-    expect(fake.data.dirtyDomains).toEqual(['enrollments', 'publication']);
+    expect(fake.data.dirtyDomains).toEqual(['enrollments']);
   });
 });
 
@@ -776,7 +769,7 @@ describe('index guards', () => {
 
   test('refuses a page under an enrollment claim', async () => {
     const fake = new FakeCoordination();
-    fake.graphs = { calculation: graphA, publication: graphA };
+    fake.graphs = { calculation: graphA };
     fake.data.calculationFingerprint = graphA;
     fake.sourceIds.history = [1];
     fake.sourceIds.entries = [1];
@@ -850,12 +843,6 @@ describe('index guards', () => {
     expect(decideCompletion(liveState({ pages: [] }), check)).toEqual({
       kind: 'ok',
     });
-    expect(
-      decideCompletion(
-        liveState({ domain: 'publication', pages: [firstPage] }),
-        check,
-      ),
-    ).toEqual({ kind: 'ok' });
   });
 });
 
@@ -891,15 +878,11 @@ describe('derived index guards', () => {
 
     fake.sourceWrite('moodle_course_entries', 'update');
 
-    expect(fake.data.dirtyDomains).toEqual(['enrollments', 'publication']);
+    expect(fake.data.dirtyDomains).toEqual(['enrollments']);
 
     fake.sourceWrite('moodle_course_entries', 'delete');
 
-    expect(fake.data.dirtyDomains).toEqual([
-      history,
-      'enrollments',
-      'publication',
-    ]);
+    expect(fake.data.dirtyDomains).toEqual([history, 'enrollments']);
     await expect(
       runAction(
         { action: 'claim', domain: history, retry: false },

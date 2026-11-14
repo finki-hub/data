@@ -1,4 +1,4 @@
-import type { ReadinessView, StatusView } from './status-contract.js';
+import type { StatusView } from './status-contract.js';
 
 import { scheduleLookBackMinutes } from './managed-flows.js';
 import {
@@ -82,23 +82,6 @@ export const lastRunText = ({
     ...retriesFacts(retries),
   ]);
 
-// The revision of the last publication and whether it uploaded every
-// declared file.
-export const publicationText = ({
-  complete,
-  lastRevision,
-}: StatusView['publication']): string => {
-  const extent = complete ? 'complete' : 'incomplete';
-  return factsText([
-    [
-      'Last publication',
-      lastRevision === null
-        ? 'none'
-        : `revision ${String(lastRevision)} (${extent})`,
-    ],
-  ]);
-};
-
 // The Moodle snapshot counts of the status panel.
 export const snapshotText = ({
   countMismatches,
@@ -126,18 +109,4 @@ export const lastErrorText = ({
     ['Revision', revision ?? '--'],
     ['At', instantText(at)],
     ...retriesFacts(retries),
-  ]);
-
-// The readiness summary after its Ready or Blocked badge: the source
-// revision it counted and the declared files it holds back.
-export const readinessText = ({
-  blockedFiles,
-  revision,
-}: {
-  readonly blockedFiles: readonly string[];
-  readonly revision: ReadinessView['revision'];
-}): string =>
-  factsText([
-    ['Source revision', revision],
-    ['Held back', blockedFiles.length === 0 ? 'none' : blockedFiles.join(', ')],
   ]);

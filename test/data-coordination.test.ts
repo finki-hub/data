@@ -16,11 +16,7 @@ import {
   verifyClaim,
 } from '../directus/extensions/directus-extension-data-operations/src/coordination/decisions.js';
 import { type Domain } from '../directus/extensions/directus-extension-data-operations/src/coordination/domains.js';
-import {
-  abandonedCode,
-  interruptedCode,
-} from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
-import { declaredFilenames } from '../directus/extensions/directus-extension-data-operations/src/coordination/outcomes.js';
+import { interruptedCode } from '../directus/extensions/directus-extension-data-operations/src/coordination/failures.js';
 import {
   claimStaleAfterMs,
   type OperationsState,
@@ -32,7 +28,6 @@ const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
 const otherUuid = '0f8a1d2c-3b4e-4f5a-8b6c-7d8e9f0a1b2c';
 const history = 'history_index';
 const enrollments = 'enrollments';
-const publication = 'publication';
 const graphA = 'graph-a';
 const graphB = 'graph-b';
 const [graphsA, graphsB] = [bothGraphs(graphA), bothGraphs(graphB)];
@@ -130,11 +125,11 @@ const planHistory = (fake: FakeCoordination, token: string, owner?: string) =>
     context(fake, owner),
   );
 
-// Finishes the history index so the enrollment domain becomes claimable:
-// plans the Moodle users of the fake, indexes every page with empty
-// histories and completes.
-const settleHistory = async (fake: FakeCoordination): Promise<void> => {
-  const token = await claimToken(fake, history);
+// Plans, indexes and completes the history index claim of the token.
+const finishHistory = async (
+  fake: FakeCoordination,
+  token: string,
+): Promise<void> => {
   const plan = planned.parse(await planHistory(fake, token));
   for (const page of plan.pages) {
     const rows = fake.sourceIds.history
@@ -146,6 +141,13 @@ const settleHistory = async (fake: FakeCoordination): Promise<void> => {
     );
   }
   await complete(fake, token);
+};
+
+// Finishes the history index so the enrollment domain becomes claimable:
+// plans the Moodle users of the fake, indexes every page with empty
+// histories and completes.
+const settleHistory = async (fake: FakeCoordination): Promise<void> => {
+  await finishHistory(fake, await claimToken(fake, history));
 };
 
 const failureOf = async (work: Promise<unknown>): Promise<unknown> => {
@@ -169,9 +171,6 @@ const baseState = (
   inputRevisions: { enrollments: 3, history_index: 3 },
   lastError: null,
   lastRunRetries: 0,
-  publicationFingerprint: graphA,
-  publicationOutcomes: null,
-  publicationState: 'idle',
   requestedRevision: 3,
   sourceRevision: 3,
   startedAt: null,
@@ -199,41 +198,28 @@ const liveClaim = (
 describe('claim decisions', () => {
   test('marks every domain pending until a graph fingerprint matches', () => {
     expect(
-      pendingDomains(
-        baseState({
-          calculationFingerprint: null,
-          publicationFingerprint: null,
-        }),
-        graphsA,
-      ),
-    ).toEqual([history, enrollments, publication]);
+      pendingDomains(baseState({ calculationFingerprint: null }), graphsA),
+    ).toEqual([history, enrollments]);
     expect(pendingDomains(baseState(), graphsA)).toEqual([]);
     expect(pendingDomains(baseState(), graphsB)).toEqual([
       history,
       enrollments,
-      publication,
     ]);
     expect(
-      pendingDomains(baseState({ dirtyDomains: [publication] }), graphsA),
-    ).toEqual([publication]);
-    expect(
-      pendingDomains(
-        baseState({ publicationFingerprint: 'graph-old' }),
-        graphsA,
-      ),
-    ).toEqual([publication]);
+      pendingDomains(baseState({ dirtyDomains: [enrollments] }), graphsA),
+    ).toEqual([enrollments]);
   });
 
   test('claims one job only, in dependency order, and blocks a failed revision until retried', () => {
     const request = {
       currentFingerprints: graphsA,
-      domain: publication,
+      domain: enrollments,
       retry: false,
     } as const;
 
     expect(
       decideClaim(
-        baseState({ claim: liveClaim(), dirtyDomains: [publication] }),
+        baseState({ claim: liveClaim(), dirtyDomains: [enrollments] }),
         request,
       ).kind,
     ).toBe('busy');
@@ -241,7 +227,7 @@ describe('claim decisions', () => {
       decideClaim(baseState(), { ...request, domain: enrollments }),
     ).toEqual({ kind: 'nothing_pending' });
     expect(
-      decideClaim(baseState({ dirtyDomains: [history, publication] }), request),
+      decideClaim(baseState({ dirtyDomains: [history, enrollments] }), request),
     ).toEqual({ blocking: [history], kind: 'upstream_dirty' });
     expect(
       decideClaim(baseState({ dirtyDomains: [enrollments] }), {
@@ -263,18 +249,18 @@ describe('claim decisions', () => {
 
     const releasedAs = (code: string) =>
       baseState({
-        dirtyDomains: [publication],
+        dirtyDomains: [enrollments],
         lastError: {
           at: 't+9',
           code,
-          domain: publication,
+          domain: enrollments,
           fingerprint: graphA,
           message: null,
           retries: 0,
           revision: 3,
         },
       });
-    const failed = releasedAs('PUBLISH_FAILED');
+    const failed = releasedAs('COUNT_FAILED');
 
     expect(decideClaim(failed, request).kind).toBe('failed');
 
@@ -285,12 +271,19 @@ describe('claim decisions', () => {
     }
 
     expect(decideClaim(failed, { ...request, retry: true }).kind).toBe('claim');
-    expect(decideClaim({ ...failed, sourceRevision: 4 }, request).kind).toBe(
-      'claim',
-    );
+    expect(
+      decideClaim(
+        {
+          ...failed,
+          inputRevisions: { enrollments: 4, history_index: 3 },
+          sourceRevision: 4,
+        },
+        request,
+      ).kind,
+    ).toBe('claim');
     expect(
       decideClaim(failed, { ...request, currentFingerprints: graphsB }),
-    ).toEqual({ blocking: [history, enrollments], kind: 'upstream_dirty' });
+    ).toEqual({ blocking: [history], kind: 'upstream_dirty' });
     expect(
       decideClaim(baseState(), {
         ...request,
@@ -298,7 +291,7 @@ describe('claim decisions', () => {
         domain: history,
       }),
     ).toEqual({
-      dirtyDomains: [history, enrollments, publication],
+      dirtyDomains: [history, enrollments],
       domain: history,
       kind: 'claim',
     });
@@ -458,7 +451,7 @@ describe('claims over the persistence port', () => {
       status: 409,
     });
     expect(fake.data.claim).toBeNull();
-    expect(fake.data.dirtyDomains).toEqual([enrollments, publication]);
+    expect(fake.data.dirtyDomains).toEqual([enrollments]);
     expect(fake.data.candidates).toEqual([]);
     expect(fake.data.lastError).toMatchObject({
       code: 'SOURCE_CHANGED',
@@ -528,8 +521,8 @@ describe('claims over the persistence port', () => {
 
     const next = claimed.parse(await claim(fake, history));
 
-    expect(next.domains).toEqual([history, enrollments, publication]);
-    expect(fake.data.dirtyDomains).toEqual([history, enrollments, publication]);
+    expect(next.domains).toEqual([history, enrollments]);
+    expect(fake.data.dirtyDomains).toEqual([history, enrollments]);
   });
 });
 
@@ -679,7 +672,7 @@ describe('pages over the persistence port', () => {
     ]);
     expect(fake.data.candidates).toEqual([]);
     expect(fake.data.claim).toBeNull();
-    expect(fake.data.dirtyDomains).toEqual([publication]);
+    expect(fake.data.dirtyDomains).toEqual([]);
     expect(fake.data.completedRevision).toBe(revision);
     expect(fake.data.calculationFingerprint).toBe(graphA);
   });
@@ -717,7 +710,8 @@ describe('lock discipline over the persistence port', () => {
     ]);
     await expect(locksOf(complete(fake, token))).resolves.toEqual([true]);
 
-    const next = await claimToken(fake, publication);
+    fake.sourceWrite('moodle_pattern_mappings');
+    const next = await claimToken(fake, enrollments);
 
     await expect(
       locksOf(
@@ -728,7 +722,7 @@ describe('lock discipline over the persistence port', () => {
       ),
     ).resolves.toEqual([true]);
     await expect(
-      locksOf(claim(fake, publication, { retry: true })),
+      locksOf(claim(fake, enrollments, { retry: true })),
     ).resolves.toEqual([true]);
     await expect(locksOf(recoverAction(context(fake)))).resolves.toEqual([
       true,
@@ -740,56 +734,42 @@ describe('failures and recovery over the persistence port', () => {
   test('keeps a failed job failed until an explicit retry or a newer revision', async () => {
     const fake = new FakeCoordination();
     fake.data.calculationFingerprint = graphA;
-    fake.sourceWrite('rooms');
-    const token = await claimToken(fake, publication);
+    fake.sourceWrite('moodle_users');
+    const token = await claimToken(fake, history);
 
-    expect(fake.data.publicationState).toBe('running');
     await expect(
       runAction(
-        { action: 'fail', code: 'PUBLISH_FAILED', message: null, token },
+        { action: 'fail', code: 'INDEX_FAILED', message: null, token },
         context(fake),
       ),
     ).resolves.toMatchObject({
-      code: 'PUBLISH_FAILED',
-      domain: publication,
+      code: 'INDEX_FAILED',
+      domain: history,
       failed: true,
     });
-    expect(fake.data.publicationState).toBe('failed');
     expect(fake.data.lastError).toMatchObject({
-      code: 'PUBLISH_FAILED',
-      domain: publication,
+      code: 'INDEX_FAILED',
+      domain: history,
       revision: fake.data.sourceRevision,
     });
-    expect(fake.data.dirtyDomains).toEqual([publication]);
-    await expect(claim(fake, publication)).resolves.toMatchObject({
+    expect(fake.data.dirtyDomains).toEqual([history, enrollments]);
+    await expect(claim(fake, history)).resolves.toMatchObject({
       claimed: false,
-      error: 'PUBLISH_FAILED',
+      error: 'INDEX_FAILED',
       reason: 'failed',
     });
 
-    const retried = await claimToken(fake, publication, { retry: true });
-    const files = Object.fromEntries(
-      declaredFilenames.map((name) => [name, { outcome: 'uploaded' as const }]),
-    );
+    await finishHistory(fake, await claimToken(fake, history, { retry: true }));
 
-    await expect(
-      runAction({ action: 'complete', files, token: retried }, context(fake)),
-    ).resolves.toMatchObject({ completed: true, domain: publication });
-    expect(fake.data.publicationState).toBe('completed');
-
-    expect(Object.keys(fake.data.publicationOutcomes ?? {})).toEqual(
-      declaredFilenames,
-    );
-    expect(fake.data.publicationFingerprint).toBe(graphA);
-    expect(fake.data.dirtyDomains).toEqual([]);
-    await expect(claim(fake, publication)).resolves.toEqual({
+    expect(fake.data.dirtyDomains).toEqual([enrollments]);
+    await expect(claim(fake, history)).resolves.toEqual({
       claimed: false,
       reason: 'nothing_pending',
     });
 
-    fake.sourceWrite('staff');
+    fake.sourceWrite('moodle_users');
 
-    await expect(claim(fake, publication)).resolves.toMatchObject({
+    await expect(claim(fake, history)).resolves.toMatchObject({
       claimed: true,
     });
   });
@@ -851,51 +831,6 @@ describe('failures and recovery over the persistence port', () => {
       completed: true,
     });
   });
-
-  test('recovers on startup without erasing failure details', async () => {
-    const fake = new FakeCoordination();
-    fake.data.calculationFingerprint = graphA;
-    fake.sourceWrite('rooms');
-    const token = await claimToken(fake, publication, { owner: oldProcess });
-
-    // A publication claim plans no table source.
-    await expect(
-      runAction(
-        { action: 'plan_pages', source: 'entries', token },
-        context(fake, oldProcess),
-      ),
-    ).rejects.toMatchObject({ code: 'COORDINATION_DOMAIN_MISMATCH' });
-
-    await failureOf(
-      stage(fake, {
-        owner: oldProcess,
-        page: firstPage,
-        rows: [match(1)],
-        token,
-      }),
-    );
-    fake.advance(claimStaleAfterMs + 1);
-
-    await expect(recoverAction(context(fake, newProcess))).resolves.toEqual({
-      owner: newProcess,
-      released: true,
-      revision: fake.data.sourceRevision,
-    });
-    expect(fake.data.claim).toBeNull();
-    expect(fake.data.candidates).toEqual([]);
-    expect(fake.data.dirtyDomains).toEqual([publication]);
-    expect(fake.data.publicationState).toBe('failed');
-    expect(fake.data.lastError).toMatchObject({
-      code: abandonedCode,
-      domain: publication,
-    });
-    await expect(
-      claim(fake, publication, { owner: newProcess }),
-    ).resolves.toMatchObject({ claimed: false, reason: 'failed' });
-    await expect(
-      claim(fake, publication, { owner: newProcess, retry: true }),
-    ).resolves.toMatchObject({ claimed: true });
-  });
 });
 
 describe('status over the persistence port', () => {
@@ -904,13 +839,13 @@ describe('status over the persistence port', () => {
 
     await expect(
       runAction(
-        { action: 'mark', domains: [publication, publication] },
+        { action: 'mark', domains: [enrollments, enrollments] },
         context(fake),
       ),
-    ).resolves.toEqual({ domains: [publication], revision: 1 });
+    ).resolves.toEqual({ domains: [enrollments], revision: 1 });
     await expect(
       runAction({ action: 'mark', domains: [history] }, context(fake)),
-    ).resolves.toEqual({ domains: [history, publication], revision: 2 });
+    ).resolves.toEqual({ domains: [history, enrollments], revision: 2 });
 
     const token = await claimToken(fake, history);
     fake.advance(10);
@@ -929,16 +864,14 @@ describe('status over the persistence port', () => {
         staged: 0,
         stale: false,
       },
-      dirty: [history, enrollments, publication],
+      dirty: [history, enrollments],
       fingerprints: {
         calculation: null,
         current: graphsA,
-        publication: null,
       },
       lastError: null,
-      pending: [history, enrollments, publication],
+      pending: [history, enrollments],
       process: processA,
-      publication: { state: 'idle' },
       revisions: { completed: 0, requested: 2, source: 2 },
       staleAfterMs: claimStaleAfterMs,
     });

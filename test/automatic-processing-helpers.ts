@@ -69,7 +69,6 @@ export const status = (fake: FakeCoordination) => statusAction(context(fake));
 export const settled = (...tables: string[]): FakeCoordination => {
   const fake = new FakeCoordination();
   fake.data.calculationFingerprint = fake.graphs.calculation;
-  fake.data.publicationFingerprint = fake.graphs.publication;
   for (const table of tables) {
     fake.sourceWrite(table);
   }
@@ -125,9 +124,6 @@ export const stateRowOf = (overrides: Partial<StateRow> = {}): StateRow => ({
   last_failed_fingerprint: null,
   last_failed_revision: null,
   last_run_retries: 0,
-  publication_fingerprint: graphFingerprints.publication,
-  publication_outcomes: null,
-  publication_state: 'idle',
   requested_revision: 7,
   source_revision: 7,
   started_iso: null,

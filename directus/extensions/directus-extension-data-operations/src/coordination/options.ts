@@ -1,12 +1,10 @@
 import { z } from 'zod';
 
-import { publicFilenamePattern } from '../exports/types.js';
 import { historyRowProblem } from '../history-contract.js';
 import { pageTokenPattern } from '../page-state.js';
 import { invalidOptionsText } from '../text.js';
-import { claimTargets, coordinationDomains, fileOutcomes } from './domains.js';
+import { claimTargets, coordinationDomains } from './domains.js';
 import { coordinationError } from './errors.js';
-import { filesSchema } from './outcomes.js';
 import {
   errorMessageLength,
   maxRowsPerPage,
@@ -102,36 +100,6 @@ const historyRowSchema = z
     }
   });
 
-// Per-file publication outcomes keyed by the published filename
-// (outcomes.ts), as many as the export definitions declare files.
-const files = z.preprocess(jsonish, filesSchema.optional());
-
-// The bytes a writer reports, as a number or its text; anything else is
-// unknown, which never refuses the record it rides on.
-const reportedBytes = z.preprocess((value) => {
-  const present = blank(value);
-  const bytes = typeof present === 'string' ? Number(present) : present;
-  return Number.isSafeInteger(bytes) && Number(bytes) >= 0 ? bytes : undefined;
-}, z.number().int().nonnegative().optional());
-
-// One published file's outcome as the publish loop reports it: an uploaded
-// file carries no code; the code of a failed or skipped one is whatever
-// its step answered (a code that is not bounded is recorded as
-// unboundedCode, outcomes.ts).
-const recordOptions = z
-  .object({
-    action: z.literal('record'),
-    bytes: reportedBytes,
-    code: z.preprocess(blank, z.string().max(200).optional()),
-    filename: z.preprocess(blank, z.string().regex(publicFilenamePattern)),
-    outcome: z.preprocess(blank, z.enum(fileOutcomes)),
-    token,
-  })
-  .refine(
-    ({ code, outcome }) => outcome !== 'uploaded' || code === undefined,
-    'Code not allowed for outcome uploaded',
-  );
-
 const coordinatorInputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('mark'),
@@ -164,18 +132,16 @@ const coordinatorInputSchema = z.discriminatedUnion('action', [
     rows: z.preprocess(jsonish, z.array(historyRowSchema).max(pageSize)),
     token,
   }),
-  z.object({ action: z.literal('complete'), files, token }),
+  z.object({ action: z.literal('complete'), token }),
   z.object({
     action: z.literal('fail'),
     code: z
       .preprocess(blank, z.string().regex(/^[A-Za-z]\w{0,63}$/u))
       .transform((value) => value.toUpperCase()),
-    files,
     message: failureMessage,
     token,
   }),
   z.object({ action: z.literal('heartbeat'), token }),
-  recordOptions,
   z.object({ action: z.literal('status') }),
 ]);
 

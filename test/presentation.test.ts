@@ -29,7 +29,6 @@ import {
 import { presetDefinitions } from '../src/data-model/presentation/presets.js';
 import { aliasesFor } from '../src/data-model/relations.js';
 import { fieldTranslations } from '../src/data-model/translations.js';
-import { incompleteDataPresets } from '../src/import/incomplete-data-bookmarks.js';
 import {
   fakeDirectus,
   type FakeMeta,
@@ -499,8 +498,8 @@ describe('field presentation', () => {
   });
 });
 
-describe('setup and the incomplete-data bookmarks', () => {
-  test('setup creates no incomplete-data bookmark, only Search and Unmapped history lines', async () => {
+describe('setup and the bookmarks', () => {
+  test('setup creates only the Search and Unmapped history lines bookmarks', async () => {
     const { request, requests } = fakeDirectus(freshState());
 
     await installPresentation(request);
@@ -509,34 +508,6 @@ describe('setup and the incomplete-data bookmarks', () => {
       searchBookmark.bookmark,
       unmappedLinesBookmark.bookmark,
     ]);
-    expect(incompleteDataPresets().length).toBeGreaterThan(2);
-  });
-
-  test('a rerun leaves an incomplete-data bookmark the import created alone, and creates none of the missing ones', async () => {
-    const [imported] = incompleteDataPresets();
-    if (imported === undefined) {
-      throw new Error('The registry declares no review view');
-    }
-    const state = appliedState();
-    state.presets = [
-      ...(state.presets ?? []),
-      {
-        bookmark: imported.bookmark,
-        collection: imported.collection,
-        role: null,
-        user: null,
-      },
-    ];
-    const { request, requests } = fakeDirectus(state);
-
-    const summary = await installPresentation(request);
-
-    expect(mutations(requests)).toEqual([]);
-    expect(summary.presets).toEqual({
-      adopted: 0,
-      created: 0,
-      skipped: presetDefinitions.length,
-    });
   });
 });
 

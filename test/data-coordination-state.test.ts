@@ -17,7 +17,7 @@ import {
 
 const uuid = '6c6b4e8e-5c1d-4b3f-9a0e-1f2d3c4b5a69';
 const history = 'history_index';
-const publication = 'publication';
+const enrollments = 'enrollments';
 const graphA = 'graph-a';
 const processA = 'process-a';
 
@@ -36,7 +36,7 @@ const statusRow = (overrides: Partial<StateRow> = {}): StateRow => ({
   claim_started_iso: null,
   claim_token: null,
   completed_revision: 3,
-  dirty_domains: [publication],
+  dirty_domains: [enrollments],
   enrollments_input_revision: null,
   finished_iso: null,
   history_index_input_revision: null,
@@ -49,9 +49,6 @@ const statusRow = (overrides: Partial<StateRow> = {}): StateRow => ({
   last_failed_fingerprint: null,
   last_failed_revision: null,
   last_run_retries: 0,
-  publication_fingerprint: graphA,
-  publication_outcomes: null,
-  publication_state: 'idle',
   requested_revision: 3,
   source_revision: 3,
   started_iso: null,
@@ -64,7 +61,7 @@ describe('status row mapping', () => {
 
     expect(state.claim).toBeNull();
     expect(state.lastError).toBeNull();
-    expect(state.dirtyDomains).toEqual([publication]);
+    expect(state.dirtyDomains).toEqual([enrollments]);
     expect(state.sourceRevision).toBe(3);
     // Input revisions not written yet (null on a fresh row) read as the
     // source revision: every statement counts.
@@ -84,8 +81,8 @@ describe('status row mapping', () => {
   test('sees a row whose token survived its other claim columns as an abandoned claim', () => {
     const malformed = toState(stateRow.parse(statusRow({ claim_token: uuid })));
     const request = {
-      currentFingerprints: { calculation: graphA, publication: graphA },
-      domain: publication,
+      currentFingerprints: { calculation: graphA },
+      domain: enrollments,
       retry: false,
     } as const;
 

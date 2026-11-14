@@ -5,22 +5,9 @@ import type {
 } from '@directus/types';
 
 import type { SourceReader } from './engine.js';
-import type { ExportDeps } from './prepare.js';
 import type { SourceRead } from './types.js';
 
-import { coordinationContext, sqlDatabase } from '../coordinate.js';
-import { calculationDomains } from '../coordination/domains.js';
-import { statusAction, type StatusReport } from '../coordination/status.js';
-import { snapshotReport, type SnapshotReport } from '../snapshot/report.js';
-import { snapshotStore } from '../snapshot/sql-port.js';
-import {
-  type CoordinationFacts,
-  type SnapshotFacts,
-} from './readiness-facts.js';
-
-// The Directus side of the export operation (and of the status endpoint,
-// which counts readiness the same way): native reads through the
-// ItemsService, the coordinator status and the snapshot status.
+// The Directus side of the exports: native reads through the ItemsService.
 
 // The deep query that reads every relation a field path steps through
 // whole. Directus cuts the list of an O2M or M2M step under each row to
@@ -79,35 +66,3 @@ export const itemsReader = async (
     return items.readByQuery(readQuery(read), { emitEvents: false });
   };
 };
-
-export const coordinationFacts = (report: StatusReport): CoordinationFacts => ({
-  calculation: report.fingerprints.calculation,
-  domains: Object.fromEntries(
-    calculationDomains.map((domain) => [
-      domain,
-      report.domains[domain]?.state ?? 'unknown',
-    ]),
-  ),
-  revision: report.revisions.source,
-});
-
-export const snapshotFacts = (report: SnapshotReport): SnapshotFacts => ({
-  activeMatchesPromotion: report.activeMatchesPromotion,
-  activeRows: report.active.rows,
-  state: report.state,
-});
-
-export const exportDeps = async (
-  context: ApiExtensionContext,
-): Promise<ExportDeps> => ({
-  coordination: async () =>
-    coordinationFacts(
-      await statusAction(coordinationContext(context.database)),
-    ),
-  now: () => performance.now(),
-  reader: await itemsReader(context),
-  snapshot: async () =>
-    snapshotFacts(
-      await snapshotReport(snapshotStore(sqlDatabase(context.database))),
-    ),
-});

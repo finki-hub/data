@@ -16,15 +16,7 @@ import {
   dirtyAfterCompletion,
   verifyOwnership,
 } from './decisions.js';
-import { normaliseDomains } from './domains.js';
 import { coordinationError } from './errors.js';
-import {
-  checkReportedFiles,
-  declaredFilenames,
-  releasedPublicationState,
-  requireEveryFileUploaded,
-  withRevision,
-} from './outcomes.js';
 
 type Input<Action extends CoordinatorInput['action']> = Extract<
   CoordinatorInput,
@@ -32,8 +24,7 @@ type Input<Action extends CoordinatorInput['action']> = Extract<
 >;
 
 // The two actions that end a claim: complete installs its output (every
-// staged page of a calculation, the outcome map of a publication) under
-// the guards of the claim; fail releases it with its code and message.
+// staged page of a calculation) under the guards of the claim; fail releases it with its code and message.
 // Both read the singleton FOR UPDATE first, like every token-bearing
 // action (run-actions.ts).
 
@@ -55,15 +46,8 @@ const pagesMissing = (
         { details: { missing: decision.missing } },
       );
 
-// A publication completes with the outcome of every declared file, each
-// uploaded; its outcomes are recorded whole, keyed by filename, and the
-// claimed (prepared) revision is recorded as published. One superseded by
-// a source change is recorded all the same, with publication kept pending
-// for the newer revision (decideCompletion); one overtaken by a graph
-// change keeps the outcomes of what it uploaded with its release, since an
-// upload cannot be discarded. The answer and the status (lastRun) carry
-// how often the transactions of the run ran again after a database
-// conflict (guarded, action-support.ts).
+// The answer and the status (lastRun) carry how often the transactions of
+// the run ran again after a database conflict (guarded, action-support.ts).
 export const completeAction = (
   input: Input<'complete'>,
   context: ActionContext,
@@ -89,25 +73,15 @@ export const completeAction = (
       );
     }
     const { claim } = state;
-    const declared = context.publishedFiles ?? declaredFilenames;
-    checkReportedFiles(input.files, claim.domain, declared);
-    const files =
-      input.files === undefined
-        ? undefined
-        : withRevision(input.files, claim.revision);
     if (
       decision.kind === 'source_changed' ||
       decision.kind === 'fingerprint_changed'
     ) {
-      return overtaken(decision.kind, files);
+      return overtaken(decision.kind);
     }
     if (decision.kind === 'unplanned' || decision.kind === 'pages_missing') {
       throw pagesMissing(decision);
     }
-    if (claim.domain === 'publication') {
-      requireEveryFileUploaded(input.files, declared);
-    }
-    const superseded = decision.kind === 'superseded';
     const { counted, installed } =
       claim.domain === 'enrollments'
         ? await port.installEnrollments(input.token, claim.revision)
@@ -115,13 +89,9 @@ export const completeAction = (
     await port.discardCandidates(input.token);
     const finished = await port.finish({
       claimRevision: claim.revision,
-      dirtyDomains: superseded
-        ? normaliseDomains([...state.dirtyDomains, 'publication'])
-        : dirtyAfterCompletion(state, claim.domain),
-      files: files ?? null,
+      dirtyDomains: dirtyAfterCompletion(state, claim.domain),
       fingerprint,
       owner: context.owner,
-      superseded,
       token: input.token,
     });
     if (!finished) {
@@ -139,19 +109,10 @@ export const completeAction = (
       ...(claim.domain === 'enrollments' && { counted }),
       retries: claim.retries,
       revision: claim.revision,
-      // The newer source revision a publication left pending, if any.
-      ...(claim.domain === 'publication' && {
-        pendingRevision: superseded ? state.sourceRevision : null,
-      }),
     });
   });
 
-// A failure releases the claim with its code and message. A publication
-// may report the outcome of each file it attempted: they are recorded
-// (without a map, the outcomes its loop recorded file by file stay), and
-// its state becomes partial when some file was uploaded at the claimed
-// revision, failed when none was; the revision is never recorded as
-// published.
+// A failure releases the claim with its code and message.
 export const failAction = (input: Input<'fail'>, context: ActionContext) =>
   context.store.transaction(async (port) => {
     const state = await port.readState(true);
@@ -166,33 +127,16 @@ export const failAction = (input: Input<'fail'>, context: ActionContext) =>
       throw mismatch(verdict);
     }
     const { claim } = state;
-    checkReportedFiles(
-      input.files,
-      claim.domain,
-      context.publishedFiles ?? declaredFilenames,
-    );
-    const files =
-      input.files === undefined
-        ? undefined
-        : withRevision(input.files, claim.revision);
     await releaseClaim(port, {
       code: input.code,
       failed: true,
       message: input.message,
       token: input.token,
-      ...(files !== undefined && { files }),
     });
     return {
       code: input.code,
       domain: claim.domain,
       failed: true,
       revision: claim.revision,
-      ...(claim.domain === 'publication' && {
-        publication: releasedPublicationState(
-          true,
-          files ?? state.publicationOutcomes,
-          claim.revision,
-        ),
-      }),
     };
   });

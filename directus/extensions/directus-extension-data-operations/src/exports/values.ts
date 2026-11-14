@@ -1,4 +1,4 @@
-import type { Row, SourceRows, ValueRule } from './types.js';
+import type { Row, ValueRule } from './types.js';
 
 // The value rules of the public files, one per public key instead of one
 // per runtime type: each rule writes a value of its own type (a boolean,
@@ -60,15 +60,3 @@ export const textOf = (value: unknown): null | string =>
 // A safe integer, or null.
 export const idOf = (value: unknown): null | number =>
   typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
-
-// The rows a readiness check read under a key, or none.
-export const sourceRows = (sources: SourceRows, key: string): readonly Row[] =>
-  sources[key] ?? [];
-
-// The count an aggregate read of a readiness check answered under a key
-// (readiness hands it over as one row `{ count }`), or 0 when absent.
-export const countIn = (sources: SourceRows, key: string): number => {
-  const [row] = sourceRows(sources, key);
-  const count = row?.['count'];
-  return typeof count === 'number' ? count : 0;
-};

@@ -1,7 +1,6 @@
 import type { Fingerprints } from './fingerprint.js';
 
 import {
-  type CalculationDomain,
   type ClaimDomain,
   coordinationDomains,
   type Domain,
@@ -12,8 +11,8 @@ import { type Claim, type LastError, type OperationsState } from './state.js';
 
 // The source revision of the last change a run of this domain depends on.
 // A calculation reads only the tables that mark it or an upstream domain,
-// so its own input revision decides; publication and a snapshot promotion
-// read everything, so every source statement counts for them.
+// so its own input revision decides; a snapshot promotion reads
+// everything, so every source statement counts for it.
 export const inputRevision = (
   state: OperationsState,
   domain: ClaimDomain | null,
@@ -32,8 +31,7 @@ const overtakingCodes: readonly string[] = [
 // domain once more on its own.
 export const interruptedCode = 'CLAIM_INTERRUPTED';
 
-// Any other abandoned claim: a publication claim, or a calculation
-// interrupted again at the same inputs and graph (a crash loop). It blocks
+// Any other abandoned claim: a calculation interrupted again at the same inputs and graph (a crash loop). It blocks
 // until an explicit retry, Mark pending, an edit or a graph change.
 export const abandonedCode = 'CLAIM_ABANDONED';
 
@@ -102,7 +100,7 @@ export const abandonmentCode = (
 // (the enrollment counts read the history index).
 export const touchesInputs = (
   marked: readonly Domain[],
-  calculation: CalculationDomain,
+  calculation: Domain,
 ): boolean =>
   coordinationDomains
     .slice(0, coordinationDomains.indexOf(calculation) + 1)

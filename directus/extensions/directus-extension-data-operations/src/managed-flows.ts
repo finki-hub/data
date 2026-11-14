@@ -4,10 +4,9 @@
 // read it.
 
 // The name prefix of every manual Flow a dashboard panel may run: the data
-// operations (`Data / ...`) and the publication (`Publish / ...`). A manual
-// Flow added in Studio with such a name goes on the dashboard with no code
-// change (README, "Data operations dashboard").
-export const managedFlowPrefixes = ['Data / ', 'Publish / '] as const;
+// operations (`Data / ...`). A manual Flow added in Studio with such a name
+// goes on the dashboard with no code change.
+export const managedFlowPrefixes = ['Data / '] as const;
 
 // The one collection a panel runs a managed Flow on and names in its
 // trigger request: the hidden Data Operations singleton.
@@ -38,15 +37,13 @@ export const managedFlowNote = `Installed manual Flow named ${managedFlowPrefixe
 export const runOperationPanelId = 'finki-hub-run-operation';
 export const dataStatusPanelId = 'finki-hub-data-status-panel';
 
-// The endpoint the status panel reads: `/` the status, `/readiness` the
-// readiness checks.
+// The endpoint the status panel reads.
 export const statusEndpointId = 'finki-hub-data-status';
 export const statusPath = `/${statusEndpointId}`;
-export const readinessPath = `${statusPath}/readiness`;
 
 // The parts of the data status a status panel shows; a panel lists any of
 // them, in this order.
-export const statusSections = ['operations', 'readiness', 'keys'] as const;
+export const statusSections = ['operations', 'keys'] as const;
 
 export type StatusSection = (typeof statusSections)[number];
 
@@ -62,8 +59,7 @@ export const sectionsOf = (option: unknown): StatusSection[] => {
 // The section names are the names of the default panels that show them.
 export const statusSectionLabels: Readonly<Record<StatusSection, string>> = {
   keys: 'Published keys',
-  operations: 'Calculations and published files',
-  readiness: 'Readiness',
+  operations: 'Calculations',
 };
 
 // How far back the status looks for the last run of a scheduled Flow; the

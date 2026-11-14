@@ -1,4 +1,4 @@
-import { containerPortOf } from './s3-target.js';
+import { containerPortOf } from './docker-ports.js';
 
 // Whether the Docker containers a fixture suite restarts or reads belong to
 // its isolated target, decided from what Docker reports (the caller runs
@@ -38,20 +38,6 @@ export const checkServesTarget = (
     );
   }
   return inner;
-};
-
-// The S3 suites name the Directus container twice (the restart container
-// and the one whose publish location they check); both must be one.
-export const checkSameDirectus = (
-  container: string,
-  publishContainer: string,
-): void => {
-  if (container !== publishContainer) {
-    throw refused(
-      container,
-      'is not the container DIRECTUS_S3_TEST_DIRECTUS_CONTAINER names',
-    );
-  }
 };
 
 // The Directus settings that say which database it connects to; neither is

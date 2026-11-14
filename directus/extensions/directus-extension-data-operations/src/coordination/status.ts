@@ -129,7 +129,6 @@ const statusOf = ({
     fingerprints: {
       calculation: state.calculationFingerprint,
       current: fingerprints,
-      publication: state.publicationFingerprint,
     },
     // The derived index against the raw snapshot: users whose distinct
     // indexed entries differ from the scraper's `Courses Count` are
@@ -144,14 +143,10 @@ const statusOf = ({
     },
     pending,
     process: context.owner,
-    publication: {
-      files: state.publicationOutcomes,
-      state: state.publicationState,
-    },
     revisions: {
       completed: state.completedRevision,
       // The last change to each calculation's inputs; a run claimed at or
-      // after it is not overtaken by later publication-only edits.
+      // after it is not overtaken.
       inputs: state.inputRevisions,
       requested: state.requestedRevision,
       source: state.sourceRevision,

@@ -29,7 +29,7 @@ export type BlockPart = BlockField | NestedKeys;
 export type ExportDefinition = {
   // The ordered field map: output key order and the file's allowlist.
   readonly fields: readonly FieldEntry[];
-  // A root-level JSON filename the publish-json storage writer accepts.
+  // The file's name under the legacy endpoint, such as courses.json.
   readonly filename: string;
   // The largest compact JSON body the file may reach, in UTF-8 bytes.
   readonly maxBytes: number;
@@ -52,8 +52,6 @@ export type FixedEntry = {
   readonly rule: ValueRule;
   readonly value: Resolver | string;
 };
-
-export type IssueCounts = Readonly<Record<string, number>>;
 
 // One public key per row of a key source (key-sources.ts), in the source's
 // order and at this entry's position: the key is the row's key text, or
@@ -94,15 +92,6 @@ export type NestedKeys = {
   ) => unknown;
 };
 
-// A readiness check counted in code: its native reads (rows of ids and
-// keys, or bounded counts) and a pure evaluation answering a whole count
-// for each registry code whose source names it. Counts only, never a
-// record.
-export type ReadinessCheck = {
-  readonly evaluate: (sources: SourceRows) => IssueCounts;
-  readonly reads: Readonly<Record<string, SourceRead>>;
-};
-
 // Computes one public value from a row and its related rows. It returns
 // null (or undefined, or '') when the value is absent, and throws an
 // export error when it cannot resolve the value unambiguously; it never
@@ -131,8 +120,6 @@ export type SourceRead = {
   readonly sort: readonly string[];
 };
 
-export type SourceRows = Readonly<Record<string, readonly Row[]>>;
-
 // The closed vocabulary of public value forms, as the consumers of the
 // public files read them: text as is, a number as its decimal text, a
 // numeric boolean as "1"/"0", any other boolean as "TRUE"/"FALSE". Every
@@ -149,10 +136,6 @@ type BlockLayouts = {
 // holding the id of the file's row (for example `course`). Rows whose `by`
 // names no row of the file are not used.
 type RelatedRead = SourceRead & { readonly by: string };
-
-// The filename rule of the publish-json storage writer
-// (directus/extensions/directus-extension-publish-json/api.js).
-export const publicFilenamePattern = /^[a-z0-9][a-z0-9._-]*\.json$/u;
 
 // The default size bound of a public file (compact JSON, UTF-8 bytes).
 export const defaultMaxBytes = 16 * 1_024 * 1_024;

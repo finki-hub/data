@@ -169,6 +169,7 @@ describe('target collections', () => {
       ]),
     ).toEqual([
       ['name', 'string', false],
+      ['abbreviation', 'string', true],
       ['status', 'enum', false],
       ['tags', 'string', true],
     ]);
@@ -224,8 +225,6 @@ describe('target collections', () => {
       'last_run_retries',
       'last_error_code',
       'import_state',
-      'publication_state',
-      'publication_outcomes',
       'source_revision',
       'claim_domain',
       'claim_revision',
@@ -241,7 +240,6 @@ describe('target collections', () => {
       'last_failed_fingerprint',
       'last_error_retries',
       'calculation_fingerprint',
-      'publication_fingerprint',
       'import_file',
       'import_token',
       'import_rows',
@@ -552,28 +550,6 @@ describe('enumerations', () => {
     ]);
     expect(enumOf('teaching_assignments', 'role').nullable).toBe(false);
     expect(enumOf('data_operations', 'import_state').defaultValue).toBe('idle');
-    expect(enumOf('data_operations', 'publication_state').defaultValue).toBe(
-      'idle',
-    );
-  });
-
-  test('records publication outcomes in one map and knows the partial state', () => {
-    const operations = findCollection('data_operations');
-    const fields = operations.fields.map(({ field }) => field);
-
-    expect(enumOf('data_operations', 'publication_state').choices).toEqual([
-      { label: 'Idle', value: 'idle' },
-      { label: 'Running', value: 'running' },
-      { label: 'Completed', value: 'completed' },
-      { label: 'Partial', value: 'partial' },
-      { label: 'Failed', value: 'failed' },
-    ]);
-    // One JSON map keyed by filename; no column per published file, so a
-    // new export definition changes no schema.
-    expect(fields.filter((field) => field.startsWith('publish_'))).toEqual([]);
-    expect(
-      operations.fields.find(({ field }) => field === 'publication_outcomes'),
-    ).toMatchObject({ kind: 'json', readOnly: true });
   });
 
   test('gives every enum one distinct value and a label per choice', () => {

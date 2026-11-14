@@ -10,7 +10,6 @@ import { fieldGroups } from '../src/data-model/presentation/groups.js';
 import { folders } from '../src/data-model/presentation/navigation.js';
 import { presetDefinitions } from '../src/data-model/presentation/presets.js';
 import { aliasesFor } from '../src/data-model/relations.js';
-import { incompleteDataPresets } from '../src/import/incomplete-data-bookmarks.js';
 import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
 // The Studio notes: only where a label cannot carry a rule, each one or two
@@ -69,7 +68,6 @@ const remainingNotes = [
   'moodle_pattern_mappings.pattern: Regular expression tested against each history line; ^ matches the start of the line.',
   'moodle_pattern_mappings.year_pattern: Group start or end captures the year the academic year starts or ends, in 2 or 4 digits (2 digits mean 20xx). A line without such a year is not counted.',
   "moodle_pattern_mappings.only_in_year: Counts the pattern only in this year, in place of the course's all-years mappings there.",
-  'data_operations.publication_state: Completed: every file uploaded; Partial: some; Failed: none.',
   'data_operations.claim_heartbeat_at: A stale heartbeat releases the claim as abandoned.',
   'data_operations.import_backup_file: Kept until deleted by hand.',
   'data_operations.import_promoted_fingerprint: Active rows that no longer match it were changed outside the snapshot import.',
@@ -90,7 +88,7 @@ const studioTexts = (): ReadonlyArray<readonly [string, unknown]> => [
     (group) => [`${group.collection} group ${group.field}`, group] as const,
   ),
   ...folders.map((folder) => [`folder ${folder.collection}`, folder] as const),
-  ...[...presetDefinitions, ...incompleteDataPresets()].map(
+  ...presetDefinitions.map(
     (preset) =>
       [`preset ${preset.collection} ${preset.bookmark ?? ''}`, preset] as const,
   ),
