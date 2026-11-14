@@ -16,7 +16,8 @@ function toggle(id: string | number, event: Event) {
 </script>
 
 <template>
-  <section class="results-scroll" aria-label="Matching users">
+  <!-- Focusable so keyboard users can scroll a table wider than the panel. -->
+  <section class="results-scroll" aria-label="Matching users" tabindex="0">
     <table>
       <thead><tr>
         <th scope="col">User</th><th scope="col">Moodle profile</th>
@@ -76,5 +77,5 @@ summary { cursor: pointer; }
 details ul { margin-block-start: 12px; list-style: none; }
 details li { padding-block: 5px; overflow-wrap: anywhere; }
 .matched { color: var(--theme--primary); font-weight: 600; }
-a:focus-visible, summary:focus-visible { outline: 2px solid var(--theme--primary); outline-offset: 3px; }
+a:focus-visible, summary:focus-visible, .results-scroll:focus-visible { outline: 2px solid var(--theme--primary); outline-offset: 3px; }
 </style>

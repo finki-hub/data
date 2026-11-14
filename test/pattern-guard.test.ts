@@ -63,7 +63,7 @@ describe('the pattern guard', () => {
 
       expect(refusal.message).toBe(`Invalid pattern mapping: ${reason}`);
       expect(refusal.extensions.field).toBe(
-        reason.slice(0, reason.indexOf(':')),
+        reason.includes(':') ? reason.slice(0, reason.indexOf(':')) : reason,
       );
     }
   });
