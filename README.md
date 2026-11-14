@@ -21,8 +21,8 @@ The live instance is <https://data.finki-hub.com>.
 
 The `Dockerfile` builds the image `ghcr.io/finki-hub/data`: the official
 Directus image with the CSV-import patch (`directus/patch-csv-import.cjs`)
-and both extensions built in. The built bundles (`dist/`) are also
-committed, for a deployment that mounts the extensions directory instead.
+and both extensions built in from source; their bundles (`dist/`) are build
+output and not committed.
 
 ## Reading the data
 
@@ -144,7 +144,8 @@ never from this repository. On the `finki-hub` host, Caddy proxies
 
 To deploy a change:
 
-1. Pull the new image and recreate the `directus` container.
+1. Nothing for code: Watchtower on the host pulls each new image and
+   recreates the `directus` container within the hour.
 2. When the model, a Flow or a migration changed, run setup against the
    instance:
 
@@ -176,7 +177,7 @@ derived, staging or status) is declared once in
 | `npm test` | Every unit and contract test (Vitest). |
 | `npm run check` | `tsc --noEmit` and `vue-tsc` over the Vue components. |
 | `npm run lint` / `npm run format` | ESLint, and its fixes. |
-| `npm run build:operations` / `npm run build:search` | Rebuild an extension bundle into its committed `dist/`. |
+| `npm run build:operations` / `npm run build:search` | Build an extension bundle into its `dist/` (the image builds them itself). |
 | `npm run generate:invalidation` | Rewrite `source-invalidation.sql` from the collection roles. |
 | `npm run setup` | Install the model, migrations, presentation, Flows and dashboard into a running Directus. |
 | `npm run brand` | Apply the branding. |
