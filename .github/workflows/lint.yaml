@@ -1,0 +1,23 @@
+name: Linter
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tsc:
+    uses: finki-hub/.github/.github/workflows/tsc.yaml@main
+    with:
+      # tsc and vue-tsc over the extensions' Vue components
+      script: check
+    secrets: inherit
+
+  eslint:
+    uses: finki-hub/.github/.github/workflows/eslint.yaml@main
+    secrets: inherit

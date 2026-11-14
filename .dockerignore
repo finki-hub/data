@@ -1,0 +1,5 @@
+*
+!directus/patch-csv-import.cjs
+!directus/extensions/*/package.json
+!directus/extensions/*/package-lock.json
+!directus/extensions/*/src

@@ -1,0 +1,78 @@
+name: finki-hub-data
+
+services:
+  directus:
+    image: ghcr.io/finki-hub/data:latest
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      CACHE_ENABLED: "false"
+      CORS_CREDENTIALS: "false"
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: "*"
+      DB_CLIENT: pg
+      DB_DATABASE: directus
+      DB_HOST: database
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_PORT: 5432
+      DB_USER: directus
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD:-}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-587}
+      EMAIL_SMTP_SECURE: ${EMAIL_SMTP_SECURE:-false}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER:-}
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-sendmail}
+      HOST: 0.0.0.0
+      IMPORT_TIMEOUT: 15m
+      IP_CUSTOM_HEADER: ${IP_CUSTOM_HEADER:-false}
+      LICENSE_KEY: ${LICENSE_KEY}
+      MAX_PAYLOAD_SIZE: 10mb
+      PUBLIC_URL: ${PUBLIC_URL}
+      RATE_LIMITER_DURATION: 1
+      RATE_LIMITER_ENABLED: "true"
+      RATE_LIMITER_POINTS: 50
+      RATE_LIMITER_STORE: memory
+      REFRESH_TOKEN_COOKIE_SECURE: "true"
+      RETENTION_ENABLED: "true"
+      SECRET: ${SECRET}
+      SESSION_COOKIE_SECURE: "true"
+      STORAGE_LOCAL_DRIVER: local
+      STORAGE_LOCAL_ROOT: ./uploads
+      STORAGE_LOCATIONS: local
+      TELEMETRY: "false"
+      WEBSOCKETS_ENABLED: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8055/server/ping || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    ports:
+      - 127.0.0.1:${DIRECTUS_PORT:-8055}:8055
+    volumes:
+      - uploads:/directus/uploads
+
+  database:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: directus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: directus
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U directus -d directus"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - database:/var/lib/postgresql
+
+volumes:
+  database:
+  uploads:

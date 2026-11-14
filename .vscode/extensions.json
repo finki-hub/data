@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "EditorConfig.EditorConfig",
+    "dbaeumer.vscode-eslint",
+    "eamodio.gitlens",
+    "docker.docker",
+    "Vue.volar",
+    "vitest.explorer"
+  ]
+}

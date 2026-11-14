@@ -19,8 +19,10 @@ The live instance is <https://data.finki-hub.com>.
 | `directus/branding/` | Logo, login artwork and theme, applied by `npm run brand`. |
 | `test/` | Unit and contract tests (`npm test`), plus two opt-in integration suites. |
 
-The built extension bundles (`dist/`) are committed; Directus mounts the
-extensions directory as it is.
+The `Dockerfile` builds the image `ghcr.io/finki-hub/data`: the official
+Directus image with the CSV-import patch (`directus/patch-csv-import.cjs`)
+and both extensions built in. The built bundles (`dist/`) are also
+committed, for a deployment that mounts the extensions directory instead.
 
 ## Reading the data
 
@@ -133,18 +135,16 @@ button with no code change.
 
 ## Deployment
 
-The instance runs on the `finki-hub` host with Docker Compose
-(`/root/directus`): Directus (the official image plus the CSV-import patch
-in `directus/patch-csv-import.cjs`, with this repository's
-`directus/extensions` mounted read-only) and PostgreSQL. Caddy proxies
-`data.finki-hub.com` to it. Secrets (`SECRET`, database password, admin
-token, SMTP and the licence key) live in env files beside the compose file,
-never in this repository.
+CI builds and pushes `ghcr.io/finki-hub/data` on every push, and weekly so
+new Directus releases arrive without a commit. `compose.prod.yaml` runs it
+with PostgreSQL; its settings come from the environment (`SECRET`,
+`ADMIN_TOKEN`, `POSTGRES_PASSWORD`, `LICENSE_KEY`, `PUBLIC_URL`, SMTP),
+never from this repository. On the `finki-hub` host, Caddy proxies
+`data.finki-hub.com` to it.
 
 To deploy a change:
 
-1. Pull the repository on the host and restart the `directus` container,
-   so it loads the committed extension bundles.
+1. Pull the new image and recreate the `directus` container.
 2. When the model, a Flow or a migration changed, run setup against the
    instance:
 

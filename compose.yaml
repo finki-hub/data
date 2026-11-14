@@ -16,7 +16,7 @@ services:
       - database_data:/var/lib/postgresql
 
   directus:
-    build: ./directus
+    build: .
     image: finki-hub-directus:local
     pull_policy: build
     depends_on:

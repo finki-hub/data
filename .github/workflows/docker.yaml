@@ -1,0 +1,21 @@
+name: Docker
+
+on:
+  push:
+  # The image builds on directus/directus:latest: a weekly build picks up
+  # new Directus releases without a commit.
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    uses: finki-hub/.github/.github/workflows/docker.yaml@main
+    with:
+      build-args: |
+        APP_REVISION=${{ github.sha }}
+    secrets: inherit
