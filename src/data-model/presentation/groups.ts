@@ -8,7 +8,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     field: 'overview',
     headerIcon: 'school',
     label: 'Basics',
-    members: ['name', 'abbreviation', 'tags', 'discord_channels'],
+    members: ['name', 'name_en', 'abbreviation', 'tags', 'discord_channels'],
     sort: 1,
     start: 'open',
   },

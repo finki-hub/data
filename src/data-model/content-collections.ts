@@ -54,6 +54,7 @@ export const contentCollections: readonly ModelCollection[] = [
     displayTemplate: courseTemplate,
     fields: [
       required('name', 'string', { label: 'Name' }),
+      scalar('name_en', 'string', { label: 'English name' }),
       scalar('abbreviation', 'string', { label: 'Abbreviation' }),
       enumField('status', statusChoices, {
         defaultValue: 'active',

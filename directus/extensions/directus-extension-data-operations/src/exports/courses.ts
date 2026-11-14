@@ -88,6 +88,8 @@ const entryColumns = [
 export const courses: ExportDefinition = {
   fields: [
     { key: 'name', required: true, rule: 'text', value: 'name' },
+    // The official English name (FINKI's English subject page).
+    { key: 'name-en', rule: 'text', value: 'name_en' },
     { key: 'abbreviation', rule: 'text', value: 'abbreviation' },
     { key: 'professors', required: true, rule: 'text', value: professors },
     // The published-year rule: one key per published academic year, its
@@ -150,7 +152,7 @@ export const courses: ExportDefinition = {
   },
   rows: {
     collection: 'courses',
-    fields: ['id', 'name', 'abbreviation', 'tags', 'status'],
+    fields: ['id', 'name', 'name_en', 'abbreviation', 'tags', 'status'],
     sort: ['id'],
   },
 };

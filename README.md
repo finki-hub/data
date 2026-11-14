@@ -80,7 +80,9 @@ the copy is refreshed. Edit the files, not the setting.
 The model is declared in `src/data-model/` and installed by
 `npm run setup`. The main collections:
 
-- **Courses** (`courses`): name, abbreviation, tags and teaching status.
+- **Courses** (`courses`): name, English name (the official one from FINKI's
+  English subject pages, published as `name-en`), abbreviation, tags and
+  teaching status.
   Their curriculum lives in **Curriculum links** (`course_curricula`, one
   per generation), their staff in **Teaching staff**
   (`teaching_assignments`), their Discord channels in

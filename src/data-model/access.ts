@@ -38,6 +38,7 @@ export const publicReads: readonly PublicRead[] = [
     fields: [
       'id',
       'name',
+      'name_en',
       'status',
       'tags',
       'curricula',
