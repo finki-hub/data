@@ -119,6 +119,10 @@ services:
     image: ghcr.io/finki-hub/courses-scraper:latest
     profiles: [jobs]
     pull_policy: always
+    labels:
+      # Watchtower would kill a running refresh to "update" it; the job pulls
+      # the latest image itself on every run.
+      com.centurylinklabs.watchtower.enable: "false"
     env_file:
       - path: ./moodle-sync.env
         required: true
