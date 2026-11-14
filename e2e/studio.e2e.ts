@@ -6,6 +6,9 @@ import { z } from 'zod';
 // course pickers and results) and the Data operations dashboard panels
 // render, work and throw nothing. Run by `npm run test:e2e`.
 
+// A run panel's button, named after its play_arrow icon and label.
+const runButton = /Run$/u;
+
 const loopbackHosts = new Set(['127.0.0.1', '[::1]', 'localhost']);
 
 const targetOf = (
@@ -52,6 +55,14 @@ const test = base.extend<{ pageErrors: string[] }>({
       page.on('pageerror', (error) => {
         errors.push(error.message);
       });
+      // A fresh project asks an admin for the project owner over every
+      // page; the disposable test project dismisses it.
+      await page.addLocatorHandler(
+        page.getByText('You have not set a project owner'),
+        async () => {
+          await page.getByRole('button', { name: 'Remind Later' }).click();
+        },
+      );
       const login = await page.request.post('/auth/login', {
         data: {
           email: target.email,
@@ -95,7 +106,9 @@ test('the course-history search finds users by the courses they took', async ({
     page.getByRole('heading', { name: 'Course history search' }),
   ).toBeVisible();
 
-  const include = page.getByRole('combobox').first();
+  const include = page.getByRole('combobox', {
+    name: 'Has all these courses',
+  });
   await include.click();
   await include.fill('Synthetic Algebra');
   await page.getByRole('option', { name: 'Synthetic Algebra' }).click();
@@ -119,11 +132,13 @@ test('the Data operations dashboard shows its run and status panels', async ({
     '/dashboards?fields=id&filter[name][_eq]=Data%20operations',
   );
   await page.goto(`/admin/insights/${dashboard}`);
-  await expect(page.getByRole('button', { name: 'Run' }).first()).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Refresh the data status' }).first(),
-  ).toBeVisible();
-  for (const panel of ['Recalculate', 'Calculations', 'Published keys']) {
-    await expect(page.getByText(panel).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: runButton })).toHaveCount(2);
+  for (const region of ['Calculations', 'Moodle snapshot', 'Published keys']) {
+    await expect(page.getByRole('region', { name: region })).toBeVisible();
   }
+  await expect(
+    page
+      .getByRole('region', { name: 'Calculations' })
+      .getByRole('rowheader', { name: 'Enrollment counts' }),
+  ).toBeVisible();
 });
