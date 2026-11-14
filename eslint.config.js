@@ -3,6 +3,7 @@ import {
   browser,
   node,
   perfectionist,
+  playwright,
   prettier,
   typescript,
   vitest,
@@ -29,6 +30,7 @@ const config = [
   prettier,
   perfectionist,
   vitest,
+  playwright,
   {
     rules: {
       // `cond ? [value] : []` filters and maps in one pass while narrowing
