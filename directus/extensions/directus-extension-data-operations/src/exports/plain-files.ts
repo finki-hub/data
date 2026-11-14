@@ -50,33 +50,44 @@ export const antoQuotes: PlainFile = {
   read: { collection: 'anto_quotes', fields: ['id', 'quote'], sort: ['id'] },
 };
 
-// The schedule file of every session by its published file name. Two
-// sessions publishing the same file name would make the name ambiguous,
-// so they refuse the file.
+const parseSessions = (rows: readonly Row[]) => {
+  const parsed = sessionRows.safeParse(rows);
+  return parsed.success
+    ? parsed.data
+    : refuse('sessions.json', 'a session has no name or file');
+};
+
+// The schedule file of every session by its published file name. Sessions
+// may share one schedule (one file linked twice, as June and September
+// 2022/2023 do); two different files under one name would make the name
+// ambiguous, so they refuse the file.
 export const sessionFiles = (
   rows: readonly Row[],
 ): ReadonlyMap<string, SessionFile> => {
-  const parsed = sessionRows.safeParse(rows);
-  if (!parsed.success) {
-    return refuse('sessions.json', 'a session has no name or file');
-  }
   const files = new Map<string, SessionFile>();
-  for (const { file, name } of parsed.data) {
+  for (const { file, name } of parseSessions(rows)) {
     const filename = file.filename_download;
-    if (files.has(filename)) {
-      refuse('sessions.json', `file name ${filename} is used twice`);
+    const known = files.get(filename);
+    if (known !== undefined && known.id !== file.id) {
+      refuse('sessions.json', `two files are named ${filename}`);
     }
-    files.set(filename, { id: file.id, name });
+    files.set(filename, known ?? { id: file.id, name });
   }
   return files;
 };
 
 export const examSessions: PlainFile = {
   filename: 'sessions.json',
-  payload: (rows) =>
-    Object.fromEntries(
-      [...sessionFiles(rows)].map(([filename, { name }]) => [name, filename]),
-    ),
+  payload: (rows) => {
+    // Checks the file names are unambiguous first.
+    sessionFiles(rows);
+    return Object.fromEntries(
+      parseSessions(rows).map(({ file, name }) => [
+        name,
+        file.filename_download,
+      ]),
+    );
+  },
   read: {
     collection: 'exam_sessions',
     fields: ['id', 'name', 'file.id', 'file.filename_download'],
