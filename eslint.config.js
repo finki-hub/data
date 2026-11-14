@@ -32,7 +32,7 @@ const config = [
     },
   },
   {
-    files: ['src/**/*.ts', 'test/**/*.ts', 'test/**/*.mjs'],
+    files: ['src/**/*.ts', 'test/**/*.ts'],
     rules: {
       camelcase: 'off',
       'perfectionist/sort-classes': 'off',

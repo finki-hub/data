@@ -1,3 +1,7 @@
+// The synthetic Moodle users the search suite searches: boundary cases of
+// the exact-line match (LF, CRLF, LIKE wildcards), 52 users across two
+// pages and 52 users for the count orders.
+
 export const collectionDefinition = {
   collection: 'moodle_users',
   fields: [
@@ -43,7 +47,7 @@ export const moodleUsers = [
   ...Array.from({ length: 52 }, (_, index) => ({
     Courses: 'Page Entry',
     'Courses Count': index % 3,
-    Mail: `page-${index + 1}@example`,
+    Mail: `page-${String(index + 1)}@example`,
     Name: `Page ${String(index + 1).padStart(3, '0')}`,
     ...(index === 0 && {
       Profile_new: 'https://profiles.example/new',
