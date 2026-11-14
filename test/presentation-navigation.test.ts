@@ -10,7 +10,7 @@ import {
 } from '../src/data-model/presentation/navigation.js';
 import { findCollection } from './data-model-test-helpers.js';
 
-// The sidebar: six folders by task, all closed, and Moodle users at the
+// The sidebar: seven folders by task, all closed, and Moodle users at the
 // root. The folder bodies setup sends are checked in presentation.test.ts.
 
 const collator = new Intl.Collator('en');
@@ -58,7 +58,7 @@ describe('navigation', () => {
     ).toEqual([]);
   });
 
-  test('groups the sidebar by task, with Moodle users at the root between Enrollments and Internals', () => {
+  test('groups the sidebar by task, with Moodle users at the root after Enrollments', () => {
     const moodleUsers = findCollection('moodle_users');
     const root = [
       ...folders.map(({ label, sort }) => ({ label, sort })),
@@ -72,13 +72,15 @@ describe('navigation', () => {
       { label: 'Students', sort: 4 },
       { label: 'Enrollments', sort: 5 },
       { label: 'Moodle users', sort: 6 },
-      { label: 'Internals', sort: 7 },
+      { label: 'Sessions & quotes', sort: 7 },
+      { label: 'Internals', sort: 8 },
     ]);
     expect(
       Object.fromEntries(
         folders.map(({ collection, members }) => [collection, members]),
       ),
     ).toEqual({
+      folder_bot_content: ['exam_sessions', 'anto_quotes'],
       folder_courses: ['courses', 'teaching_assignments', 'discord_channels'],
       folder_curriculum: [
         'curriculum_entries',

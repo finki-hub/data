@@ -39,16 +39,18 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `curriculum_entry_program_states`, `curriculum_generations`,
 `study_programs`, `course_equivalencies`, `course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
-`rooms`, `deans_office`, `discord_channels`, `discord_channel_courses` and
-`student_council`. Students are public only as council members (name and
+`rooms`, `deans_office`, `discord_channels`, `discord_channel_courses`,
+`student_council`, `exam_sessions` and `anto_quotes`. Students are public only as council members (name and
 index number); every other student, every Moodle user and the operations
 bookkeeping stay private.
 
 ### The legacy JSON files
 
 `GET https://data.finki-hub.com/legacy/<file>` serves `courses.json`,
-`rooms.json` and `staff.json` in exactly the format the old assets bucket
-published, built from the live data. The definitions live in
+`rooms.json`, `staff.json`, `sessions.json` and `anto.json` in exactly the
+format the old assets bucket published, built from the live data, and
+`GET /legacy/sessions/<file name>` the schedule file an exam session links,
+so a consumer only swaps its base URL. The definitions live in
 `directus/extensions/directus-extension-data-operations/src/exports/`. A
 file is rebuilt at most once a minute and carries its SHA-256 as the
 `ETag`; when a rebuild fails (for example an Active course without a
@@ -78,6 +80,9 @@ The model is declared in `src/data-model/` and installed by
 - **Staff, rooms, dean's office, students, student council and Discord
   channels**: plain lists. A course may have several Discord channels (an
   undergraduate and a master's one).
+- **Exam sessions and Anto quotes** (`exam_sessions`, `anto_quotes`): what
+  the bots publish beside the course data. A session's schedule is
+  uploaded on its form; the file lands in the R2 storage location.
 - **Moodle users** (`moodle_users`): the scraper's snapshot, replaced as a
   whole (below).
 - **Derived** (`moodle_course_entries`, `moodle_history_memberships`,
@@ -138,8 +143,9 @@ button with no code change.
 CI builds and pushes `ghcr.io/finki-hub/data` on every push, and weekly so
 new Directus releases arrive without a commit. `compose.prod.yaml` runs it
 with PostgreSQL; its settings come from the environment (`SECRET`,
-`ADMIN_TOKEN`, `POSTGRES_PASSWORD`, `LICENSE_KEY`, `PUBLIC_URL`, SMTP),
-never from this repository. On the `finki-hub` host, Caddy proxies
+`ADMIN_TOKEN`, `POSTGRES_PASSWORD`, `LICENSE_KEY`, `PUBLIC_URL`, SMTP and
+the `STORAGE_R2_*` key of the R2 bucket that holds uploaded files), never
+from this repository. On the `finki-hub` host, Caddy proxies
 `data.finki-hub.com` to it.
 
 To deploy a change:

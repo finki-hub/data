@@ -127,6 +127,7 @@ export const assertNever = (value: never): never => {
 // Every collection of the Directus model; collections.ts orders them.
 export type ModelCollectionKey =
   | 'academic_years'
+  | 'anto_quotes'
   | 'course_curricula'
   | 'course_enrollments'
   | 'course_equivalencies'
@@ -140,6 +141,7 @@ export type ModelCollectionKey =
   | 'deans_office'
   | 'discord_channel_courses'
   | 'discord_channels'
+  | 'exam_sessions'
   | 'moodle_counted_lines'
   | 'moodle_course_entries'
   | 'moodle_course_mappings'
@@ -153,6 +155,10 @@ export type ModelCollectionKey =
   | 'students'
   | 'study_programs'
   | 'teaching_assignments';
+
+// What an M2O field may point at: a collection of the model, or the
+// Directus files (a file field, stored as the file's UUID).
+export type RelatedCollection = 'directus_files' | ModelCollectionKey;
 
 export type ModelScalarKind = 'json' | 'timestamp' | FieldKind;
 
@@ -208,7 +214,7 @@ export type ModelRelationField = ModelFieldBase & {
   readonly alias?: ModelRelationAlias;
   readonly kind: 'm2o';
   readonly onDelete: OnDelete;
-  readonly related: ModelCollectionKey;
+  readonly related: RelatedCollection;
   readonly sortField?: string;
   readonly template: string;
 };

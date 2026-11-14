@@ -1,11 +1,11 @@
 import type {
   EnumChoice,
-  ModelCollectionKey,
   ModelEnumField,
   ModelField,
   ModelRelationField,
   ModelScalarField,
   ModelScalarKind,
+  RelatedCollection,
 } from '../schema.js';
 
 type ScalarOptions = Partial<Omit<ModelScalarField, 'field' | 'kind'>>;
@@ -74,7 +74,7 @@ export const choiceValues = (field: ModelEnumField): string[] =>
 
 export const m2o = (
   field: string,
-  related: ModelCollectionKey,
+  related: RelatedCollection,
   options: RelationOptions = {},
 ): ModelRelationField => ({
   field,
@@ -86,13 +86,18 @@ export const m2o = (
   ...options,
 });
 
+// A file field: an M2O onto the Directus files, edited with the file
+// interface.
+export const isFileField = (field: ModelRelationField): boolean =>
+  field.related === 'directus_files';
+
 // The Directus column type an existing column must report to be compatible.
 export const expectedColumnType = (field: ModelField): string => {
   if (field.kind === 'enum') {
     return 'string';
   }
   if (field.kind === 'm2o') {
-    return 'integer';
+    return isFileField(field) ? 'uuid' : 'integer';
   }
   return field.kind;
 };

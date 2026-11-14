@@ -1,6 +1,9 @@
 import type { ModelCollection, ModelCollectionKey } from '../schema.js';
 
-import { contentCollections } from './content-collections.js';
+import {
+  botContentCollections,
+  contentCollections,
+} from './content-collections.js';
 import { curriculumCollections } from './curriculum-collections.js';
 import { generationCollections } from './generation-collections.js';
 import { mappingCollections } from './mapping-collections.js';
@@ -9,12 +12,13 @@ import { operationsCollections } from './operations-collections.js';
 import { referenceCollections } from './reference-collections.js';
 
 // Every collection of the relational model in installation order: the
-// content and reference lists the workbook import fills first, then the
-// collections that link them, the Moodle collections with their pattern
-// mappings and the operations bookkeeping.
+// content and reference lists the workbook import fills first, the bot
+// content, then the collections that link them, the Moodle collections
+// with their pattern mappings and the operations bookkeeping.
 export const dataModelCollections: readonly ModelCollection[] = [
   ...contentCollections,
   ...referenceCollections,
+  ...botContentCollections,
   ...curriculumCollections,
   ...generationCollections,
   ...moodleCollections,

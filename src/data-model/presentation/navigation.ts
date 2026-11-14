@@ -3,7 +3,7 @@ import type { CollectionPlacement, Folder } from './types.js';
 // Sidebar folders by task, in display order, all closed when Studio opens.
 // A folder key carries the `folder_` prefix, so it never names a
 // collection. Moodle users is in no folder: its model sort (6) places it
-// between Enrollments and Internals. Helper, staging and candidate
+// between Enrollments and Sessions & quotes. Helper, staging and candidate
 // collections keep the `hidden` flag the model declares, sit in Internals
 // and stay reachable through the relation interfaces and their own URLs.
 export const folders: readonly Folder[] = [
@@ -60,6 +60,14 @@ export const folders: readonly Folder[] = [
   },
   {
     collapse: 'closed',
+    collection: 'folder_bot_content',
+    icon: 'smart_toy',
+    label: 'Sessions & quotes',
+    members: ['exam_sessions', 'anto_quotes'],
+    sort: 7,
+  },
+  {
+    collapse: 'closed',
     collection: 'folder_internals',
     icon: 'settings_suggest',
     label: 'Internals',
@@ -74,7 +82,7 @@ export const folders: readonly Folder[] = [
       'data_operation_matches',
       'data_operations',
     ],
-    sort: 7,
+    sort: 8,
   },
 ];
 

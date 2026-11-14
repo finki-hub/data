@@ -32,6 +32,7 @@ const modelFields = dataModelCollections.flatMap((collection) =>
     field: field.field,
     kind: field.kind,
     readOnly: field.readOnly === true,
+    related: field.kind === 'm2o' ? field.related : null,
   })),
 );
 
@@ -78,7 +79,9 @@ describe('studio metadata', () => {
     ).toEqual([]);
 
     const selectors = modelFields
-      .filter(({ kind }) => kind === 'm2o')
+      .filter(
+        ({ kind, related }) => kind === 'm2o' && related !== 'directus_files',
+      )
       .map(
         ({ collection, field }) =>
           relational.parse(effectiveFieldMeta(collection, field)).interface,

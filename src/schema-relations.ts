@@ -2,6 +2,7 @@ import type {
   ModelCollectionKey,
   ModelRelationAlias,
   OnDelete,
+  RelatedCollection,
 } from './schema.js';
 
 // The relations and composite keys of the Directus model, derived from the
@@ -15,7 +16,7 @@ export type ModelRelation = {
   readonly junction: null | string;
   readonly nullable: boolean;
   readonly onDelete: OnDelete;
-  readonly related: ModelCollectionKey;
+  readonly related: RelatedCollection;
   readonly sortField: null | string;
 };
 

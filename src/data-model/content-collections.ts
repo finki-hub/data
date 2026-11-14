@@ -188,3 +188,37 @@ export const contentCollections: readonly ModelCollection[] = [
     sort: 8,
   },
 ];
+
+// What the bots publish beside the course data: the exam session
+// schedules and the Anto quotes, each a plain list edited in Studio.
+export const botContentCollections: readonly ModelCollection[] = [
+  {
+    collection: 'exam_sessions',
+    displayTemplate: '{{name}}',
+    fields: [
+      // Published as the key of sessions.json, for example
+      // "2025/2026 Јуни"; the file is published by its file name.
+      required('name', 'string', { label: 'Name', unique: true }),
+      m2o('file', 'directus_files', {
+        label: 'Schedule file',
+        note: 'The PDF or Excel schedule, published under its file name.',
+        nullable: false,
+      }),
+    ],
+    hidden: false,
+    icon: 'event_note',
+    label: { plural: 'Exam sessions', singular: 'Exam session' },
+    singleton: false,
+    sort: 5,
+  },
+  {
+    collection: 'anto_quotes',
+    displayTemplate: '{{quote}}',
+    fields: [required('quote', 'text', { label: 'Quote' })],
+    hidden: false,
+    icon: 'format_quote',
+    label: { plural: 'Anto quotes', singular: 'Anto quote' },
+    singleton: false,
+    sort: 9,
+  },
+];

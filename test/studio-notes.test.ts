@@ -54,6 +54,7 @@ const declaredNotes = (): readonly string[] =>
 const remainingNotes = [
   'courses.status: All professors publishes "Сите професори" as professors. Inactive publishes "(неактивиран предмет)" as professors and assistants.',
   'courses.pattern_mappings: A new course gets <name>- with the default year pattern. A renamed course keeps its mappings; a new Moodle name needs its own pattern.',
+  'exam_sessions.file: The PDF or Excel schedule, published under its file name.',
   'curriculum_entries.code: The digit after L is the level: F18L3W055 is level 3.',
   "curriculum_entries.channel: Published as channel. Independent of the course's Discord channel.",
   "curriculum_entries.program_states: Programs of the entry's generation; locked until a generation is set. The fields below State edit the program itself.",
