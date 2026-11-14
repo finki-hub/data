@@ -102,8 +102,8 @@ const config = [
   },
   {
     // Branding uploads its two repository-owned assets, named by a closed
-    // union of file names.
-    files: ['src/branding.ts'],
+    // union of file names; the AI prompt reads its two repository files.
+    files: ['src/ai-prompt.ts', 'src/branding.ts'],
     rules: {
       'security/detect-non-literal-fs-filename': 'off',
     },

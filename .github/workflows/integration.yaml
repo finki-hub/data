@@ -28,6 +28,7 @@ jobs:
       DIRECTUS_ADMIN_TOKEN: ci-admin-token
       DIRECTUS_INTEGRATION_URL: http://127.0.0.1:8055
       DIRECTUS_INTEGRATION_TOKEN: ci-admin-token
+      DIRECTUS_INTEGRATION_COMPOSE_SERVICE: directus
       DIRECTUS_SEARCH_TEST_URL: http://127.0.0.1:8055
       DIRECTUS_SEARCH_TEST_TOKEN: ci-admin-token
       DIRECTUS_SEARCH_TEST_MARKER_COLLECTION: synthetic_search_marker_ci
