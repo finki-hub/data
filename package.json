@@ -6,7 +6,7 @@
     "@directus/extensions-sdk": "^18.0.4",
     "@directus/types": "16.2.0",
     "@tanstack/vue-virtual": "^3.13.36",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.6.6",
     "eslint": "^10.9.1",
     "eslint-config-imperium": "^4.1.4",
     "tsx": "^4.23.13",
