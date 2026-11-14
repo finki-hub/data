@@ -106,7 +106,16 @@ export const fileTooLarge = (maxBytes: number, size?: number): SnapshotError =>
 
 const csvName = /\.csv$/iu;
 
-// The file must be a private CSV of the local storage location, in the
+// The private storage locations a snapshot may be uploaded to: the local
+// volume and the R2 bucket Studio uploads go to (compose.prod.yaml), which
+// is not served publicly; only Directus reads it.
+export const privateStorageLocations: readonly string[] = ['local', 'r2'];
+
+const expectedStorage = privateStorageLocations
+  .map((name) => `"${name}"`)
+  .join(' or ');
+
+// The file must be a private CSV of a private storage location, in the
 // snapshot folder, within the byte bound. A browser may report a .csv
 // upload as text/csv, as Excel's type or as plain text; the name must then
 // end in .csv.
@@ -117,10 +126,10 @@ export const fileRefusal = (
   if (file === null) {
     return snapshotError('FILE_INVALID', 'File not found');
   }
-  if (file.storage !== 'local') {
+  if (!privateStorageLocations.includes(file.storage)) {
     return snapshotError(
       'FILE_INVALID',
-      `File storage "${file.storage}", expected "local"`,
+      `File storage "${file.storage}", expected ${expectedStorage}`,
     );
   }
   if (file.folder !== snapshotFolderId) {
