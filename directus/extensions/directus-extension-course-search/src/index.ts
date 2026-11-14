@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { failureText } from './failure-text.js';
 import { pageSize } from './limits.js';
-import CourseSearch from './search.vue';
+import CourseSearch from './search-layout.vue';
 
 const personSchema = z.object({
   id: z.union([z.string(), z.number()]),

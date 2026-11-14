@@ -7,30 +7,92 @@ import { toolbarText } from './status-facts.js';
 import StatusKeys from './status-keys.vue';
 import StatusOperations from './status-operations.vue';
 
-const props = defineProps<{ now?: unknown; sections?: unknown; showHeader?: boolean }>();
+const {
+  now = null,
+  sections: sectionsOption = null,
+  showHeader,
+} = defineProps<{
+  now?: unknown;
+  sections?: unknown;
+  showHeader?: boolean;
+}>();
 
-const sections = computed(() => sectionsOf(props.sections));
-const data = useDataStatus(() => sections.value, toRef(props, 'now'));
+const sections = computed(() => sectionsOf(sectionsOption));
+const data = useDataStatus(
+  () => sections.value,
+  toRef(() => now),
+);
 </script>
 
 <template>
-  <div class="data-status" :class="{ 'has-header': showHeader }" :aria-busy="data.loading">
+  <div
+    class="data-status"
+    :class="{ 'has-header': showHeader }"
+    :aria-busy="data.loading"
+  >
     <div class="toolbar">
-      <span v-if="data.status && data.shows('operations')" class="facts">{{ toolbarText(data.status) }}</span>
-      <v-button x-small secondary icon :loading="data.loading" class="refresh" aria-label="Refresh the data status" @click="data.refresh">
-        <v-icon name="refresh" x-small />
+      <span
+        v-if="data.status && data.shows('operations')"
+        class="facts"
+        >{{ toolbarText(data.status) }}</span
+      >
+      <v-button
+        x-small
+        secondary
+        icon
+        :loading="data.loading"
+        class="refresh"
+        aria-label="Refresh the data status"
+        @click="data.refresh"
+      >
+        <v-icon
+          name="refresh"
+          x-small
+        />
       </v-button>
     </div>
-    <v-notice v-if="data.statusError" type="danger">{{ data.statusError }}</v-notice>
-    <StatusOperations v-if="data.status && data.shows('operations')" :status="data.status" />
-    <StatusKeys v-if="data.status && data.shows('keys')" :sources="data.status.keySources" />
+    <v-notice
+      v-if="data.statusError"
+      type="danger"
+      >{{ data.statusError }}</v-notice
+    >
+    <StatusOperations
+      v-if="data.status && data.shows('operations')"
+      :status="data.status"
+    />
+    <StatusKeys
+      v-if="data.status && data.shows('keys')"
+      :sources="data.status.keySources"
+    />
   </div>
 </template>
 
 <style scoped>
-.data-status { display: flex; flex-direction: column; gap: 16px; height: 100%; padding: 12px 16px 16px; overflow: auto; color: var(--theme--foreground); font-size: 13px; }
-.data-status.has-header { padding-block-start: 0; }
-.toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.refresh { margin-inline-start: auto; }
-.facts { color: var(--theme--foreground-subdued); font-variant-numeric: tabular-nums; line-height: 1.5; }
+.data-status {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  padding: 12px 16px 16px;
+  overflow: auto;
+  color: var(--theme--foreground);
+  font-size: 13px;
+}
+.data-status.has-header {
+  padding-block-start: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.refresh {
+  margin-inline-start: auto;
+}
+.facts {
+  color: var(--theme--foreground-subdued);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
 </style>

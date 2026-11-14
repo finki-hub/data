@@ -21,7 +21,7 @@ const statusAnswer = envelope(statusViewSchema);
 
 export const useDataStatus = (
   sections: () => readonly StatusSection[],
-  now: Ref<unknown>,
+  now: Readonly<Ref<unknown>>,
 ) => {
   const api = useApi();
   const status = ref<null | StatusView>(null);

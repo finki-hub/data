@@ -1,10 +1,12 @@
 import {
   base,
+  browser,
   node,
   perfectionist,
   prettier,
   typescript,
   vitest,
+  vue,
 } from 'eslint-config-imperium';
 
 const config = [
@@ -14,6 +16,16 @@ const config = [
   ...base,
   node,
   typescript,
+  vue,
+  // The Studio side of the extensions runs in the browser.
+  {
+    ...browser,
+    files: [
+      'directus/extensions/**/*.vue',
+      'directus/extensions/directus-extension-course-search/src/index.ts',
+      'directus/extensions/directus-extension-data-operations/src/{app,data-status,panel,run-operation,run-signal,run-status,snapshot-import-app,snapshot-promote-app,status-panel,studio-name}.ts',
+    ],
+  },
   prettier,
   perfectionist,
   vitest,
@@ -42,7 +54,7 @@ const config = [
   },
   {
     // Flow scripts answer Directus field names such as academic_year.
-    files: ['directus/extensions/**/*.js', 'directus/flows/**/*.cjs'],
+    files: ['directus/flows/**/*.cjs'],
     rules: {
       camelcase: 'off',
     },
@@ -118,7 +130,6 @@ const config = [
       '@typescript-eslint/require-await': 'off',
       'perfectionist/sort-objects': 'off',
       'vitest/consistent-test-it': 'off',
-      'vitest/padding-around-all': 'off',
       'vitest/prefer-strict-boolean-matchers': 'off',
       'vitest/prefer-strict-equal': 'off',
       'vitest/prefer-to-be-falsy': 'off',
