@@ -133,7 +133,12 @@ test('students are public only as council members, without their group', async (
 });
 
 const legacy = async (file) => {
-  const response = await call(`/legacy/${file}`, {}, false);
+  // As a browser frontend asks for it.
+  const response = await call(
+    `/legacy/${file}`,
+    { headers: { Origin: 'https://courses.finki-hub.com' } },
+    false,
+  );
   assert.equal(response.status, 200, `/legacy/${file}`);
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
   return response;

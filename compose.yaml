@@ -26,6 +26,10 @@ services:
       ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:-change-me}
       ADMIN_TOKEN: ${DIRECTUS_ADMIN_TOKEN:-change-this-local-token}
+      # Open like production, so the browser frontends can read the API.
+      CORS_CREDENTIALS: false
+      CORS_ENABLED: true
+      CORS_ORIGIN: '*'
       DB_CLIENT: pg
       DB_DATABASE: directus
       DB_HOST: database
