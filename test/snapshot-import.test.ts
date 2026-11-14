@@ -48,7 +48,7 @@ import {
 const missingIdOld = /missing ID_old/u;
 const repeatedName = /repeated Name/u;
 const privatePerson = /Synthetic Private Person|private@person/u;
-const localStorage = /^File storage "publish", expected "local"$/u;
+const privateOnly = /^File storage "publish", expected "local" or "r2"$/u;
 const snapshotFolder = /^File outside folder "Moodle snapshots \(private\)"$/u;
 const mustBeCsv =
   /^File type (?:image\/png|text\/plain), expected text\/csv or a \.csv name$/u;
@@ -595,11 +595,11 @@ describe('snapshot import operation', () => {
 });
 
 describe('snapshot import guards', () => {
-  test('refuses files outside private local storage, of another type or over the bound', async () => {
+  test('refuses files outside private storage, of another type or over the bound; takes one in R2', async () => {
     const world = new FakeSnapshot();
     const content = snapshotCsv([syntheticRow(1)]);
     const cases: Array<[Record<string, unknown>, RegExp]> = [
-      [{ storage: 'publish' }, localStorage],
+      [{ storage: 'publish' }, privateOnly],
       [{ folder: null }, snapshotFolder],
       [{ folder: otherFileId }, snapshotFolder],
       [{ filename: 'photo.png', type: 'image/png' }, mustBeCsv],
@@ -617,6 +617,7 @@ describe('snapshot import guards', () => {
     }
     world.addFile(csvFileId, content, {
       filename: 'Export.CSV',
+      storage: 'r2',
       type: 'application/vnd.ms-excel',
     });
 
