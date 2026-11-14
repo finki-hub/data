@@ -203,3 +203,7 @@ The data was migrated once from the `finki-hub.xlsx` workbook by an
 importer that has since been removed, together with the publication of
 JSON files to an R2 bucket that Directus replaces. Both remain in the git
 history.
+
+## License
+
+This project is licensed under the terms of the MIT license.
