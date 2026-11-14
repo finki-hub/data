@@ -95,7 +95,7 @@ describe('teaching assignments: staff links', () => {
       'active',
     ]);
     expect(new Set(records.flatMap((record) => Object.keys(record)))).toEqual(
-      new Set(['discord_channel', 'name', 'status', 'tags']),
+      new Set(['name', 'status', 'tags']),
     );
   });
 

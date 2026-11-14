@@ -41,8 +41,10 @@ export const perWorkbookKey = <T>(
 
 export type CollectionSource =
   | {
-      readonly endRow: number;
-      readonly kind: 'discord-pairs';
+      // The row holding the headers (1 unless set); the data starts below
+      // it, and the rows above it (a title or totals) are not read.
+      readonly headerRow?: number;
+      readonly kind: 'rows';
       readonly sheet: string;
     }
   | {
@@ -51,10 +53,6 @@ export type CollectionSource =
     }
   | {
       readonly kind: 'generation-columns';
-      readonly sheet: string;
-    }
-  | {
-      readonly kind: 'rows';
       readonly sheet: string;
     }
   | {
@@ -140,6 +138,7 @@ export type ModelCollectionKey =
   | 'data_operation_matches'
   | 'data_operations'
   | 'deans_office'
+  | 'discord_channel_courses'
   | 'discord_channels'
   | 'moodle_counted_lines'
   | 'moodle_course_entries'

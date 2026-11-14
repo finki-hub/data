@@ -114,8 +114,14 @@ const sheetOf = (key: WorkbookKey): string => {
   return 'sheet' in source ? source.sheet : source.sheets.join(', ');
 };
 
+// The row a part's sheet heads its columns on.
+const headerRowOf = (key: WorkbookKey): number => {
+  const source = workbookSpecs.find((spec) => spec.key === key)?.source;
+  return source !== undefined && 'headerRow' in source ? source.headerRow : 1;
+};
+
 // What the import reads from a workbook holding the dataset, in dataset
-// order: each row placed on its part's sheet below one header row, the
+// order: each row placed on its part's sheet below its header row, the
 // academic years of the listener sheet and the synthetic study programs.
 export const contentOf = (
   dataset: SyntheticDataset,
@@ -127,7 +133,10 @@ export const contentOf = (
     data,
     formulaPatternCells: [],
     places: perWorkbookKey((key) =>
-      data[key].map((_, index) => ({ row: index + 2, sheet: sheetOf(key) })),
+      data[key].map((_, index) => ({
+        row: headerRowOf(key) + 1 + index,
+        sheet: sheetOf(key),
+      })),
     ),
     studyPrograms: syntheticPrograms,
   };

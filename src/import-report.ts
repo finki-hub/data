@@ -15,8 +15,8 @@ const columnOf = ({ collection, field }: UnstorableValue): string =>
 // never a value of the workbook. The rows are those the import writes per
 // collection; the blocking cases, the skipped rows and the warnings are
 // counted per code, the values no column can hold per column; `fixes`
-// places each case of a rule fix, and each Дискорд course name that
-// matches no course (placedCodes), by sheet, row and column (a Дискорд
+// places each case of a rule fix, and each Discord course name that
+// matches no course (placedCodes), by sheet, row and column (a Discord
 // name also by its position in the cell), per code with a case.
 export const checkSummary = (
   plan: ImportPlan,

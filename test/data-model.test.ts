@@ -144,9 +144,9 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(26);
-    expect(new Set(dataModelCollectionKeys).size).toBe(26);
-    expect(dataModelCollectionKeys.slice(0, 9)).toEqual([
+    expect(dataModelCollectionKeys).toHaveLength(27);
+    expect(new Set(dataModelCollectionKeys).size).toBe(27);
+    expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
       'rooms',
@@ -154,12 +154,13 @@ describe('target collections', () => {
       'course_equivalencies',
       'teaching_assignments',
       'discord_channels',
+      'discord_channel_courses',
       'student_council',
       'deans_office',
     ]);
   });
 
-  test('keeps the published columns on a course plus the one channel link, and the course links its curriculum', () => {
+  test('keeps the published columns on a course, its channels linked through a junction', () => {
     expect(
       findCollection('courses').fields.map(({ field, kind, nullable }) => [
         field,
@@ -170,7 +171,14 @@ describe('target collections', () => {
       ['name', 'string', false],
       ['status', 'enum', false],
       ['tags', 'string', true],
-      ['discord_channel', 'm2o', true],
+    ]);
+    expect(
+      findCollection('discord_channel_courses').fields.map(
+        ({ field, kind, nullable }) => [field, kind, nullable],
+      ),
+    ).toEqual([
+      ['discord_channel', 'm2o', false],
+      ['course', 'm2o', false],
     ]);
     expect(
       findCollection('teaching_assignments').fields.map(({ field }) => field),
@@ -348,6 +356,7 @@ describe('domain keys', () => {
       'unique study_programs (generation, code)',
       'unique curriculum_entry_program_states (entry, program)',
       'unique course_equivalency_members (equivalency, generation)',
+      'unique discord_channel_courses (discord_channel, course)',
       'unique moodle_history_memberships (moodle_user, entry)',
       'index moodle_history_memberships (entry)',
       'unique moodle_course_mappings (entry, course, academic_year)',
@@ -720,6 +729,7 @@ describe('relations and aliases', () => {
     expect(aliasesFor('courses').map(({ alias }) => alias.field)).toEqual([
       'equivalencies',
       'assignments',
+      'discord_channels',
       'curricula',
       'history_mappings',
       'pattern_mappings',
@@ -892,7 +902,7 @@ describe('installDataModel on fresh and installed projects', () => {
     ).toEqual(
       aliasesFor('courses').map(({ alias }) => ({
         field: alias.field,
-        special: ['o2m'],
+        special: [alias.junction === undefined ? 'o2m' : 'm2m'],
       })),
     );
     expect(courses?.fields.some(({ field }) => field === 'id')).toBe(false);

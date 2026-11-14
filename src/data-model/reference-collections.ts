@@ -3,19 +3,21 @@ import type { ModelCollection } from '../schema.js';
 import { deanPositions } from './choice-lists.js';
 import {
   channelTemplate,
+  courseTemplate,
   staffTemplate,
   studentTemplate,
 } from './content-collections.js';
 import { enumField, m2o, required, scalar } from './fields.js';
 
 // The reference lists the one-time workbook import fills beside the
-// content: the Discord channels the courses link to, and the council and
+// content: the Discord channels and their links to the courses, and the
+// council and
 // dean's office histories. No published file reads them.
 export const referenceCollections: readonly ModelCollection[] = [
   {
     collection: 'discord_channels',
     displayTemplate: channelTemplate,
-    // A channel's courses link to it (courses.discord_channel).
+    // A channel's courses link to it through discord_channel_courses.
     fields: [
       scalar('semester', 'integer', {
         label: 'Semester',
@@ -29,6 +31,46 @@ export const referenceCollections: readonly ModelCollection[] = [
     label: { plural: 'Discord channels', singular: 'Discord channel' },
     singleton: false,
     sort: 10,
+  },
+  // The courses of each Discord channel: a course may have several (an
+  // undergraduate and a master's channel), a channel several courses. Both
+  // forms list the other side and pick existing rows; a junction row goes
+  // with either of its rows.
+  {
+    collection: 'discord_channel_courses',
+    displayTemplate: '{{discord_channel.channel}}: {{course.name}}',
+    fields: [
+      m2o('discord_channel', 'discord_channels', {
+        alias: {
+          field: 'courses',
+          fields: ['course'],
+          junction: 'course',
+          label: 'Courses',
+          template: '{{course.name}}',
+        },
+        label: 'Discord channel',
+        nullable: false,
+        template: channelTemplate,
+      }),
+      m2o('course', 'courses', {
+        alias: {
+          field: 'discord_channels',
+          fields: ['discord_channel'],
+          junction: 'discord_channel',
+          label: 'Discord channels',
+          template:
+            '{{discord_channel.channel}} (semester {{discord_channel.semester}})',
+        },
+        label: 'Course',
+        nullable: false,
+        template: courseTemplate,
+      }),
+    ],
+    hidden: true,
+    icon: 'link',
+    label: { plural: 'Channel courses', singular: 'Channel course' },
+    singleton: false,
+    sort: 13,
   },
   {
     collection: 'student_council',

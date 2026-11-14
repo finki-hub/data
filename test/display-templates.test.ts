@@ -97,10 +97,15 @@ describe('display templates', () => {
     expect(findCollection('discord_channels').displayTemplate).toBe(
       '{{channel}} (semester {{semester}})',
     );
-    expect(relationTemplate('courses', 'discord_channel')).toBe(
+    expect(relationTemplate('discord_channel_courses', 'discord_channel')).toBe(
       '{{channel}} (semester {{semester}})',
     );
-    expect(aliasTemplate('discord_channels', 'courses')).toBe('{{name}}');
+    expect(aliasTemplate('courses', 'discord_channels')).toBe(
+      '{{discord_channel.channel}} (semester {{discord_channel.semester}})',
+    );
+    expect(aliasTemplate('discord_channels', 'courses')).toBe(
+      '{{course.name}}',
+    );
   });
 
   test("name a dean's office term by its year, position and holder", () => {

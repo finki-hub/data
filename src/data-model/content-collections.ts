@@ -61,18 +61,8 @@ export const contentCollections: readonly ModelCollection[] = [
         nullable: false,
       }),
       scalar('tags', 'string', { label: 'Tags' }),
-      // The one Discord channel of the course, picked from either form; it
-      // publishes nothing (channel comes from the curriculum entries).
-      m2o('discord_channel', 'discord_channels', {
-        alias: {
-          field: 'courses',
-          fields: ['name'],
-          label: 'Courses',
-          template: courseTemplate,
-        },
-        label: 'Discord channel',
-        template: channelTemplate,
-      }),
+      // The course's Discord channels come through discord_channel_courses
+      // (reference-collections.ts).
     ],
     hidden: false,
     icon: 'school',

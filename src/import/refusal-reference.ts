@@ -12,14 +12,14 @@ import {
 } from './refusal-places.js';
 
 // The refusal lines of the cases on the reference sheets, whose cells the
-// general lines cannot place: a Дискорд course name by its row, the
-// column of its cell (the sheet heads none) and its position there, and a
+// general lines cannot place: a Discord course name by its row, its
+// Предмет cell and its position there, and a
 // Деканат staff name by its cell, never its value. Every other case keeps
 // its general line (refusal-text.ts).
 
 type Line = (finding: Finding, context: RefusalContext) => string;
 
-// A Дискорд course name several courses carry, quoted as they carry it,
+// A Discord course name several courses carry, quoted as they carry it,
 // and their rows.
 const ambiguousChannelCourse: Line = (finding, context) => {
   const { channelName, collection, ids } = finding;

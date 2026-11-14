@@ -96,6 +96,7 @@ const collectionRoles = [
   publishes('course_equivalencies'),
   publishes('course_equivalency_members'),
   publishes('discord_channels'),
+  publishes('discord_channel_courses'),
   publishes('deans_office'),
   {
     caseLast: true,

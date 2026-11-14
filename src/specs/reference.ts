@@ -88,12 +88,15 @@ export const referenceWorkbookSpecs = [
   },
   {
     fields: [
-      requiredField('semester', 'semester', 'integer'),
-      requiredField('channel', 'channel'),
-      requiredField('course_names', 'course_names', 'text'),
+      requiredField('Семестар', 'semester', 'integer'),
+      requiredField('Кратенка', 'channel'),
+      requiredField('Предмет', 'course_names', 'text'),
     ],
     key: 'discord_channels',
-    source: { endRow: 29, kind: 'discord-pairs', sheet: 'Дискорд' },
+    // An Excel table headed on row 4, one channel per row; rows 1 and 2
+    // hold the sheet's totals. Its Година and Тип columns follow from the
+    // semester and are not read.
+    source: { headerRow: 4, kind: 'rows', sheet: 'Discord' },
   },
   {
     fields: [

@@ -67,6 +67,7 @@ export const folders: readonly Folder[] = [
       'course_enrollments',
       'course_curricula',
       'curriculum_entry_program_states',
+      'discord_channel_courses',
       'moodle_counted_lines',
       'moodle_history_memberships',
       'moodle_import_rows',

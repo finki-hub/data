@@ -18,6 +18,7 @@ import {
 import { planGenerations, planPrograms } from './generations.js';
 import { planPatternMappings } from './pattern-mappings.js';
 import {
+  channelCourses,
   contentRows,
   councilLinks,
   courseLinks,
@@ -61,11 +62,12 @@ const formulaCellFinding = (cell: SheetCell): Finding =>
 // Pure: the up-front check `npm run import` and `npm run import:dry-run`
 // share, before anything reaches Directus, and the plan of the parsed
 // workbook. The seeds come first, then the content rows, the courses with
-// their status and Discord channel, the curriculum entries and their
-// program states, the course links, the pattern mappings (proven against
-// the Moodle histories here, src/import/pattern-mappings.ts), the teaching
-// role rows, the equivalencies with their members, the council and the
-// dean's office terms with their staff members.
+// their status, the links of the Discord channels to them, the curriculum
+// entries and their program states, the course links, the pattern mappings
+// (proven against the Moodle histories here,
+// src/import/pattern-mappings.ts), the teaching role rows, the
+// equivalencies with their members, the council and the dean's office
+// terms with their staff members.
 export const planImport = ({
   academicYears,
   data,
@@ -104,6 +106,10 @@ export const planImport = ({
         data.courses,
         courseLinks(candidates),
       ),
+    },
+    {
+      collection: 'discord_channel_courses',
+      rows: channelCourses(candidates.channels),
     },
     { collection: 'curriculum_entries', rows: planCurriculumEntries(rows) },
     {

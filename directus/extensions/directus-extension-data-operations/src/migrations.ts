@@ -70,6 +70,7 @@ export const schemaConstraints: Migration = {
     'CREATE UNIQUE INDEX IF NOT EXISTS "study_programs_generation_code_unique" ON "study_programs" ("generation", "code")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "curriculum_entry_program_states_entry_program_unique" ON "curriculum_entry_program_states" ("entry", "program")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_equivalency_members_equivalency_generation_unique" ON "course_equivalency_members" ("equivalency", "generation")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "discord_channel_courses_discord_channel_course_unique" ON "discord_channel_courses" ("discord_channel", "course")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_history_memberships_moodle_user_entry_unique" ON "moodle_history_memberships" ("moodle_user", "entry")',
     'CREATE INDEX IF NOT EXISTS "moodle_history_memberships_entry_index" ON "moodle_history_memberships" ("entry")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_course_mappings_entry_course_academic_year_unique" ON "moodle_course_mappings" ("entry", "course", "academic_year")',

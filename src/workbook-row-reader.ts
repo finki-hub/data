@@ -41,7 +41,7 @@ export const readHeaders = (row: ExcelJS.Row): ReadonlyMap<string, number> => {
 };
 
 const validateHeaders = (
-  sheet: string,
+  { headerRow, sheet }: { readonly headerRow: number; readonly sheet: string },
   fields: readonly FieldSpec[],
   headerPositions: ReadonlyMap<string, number>,
 ): void => {
@@ -51,7 +51,7 @@ const validateHeaders = (
       !headerPositions.has(fieldSpec.source)
     ) {
       throw new WorkbookDataError(
-        `${sheetPlace(sheet, 1)}: missing column ${JSON.stringify(fieldSpec.source)}`,
+        `${sheetPlace(sheet, headerRow)}: missing column ${JSON.stringify(fieldSpec.source)}`,
       );
     }
   }
@@ -77,6 +77,27 @@ const assertFirstId = (
   firstRows.set(text, row);
 };
 
+// The column of a field: its fixed column, else the one its header heads.
+const columnOf = (fieldSpec: FieldSpec, context: RowContext): number => {
+  const columnNumber =
+    fieldSpec.sourceColumn ?? context.headerPositions.get(fieldSpec.source);
+  if (columnNumber === undefined) {
+    throw new WorkbookDataError(
+      `${context.sheet}: no column position for ${JSON.stringify(fieldSpec.source)} (internal)`,
+    );
+  }
+  return columnNumber;
+};
+
+// A row none of whose read cells holds text: a gap or a trailing row the
+// sheet only formats. It is not read, so it neither fills down nor misses
+// a required value.
+const isBlankRow = (row: ExcelJS.Row, context: RowContext): boolean =>
+  context.fields.every(
+    (fieldSpec) =>
+      readCellText(row.getCell(columnOf(fieldSpec, context))).trim() === '',
+  );
+
 const readRow = (
   row: ExcelJS.Row,
   rowNumber: number,
@@ -86,13 +107,7 @@ const readRow = (
   let hasContent = false;
 
   for (const fieldSpec of context.fields) {
-    const columnNumber =
-      fieldSpec.sourceColumn ?? context.headerPositions.get(fieldSpec.source);
-    if (columnNumber === undefined) {
-      throw new WorkbookDataError(
-        `${context.sheet}: no column position for ${JSON.stringify(fieldSpec.source)} (internal)`,
-      );
-    }
+    const columnNumber = columnOf(fieldSpec, context);
 
     // A `fillMerged` field reads a cell a merged range covers as the
     // range's top-left cell (its master; an unmerged cell is its own).
@@ -123,15 +138,21 @@ const readRow = (
   return hasContent ? item : null;
 };
 
-// A sheet of rows: its headers in the first row, its data below.
+// A sheet of rows: its headers in the header row (the first unless the
+// source names another), its data below.
 export const readRows = (
   workbook: ExcelJS.Workbook,
   spec: WorkbookSpec,
   source: Extract<CollectionSource, { readonly kind: 'rows' }>,
 ): readonly PlacedItem[] => {
   const worksheet = getWorksheet(workbook, source.sheet);
-  const headerPositions = readHeaders(worksheet.getRow(1));
-  validateHeaders(source.sheet, spec.fields, headerPositions);
+  const headerRow = source.headerRow ?? 1;
+  const headerPositions = readHeaders(worksheet.getRow(headerRow));
+  validateHeaders(
+    { headerRow, sheet: source.sheet },
+    spec.fields,
+    headerPositions,
+  );
 
   const items: PlacedItem[] = [];
   const context: RowContext = {
@@ -146,11 +167,17 @@ export const readRows = (
     sheet: source.sheet,
   };
   for (
-    let rowNumber = 2;
-    rowNumber <= worksheet.actualRowCount;
+    let rowNumber = headerRow + 1;
+    // rowCount is the last row's number; actualRowCount counts only the
+    // rows holding a value, so a gap above the data would cut the end off.
+    rowNumber <= worksheet.rowCount;
     rowNumber += 1
   ) {
-    const item = readRow(worksheet.getRow(rowNumber), rowNumber, context);
+    const row = worksheet.getRow(rowNumber);
+    if (isBlankRow(row, context)) {
+      continue;
+    }
+    const item = readRow(row, rowNumber, context);
     if (item !== null) {
       items.push({ item, place: { row: rowNumber, sheet: source.sheet } });
     }

@@ -131,11 +131,19 @@ const durationLine = '\nтраење: 4 год.';
 // through the cell's own setter.
 const setHeader = (
   sheet: ExcelJS.Worksheet,
-  { column, spec }: { readonly column: number; readonly spec: WorkbookSpec },
+  {
+    column,
+    row,
+    spec,
+  }: {
+    readonly column: number;
+    readonly row: number;
+    readonly spec: WorkbookSpec;
+  },
   field: FieldSpec,
 ): void => {
   const code = field.source;
-  const cell = sheet.getRow(1).getCell(column);
+  const cell = sheet.getRow(row).getCell(column);
   if (!field.target.startsWith('state_')) {
     cell.value = code;
   } else if (spec.key === 'curriculum_2018') {
@@ -208,14 +216,21 @@ const writeRows = (
     return;
   }
   const sheet = workbook.addWorksheet(spec.source.sheet);
+  const headerRow =
+    spec.source.kind === 'rows' ? (spec.source.headerRow ?? 1) : 1;
+  // A sheet headed below row 1 carries a title above its headers and a
+  // blank row between, as the real Discord sheet does.
+  if (headerRow > 1) {
+    setCell(sheet, { column: 1, row: 1 }, spec.source.sheet);
+  }
   const columns = columnsOf(spec);
   for (const { column, field } of columns) {
-    setHeader(sheet, { column, spec }, field);
+    setHeader(sheet, { column, row: headerRow, spec }, field);
   }
   const written = columns.filter(({ field }) => isWritten(spec.key, field));
   for (const [index, row] of rows.entries()) {
     for (const { column, field } of written) {
-      setCell(sheet, { column, row: index + 2 }, row[field.target]);
+      setCell(sheet, { column, row: headerRow + 1 + index }, row[field.target]);
     }
   }
   for (const { column, field } of columns) {
@@ -267,41 +282,6 @@ const writeStudents = (
   }
 };
 
-const semesterOf = (row: SyntheticRow): number => {
-  const value = row['semester'];
-  if (typeof value !== 'number') {
-    throw new TypeError('semester must be a number in the synthetic dataset');
-  }
-  return value;
-};
-
-// One channel/course-names column pair per semester, rows 2 to 29. The
-// readers walk `actualColumnCount` (populated columns), so row 1 labels
-// every column up to the last semester, as the real sheet does.
-const writeDiscord = (
-  workbook: ExcelJS.Workbook,
-  rows: readonly SyntheticRow[],
-): void => {
-  const sheet = workbook.addWorksheet('Дискорд');
-  const last = Math.max(0, ...rows.map((row) => semesterOf(row)));
-  for (let semester = 1; semester <= last; semester += 1) {
-    setCell(
-      sheet,
-      { column: 2 * semester - 1, row: 1 },
-      `Семестар ${String(semester)}`,
-    );
-    setCell(sheet, { column: 2 * semester, row: 1 }, 'Предмети');
-  }
-  const used = new Map<number, number>();
-  for (const row of rows) {
-    const semester = semesterOf(row);
-    const line = 2 + (used.get(semester) ?? 0);
-    used.set(semester, line - 1);
-    setCell(sheet, { column: 2 * semester - 1, row: line }, row['channel']);
-    setCell(sheet, { column: 2 * semester, row: line }, row['course_names']);
-  }
-};
-
 // The year headers of the listener sheet: the given years in order (the
 // fifteen synthetic years, newest first, unless a test names others), then
 // any year a pattern row names that they lack.
@@ -343,9 +323,6 @@ const writeSource = (
   switch (spec.source.kind) {
     case 'course-enrollment-patterns':
       writePatterns(workbook, rows, headerYears(rows, years));
-      return;
-    case 'discord-pairs':
-      writeDiscord(workbook, rows);
       return;
     case 'generation-columns':
     case 'rows':
@@ -437,9 +414,6 @@ const readingOrder = (
   rows: readonly SyntheticRow[],
   headers: readonly string[],
 ): readonly SyntheticRow[] => {
-  if (spec.source.kind === 'discord-pairs') {
-    return rows.toSorted((left, right) => semesterOf(left) - semesterOf(right));
-  }
   if (spec.source.kind === 'course-enrollment-patterns') {
     const years = headerYears(rows, headers);
     return rows.toSorted(

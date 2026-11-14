@@ -63,12 +63,13 @@ export const rowsAt = (
 export const courseRow = (id: number, { rows }: RefusalContext) =>
   rows.courses[id - 1];
 
-// A course name of a Дискорд cell by its row, column and position:
-// Дискорд row 7, column 2, name 3.
+// A course name of a Discord channel row by its row and position:
+// Discord row 7, column "Предмет", name 3.
 export const channelNameAt = (
   { row, sheet }: SheetRow,
-  { column, name }: ChannelName,
-): string => `${sheetPlace(sheet, row, column)}, name ${String(name)}`;
+  { name }: ChannelName,
+): string =>
+  `${sheetPlace(sheet, row, headerOf('discord_channels', 'course_names'))}, name ${String(name)}`;
 
 // The lines of a teaching cell a case concerns: "line 3", "lines 3, 5".
 export const linesText = (lines: readonly number[]): string =>

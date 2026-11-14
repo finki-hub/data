@@ -89,7 +89,7 @@ const council = (
 };
 
 // Row-level candidates and findings for every workbook row that links to
-// another by label (a Дискорд cell by each of its course names, a Деканат
+// another by label (a Discord channel by each of its course names, a Деканат
 // row by its staff name), plus the duplicate rows the model must not guess
 // about.
 export const rowCandidates = (

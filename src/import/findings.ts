@@ -56,7 +56,6 @@ export const skippedCodes = [
 export const warningCodes = [
   'ambiguous_equivalency_entry',
   'duplicate_assignment',
-  'duplicate_course_channel',
   'duplicate_course_name',
   'duplicate_equivalency',
   'duplicate_staff_name',
@@ -75,8 +74,7 @@ export const warningCodes = [
 ] as const;
 
 // The warnings of what the import fixes by rule, never in the workbook:
-// a later teaching row of a course is ignored (the first is used), a
-// course a Дискорд cell names again keeps its first channel, an
+// a later teaching row of a course is ignored (the first is used), an
 // availability of TRUE without a name links nothing, a formula pattern
 // cell is not read, a name listed again in one teaching cell is linked
 // once, a typed pattern loses its line breaks, and the converted mappings
@@ -84,7 +82,6 @@ export const warningCodes = [
 // The summary places each case (fixes).
 export const ruleFixCodes = [
   'duplicate_assignment',
-  'duplicate_course_channel',
   'formula_pattern_cell',
   'newest_year_widened',
   'pattern_line_break',
@@ -94,7 +91,7 @@ export const ruleFixCodes = [
 
 export type RuleFixCode = (typeof ruleFixCodes)[number];
 
-// The warnings the summary places (fixes): every rule fix, and a Дискорд
+// The warnings the summary places (fixes): every rule fix, and a Discord
 // course name that matches no course, which links nothing and changes
 // nothing else.
 export const placedCodes = [
@@ -117,10 +114,9 @@ export type PartRows = {
   readonly ids: readonly number[];
 };
 
-// A course name of a Дискорд cell: the cell's column, which the sheet
-// heads with no name of its own (2 × semester), and the name's position in
-// the cell (1 for the first).
-export type ChannelName = { readonly column: number; readonly name: number };
+// A course name of a Discord channel row's Предмет cell: the name's
+// position in the cell (1 for the first).
+export type ChannelName = { readonly name: number };
 
 // What else a case involves, never a value: the rows of other parts it
 // concerns (such as the curriculum rows a name matches), the academic
@@ -129,8 +125,7 @@ export type ChannelName = { readonly column: number; readonly name: number };
 // read from (sheet, row and column header of a formula pattern cell,
 // whose ids are empty), the field of the row's cell a teaching case
 // concerns with its lines (1 for the first; none when the case is the
-// whole cell), and the Дискорд course name a case concerns, with the
-// channel row whose link is used instead (its ordinal and column).
+// whole cell), and the Discord course name a case concerns.
 type CaseDetail = {
   readonly academicYear?: string;
   readonly cell?: SheetCell;
@@ -139,7 +134,6 @@ type CaseDetail = {
   readonly generation?: '2018' | '2023';
   readonly lines?: readonly number[];
   readonly related?: readonly PartRows[];
-  readonly usedChannel?: { readonly column: number; readonly id: number };
 };
 
 export type Finding = CaseDetail &

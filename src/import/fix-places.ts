@@ -11,12 +11,11 @@ import {
 } from './findings.js';
 import { channelNameAt, headerOf, linesText } from './refusal-places.js';
 
-// Where each rule fix of the import applies, and where each Дискорд course
+// Where each rule fix of the import applies, and where each Discord course
 // name that matches no course stands, for the summary's `fixes`, from the
 // workbook places: `<sheet> row N[, column "X"][, line L][ (used: row M)]`,
-// or for a Дискорд name `Дискорд row N, column C, name K[ (used: row M[,
-// column C'])]`. A place names sheets, rows, columns, lines and name
-// positions, never a value.
+// or for a Discord name `Discord row N, column "Предмет", name K`. A place
+// names sheets, rows, columns, lines and name positions, never a value.
 
 type FixPlace = SheetRow & { readonly text: string };
 
@@ -37,8 +36,7 @@ const patternCell: Placer = ({ academicYear, collection, ids }, places) => {
     : { ...row, text: sheetPlace(row.sheet, row.row, academicYear) };
 };
 
-// A Дискорд course name: its channel row, the column of its cell and its
-// position there.
+// A Discord course name: its channel row and its position in the cell.
 const namePlace: Placer = ({ channelName, collection, ids }, places) => {
   const row = rowOf(collection, ids[0], places);
   return row === null || channelName === undefined
@@ -60,24 +58,6 @@ const placers: Readonly<Record<PlacedCode, Placer>> = {
     );
     const usedText = used === null ? '' : ` (used: row ${String(used.row)})`;
     return { ...row, text: `${sheetPlace(row.sheet, row.row)}${usedText}` };
-  },
-  // The later name of the course, and the channel row it keeps; that row's
-  // column only when it differs.
-  duplicate_course_channel: (finding, places) => {
-    const place = namePlace(finding, places);
-    const { channelName, usedChannel } = finding;
-    const used = rowOf('discord_channels', usedChannel?.id, places);
-    if (place === null || used === null || usedChannel === undefined) {
-      return place;
-    }
-    const column =
-      usedChannel.column === channelName?.column
-        ? ''
-        : `, column ${String(usedChannel.column)}`;
-    return {
-      ...place,
-      text: `${place.text} (used: row ${String(used.row)}${column})`,
-    };
   },
   // The pattern cell, its column named by its year.
   formula_pattern_cell: ({ cell }) =>

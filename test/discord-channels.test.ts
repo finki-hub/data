@@ -20,32 +20,38 @@ import {
 import { findCollection } from './data-model-test-helpers.js';
 import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
-// The Discord channels a course links to: the model, the relation both
-// forms edit, and how Studio shows them.
+// The Discord channels of the courses: the model, the junction both forms
+// edit, and how Studio shows them.
 
 const channelTemplate = '{{channel}} (semester {{semester}})';
 
-const channelLink = () => {
-  const relation = findModelRelation('courses', 'discord_channel');
+const junctionLink = (field: 'course' | 'discord_channel') => {
+  const relation = findModelRelation('discord_channel_courses', field);
   if (relation === undefined) {
-    throw new Error('courses.discord_channel is not a relation');
+    throw new Error(`discord_channel_courses.${field} is not a relation`);
   }
   return relation;
 };
 
 describe('the Discord channels', () => {
-  test('are reference lists declared right after the content, in the same collection order', () => {
-    expect(referenceCollections.map(({ collection }) => collection)).toEqual([
+  test('are reference lists declared right after the content, with their junction, in the same collection order', () => {
+    const order = [
       'discord_channels',
+      'discord_channel_courses',
       'student_council',
       'deans_office',
-    ]);
+    ];
+
+    expect(referenceCollections.map(({ collection }) => collection)).toEqual(
+      order,
+    );
     expect(
       dataModelCollectionKeys.slice(
         contentCollections.length,
         contentCollections.length + referenceCollections.length,
       ),
-    ).toEqual(['discord_channels', 'student_council', 'deans_office']);
+    ).toEqual(order);
+    expect(findCollection('discord_channel_courses').hidden).toBeTruthy();
   });
 
   test('hold a semester of at least 1 and the alias, and no course names', () => {
@@ -70,85 +76,115 @@ describe('the Discord channels', () => {
     });
   });
 
-  test('are linked from a course by an optional link that names the channel and its semester', () => {
-    const field = findCollection('courses').fields.find(
-      (candidate) => candidate.field === 'discord_channel',
-    );
-    if (field === undefined) {
-      throw new Error('courses has no discord_channel');
+  test('link to their courses through a junction whose two required links name the channel and the course', () => {
+    expect(findCollection('courses').fields.map(({ field }) => field)).toEqual([
+      'name',
+      'status',
+      'tags',
+    ]);
+
+    const [channel, course] = findCollection('discord_channel_courses').fields;
+    if (channel === undefined || course === undefined) {
+      throw new Error('discord_channel_courses lacks its links');
     }
 
-    expect(toFieldPayload(field, 4)).toMatchObject({
+    expect(toFieldPayload(channel, 1)).toMatchObject({
       meta: {
-        display: 'related-values',
         display_options: { template: channelTemplate },
         interface: 'select-dropdown-m2o',
-        options: { template: channelTemplate },
-        required: false,
+        required: true,
       },
-      schema: { is_nullable: true },
+      schema: { is_nullable: false },
+      type: 'integer',
+    });
+    expect(toFieldPayload(course, 2)).toMatchObject({
+      meta: { display_options: { template: '{{name}}' }, required: true },
+      schema: { is_nullable: false },
       type: 'integer',
     });
   });
 
-  test('clear the link when a channel is deleted or a course is taken out of its list', () => {
-    expect(toRelationPayload(channelLink())).toEqual({
-      collection: 'courses',
+  test('drop a junction row with either of its rows, or when it is taken out of a list', () => {
+    expect(toRelationPayload(junctionLink('discord_channel'))).toEqual({
+      collection: 'discord_channel_courses',
       field: 'discord_channel',
       meta: {
-        junction_field: null,
-        one_deselect_action: 'nullify',
+        junction_field: 'course',
+        one_deselect_action: 'delete',
         one_field: 'courses',
         sort_field: null,
       },
       related_collection: 'discord_channels',
-      schema: { on_delete: 'SET NULL' },
+      schema: { on_delete: 'CASCADE' },
     });
-    expect(toRelationAlignmentPayload(channelLink())).toMatchObject({
-      meta: { one_deselect_action: 'nullify', one_field: 'courses' },
-      schema: { on_delete: 'SET NULL' },
+    expect(toRelationPayload(junctionLink('course'))).toEqual({
+      collection: 'discord_channel_courses',
+      field: 'course',
+      meta: {
+        junction_field: 'discord_channel',
+        one_deselect_action: 'delete',
+        one_field: 'discord_channels',
+        sort_field: null,
+      },
+      related_collection: 'courses',
+      schema: { on_delete: 'CASCADE' },
+    });
+    expect(toRelationAlignmentPayload(junctionLink('course'))).toMatchObject({
+      meta: { one_deselect_action: 'delete', one_field: 'discord_channels' },
+      schema: { on_delete: 'CASCADE' },
     });
   });
 
-  test('list their courses by name, picked from the existing courses and never created there', () => {
+  test('list their courses by name, and a course its channels, picked from the existing rows and never created there', () => {
     const [alias, ...others] = aliasesFor('discord_channels');
 
     expect(others).toEqual([]);
     expect(alias?.alias).toEqual({
       field: 'courses',
-      fields: ['name'],
+      fields: ['course'],
+      junction: 'course',
       label: 'Courses',
-      template: '{{name}}',
+      template: '{{course.name}}',
     });
-    // The installer writes the usual editable list; presentation then
-    // turns off creating a course from the channel form.
-    expect(alias && toAliasPayload(alias.alias, 3).meta.options).toMatchObject({
-      enableCreate: true,
+    expect(alias && toAliasPayload(alias.alias, 3).meta).toMatchObject({
+      interface: 'list-m2m',
+      options: { enableCreate: false, enableSelect: true },
+      special: ['m2m'],
     });
     expect(findFieldPatch('discord_channels', 'courses')?.meta).toMatchObject({
       options: { enableCreate: false },
     });
     expect(effectiveFieldMeta('discord_channels', 'courses')).toMatchObject({
-      interface: 'list-o2m',
+      interface: 'list-m2m',
       options: {
         enableCreate: false,
         enableLink: true,
         enableSelect: true,
-        fields: ['name'],
-        template: '{{name}}',
+        fields: ['course'],
+        template: '{{course.name}}',
+      },
+      readonly: false,
+    });
+    expect(effectiveFieldMeta('courses', 'discord_channels')).toMatchObject({
+      interface: 'list-m2m',
+      options: {
+        enableCreate: false,
+        enableSelect: true,
+        template:
+          '{{discord_channel.channel}} (semester {{discord_channel.semester}})',
       },
       readonly: false,
     });
   });
 
-  test("show the course's channel in the course form's first group", () => {
+  test("show the course's channels in the course form's first group", () => {
     expect(
       fieldGroups.find(
         ({ collection, field }) =>
           collection === 'courses' && field === 'overview',
       )?.members,
-    ).toEqual(['name', 'tags', 'discord_channel']);
-    expect(effectiveFieldMeta('courses', 'discord_channel')).toMatchObject({
+    ).toEqual(['name', 'tags', 'discord_channels']);
+    expect(effectiveFieldMeta('courses', 'discord_channels')).toMatchObject({
       group: 'overview',
       sort: 3,
     });

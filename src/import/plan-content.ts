@@ -8,6 +8,7 @@ import type { Candidates } from './candidates.js';
 import { findModelCollection } from '../data-model/collections.js';
 import { linkedRow } from './labels.js';
 import {
+  compositeKey,
   planned,
   type PlannedRecord,
   type PlannedRow,
@@ -51,27 +52,31 @@ export const contentRows = (
     ),
   );
 
-// The teaching status of a course row, decided from its teaching cells,
-// and its Discord channel: the first channel row naming it, or none.
-export const courseLinks = ({
-  channels,
-  courses,
-}: Pick<Candidates, 'channels' | 'courses'>) => {
+// The teaching status of a course row, decided from its teaching cells.
+export const courseLinks = ({ courses }: Pick<Candidates, 'courses'>) => {
   const statuses = new Map(
     courses.map(({ id, teaching }) => [id, teaching.status]),
   );
-  const linked = new Map(
-    channels.map(({ channel, course }) => [course, channel]),
-  );
-  return (id: number): PlannedRecord => {
-    const channel = linked.get(id);
-    return {
-      discord_channel:
-        channel === undefined ? null : ref('discord_channels', channel),
-      status: statuses.get(id) ?? null,
-    };
-  };
+  return (id: number): PlannedRecord => ({
+    status: statuses.get(id) ?? null,
+  });
 };
+
+// One junction row per Discord channel row and course its Предмет cell
+// names, from the channel's row.
+export const channelCourses = (
+  channels: Candidates['channels'],
+): readonly PlannedRow[] =>
+  channels.map(({ channel, course }) =>
+    planned(
+      compositeKey(channel, course),
+      {
+        course: ref('courses', course),
+        discord_channel: ref('discord_channels', channel),
+      },
+      { id: channel, source: 'discord_channels' },
+    ),
+  );
 
 // The course of an equivalency row, when its 2023 label names exactly
 // one course.

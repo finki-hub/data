@@ -45,7 +45,7 @@ export const reportBlocked = (
 
 // `npm run import [--dry-run]`: returns the exit code (see exitCodes) and
 // prints aggregate counts and places only, never a value: the places of
-// every rule fix and of each Дискорд course name that matches no course
+// every rule fix and of each Discord course name that matches no course
 // (placedCodes). Both commands read the workbook and run the same check
 // before Directus is contacted: a workbook that cannot be read fails
 // (exit 1); every value no column can hold and every case the import

@@ -201,7 +201,7 @@ when Studio opens, with **Moodle users** directly in the sidebar between
 | **Staff & rooms** | Staff, Rooms, Dean's office |
 | **Students** | Students, Student council |
 | **Enrollments** | Academic years, History lines (with the **Unmapped history lines** bookmark), Pattern mappings, Explicit mappings |
-| **Internals** | Enrollment counts, and the helper collections Studio hides: curriculum links, program states, counted lines, history memberships, snapshot staging rows, match candidates and Data operations |
+| **Internals** | Enrollment counts, and the helper collections Studio hides: curriculum links, program states, channel courses, counted lines, history memberships, snapshot staging rows, match candidates and Data operations |
 
 **Moodle users** carries the **Search** bookmark. Setup creates a folder
 only while it is missing and files a collection only while it is in no
@@ -225,7 +225,7 @@ the new folders are added empty.
    the cases that would refuse it (`blockers`), of the rows it would skip
    (`skipped`) and of the warnings (`warnings`), the count per column of
    the values no column can hold (`unstorable`), and the place of every
-   case the import fixes by rule and of every `Дискорд` course name that
+   case the import fixes by rule and of every `Discord` course name that
    matches no course (`fixes`, below). When the import would refuse the
    workbook it exits with code 3: the first stderr line counts the cases,
    and every later line names one case as
@@ -237,8 +237,8 @@ the new folders are added empty.
    blocking case is placed by the sheet and row it concerns, with the
    course after its row (a curriculum code by its cell instead, a
    `Деканат` name by its cell, such as `Деканат row 7, column "Име"`, and
-   a `Дискорд` course name by its cell and its position there, such as
-   `Дискорд row 7, column 2, name 3`); the table below says what to
+   a `Discord` course name by its cell and its position there, such as
+   `Discord row 7, column "Предмет", name 3`); the table below says what to
    change for each code. The dry run exits with code 1
    when the workbook cannot be read. The lines quote course and curriculum
    names, curriculum codes, 2018 labels, credits, availabilities and the
@@ -354,12 +354,6 @@ Directus untouched:
     neither planned nor checked, and the first row is used, as the
     spreadsheet's VLOOKUP did (`duplicate_assignment`; the place names
     the row used);
-  - a course a `Дискорд` cell names again keeps the channel of the first
-    row naming it, in the order the import reads the sheet (semester by
-    semester), and the later name links nothing
-    (`duplicate_course_channel`; the place names the cell, the name's
-    position in it and the row used, with that row's column when it
-    differs);
   - an availability of TRUE of a generation without its name links
     nothing and publishes FALSE, as above (`unlinked_availability`);
   - a formula in a `Слушатели` pattern cell is not read, and that course
@@ -374,22 +368,20 @@ Directus untouched:
     pattern cell in that year (`newest_year_widened`; the place is that
     year's cell of the course).
 
-  A `Дискорд` course name that matches no course is no rule fix: it links
+  A `Discord` course name that matches no course is no rule fix: it links
   nothing, the channel row is still imported, and `fixes` places the name
-  by its cell and its position there (`unmatched_channel_course`). A
-  `Дискорд` place gives the column by number: semester N is columns
-  2N - 1 (the channel) and 2N (the course names).
+  by its row, its `Предмет` cell and its position there
+  (`unmatched_channel_course`).
 
   ```json
   "fixes": {
     "duplicate_assignment": ["Наставен Кадар row 3 (used: row 2)"],
-    "duplicate_course_channel": ["Дискорд row 9, column 2, name 1 (used: row 3)"],
     "formula_pattern_cell": ["Слушатели row 2, column \"2024/2025\""],
     "newest_year_widened": ["Слушатели row 69, column \"2026/2027\""],
     "pattern_line_break": ["Слушатели row 18, column \"2024/2025\""],
     "repeated_staff_name": ["Наставен Кадар row 22, column \"Професори\", line 3"],
     "unlinked_availability": ["Предмети (Export) row 4, column \"2018-available\""],
-    "unmatched_channel_course": ["Дискорд row 7, column 6, name 2"]
+    "unmatched_channel_course": ["Discord row 7, column \"Предмет\", name 2"]
   }
   ```
 - Everything else is imported as the workbook holds it, and what deserves
@@ -404,7 +396,7 @@ The codes both summaries print (declared in `src/import/findings.ts`;
 
 | Code | Group | Meaning |
 | --- | --- | --- |
-| `ambiguous_course_name` | refuses | A teaching, pattern or equivalency row, or a `Дискорд` cell, names a course name that several courses carry; a `Дискорд` name is placed by its cell and position. |
+| `ambiguous_course_name` | refuses | A teaching, pattern or equivalency row, or a `Discord` cell, names a course name that several courses carry; a `Discord` name is placed by its cell and position. |
 | `ambiguous_curriculum_2018` | refuses | A course's 2018 name (its override or its equivalency label) matches several 2018 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_curriculum_2023` | refuses | A course's 2023 name matches several 2023 curriculum rows that carry different codes, or one without a code. |
 | `ambiguous_legacy_equivalency` | refuses | The equivalency rows of a course carry different 2018 labels. |
@@ -429,7 +421,6 @@ The codes both summaries print (declared in `src/import/findings.ts`;
 | `unknown_academic_year` | skipped | A pattern of a year the `Слушатели` sheet does not head. |
 | `ambiguous_equivalency_entry` | warning | An equivalency label matches several curriculum rows of its generation that carry different codes, or one without a code; the member keeps the label without an entry. |
 | `duplicate_assignment` | warning | A second or later `Наставен Кадар` row names a course; it is ignored, and the first row is used (rule fix). |
-| `duplicate_course_channel` | warning | A `Дискорд` cell names a course an earlier channel row (or the same cell) already names; the course keeps the first channel, and the later name links nothing (rule fix). |
 | `duplicate_course_name` | warning | Several courses share one name. |
 | `duplicate_equivalency` | warning | Several equivalency rows name one course, with no conflicting 2018 label. |
 | `duplicate_staff_name` | warning | Several staff rows share one name. |
@@ -441,7 +432,7 @@ The codes both summaries print (declared in `src/import/findings.ts`;
 | `pattern_line_break` | warning | A `Слушатели` pattern cell holds a pasted line break; it is removed (rule fix). |
 | `repeated_staff_name` | warning | A staff name listed again in one teaching cell; it is linked once (rule fix). |
 | `unlinked_availability` | warning | A course has an availability of TRUE of a generation but no name of that generation; it links nothing and publishes FALSE (rule fix). |
-| `unmatched_channel_course` | warning | A `Дискорд` course name matches no course name exactly (no trimming); it links nothing, and the channel row is imported. Not a rule fix, but placed under `fixes`. |
+| `unmatched_channel_course` | warning | A `Discord` course name matches no course name exactly (no trimming); it links nothing, and the channel row is imported. Not a rule fix, but placed under `fixes`. |
 | `unmatched_council_index` | warning | A council index no student carries; the member is imported, labelled by the index. |
 | `unmatched_equivalency_entry` | warning | An equivalency label matches no curriculum row of its generation; the member keeps the label without an entry. |
 | `unreferenced_rows` | warning | Curriculum rows no course names; they are imported as entries without a course link. |
@@ -459,8 +450,9 @@ its coordination status row, is accepted. On an accepted project it:
    reference set to the id Directus answered for the row it names (see
    [What the workbook fills](#what-the-workbook-fills)): the academic years,
    curriculum generations and study programs; the staff, rooms, students,
-   Discord channels and Moodle users; the courses with their status and
-   Discord channel; the curriculum entries with their program states; the
+   Discord channels and Moodle users; the courses with their status, and
+   the links of the Discord channels to them; the curriculum entries with
+   their program states; the
    course links; the pattern mappings; the staff links; the equivalencies
    with their members; the council; the dean's office terms with their
    staff members. Every course is posted with an empty
@@ -706,9 +698,9 @@ template: a teaching row as course, person and role, a room as name
 
 Every independent dataset in the workbook is imported. Cached spreadsheet
 formula results are not treated as source data. A tabular sheet is read one
-row per non-empty row below its header; the two index sheets one row per
-student of each index and name column pair, headed by its source group;
-`Дискорд` one row per channel pair of each semester's column pair; and
+row per non-empty row below its header (`Discord` heads its table on row
+4, below the sheet's totals); the two index sheets one row per student of
+each index and name column pair, headed by its source group; and
 `Слушатели` only its explicit patterns, one per course and year group (found
 by its year label in row 1) whose pattern cell, the group's third column,
 holds a value rather than a formula (a formula cell is reported,
@@ -725,7 +717,7 @@ relational rows straight from them:
 | `Еквиваленции` | `course_equivalencies`, linked to the course its 2023 label names, each filled label a `course_equivalency_members` row; one label column per generation, headed `Предмет (<generation code>)`. The column of a label-only generation (2013) may be missing and then reads as empty; a missing column of a generation with a curriculum, a header that names no known generation, or a filled cell under an empty header stops the import (exit code 1) |
 | `Наставен Кадар` | the course's **Status** and its `teaching_assignments` staff links: one per line naming a `Кадар (Export)` row exactly, professors then assistants in cell order (`sort`); a professors cell of exactly `Сите професори` gives All professors, of exactly `(неактивиран предмет)` Inactive (its assistants cell empty or the same text) |
 | `Слушатели` | `academic_years` from the labels heading its year column groups, and the `moodle_pattern_mappings` of every course: its own name, and its patterns skipped, converted into all-years mappings or kept in their year (see [One-time workbook import](#one-time-workbook-import) and [Enrollment counts](#enrollment-counts)) |
-| `Дискорд` | `discord_channels`, one row per channel pair (its semester and channel); the course names cell is split on `" / "` exactly (a space, a slash and a space; a name may hold a comma or a bare slash), and each name links the course of exactly that name to the channel (`courses.discord_channel`); a course keeps the first channel naming it |
+| `Discord` | `discord_channels`, one row per table row (its `Семестар` and its `Кратенка` as the channel; `Година` and `Тип` follow from the semester and are not read); the `Предмет` cell is split on `" / "` exactly (a space, a slash and a space; a name may hold a comma or a bare slash), and each name links the course of exactly that name to the channel through a `discord_channel_courses` row; a course may have several channels (an undergraduate and a master's one), and a name repeated in one cell links once |
 | `ФСС` | `student_council`, linked to the student of its index |
 | `Деканат` | `deans_office`, one term per row (its year and position), linked to the staff member whose `Кадар (Export)` name is exactly its `Име` (no trimming); a name no staff row or several carry refuses the import |
 | `Courses` | `moodle_users`, the active Moodle snapshot; the schedule builds its history index |
@@ -755,10 +747,9 @@ or FALSE of a generation a course has no name for holds no value, so the
 import links nothing and `courses.json` publishes FALSE for that
 availability, as for an empty cell; a second or later teaching row of a
 course is ignored and the first is used; a formula pattern cell is not
-read; a staff name listed again in one teaching cell is linked once; a
-course a `Дискорд` cell names again keeps its first channel. Each of these
-but FALSE is a rule fix, a warning placed under `fixes`. A `Дискорд`
-course name that matches no course links nothing and is placed there as
+read; a staff name listed again in one teaching cell is linked once.
+Each of these but FALSE is a rule fix, a warning placed under `fixes`. A
+`Discord` course name that matches no course links nothing and is placed there as
 well. Only rows no published file ever used are left out, and the import
 counts them (see [One-time workbook import](#one-time-workbook-import)).
 
@@ -802,7 +793,8 @@ database guards the table:
   last error) across everything, and setup never resets it.
 
 A course holds what `courses.json` publishes from it directly (name,
-tags, status) and its Discord channel link, which publishes nothing; its
+tags, status); its Discord channels link to it through
+`discord_channel_courses`, which publishes nothing; its
 curriculum lives in its links, its staff in its staff links, and a
 council member is named by the linked student (its index labels an
 unlinked one).
@@ -881,7 +873,7 @@ no setup rerun.
 ### Forms and relationships
 
 A course is the entry point. Its form has five sections: **Basics** (name,
-tags and **Discord channel**), **Curriculum** (**Curriculum links** and
+tags and **Discord channels**), **Curriculum** (**Curriculum links** and
 **Equivalencies**), **Teaching** (**Status** and **Teaching staff**),
 **Moodle mappings** (**Pattern mappings** and **Explicit mappings** of
 Moodle history lines per academic year) and **Enrollments** (the derived
@@ -910,14 +902,16 @@ for**, and the **Users** carrying it (the last two derived and read-only).
   the course or the staff member, deletes the link. When that removes an
   Active course's last professor, publishing is blocked until another is
   added.
-- A course has at most one **Discord channel**, picked on the course
-  form or by adding the course to the channel's **Courses** list, which
-  picks existing courses and never creates one. Taking the course out of
-  that list, or deleting the channel, clears the link. A channel needs its
-  semester (1 or more) and channel name. The link publishes nothing:
+- A course may have several **Discord channels** (an undergraduate and a
+  master's one) and a channel several **Courses**, linked through
+  `discord_channel_courses` from either form; both lists pick existing
+  rows and never create one, and the database refuses a second link of
+  one channel and course. Taking a row out of either list, or deleting
+  the channel or the course, deletes the link. A channel needs its
+  semester (1 or more) and channel name. The links publish nothing:
   `channel` and `<generation>-channel` in `courses.json` come from the
   **Has a Discord channel** checkbox of the course's curriculum entries,
-  which is kept apart from the link.
+  which is kept apart from the links.
 - A dean's office term needs its year, its **Position** and its staff
   member. The position is one of Dean, Vice-dean for teaching, Vice-dean
   for science and cooperation and Vice-dean for finance, stored as the

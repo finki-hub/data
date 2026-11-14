@@ -194,6 +194,13 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'unique',
     name: 'course_equivalency_members_equivalency_generation_unique',
   },
+  // A channel links a course once.
+  {
+    collection: 'discord_channel_courses',
+    columns: ['discord_channel', 'course'],
+    kind: 'unique',
+    name: 'discord_channel_courses_discord_channel_course_unique',
+  },
   {
     collection: 'moodle_history_memberships',
     columns: ['moodle_user', 'entry'],

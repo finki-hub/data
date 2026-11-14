@@ -21,6 +21,7 @@ const sorted = (values: readonly string[]): readonly string[] =>
 const helperCollections = [
   'course_curricula',
   'curriculum_entry_program_states',
+  'discord_channel_courses',
   'data_operation_matches',
   'data_operations',
   'moodle_counted_lines',
@@ -96,6 +97,7 @@ describe('navigation', () => {
         'course_enrollments',
         'course_curricula',
         'curriculum_entry_program_states',
+        'discord_channel_courses',
         'moodle_counted_lines',
         'moodle_history_memberships',
         'moodle_import_rows',

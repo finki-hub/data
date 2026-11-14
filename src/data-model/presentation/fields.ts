@@ -18,7 +18,8 @@ export const fieldPresentations: readonly FieldPresentation[] = [
     },
   },
   { collection: 'teaching_assignments', field: 'sort', meta: { hidden: true } },
-  // A channel's list picks existing courses; it never creates one.
+  // A channel's list picks existing courses; it never creates one (the
+  // junction lists already create no related row).
   {
     collection: 'discord_channels',
     field: 'courses',

@@ -77,6 +77,7 @@ describe('the order the import writes in', () => {
       'discord_channels',
       'moodle_users',
       'courses',
+      'discord_channel_courses',
       'curriculum_entries',
       'curriculum_entry_program_states',
       'course_curricula',
@@ -184,7 +185,6 @@ describe('content rows', () => {
     const plan = planOf(dataset);
 
     expect(recordsIn(plan, 'courses')[1]).toEqual({
-      discord_channel: null,
       name: courseNames.beta,
       status: 'active',
       tags: '',

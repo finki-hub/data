@@ -13,7 +13,7 @@ import {
   ruleFixCodes,
 } from '../src/import/findings.js';
 import { planImport } from '../src/import/plan.js';
-import { type PlannedValue, ref } from '../src/import/planned.js';
+import { isRef } from '../src/import/planned.js';
 import { readWorkbookContent } from '../src/workbook.js';
 import {
   courseNames,
@@ -24,10 +24,11 @@ import { reloaded, syntheticWorkbook } from './fixtures/synthetic-workbook.js';
 import { contentOf, planOf, recordsIn } from './import-plan-helpers.js';
 import { parityDataset } from './relational-export-helpers.js';
 
-// The Discord channel of each course, linked by the import from the course
-// names of the Дискорд cells. In the parity dataset channel 1 (semester 1)
-// names Gamma and Delta, channel 2 (semester 6) names Zeta; contentOf
-// places channel N on Дискорд row N + 1.
+// The Discord channels of each course, linked by the import from the
+// course names of the Предмет cells of the Discord sheet. In the parity
+// dataset channel 1 (semester 1) names Gamma and Delta, channel 2
+// (semester 6) names Zeta; the sheet heads its table on row 4, so
+// contentOf places channel N on Discord row N + 4.
 
 const nobody = 'Synthetic Course Nobody';
 
@@ -47,31 +48,40 @@ const channel = (
   semester,
 });
 
-// The planned channel of every course, by course name (unique in the
-// parity dataset).
+// The planned channel rows (plan keys) of every course, by course name
+// (unique in the parity dataset), from the junction rows.
 const channelsOf = (
-  dataset: SyntheticDataset,
-): ReadonlyMap<string, PlannedValue> =>
-  new Map(
-    recordsIn(planOf(dataset), 'courses').map((record) => {
-      const name = record['name'];
-      return [
-        typeof name === 'string' ? name : '',
-        record['discord_channel'] ?? null,
-      ];
-    }),
+  plan: ReturnType<typeof planOf>,
+): ReadonlyMap<string, readonly string[]> => {
+  const names = recordsIn(plan, 'courses').map((record) =>
+    typeof record['name'] === 'string' ? record['name'] : '',
   );
+  const linked = new Map<string, string[]>();
+  for (const record of recordsIn(plan, 'discord_channel_courses')) {
+    const { course, discord_channel: channelRef } = record;
+    if (
+      course === undefined ||
+      channelRef === undefined ||
+      !isRef(course) ||
+      !isRef(channelRef)
+    ) {
+      throw new TypeError('a junction row links by reference');
+    }
+    const name = names[Number(course.key) - 1] ?? '';
+    linked.set(name, [...(linked.get(name) ?? []), channelRef.key]);
+  }
+  return linked;
+};
 
 const summaryOf = (dataset: SyntheticDataset) =>
   checkSummary(planOf(dataset), contentOf(dataset));
 
 const discordCodes = new Set([
   'ambiguous_course_name',
-  'duplicate_course_channel',
   'unmatched_channel_course',
 ]);
 
-describe('the course names of a Дискорд cell', () => {
+describe('the course names of a Предмет cell', () => {
   test('split on " / " exactly, so a name with a comma or a bare slash stays whole', () => {
     expect(channelNames('Gamma Course / Delta Course')).toEqual([
       'Gamma Course',
@@ -91,32 +101,32 @@ describe('the course names of a Дискорд cell', () => {
   });
 });
 
-describe('the Discord channel of a course', () => {
+describe('the Discord channels of a course', () => {
   test('links every course a cell names to that channel row, and no other course', () => {
     const dataset = parityDataset();
     const plan = planOf(dataset);
-    const linked = channelsOf(dataset);
+    const linked = channelsOf(plan);
 
     expect(refusalCount(plan)).toBe(0);
-    expect(linked.get(courseNames.gamma)).toEqual(ref('discord_channels', 1));
-    expect(linked.get(courseNames.delta)).toEqual(ref('discord_channels', 1));
-    expect(linked.get(courseNames.zeta)).toEqual(ref('discord_channels', 2));
-    expect(
-      linked
-        .values()
-        .filter((value) => value !== null)
-        .toArray(),
-    ).toHaveLength(3);
+    expect(linked.get(courseNames.gamma)).toEqual(['1']);
+    expect(linked.get(courseNames.delta)).toEqual(['1']);
+    expect(linked.get(courseNames.zeta)).toEqual(['2']);
+    expect(linked.size).toBe(3);
     expect(
       [...plan.blockers, ...plan.warnings].filter(({ code }) =>
         discordCodes.has(code),
       ),
     ).toEqual([]);
-    // The channel rows keep their semester and alias; the names are links.
+    // The channel rows keep their semester and alias; the names are links,
+    // and a course row carries none.
     expect(recordsIn(plan, 'discord_channels')).toEqual([
       { semester: 1, channel: 'gamma-and-delta' },
       { semester: 6, channel: 'zeta' },
     ]);
+
+    for (const record of recordsIn(plan, 'courses')) {
+      expect(record).not.toHaveProperty('discord_channel');
+    }
   });
 
   test('links nothing for a name no course carries, imports the channel row, and places the name', () => {
@@ -130,11 +140,9 @@ describe('the Discord channel of a course', () => {
     expect(refusalCount(plan)).toBe(0);
     expect(summary.warnings).toMatchObject({ unmatched_channel_course: 1 });
     expect(summary.fixes).toMatchObject({
-      unmatched_channel_course: ['Дискорд row 2, column 2, name 2'],
+      unmatched_channel_course: ['Discord row 5, column "Предмет", name 2'],
     });
-    expect(channelsOf(dataset).get(courseNames.delta)).toEqual(
-      ref('discord_channels', 1),
-    );
+    expect(channelsOf(plan).get(courseNames.delta)).toEqual(['1']);
     expect(recordsIn(plan, 'discord_channels')).toHaveLength(2);
     expect(JSON.stringify(summary)).not.toContain(nobody);
   });
@@ -148,7 +156,7 @@ describe('the Discord channel of a course', () => {
     ]);
 
     expect(summaryOf(dataset).fixes).toMatchObject({
-      unmatched_channel_course: ['Дискорд row 2, column 2, name 2'],
+      unmatched_channel_course: ['Discord row 5, column "Предмет", name 2'],
     });
   });
 
@@ -167,44 +175,35 @@ describe('the Discord channel of a course', () => {
       .join(', ');
 
     expect(refusalLines(plan, contentOf(dataset))).toContain(
-      `- [ambiguous_course_name] Дискорд row 3, column 12, name 1 «Zeta Course»: matches Предмети (Export) rows ${zetaRows}`,
+      `- [ambiguous_course_name] Discord row 6, column "Предмет", name 1 «Zeta Course»: matches Предмети (Export) rows ${zetaRows}`,
     );
-    expect(channelsOf(dataset).get(courseNames.zeta)).toBeNull();
+    expect(channelsOf(plan).get(courseNames.zeta)).toBeUndefined();
   });
 
-  test('keeps the first channel row naming a course, ignores a later name of it, and places that name with the row used', () => {
+  test('links a course to every channel naming it, and a name repeated in one cell once, with no finding', () => {
     const dataset = withChannels(parityDataset(), [
       channel(1, 1, [courseNames.gamma, courseNames.delta]),
-      channel(2, 6, [courseNames.zeta, courseNames.gamma]),
+      channel(2, 9, [courseNames.zeta, courseNames.gamma]),
       channel(3, 1, [courseNames.delta]),
       channel(4, 2, [courseNames.beta, courseNames.beta]),
     ]);
     const plan = planOf(dataset);
-    const linked = channelsOf(dataset);
+    const linked = channelsOf(plan);
 
     expect(refusalCount(plan)).toBe(0);
-    expect(linked.get(courseNames.gamma)).toEqual(ref('discord_channels', 1));
-    expect(linked.get(courseNames.delta)).toEqual(ref('discord_channels', 1));
-    expect(linked.get(courseNames.zeta)).toEqual(ref('discord_channels', 2));
-    expect(linked.get(courseNames.beta)).toEqual(ref('discord_channels', 4));
-    expect(summaryOf(dataset)).toMatchObject({
-      fixes: {
-        duplicate_course_channel: [
-          // Another semester's row: its column too.
-          'Дискорд row 3, column 12, name 2 (used: row 2, column 2)',
-          // The same column.
-          'Дискорд row 4, column 2, name 1 (used: row 2)',
-          // A name listed again in one cell.
-          'Дискорд row 5, column 4, name 2 (used: row 5)',
-        ],
-      },
-      warnings: { duplicate_course_channel: 3 },
-    });
+    expect(linked.get(courseNames.gamma)).toEqual(['1', '2']);
+    expect(linked.get(courseNames.delta)).toEqual(['1', '3']);
+    expect(linked.get(courseNames.zeta)).toEqual(['2']);
+    expect(linked.get(courseNames.beta)).toEqual(['4']);
+    expect(recordsIn(plan, 'discord_channel_courses')).toHaveLength(6);
+    expect(
+      [...plan.blockers, ...plan.warnings].filter(({ code }) =>
+        discordCodes.has(code),
+      ),
+    ).toEqual([]);
   });
 
-  test('reads the column of each cell from its semester, and keeps the first row in the order the sheet is read', async () => {
-    // Channel 1 (semester 6) is read after channel 2 (semester 1), each on
-    // row 2 of its column pair.
+  test('reads the table below its header row, past a blank row, in sheet order', async () => {
     const dataset = withChannels(parityDataset(), [
       channel(1, 6, [courseNames.zeta, nobody]),
       channel(2, 1, [courseNames.gamma, courseNames.zeta]),
@@ -213,35 +212,24 @@ describe('the Discord channel of a course', () => {
       await reloaded(syntheticWorkbook(dataset)),
     );
     const plan = planImport(content);
-    const courses = recordsIn(plan, 'courses');
 
     expect(checkSummary(plan, content).fixes).toMatchObject({
-      duplicate_course_channel: [
-        'Дискорд row 2, column 12, name 1 (used: row 2, column 2)',
-      ],
-      unmatched_channel_course: ['Дискорд row 2, column 12, name 2'],
+      unmatched_channel_course: ['Discord row 5, column "Предмет", name 2'],
     });
-    // Ordinal 1 is the semester-1 row, read first.
+    // Ordinals follow the rows of the sheet, whatever their semester.
     expect(recordsIn(plan, 'discord_channels')).toEqual([
-      { semester: 1, channel: 'channel-2' },
       { semester: 6, channel: 'channel-1' },
+      { semester: 1, channel: 'channel-2' },
     ]);
-    expect(
-      courses.find((record) => record['name'] === courseNames.zeta),
-    ).toMatchObject({ discord_channel: ref('discord_channels', 1) });
+    expect(channelsOf(plan).get(courseNames.zeta)).toEqual(['1', '2']);
   });
 });
 
 describe('the Discord codes', () => {
-  test('are warnings; a later name of a course is a rule fix, and a name no course carries is placed without being one', () => {
-    for (const code of [
-      'duplicate_course_channel',
-      'unmatched_channel_course',
-    ] as const) {
-      expect(isWarning(finding(code, 'discord_channels', [1]))).toBeTruthy();
-    }
-
-    expect([...ruleFixCodes]).toContain('duplicate_course_channel');
+  test('are warnings; a name no course carries is placed without being a rule fix', () => {
+    expect(
+      isWarning(finding('unmatched_channel_course', 'discord_channels', [1])),
+    ).toBeTruthy();
     expect([...ruleFixCodes]).not.toContain('unmatched_channel_course');
     expect([...placedCodes]).toEqual([
       ...ruleFixCodes,
