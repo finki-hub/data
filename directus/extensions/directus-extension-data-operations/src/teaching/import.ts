@@ -9,6 +9,7 @@ import {
   type ListedTimetable,
   listingSchema,
   mainTimetables,
+  recentTimetables,
   semesterOf,
   type Timetable,
   timetableSchema,
@@ -241,6 +242,7 @@ export const runTimetableImport = async (
     source,
   );
   const stores = toStore(plan, downloads);
+  const recent = recentTimetables(listed, main);
   const timetables = listed.map((timetable) => {
     const { academicYear, term } = semesterOf(timetable.dateFrom);
     return {
@@ -249,6 +251,7 @@ export const runTimetableImport = async (
       edupage_id: timetable.id,
       hidden: timetable.hidden,
       main: main.has(timetable.id),
+      recent: recent.has(timetable.id),
       term,
       title: timetable.title,
     };

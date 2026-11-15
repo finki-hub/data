@@ -54,6 +54,38 @@ const withStafflessProfessor = (store: FakeStore) =>
 
 const unchanged = (store: FakeStore) => store;
 
+// The fixture's staff: 1 Active, 2 Inactive, 3 Minimal.
+const staffIds = { active: 1, inactive: 2, minimal: 3 } as const;
+
+type TeachingRow = {
+  readonly periods: number;
+  readonly role: string;
+  readonly staff: number;
+  readonly timetable: number;
+};
+
+// The store with three timetables, the first two published, and Theta's
+// teaching rows in them.
+const withTeaching = (store: FakeStore, rows: readonly TeachingRow[]) =>
+  edit(
+    edit(store, 'timetables', () => [
+      { date_from: '2026-10-10', id: 1, recent: true },
+      { date_from: '2026-02-23', id: 2, recent: true },
+      { date_from: '2020-10-16', id: 3, recent: false },
+    ]),
+    'course_teaching',
+    () => rows.map((row, index) => ({ course: theta, id: index + 1, ...row })),
+  );
+
+// The store with Theta's accreditation teachers: one of generation 2018
+// and two of 2023.
+const withAccreditation = (store: FakeStore) =>
+  edit(store, 'course_accreditation_staff', () => [
+    { course: theta, generation: 2, id: 1, sort: 1, staff: staffIds.active },
+    { course: theta, generation: 3, id: 2, sort: 2, staff: staffIds.minimal },
+    { course: theta, generation: 3, id: 3, sort: 1, staff: staffIds.inactive },
+  ]);
+
 describe('teaching staff by status', () => {
   test('publishes the Inactive text as both keys and the All professors text as professors, whatever the links are', async () => {
     // A link the status replaces is not read, even without staff.
@@ -131,5 +163,63 @@ describe('teaching staff by status', () => {
     // Delta (Inactive), Epsilon and Zeta (All professors) have none.
     await expect(coursesOf(await importedStore())).resolves.toHaveLength(8);
     await expect(coursesOf(inactive)).resolves.toHaveLength(8);
+  });
+});
+
+describe('teaching staff by source', () => {
+  test('publishes who taught the course in the published timetables over its accreditation and links', async () => {
+    const store = withAccreditation(
+      withTeaching(await importedStore(), [
+        {
+          periods: 4,
+          role: 'professor',
+          staff: staffIds.inactive,
+          timetable: 1,
+        },
+        { periods: 2, role: 'assistant', staff: staffIds.active, timetable: 1 },
+        { periods: 3, role: 'professor', staff: staffIds.active, timetable: 2 },
+        {
+          periods: 2,
+          role: 'assistant',
+          staff: staffIds.minimal,
+          timetable: 1,
+        },
+        // An unpublished timetable is not read.
+        {
+          periods: 2,
+          role: 'professor',
+          staff: staffIds.minimal,
+          timetable: 3,
+        },
+      ]),
+    );
+
+    // A professor in any published timetable is a professor; each list
+    // runs from the latest timetable, then the most weekly periods in it.
+    await expect(thetaRow(store)).resolves.toMatchObject({
+      assistants: staffNames.minimal,
+      professors: [staffNames.inactive, staffNames.active].join('\n'),
+    });
+  });
+
+  test("falls back to the newest generation's accreditation teachers, with no assistants", async () => {
+    const store = withAccreditation(
+      withTeaching(await importedStore(), [
+        { periods: 2, role: 'professor', staff: staffIds.active, timetable: 3 },
+      ]),
+    );
+    const row = await thetaRow(store);
+
+    expect(row?.['professors']).toBe(
+      [staffNames.inactive, staffNames.minimal].join('\n'),
+    );
+    expect(row).not.toHaveProperty('assistants');
+  });
+
+  test('falls back to the hand-kept links without either', async () => {
+    await expect(thetaRow(await importedStore())).resolves.toMatchObject({
+      assistants: staffNames.active,
+      professors: staffNames.minimal,
+    });
   });
 });

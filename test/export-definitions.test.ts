@@ -105,10 +105,12 @@ const filterPaths = (filter: unknown, prefix = ''): string[] => {
 // checked at every collection it passes through.
 const readable: Readonly<Record<string, null | readonly string[]>> = {
   academic_years: ['id', 'label', 'published'],
+  course_accreditation_staff: null,
   course_curricula: null,
   course_enrollments: ['academic_year', 'count', 'course', 'id'],
   course_equivalencies: null,
   course_equivalency_members: ['entry', 'equivalency', 'generation', 'label'],
+  course_teaching: null,
   courses: null,
   curriculum_entries: null,
   curriculum_entry_program_states: ['entry', 'program', 'state'],
@@ -120,6 +122,7 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   students: ['id', 'index_number', 'name'],
   study_programs: ['code', 'generation', 'id', 'published'],
   teaching_assignments: null,
+  timetables: ['date_from', 'recent'],
 };
 
 // Every (collection, field) a path touches: each M2O step and the last

@@ -11,6 +11,10 @@ export type TimetableTerm = (typeof timetableTerms)[number];
 // not at all (it needs an alias).
 export const matchStates = ['matched', 'ignored', 'unmatched'] as const;
 
+// How many of the latest main timetables courses.json reads its teaching
+// staff from: three years of semesters.
+export const publishedSemesters = 6;
+
 export type MatchState = (typeof matchStates)[number];
 
 // The class types a subject's trailing parentheses name, from summer

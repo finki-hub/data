@@ -367,6 +367,7 @@ const englishLabels: readonly string[] = [
   'timetables.academic_year: Academic year',
   'timetables.term: Semester',
   'timetables.main: Main timetable',
+  'timetables.recent: Published',
   'timetables.hidden: Hidden on EduPage',
   'timetables.fingerprint: Fingerprint',
   'timetables.imported_at: Imported',

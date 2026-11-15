@@ -13,8 +13,8 @@ import {
 import { idOf, pathValue, textOf } from './values.js';
 
 // The resolvers of courses.json. Each one reads the course row and its
-// related rows (read keys `curricula`, `assignments`, `enrollments` of
-// courses.ts) and answers the public value, resolving relation values on
+// related rows (read keys `curricula`, `teaching`, `accreditation`,
+// `assignments`, `enrollments` of courses.ts) and answers the public value, resolving relation values on
 // read, so a renamed staff member or curriculum entry is published
 // without any rebuild. A generation or a program is a key row of a
 // published source, never a code constant.
@@ -127,10 +127,17 @@ const statusOf = (context: RowContext): CourseStatus => {
     : unresolved(`Course ${courseId(context)}: invalid status`);
 };
 
-// The staff names of the course's links of a role, in `sort` order
-// (unsorted links last), then id. A link without a known role or without
-// a staff name is refused.
-const namesOf = (
+// The staff name of a related row; a row without one is refused.
+const staffName = (context: RowContext, row: Row, source: string): string =>
+  textOf(pathValue(row, 'staff.name')) ??
+  unresolved(
+    `${source} ${String(idOf(row['id']))} of course ${courseId(context)} has no staff name`,
+  );
+
+// The staff names of the course's hand-kept links of a role, in `sort`
+// order (unsorted links last), then id. A link without a known role or
+// without a staff name is refused.
+const linkedNames = (
   context: RowContext,
   role: AssignmentRole,
 ): readonly string[] => {
@@ -144,35 +151,122 @@ const namesOf = (
   return rows
     .filter((row) => row['role'] === role)
     .toSorted(byPosition)
-    .map(
-      (row) =>
-        textOf(pathValue(row, 'staff.name')) ??
-        unresolved(
-          `Assignment ${String(idOf(row['id']))} of course ${courseId(context)} has no staff name`,
-        ),
-    );
+    .map((row) => staffName(context, row, 'Assignment'));
+};
+
+type Taught = { readonly latest: string; readonly periods: number };
+
+const nameOrder = new Intl.Collator('mk');
+
+// Newer first: ISO dates compare as text.
+const newerFirst = (left: string, right: string): number =>
+  Number(right > left) - Number(right < left);
+
+type Teachers = {
+  readonly assistants: readonly string[];
+  readonly professors: readonly string[];
+};
+
+// Who taught the course in the published timetables (the six latest main
+// ones, `teaching`): a professor in any of them is a professor, everyone
+// else an assistant. Each list runs from the latest timetable a person
+// taught the course in, then by their weekly periods in it, then by name.
+// Undefined when no published timetable has the course.
+const timetableTeachers = (context: RowContext): Teachers | undefined => {
+  const rows = relatedRows(context, 'teaching');
+  if (rows.length === 0) {
+    return undefined;
+  }
+  const taught = new Map<string, Taught>();
+  const professorNames = new Set<string>();
+  for (const row of rows) {
+    if (!isRole(row['role'])) {
+      unresolved(
+        `Teaching ${String(idOf(row['id']))} of course ${courseId(context)} has no role`,
+      );
+    }
+    const name = staffName(context, row, 'Teaching');
+    const date = textOf(pathValue(row, 'timetable.date_from')) ?? '';
+    const periods = idOf(row['periods']) ?? 0;
+    const known = taught.get(name);
+    if (known === undefined || date > known.latest) {
+      taught.set(name, { latest: date, periods });
+    } else if (date === known.latest) {
+      taught.set(name, { latest: date, periods: known.periods + periods });
+    }
+    if (row['role'] === 'professor') {
+      professorNames.add(name);
+    }
+  }
+  const ordered = taught
+    .entries()
+    .toArray()
+    .toSorted(
+      ([leftName, left], [rightName, right]) =>
+        newerFirst(left.latest, right.latest) ||
+        right.periods - left.periods ||
+        nameOrder.compare(leftName, rightName),
+    )
+    .map(([name]) => name);
+  return {
+    assistants: ordered.filter((name) => !professorNames.has(name)),
+    professors: ordered.filter((name) => professorNames.has(name)),
+  };
+};
+
+const generationCode = (row: Row): string =>
+  textOf(pathValue(row, 'generation.code')) ?? '';
+
+// The course's accreditation teachers of its newest generation that has
+// them, in `sort` order, as professors; the syllabus names no assistants.
+// Undefined without any.
+const accreditationTeachers = (context: RowContext): Teachers | undefined => {
+  const rows = relatedRows(context, 'accreditation');
+  const newest = rows.map(generationCode).toSorted(newerFirst).at(0);
+  const current = rows.filter((row) => generationCode(row) === newest);
+  return current.length === 0
+    ? undefined
+    : {
+        assistants: [],
+        professors: current
+          .toSorted(byPosition)
+          .map((row) => staffName(context, row, 'Accreditation teacher')),
+      };
+};
+
+// The course's teaching staff of a role: from the published timetables,
+// else from its accreditation, else from its hand-kept links of that role
+// (only those are read, so a link of the other role never refuses it).
+const teachersOf = (
+  context: RowContext,
+  role: AssignmentRole,
+): readonly string[] => {
+  const teachers = timetableTeachers(context) ?? accreditationTeachers(context);
+  if (teachers === undefined) {
+    return linkedNames(context, role);
+  }
+  return role === 'professor' ? teachers.professors : teachers.assistants;
 };
 
 // professors: the text of All professors or Inactive, else the professor
-// names; an Active course without one is refused (readiness blocks it
-// first, course_without_professor). The links of a role the status
-// replaces are not read.
+// names (teachersOf); an Active course without one is refused. The staff
+// of a status that replaces them is not read.
 export const professors: Resolver = (context) => {
   const status = statusOf(context);
-  const names = status === 'active' ? namesOf(context, 'professor') : [];
+  const names = status === 'active' ? teachersOf(context, 'professor') : [];
   return (
     professorsText(status, names) ??
     unresolved(`Course ${courseId(context)}: professor missing`)
   );
 };
 
-// assistants: the Inactive text, else the assistant names; null without
-// one, so the key is left out.
+// assistants: the Inactive text, else the assistant names (teachersOf);
+// null without one, so the key is left out.
 export const assistants: Resolver = (context) => {
   const status = statusOf(context);
   return assistantsText(
     status,
-    status === 'inactive' ? [] : namesOf(context, 'assistant'),
+    status === 'inactive' ? [] : teachersOf(context, 'assistant'),
   );
 };
 

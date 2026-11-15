@@ -89,12 +89,15 @@ The model is declared in `src/data-model/` and installed by
   curriculum entry (2018 for a course with none). The syllabus is in the API,
   not in `courses.json`.
   Their curriculum lives in **Curriculum links** (`course_curricula`, one
-  per generation), their staff in **Teaching staff**
-  (`teaching_assignments`), who taught them in each semester in **Course
-  teaching** (`course_teaching`, from the timetables, below), their
-  syllabus teachers in **Accreditation teachers**
-  (`course_accreditation_staff`), their Discord channels in
-  `discord_channel_courses`.
+  per generation), who taught them in each semester in **Course teaching**
+  (`course_teaching`, from the timetables, below), their syllabus teachers
+  in **Accreditation teachers** (`course_accreditation_staff`), hand-kept
+  staff in **Teaching staff** (`teaching_assignments`), their Discord
+  channels in `discord_channel_courses`. `courses.json` publishes as
+  professors and assistants who taught the course in the six latest main
+  timetables (three years; a professor in any of them is a professor), else
+  its accreditation teachers as professors, else its hand-kept staff; a
+  status of All professors or Inactive replaces them as before.
 - **Curriculum** (`curriculum_generations`, `study_programs`,
   `curriculum_entries`, `curriculum_entry_program_states`,
   `course_equivalencies`, `course_equivalency_members`): the 2013, 2018
@@ -162,7 +165,9 @@ edit of an alias, a course, a staff member or a curriculum entry rebuilds
 `course_teaching` at once. Filtering `timetable_lessons` by **Course match**
 or **Teacher match** Unmatched lists what still needs an alias.
 
-All three tables are written only by the import and its rebuild.
+All three tables are written only by the import and its rebuild. The
+import also marks the six latest main timetables **Published**
+(`timetables.recent`): the window `courses.json` reads.
 
 ## Replacing the Moodle snapshot
 

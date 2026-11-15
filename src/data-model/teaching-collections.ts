@@ -107,6 +107,12 @@ export const teachingCollections: readonly ModelCollection[] = [
         label: 'Main timetable',
         note: 'The last timetable of its semester; only main timetables count.',
       }),
+      required('recent', 'boolean', {
+        ...imported,
+        defaultValue: false,
+        label: 'Published',
+        note: 'One of the six latest main timetables, the three years courses.json reads its teaching staff from.',
+      }),
       required('hidden', 'boolean', {
         ...imported,
         defaultValue: false,
