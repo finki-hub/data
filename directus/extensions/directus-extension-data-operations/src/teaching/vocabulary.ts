@@ -33,6 +33,10 @@ export const classKinds: readonly string[] = [
   'e',
 ];
 
+// The academic titles the older timetables put inside a teacher's name
+// ("Трајанов д-р Димитар"), lowercase: left out when matching names.
+export const academicTitles = ['д-р', 'м-р', 'dr', 'dr.', 'mr', 'mr.'] as const;
+
 // The positions whose holders are professors; everyone else who teaches is
 // an assistant.
 export const professorPositions = [
