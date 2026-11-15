@@ -1,4 +1,4 @@
-import { professorPositions } from './vocabulary.js';
+import { academicTitles, professorPositions } from './vocabulary.js';
 
 // The statements of the timetable import and of the course teaching
 // rebuild. Every one runs inside a transaction that opened the guard of
@@ -57,7 +57,7 @@ WHERE t."edupage_id" = r."edupage_id"`;
 // matches neither.
 // An alias decides its name outright, a row without a target ignores it.
 // A combined slot "A / B" matches when each part does.
-const resolvedSql = `course_names AS (
+const resolvedSql = String.raw`course_names AS (
   SELECT ${key('c."name"')} AS "key", c."id" AS "course", 1 AS "rank" FROM "courses" c
   UNION ALL
   SELECT ${key('c."name_en"')}, c."id", 2 FROM "courses" c WHERE c."name_en" IS NOT NULL
@@ -83,9 +83,9 @@ direct_subjects AS (
 subject_parts AS (
   SELECT s."subject", k."course"
   FROM subjects s
-  CROSS JOIN LATERAL unnest(string_to_array(s."subject", ' / ')) AS p("part")
+  CROSS JOIN LATERAL regexp_split_to_table(s."subject", '\s*/\s*') AS p("part")
   LEFT JOIN course_keys k ON k."key" = ${key('p."part"')}
-  WHERE s."subject" LIKE '% / %'
+  WHERE s."subject" LIKE '%/%'
     AND NOT EXISTS (SELECT 1 FROM aliased_subjects a WHERE a."subject" = s."subject")
     AND NOT EXISTS (SELECT 1 FROM direct_subjects d WHERE d."subject" = s."subject")
 ),
@@ -108,12 +108,25 @@ staff_names AS (
 teachers AS (
   SELECT DISTINCT "teacher", ${key('"teacher"')} AS "key" FROM "timetable_lessons"
 ),
+teacher_words AS (
+  SELECT t."teacher", ARRAY(
+    SELECT u."word" FROM unnest(string_to_array(t."key", ' ')) WITH ORDINALITY AS u("word", "position")
+    WHERE u."word" NOT IN (${literals(academicTitles)}) ORDER BY u."position"
+  ) AS "words"
+  FROM teachers t
+),
+teacher_orders AS (
+  SELECT "teacher", "words", 0 AS "rank" FROM teacher_words
+  UNION ALL
+  SELECT "teacher", "words"[cardinality("words")] || "words"[1:cardinality("words") - 1], 2
+  FROM teacher_words WHERE cardinality("words") > 1
+),
 teacher_names AS (
-  SELECT "teacher", "key", 0 AS "rank" FROM teachers
+  SELECT "teacher", array_to_string("words", ' ') AS "key", "rank" FROM teacher_orders
   UNION ALL
-  SELECT "teacher", w[1] || ' ' || w[3], 1 FROM teachers, string_to_array("key", ' ') AS w WHERE cardinality(w) = 3
+  SELECT "teacher", "words"[1] || ' ' || "words"[3], "rank" + 1 FROM teacher_orders WHERE cardinality("words") = 3
   UNION ALL
-  SELECT "teacher", w[1] || ' ' || w[2], 1 FROM teachers, string_to_array("key", ' ') AS w WHERE cardinality(w) = 3
+  SELECT "teacher", "words"[1] || ' ' || "words"[2], "rank" + 1 FROM teacher_orders WHERE cardinality("words") = 3
 ),
 teacher_candidates AS (
   SELECT t."teacher", n."staff", t."rank" + n."rank" AS "rank"

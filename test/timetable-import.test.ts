@@ -126,6 +126,17 @@ describe('timetable parsing', () => {
     expect(main).toEqual(new Set(['4', '28', '31']));
   });
 
+  test('splits a combined slot on a slash with or without spaces and drops academic titles from teacher names', () => {
+    // The SQL keeps the regex's backslashes (a template literal would drop a
+    // lone one) and names every title.
+    expect(matchLessonsSql).toContain(
+      String.raw`regexp_split_to_table(s."subject", '\s*/\s*')`,
+    );
+    expect(matchLessonsSql).toContain(
+      `NOT IN ('д-р', 'м-р', 'dr', 'dr.', 'mr', 'mr.')`,
+    );
+  });
+
   test('publishes the six latest main timetables, three years of semesters', () => {
     const timetables = [
       listed('31', winter2026, false),
