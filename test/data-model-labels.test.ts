@@ -371,6 +371,7 @@ const englishLabels: readonly string[] = [
   'timetables.hidden: Hidden on EduPage',
   'timetables.fingerprint: Fingerprint',
   'timetables.imported_at: Imported',
+  'timetables.checked_at: Last import',
   'timetables.lessons: Lessons',
   'timetables.teaching: Teaching',
   'timetable_lessons: Timetable lessons / Timetable lesson',
