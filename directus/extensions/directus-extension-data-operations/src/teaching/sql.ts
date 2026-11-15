@@ -83,7 +83,7 @@ direct_subjects AS (
 subject_parts AS (
   SELECT s."subject", k."course"
   FROM subjects s
-  CROSS JOIN LATERAL regexp_split_to_table(s."subject", '\s*/\s*') AS p("part")
+  CROSS JOIN LATERAL regexp_split_to_table(s."subject", '\\s*/\\s*') AS p("part")
   LEFT JOIN course_keys k ON k."key" = ${key('p."part"')}
   WHERE s."subject" LIKE '%/%'
     AND NOT EXISTS (SELECT 1 FROM aliased_subjects a WHERE a."subject" = s."subject")
