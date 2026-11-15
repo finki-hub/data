@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { classKinds, type TimetableTerm } from './vocabulary.js';
+import {
+  classKinds,
+  publishedSemesters,
+  type TimetableTerm,
+} from './vocabulary.js';
 
 // What the import reads from timetables-api.finki-hub.com: the listing and,
 // of each timetable, the subject, teachers and length of every card. Pure.
@@ -93,6 +97,25 @@ export const mainTimetables = (
   }
   return new Set(latest.values().map(({ id }) => id));
 };
+
+// The ids of the latest publishedSemesters main timetables, the higher id
+// on a tie: the timetables courses.json reads its teaching staff from.
+export const recentTimetables = (
+  listed: readonly ListedTimetable[],
+  main: ReadonlySet<string>,
+): ReadonlySet<string> =>
+  new Set(
+    listed
+      .filter(({ id }) => main.has(id))
+      .toSorted(
+        (left, right) =>
+          Number(right.dateFrom > left.dateFrom) -
+            Number(right.dateFrom < left.dateFrom) ||
+          Number(right.id) - Number(left.id),
+      )
+      .slice(0, publishedSemesters)
+      .map(({ id }) => id),
+  );
 
 export type Lesson = {
   readonly kind: null | string;

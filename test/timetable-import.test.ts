@@ -23,6 +23,7 @@ import {
 import {
   lessonsOf,
   mainTimetables,
+  recentTimetables,
   semesterOf,
   splitSubject,
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/parse.js';
@@ -50,6 +51,10 @@ const writeEvents = ['create', 'update', 'delete'];
 
 const eventsOf = (collection: string): string[] =>
   writeEvents.map((event) => `${collection}.items.${event}`);
+
+// The start dates of the fixture's two main timetables.
+const winter2026 = '2026-10-10';
+const summer2026 = '2026-02-23';
 
 const listed = (id: string, dateFrom: string, hidden = true) => ({
   dateFrom,
@@ -94,11 +99,11 @@ describe('timetable parsing', () => {
   });
 
   test('places a timetable in the semester and academic year it starts in', () => {
-    expect(semesterOf('2026-10-10')).toEqual({
+    expect(semesterOf(winter2026)).toEqual({
       academicYear: '2026/2027',
       term: 'winter',
     });
-    expect(semesterOf('2026-02-23')).toEqual({
+    expect(semesterOf(summer2026)).toEqual({
       academicYear: '2025/2026',
       term: 'summer',
     });
@@ -110,15 +115,32 @@ describe('timetable parsing', () => {
 
   test('takes the timetable that starts last in each semester as its main one', () => {
     const main = mainTimetables([
-      listed('31', '2026-10-10', false),
+      listed('31', winter2026, false),
       listed('30', '2026-10-02'),
-      listed('28', '2026-02-23'),
+      listed('28', summer2026),
       listed('27', '2026-02-15'),
       listed('3', '2020-10-09'),
       listed('4', '2020-10-16'),
     ]);
 
     expect(main).toEqual(new Set(['4', '28', '31']));
+  });
+
+  test('publishes the six latest main timetables, three years of semesters', () => {
+    const timetables = [
+      listed('31', winter2026, false),
+      listed('30', '2026-10-02'),
+      listed('28', summer2026),
+      listed('26', '2025-10-04'),
+      listed('25', '2025-02-21'),
+      listed('23', '2024-10-05'),
+      listed('22', '2024-02-24'),
+      listed('20', '2023-10-06'),
+    ];
+
+    expect(recentTimetables(timetables, mainTimetables(timetables))).toEqual(
+      new Set(['22', '23', '25', '26', '28', '31']),
+    );
   });
 
   test('sums the weekly periods of each subject, class type and teacher', () => {
@@ -216,6 +238,8 @@ const timetableRow = (
   edupage_id: id,
   title: `raspored-${id}`,
   ...flags,
+  // Both main timetables of the fixture are among the six latest.
+  recent: flags.main,
 });
 
 const source =
@@ -231,9 +255,9 @@ const source =
 
 describe('the timetable import', () => {
   const listing = [
-    listed('31', '2026-10-10', false),
+    listed('31', winter2026, false),
     listed('30', '2026-10-02'),
-    listed('28', '2026-02-23'),
+    listed('28', summer2026),
   ];
 
   test('stores every listed timetable and the lessons of each main one, then rebuilds course teaching in one transaction', async () => {
@@ -275,9 +299,9 @@ describe('the timetable import', () => {
     ]);
     expect(statements.slice(2, 6).map(jsonBinding)).toEqual([
       [
-        timetableRow('31', '2026-10-10', { hidden: false, main: true }),
+        timetableRow('31', winter2026, { hidden: false, main: true }),
         timetableRow('30', '2026-10-02', { hidden: true, main: false }),
-        timetableRow('28', '2026-02-23', { hidden: true, main: true }),
+        timetableRow('28', summer2026, { hidden: true, main: true }),
       ],
       ['31', '28'],
       ['31', '28'].map((edupage_id) => ({

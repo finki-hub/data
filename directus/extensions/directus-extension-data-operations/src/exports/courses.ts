@@ -24,7 +24,9 @@ import {
 // keys, and every published program of it a state key. A new generation
 // or program needs no change here. The name, the professors and every
 // availability key are required: the consumers reject a file with a row
-// lacking one.
+// lacking one. The professors and assistants come from the published
+// timetables, else the accreditation, else the hand-kept links
+// (course-values.ts).
 
 // name, code, level, semester, channel and prerequisite of a generation,
 // from the course's linked entry of that generation; the level is the one
@@ -120,6 +122,15 @@ export const courses: ExportDefinition = {
   maxBytes: defaultMaxBytes,
   orderBy: 'id',
   related: {
+    // The syllabus's "Наставник" list, the fallback without a published
+    // timetable.
+    accreditation: {
+      by: 'course',
+      collection: 'course_accreditation_staff',
+      fields: ['id', 'course', 'sort', 'generation.code', 'staff.name'],
+      sort: ['course', 'sort', 'id'],
+    },
+    // The hand-kept links, the fallback without either.
     assignments: {
       by: 'course',
       collection: 'teaching_assignments',
@@ -148,6 +159,22 @@ export const courses: ExportDefinition = {
       fields: ['course', 'count', 'academic_year'],
       filter: publishedThrough('academic_year'),
       sort: ['course', 'academic_year'],
+    },
+    // Who taught the course in the published timetables (the six latest
+    // main ones), the first source of its teaching staff.
+    teaching: {
+      by: 'course',
+      collection: 'course_teaching',
+      fields: [
+        'id',
+        'course',
+        'role',
+        'periods',
+        'staff.name',
+        'timetable.date_from',
+      ],
+      filter: { timetable: { recent: { _eq: true } } },
+      sort: ['course', 'id'],
     },
   },
   rows: {
