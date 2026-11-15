@@ -168,9 +168,10 @@ type Teachers = {
 };
 
 // Who taught the course in the published timetables (the six latest main
-// ones, `teaching`): a professor in any of them is a professor, everyone
-// else an assistant. Each list runs from the latest timetable a person
-// taught the course in, then by their weekly periods in it, then by name.
+// ones, `teaching`), as professors and assistants by position (the role
+// the rebuild gives them). Each list runs from the latest timetable a
+// person taught the course in, then by their weekly periods in it, then by
+// name.
 // Undefined when no published timetable has the course.
 const timetableTeachers = (context: RowContext): Teachers | undefined => {
   const rows = relatedRows(context, 'teaching');

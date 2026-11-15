@@ -1,8 +1,4 @@
-import {
-  exerciseKinds,
-  lectureKinds,
-  professorPositions,
-} from './vocabulary.js';
+import { professorPositions } from './vocabulary.js';
 
 // The statements of the timetable import and of the course teaching
 // rebuild. Every one runs inside a transaction that opened the guard of
@@ -141,15 +137,11 @@ teacher_staff AS (
 export const clearTeachingSql = 'DELETE FROM "course_teaching"';
 
 // Every staff member's weekly periods of a course in each main timetable,
-// by role: a lecture type makes them a professor, another type an
-// assistant; without a type (before summer 2022/23) their position
-// decides.
+// as professor or assistant by their position, whatever classes they held.
 export const insertTeachingSql = `WITH ${resolvedSql}
 INSERT INTO "course_teaching" ("course", "staff", "timetable", "role", "periods")
 SELECT c."course", t."staff", l."timetable",
   CASE
-    WHEN l."kind" IN (${literals(lectureKinds)}) THEN 'professor'
-    WHEN l."kind" IN (${literals(exerciseKinds)}) THEN 'assistant'
     WHEN m."position" IN (${literals(professorPositions)}) THEN 'professor'
     ELSE 'assistant'
   END,

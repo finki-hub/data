@@ -95,7 +95,7 @@ The model is declared in `src/data-model/` and installed by
   staff in **Teaching staff** (`teaching_assignments`), their Discord
   channels in `discord_channel_courses`. `courses.json` publishes as
   professors and assistants who taught the course in the six latest main
-  timetables (three years; a professor in any of them is a professor), else
+  timetables (three years), grouped by position, else
   its accreditation teachers as professors, else its hand-kept staff; a
   status of All professors or Inactive replaces them as before.
 - **Curriculum** (`curriculum_generations`, `study_programs`,
@@ -153,9 +153,8 @@ by hand, or fetches every one again.
 
 `course_teaching` is derived from the lessons in the same transaction: each
 staff member's weekly periods of a course in each main timetable, as
-professor for a lecture (п) and assistant for exercises (ав); a timetable
-before summer 2022/23 names no class type, so the staff member's position
-decides. A subject matches a course by its name, English name or a linked
+professor when their position is Редовен професор, Вонреден професор or
+Доцент and assistant otherwise, whatever classes they held. A subject matches a course by its name, English name or a linked
 curriculum entry's name, and a combined slot "A / B" when each part does; a
 teacher matches a staff member by name, with either of two surnames left
 out. Anything else needs an alias: **Timetable course names**
