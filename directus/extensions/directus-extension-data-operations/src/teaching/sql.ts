@@ -57,7 +57,7 @@ WHERE t."edupage_id" = r."edupage_id"`;
 // matches neither.
 // An alias decides its name outright, a row without a target ignores it.
 // A combined slot "A / B" matches when each part does.
-const resolvedSql = `course_names AS (
+const resolvedSql = String.raw`course_names AS (
   SELECT ${key('c."name"')} AS "key", c."id" AS "course", 1 AS "rank" FROM "courses" c
   UNION ALL
   SELECT ${key('c."name_en"')}, c."id", 2 FROM "courses" c WHERE c."name_en" IS NOT NULL
@@ -83,7 +83,7 @@ direct_subjects AS (
 subject_parts AS (
   SELECT s."subject", k."course"
   FROM subjects s
-  CROSS JOIN LATERAL regexp_split_to_table(s."subject", '\\s*/\\s*') AS p("part")
+  CROSS JOIN LATERAL regexp_split_to_table(s."subject", '\s*/\s*') AS p("part")
   LEFT JOIN course_keys k ON k."key" = ${key('p."part"')}
   WHERE s."subject" LIKE '%/%'
     AND NOT EXISTS (SELECT 1 FROM aliased_subjects a WHERE a."subject" = s."subject")
