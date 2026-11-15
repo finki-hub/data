@@ -8,9 +8,11 @@
 -- curriculum_generations, study_programs, curriculum_entry_program_states,
 -- teaching_assignments, student_council, course_equivalencies,
 -- course_equivalency_members, discord_channels, discord_channel_courses,
--- deans_office, exam_sessions, anto_quotes, moodle_history_memberships,
--- course_enrollments, moodle_counted_lines, moodle_import_rows,
--- data_operations, data_operation_matches, directus_*) carry no trigger.
+-- deans_office, exam_sessions, anto_quotes, course_aliases, staff_aliases,
+-- course_accreditation_staff, moodle_history_memberships,
+-- course_enrollments, moodle_counted_lines, timetables, timetable_lessons,
+-- course_teaching, moodle_import_rows, data_operations,
+-- data_operation_matches, directus_*) carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
 -- a mapping to another course or year, and any DELETE, marks the domain,

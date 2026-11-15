@@ -108,6 +108,9 @@ describe('studio metadata', () => {
       'moodle_counted_lines',
       'data_operation_matches',
       'course_enrollments',
+      'timetables',
+      'timetable_lessons',
+      'course_teaching',
     ]);
 
     // The history lines are the one source among them: Studio edits their

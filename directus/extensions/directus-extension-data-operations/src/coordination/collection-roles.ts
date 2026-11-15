@@ -108,6 +108,9 @@ const collectionRoles = [
   content('deans_office'),
   content('exam_sessions'),
   content('anto_quotes'),
+  content('course_aliases'),
+  content('staff_aliases'),
+  content('course_accreditation_staff'),
   {
     caseLast: true,
     collection: 'academic_years',
@@ -167,6 +170,35 @@ const collectionRoles = [
       hint: 'Source: moodle_course_entries, moodle_pattern_mappings, moodle_course_mappings; rebuilt by: Data / Process pending',
       writer: 'enrollments_writer',
       writtenBy: 'enrollments claim completion',
+    },
+    role: 'derived',
+  },
+  // The timetable import writes all three; an edit of a course, a staff
+  // member or an alias rebuilds course_teaching (teaching-rebuild.ts).
+  {
+    collection: 'timetables',
+    guard: {
+      hint: 'Source: timetables-api.finki-hub.com, courses, staff, course_aliases, staff_aliases; rebuilt by: Data / Import timetables',
+      writer: 'timetable_writer',
+      writtenBy: 'timetable import',
+    },
+    role: 'derived',
+  },
+  {
+    collection: 'timetable_lessons',
+    guard: {
+      hint: 'Source: timetables-api.finki-hub.com, courses, staff, course_aliases, staff_aliases; rebuilt by: Data / Import timetables',
+      writer: 'timetable_writer',
+      writtenBy: 'timetable import',
+    },
+    role: 'derived',
+  },
+  {
+    collection: 'course_teaching',
+    guard: {
+      hint: 'Source: timetables-api.finki-hub.com, courses, staff, course_aliases, staff_aliases; rebuilt by: Data / Import timetables',
+      writer: 'timetable_writer',
+      writtenBy: 'timetable import',
     },
     role: 'derived',
   },

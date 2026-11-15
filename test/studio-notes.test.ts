@@ -73,6 +73,12 @@ const remainingNotes = [
   'data_operations.import_backup_file: Kept until deleted by hand.',
   'data_operations.import_promoted_fingerprint: Active rows that no longer match it were changed outside the snapshot import.',
   'data_operations group failure: Kept after later successes; blocks processing while the source and Flows are at its revision.',
+  'timetables.main: The last timetable of its semester; only main timetables count.',
+  'timetable_lessons.subject: As the timetable names it, without the class type.',
+  'timetable_lessons.kind: п lecture, ав exercises; empty before summer 2022/23.',
+  'course_aliases.name: As the timetables name the subject, without the class type. A combined slot takes one row per course.',
+  'course_aliases.course: Empty: the name is ignored.',
+  'staff_aliases.staff: Empty: the name is ignored, such as a demonstrator slot.',
 ];
 
 // Every Studio name, note and template of the model and the presentation,

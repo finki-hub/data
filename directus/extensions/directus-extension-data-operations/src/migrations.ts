@@ -80,6 +80,11 @@ export const schemaConstraints: Migration = {
     'CREATE UNIQUE INDEX IF NOT EXISTS "moodle_counted_lines_entry_course_year_mapping_unique" ON "moodle_counted_lines" ("entry", "course", "academic_year", "pattern_mapping") NULLS NOT DISTINCT',
     'CREATE UNIQUE INDEX IF NOT EXISTS "data_operation_matches_claim_page_entry_mapping_unique" ON "data_operation_matches" ("claim_token", "page_token", "entry", "pattern_mapping")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_enrollments_course_academic_year_unique" ON "course_enrollments" ("course", "academic_year")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "timetable_lessons_timetable_subject_kind_teacher_unique" ON "timetable_lessons" ("timetable", "subject", "kind", "teacher") NULLS NOT DISTINCT',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "course_teaching_course_staff_timetable_role_unique" ON "course_teaching" ("course", "staff", "timetable", "role")',
+    'CREATE INDEX IF NOT EXISTS "course_teaching_timetable_index" ON "course_teaching" ("timetable")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "course_aliases_name_course_unique" ON "course_aliases" ("name", "course") NULLS NOT DISTINCT',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "course_accreditation_staff_course_staff_generation_unique" ON "course_accreditation_staff" ("course", "staff", "generation")',
     `DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'course_enrollments_count_nonnegative') THEN

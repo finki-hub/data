@@ -12,7 +12,12 @@ export const folders: readonly Folder[] = [
     collection: 'folder_courses',
     icon: 'school',
     label: 'Courses',
-    members: ['courses', 'teaching_assignments', 'discord_channels'],
+    members: [
+      'courses',
+      'teaching_assignments',
+      'course_accreditation_staff',
+      'discord_channels',
+    ],
     sort: 1,
   },
   {
@@ -68,6 +73,20 @@ export const folders: readonly Folder[] = [
   },
   {
     collapse: 'closed',
+    collection: 'folder_timetables',
+    icon: 'calendar_view_week',
+    label: 'Timetables',
+    members: [
+      'course_teaching',
+      'timetables',
+      'timetable_lessons',
+      'course_aliases',
+      'staff_aliases',
+    ],
+    sort: 8,
+  },
+  {
+    collapse: 'closed',
     collection: 'folder_internals',
     icon: 'settings_suggest',
     label: 'Internals',
@@ -82,7 +101,7 @@ export const folders: readonly Folder[] = [
       'data_operation_matches',
       'data_operations',
     ],
-    sort: 8,
+    sort: 9,
   },
 ];
 

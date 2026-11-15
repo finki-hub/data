@@ -8,6 +8,7 @@ import type {
 
 import { dataModelCollections } from './collections.js';
 import { mappingKeys } from './mapping-collections.js';
+import { teachingKeys } from './teaching-collections.js';
 
 type RelationPayload = {
   readonly collection: string;
@@ -234,4 +235,5 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'unique',
     name: 'course_enrollments_course_academic_year_unique',
   },
+  ...teachingKeys,
 ];

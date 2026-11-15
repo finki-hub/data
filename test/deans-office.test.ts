@@ -130,6 +130,8 @@ describe("the dean's office", () => {
     expect(aliases.map(({ alias }) => alias.field)).toEqual([
       'assignments',
       'dean_terms',
+      'teaching',
+      'accreditation_courses',
     ]);
 
     const terms = aliases.find(({ alias }) => alias.field === 'dean_terms');

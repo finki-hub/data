@@ -126,6 +126,11 @@ describe('write guards of the collection-role registry', () => {
       ],
       'finki_hub.history_writer': ['moodle_history_memberships'],
       'finki_hub.snapshot_writer': ['moodle_import_rows'],
+      'finki_hub.timetable_writer': [
+        'timetables',
+        'timetable_lessons',
+        'course_teaching',
+      ],
     });
     expect(openGuardSql('moodle_counted_lines')).toBe(
       openGuardSql('course_enrollments'),

@@ -29,6 +29,9 @@ const installedFlowIds = [
   // Batch 1, step 15: the history line matching family, in place of the
   // mapped (11) and legacy (12) families.
   '1701',
+  // The timetable import family: its button and its daily schedule.
+  '1801',
+  '1802',
   // Retiring publication (2026-11-14) removed the publication (1404,
   // 1405) and publish (1502, 1501) families.
   // Batch 1, step 17: the rule seeding family of Task 16 (1602, 1601) is
@@ -281,6 +284,8 @@ describe('the Flow family registry', () => {
     expect(foreign).toEqual([]);
   });
 
+  // Process pending is the one schedule that triggers children; the daily
+  // timetable import triggers none and may run before it.
   test('installs every triggered child before its parent and the schedule last', () => {
     const order = flowTemplates().map(({ id }) => id);
     const late = flowTemplates().flatMap((template) =>
@@ -289,10 +294,14 @@ describe('the Flow family registry', () => {
     const schedules = flowTemplates().filter(
       ({ trigger }) => trigger === 'schedule',
     );
+    const parents = schedules.filter(
+      (template) => childrenOf(template).length > 0,
+    );
 
     expect(late).toEqual([]);
-    expect(schedules).toHaveLength(1);
-    expect(flowTemplates().at(-1)).toBe(schedules[0]);
+    expect(schedules).toHaveLength(2);
+    expect(parents).toHaveLength(1);
+    expect(flowTemplates().at(-1)).toBe(parents[0]);
     expect(flowFamilies.at(-1)?.code).toBe(flowFamilyCodes.automation);
   });
 
