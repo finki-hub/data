@@ -120,6 +120,11 @@ export const teachingCollections: readonly ModelCollection[] = [
       }),
       scalar('fingerprint', 'string', { ...imported, label: 'Fingerprint' }),
       scalar('imported_at', 'timestamp', { ...imported, label: 'Imported' }),
+      scalar('checked_at', 'timestamp', {
+        ...imported,
+        label: 'Last import',
+        note: 'Every successful import sets it on each listed timetable; the host alerts when it gets old.',
+      }),
     ],
     hidden: false,
     icon: 'calendar_view_week',

@@ -15,12 +15,13 @@ const key = (expression: string): string =>
 // Binding: the listed timetables as JSON ({edupage_id, title, date_from,
 // academic_year label, term, main, hidden}). A timetable is never deleted:
 // a former main timetable keeps its lessons and stops counting.
-export const upsertTimetablesSql = `INSERT INTO "timetables" ("edupage_id", "title", "date_from", "academic_year", "term", "main", "recent", "hidden")
-SELECT r."edupage_id", r."title", r."date_from", y."id", r."term", r."main", r."recent", r."hidden"
+export const upsertTimetablesSql = `INSERT INTO "timetables" ("edupage_id", "title", "date_from", "academic_year", "term", "main", "recent", "hidden", "checked_at")
+SELECT r."edupage_id", r."title", r."date_from", y."id", r."term", r."main", r."recent", r."hidden", now()
 FROM json_to_recordset(?::json) AS r("edupage_id" text, "title" text, "date_from" text, "academic_year" text, "term" text, "main" boolean, "recent" boolean, "hidden" boolean)
 LEFT JOIN "academic_years" y ON y."label" = r."academic_year"
 ON CONFLICT ("edupage_id") DO UPDATE SET "title" = EXCLUDED."title", "date_from" = EXCLUDED."date_from",
-  "academic_year" = EXCLUDED."academic_year", "term" = EXCLUDED."term", "main" = EXCLUDED."main", "recent" = EXCLUDED."recent", "hidden" = EXCLUDED."hidden"`;
+  "academic_year" = EXCLUDED."academic_year", "term" = EXCLUDED."term", "main" = EXCLUDED."main", "recent" = EXCLUDED."recent", "hidden" = EXCLUDED."hidden",
+  "checked_at" = EXCLUDED."checked_at"`;
 
 // The lock of the import and the rebuild, held to the end of the
 // transaction: two rebuilds never clear and refill course_teaching at once.

@@ -75,6 +75,7 @@ const remainingNotes = [
   'data_operations group failure: Kept after later successes; blocks processing while the source and Flows are at its revision.',
   'timetables.main: The last timetable of its semester; only main timetables count.',
   'timetables.recent: One of the six latest main timetables, the three years courses.json reads its teaching staff from.',
+  'timetables.checked_at: Every successful import sets it on each listed timetable; the host alerts when it gets old.',
   'timetable_lessons.subject: As the timetable names it, without the class type.',
   'timetable_lessons.kind: п lecture, ав exercises; empty before summer 2022/23.',
   'course_aliases.name: As the timetables name the subject, without the class type. A combined slot takes one row per course.',
