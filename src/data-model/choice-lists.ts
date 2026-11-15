@@ -23,6 +23,9 @@ export const staffPositions = verbatimChoices([
   'Секретар',
   'Технички секретар',
   'Советник во одделение за ИКТ',
+  'Насловен вонреден професор',
+  'Професор во пензија',
+  'Надворешен соработник',
 ]);
 
 export const roomTypes = verbatimChoices([
