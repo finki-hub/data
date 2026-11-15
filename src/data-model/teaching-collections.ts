@@ -38,6 +38,44 @@ const roleChoices = labelledChoices(assignmentRoles, {
 // What a derived field says about where it comes from.
 const imported = { readOnly: true } as const;
 
+type ImportedLink = {
+  readonly alias: string;
+  readonly fields: readonly string[];
+  readonly label: string;
+  readonly listLabel: string;
+  readonly listTemplate: string;
+  readonly template: string;
+};
+
+// A required link of a derived row, listed read-only on the row it points
+// at.
+const importedLink = (
+  field: string,
+  related: 'courses' | 'staff' | 'timetables',
+  link: ImportedLink,
+) =>
+  m2o(field, related, {
+    ...imported,
+    alias: {
+      field: link.alias,
+      fields: link.fields,
+      label: link.listLabel,
+      readOnly: true,
+      template: link.listTemplate,
+    },
+    label: link.label,
+    nullable: false,
+    template: link.template,
+  });
+
+// The weekly periods of a lesson or a teaching row.
+const weeklyPeriods = () =>
+  required('periods', 'integer', {
+    ...imported,
+    label: 'Weekly periods',
+    minimum: 0,
+  });
+
 export const teachingCollections: readonly ModelCollection[] = [
   {
     collection: 'timetables',
@@ -87,17 +125,12 @@ export const teachingCollections: readonly ModelCollection[] = [
     collection: 'timetable_lessons',
     displayTemplate: '{{subject}} ({{kind}}): {{teacher}}',
     fields: [
-      m2o('timetable', 'timetables', {
-        ...imported,
-        alias: {
-          field: 'lessons',
-          fields: ['subject', 'kind', 'teacher', 'periods'],
-          label: 'Lessons',
-          readOnly: true,
-          template: '{{subject}} ({{kind}}): {{teacher}}',
-        },
+      importedLink('timetable', 'timetables', {
+        alias: 'lessons',
+        fields: ['subject', 'kind', 'teacher', 'periods'],
         label: 'Timetable',
-        nullable: false,
+        listLabel: 'Lessons',
+        listTemplate: '{{subject}} ({{kind}}): {{teacher}}',
         template: timetableTemplate,
       }),
       required('subject', 'string', {
@@ -111,11 +144,7 @@ export const teachingCollections: readonly ModelCollection[] = [
         note: 'п lecture, ав exercises; empty before summer 2022/23.',
       }),
       required('teacher', 'string', { ...imported, label: 'Teacher' }),
-      required('periods', 'integer', {
-        ...imported,
-        label: 'Weekly periods',
-        minimum: 0,
-      }),
+      weeklyPeriods(),
       enumField('course_match', matchChoices, {
         ...imported,
         label: 'Course match',
@@ -137,43 +166,28 @@ export const teachingCollections: readonly ModelCollection[] = [
     collection: 'course_teaching',
     displayTemplate: '{{course.name}}: {{staff.name}} ({{role}})',
     fields: [
-      m2o('course', 'courses', {
-        ...imported,
-        alias: {
-          field: 'teaching',
-          fields: ['timetable', 'staff', 'role', 'periods'],
-          label: 'Taught by (timetables)',
-          readOnly: true,
-          template: '{{timetable.title}}: {{staff.name}} ({{role}})',
-        },
+      importedLink('course', 'courses', {
+        alias: 'teaching',
+        fields: ['timetable', 'staff', 'role', 'periods'],
         label: 'Course',
-        nullable: false,
+        listLabel: 'Taught by (timetables)',
+        listTemplate: '{{timetable.title}}: {{staff.name}} ({{role}})',
         template: courseTemplate,
       }),
-      m2o('staff', 'staff', {
-        ...imported,
-        alias: {
-          field: 'teaching',
-          fields: ['timetable', 'course', 'role', 'periods'],
-          label: 'Teaches (timetables)',
-          readOnly: true,
-          template: '{{timetable.title}}: {{course.name}} ({{role}})',
-        },
+      importedLink('staff', 'staff', {
+        alias: 'teaching',
+        fields: ['timetable', 'course', 'role', 'periods'],
         label: 'Staff member',
-        nullable: false,
+        listLabel: 'Teaches (timetables)',
+        listTemplate: '{{timetable.title}}: {{course.name}} ({{role}})',
         template: staffTemplate,
       }),
-      m2o('timetable', 'timetables', {
-        ...imported,
-        alias: {
-          field: 'teaching',
-          fields: ['course', 'staff', 'role', 'periods'],
-          label: 'Teaching',
-          readOnly: true,
-          template: '{{course.name}}: {{staff.name}} ({{role}})',
-        },
+      importedLink('timetable', 'timetables', {
+        alias: 'teaching',
+        fields: ['course', 'staff', 'role', 'periods'],
         label: 'Timetable',
-        nullable: false,
+        listLabel: 'Teaching',
+        listTemplate: '{{course.name}}: {{staff.name}} ({{role}})',
         template: timetableTemplate,
       }),
       enumField('role', roleChoices, {
@@ -181,11 +195,7 @@ export const teachingCollections: readonly ModelCollection[] = [
         label: 'Role',
         nullable: false,
       }),
-      required('periods', 'integer', {
-        ...imported,
-        label: 'Weekly periods',
-        minimum: 0,
-      }),
+      weeklyPeriods(),
     ],
     hidden: false,
     icon: 'co_present',

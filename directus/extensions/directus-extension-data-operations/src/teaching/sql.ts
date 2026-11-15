@@ -16,31 +16,35 @@ const literals = (values: readonly string[]): string =>
 const key = (expression: string): string =>
   String.raw`lower(regexp_replace(btrim(${expression}), '\s+', ' ', 'g'))`;
 
-// Bindings: EduPage id, title, start date, academic year label, term,
-// main, hidden. A timetable is never deleted: a former main timetable
-// keeps its lessons and stops counting.
-export const upsertTimetableSql = `INSERT INTO "timetables" ("edupage_id", "title", "date_from", "academic_year", "term", "main", "hidden")
-VALUES (?, ?, ?, (SELECT "id" FROM "academic_years" WHERE "label" = ?), ?, ?, ?)
+// Binding: the listed timetables as JSON ({edupage_id, title, date_from,
+// academic_year label, term, main, hidden}). A timetable is never deleted:
+// a former main timetable keeps its lessons and stops counting.
+export const upsertTimetablesSql = `INSERT INTO "timetables" ("edupage_id", "title", "date_from", "academic_year", "term", "main", "hidden")
+SELECT r."edupage_id", r."title", r."date_from", y."id", r."term", r."main", r."hidden"
+FROM json_to_recordset(?::json) AS r("edupage_id" text, "title" text, "date_from" text, "academic_year" text, "term" text, "main" boolean, "hidden" boolean)
+LEFT JOIN "academic_years" y ON y."label" = r."academic_year"
 ON CONFLICT ("edupage_id") DO UPDATE SET "title" = EXCLUDED."title", "date_from" = EXCLUDED."date_from",
-  "academic_year" = EXCLUDED."academic_year", "term" = EXCLUDED."term", "main" = EXCLUDED."main", "hidden" = EXCLUDED."hidden"
-RETURNING "id"`;
+  "academic_year" = EXCLUDED."academic_year", "term" = EXCLUDED."term", "main" = EXCLUDED."main", "hidden" = EXCLUDED."hidden"`;
 
 export const fingerprintsSql =
   'SELECT "edupage_id", "fingerprint" FROM "timetables"';
 
-// Binding: the timetable's id.
-export const clearLessonsSql =
-  'DELETE FROM "timetable_lessons" WHERE "timetable" = ?';
+// Binding: the changed timetables' EduPage ids as JSON.
+export const clearLessonsSql = `DELETE FROM "timetable_lessons" WHERE "timetable" IN (
+  SELECT t."id" FROM "timetables" t WHERE t."edupage_id" IN (SELECT json_array_elements_text(?::json)))`;
 
-// Bindings: the timetable's id, its lessons as JSON. The match columns are
-// set by the rebuild that follows in the same transaction.
+// Binding: the lessons as JSON, each with its timetable's EduPage id. The
+// match columns are set by the rebuild that follows in the same
+// transaction.
 export const insertLessonsSql = `INSERT INTO "timetable_lessons" ("timetable", "subject", "kind", "teacher", "periods", "course_match", "teacher_match")
-SELECT ?, rows."subject", rows."kind", rows."teacher", rows."periods", 'unmatched', 'unmatched'
-FROM json_to_recordset(?::json) AS rows("subject" text, "kind" text, "teacher" text, "periods" integer)`;
+SELECT t."id", r."subject", r."kind", r."teacher", r."periods", 'unmatched', 'unmatched'
+FROM json_to_recordset(?::json) AS r("edupage_id" text, "subject" text, "kind" text, "teacher" text, "periods" integer)
+JOIN "timetables" t ON t."edupage_id" = r."edupage_id"`;
 
-// Bindings: the fingerprint, the timetable's id.
-export const fingerprintSql =
-  'UPDATE "timetables" SET "fingerprint" = ?, "imported_at" = now() WHERE "id" = ?';
+// Binding: the changed timetables as JSON ({edupage_id, fingerprint}).
+export const fingerprintSql = `UPDATE "timetables" t SET "fingerprint" = r."fingerprint", "imported_at" = now()
+FROM json_to_recordset(?::json) AS r("edupage_id" text, "fingerprint" text)
+WHERE t."edupage_id" = r."edupage_id"`;
 
 // The courses and staff every distinct subject and teacher of the lessons
 // stands for. A course name matches by the course's name, then its

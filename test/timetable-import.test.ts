@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, test, vi } from 'vitest';
+import { z } from 'zod';
 
 import type {
   SqlBinding,
@@ -26,8 +27,12 @@ import {
   splitSubject,
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/parse.js';
 import {
+  clearLessonsSql,
+  fingerprintSql,
+  insertLessonsSql,
   insertTeachingSql,
   matchLessonsSql,
+  upsertTimetablesSql,
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/sql.js';
 import { teachingKeys } from '../src/data-model/teaching-collections.js';
 import {
@@ -149,12 +154,15 @@ describe('timetable parsing', () => {
 
 type Statement = { readonly bindings: SqlBinding[]; readonly sql: string };
 
+// The JSON a batched statement binds.
+const jsonBinding = ({ bindings }: Statement): unknown[] =>
+  z.array(z.unknown()).parse(JSON.parse(String(bindings[0])));
+
 // A database that records every statement and answers the few reads the
 // import makes.
 const fakeDatabase = (fingerprints: Record<string, string> = {}) => {
   const statements: Statement[] = [];
   const transactions: Statement[][] = [];
-  let nextId = 1;
   const client = (log: Statement[]): SqlClient => ({
     raw: (sql, bindings = []) => {
       log.push({ bindings, sql });
@@ -165,9 +173,11 @@ const fakeDatabase = (fingerprints: Record<string, string> = {}) => {
           ),
         });
       }
-      if (sql.startsWith('INSERT INTO "timetables"')) {
-        nextId += 1;
-        return Promise.resolve({ rowCount: 1, rows: [{ id: nextId }] });
+      if (sql === insertLessonsSql) {
+        return Promise.resolve({
+          rowCount: jsonBinding({ bindings, sql }).length,
+          rows: [],
+        });
       }
       return sql.startsWith('SELECT\n  count(DISTINCT')
         ? Promise.resolve({ rows: [{ subjects: 2, teachers: 1 }] })
@@ -190,7 +200,21 @@ const fetched = (value: unknown): Fetched => ({
   text: JSON.stringify(value),
 });
 
-const timetable = { cards: [card('Бази на податоци (п)', ['Горан Велинов'])] };
+const timetable = { cards: [card(`${databases} (п)`, [velinov])] };
+
+// A listed timetable as the import stores it.
+const timetableRow = (
+  id: string,
+  dateFrom: string,
+  flags: { readonly hidden: boolean; readonly main: boolean },
+) => ({
+  academic_year: semesterOf(dateFrom).academicYear,
+  date_from: dateFrom,
+  term: semesterOf(dateFrom).term,
+  edupage_id: id,
+  title: `raspored-${id}`,
+  ...flags,
+});
 
 const source =
   (listing: unknown, timetables: Record<string, unknown> = {}) =>
@@ -226,7 +250,7 @@ describe('the timetable import', () => {
     expect(summary).toEqual({
       changed: ['31', '28'],
       fetched: 2,
-      lessons: 6,
+      lessons: 2,
       main: 2,
       teaching: 3,
       timetables: 3,
@@ -237,14 +261,32 @@ describe('the timetable import', () => {
     const [statements = []] = transactions;
 
     expect(statements[0]?.sql).toBe(openGuardSql('timetables'));
-    expect(
-      statements
-        .filter(({ sql }) => sql.startsWith('INSERT INTO "timetables"'))
-        .map(({ bindings }) => bindings),
-    ).toEqual([
-      ['31', 'raspored-31', '2026-10-10', '2026/2027', 'winter', true, false],
-      ['30', 'raspored-30', '2026-10-02', '2026/2027', 'winter', false, true],
-      ['28', 'raspored-28', '2026-02-23', '2025/2026', 'summer', true, true],
+    expect(statements.map(({ sql }) => sql).slice(1, 5)).toEqual([
+      upsertTimetablesSql,
+      clearLessonsSql,
+      insertLessonsSql,
+      fingerprintSql,
+    ]);
+    expect(statements.slice(1, 5).map(jsonBinding)).toEqual([
+      [
+        timetableRow('31', '2026-10-10', { hidden: false, main: true }),
+        timetableRow('30', '2026-10-02', { hidden: true, main: false }),
+        timetableRow('28', '2026-02-23', { hidden: true, main: true }),
+      ],
+      ['31', '28'],
+      ['31', '28'].map((edupage_id) => ({
+        edupage_id,
+        kind: 'п',
+        periods: 2,
+        subject: databases,
+        teacher: velinov,
+      })),
+      ['31', '28'].map((edupage_id) => ({
+        edupage_id,
+        fingerprint: createHash('sha256')
+          .update(JSON.stringify(timetable))
+          .digest('hex'),
+      })),
     ]);
     expect(statements.map(({ sql }) => sql)).toContain(insertTeachingSql);
     expect(statements.map(({ sql }) => sql).at(-2)).toBe(matchLessonsSql);

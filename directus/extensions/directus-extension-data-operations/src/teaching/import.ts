@@ -22,7 +22,7 @@ import {
   insertTeachingSql,
   matchLessonsSql,
   unmatchedSql,
-  upsertTimetableSql,
+  upsertTimetablesSql,
 } from './sql.js';
 
 // The timetable import: reads the listing and the main timetables from
@@ -61,7 +61,6 @@ export type TimetableSource = (path: string) => Promise<Fetched>;
 const fingerprintRows = z.array(
   z.object({ edupage_id: z.string(), fingerprint: z.string().nullable() }),
 );
-const idRow = z.object({ id: z.coerce.number().int() });
 const unmatchedRow = z.object({
   subjects: z.coerce.number().int(),
   teachers: z.coerce.number().int(),
@@ -116,24 +115,24 @@ type DownloadPlan = {
 
 // The main timetables to store: every one never imported or still visible
 // on EduPage (with `all`, every one), unless its fingerprint is unchanged.
+// They are fetched in parallel; the API serves each from its cache or
+// archive.
 const download = async (
   { all, known, listed, main }: DownloadPlan,
   source: TimetableSource,
 ): Promise<{ downloads: Download[]; fetched: number }> => {
+  const wanted = listed.filter(
+    ({ hidden, id }) =>
+      main.has(id) && (all || (known.get(id) ?? null) === null || !hidden),
+  );
+  const responses = await Promise.all(
+    wanted.map((timetable) => source(`/timetables/${timetable.id}`)),
+  );
   const downloads: Download[] = [];
-  let fetched = 0;
-  for (const timetable of listed) {
-    const previous = known.get(timetable.id) ?? null;
-    if (
-      !main.has(timetable.id) ||
-      (!all && previous !== null && timetable.hidden)
-    ) {
-      continue;
-    }
-    const response = await source(`/timetables/${timetable.id}`);
-    fetched += 1;
-    const fingerprint = sha256(response.text);
-    if (fingerprint === previous) {
+  for (const [index, timetable] of wanted.entries()) {
+    const response = responses[index];
+    const fingerprint = response === undefined ? '' : sha256(response.text);
+    if (response === undefined || fingerprint === known.get(timetable.id)) {
       continue;
     }
     const parsed = timetableSchema.safeParse(response.json);
@@ -144,12 +143,11 @@ const download = async (
       );
     }
     // An empty timetable never replaces stored lessons.
-    if (parsed.data.cards.length === 0) {
-      continue;
+    if (parsed.data.cards.length > 0) {
+      downloads.push({ fingerprint, timetable, value: parsed.data });
     }
-    downloads.push({ fingerprint, timetable, value: parsed.data });
   }
-  return { downloads, fetched };
+  return { downloads, fetched: wanted.length };
 };
 
 export const runTimetableImport = async (
@@ -178,36 +176,37 @@ export const runTimetableImport = async (
     { all, known, listed, main },
     source,
   );
+  const timetables = listed.map((timetable) => {
+    const { academicYear, term } = semesterOf(timetable.dateFrom);
+    return {
+      academic_year: academicYear,
+      date_from: timetable.dateFrom,
+      edupage_id: timetable.id,
+      hidden: timetable.hidden,
+      main: main.has(timetable.id),
+      term,
+      title: timetable.title,
+    };
+  });
+  const changed = downloads.map(({ timetable }) => timetable.id);
+  const lessonRows = downloads.flatMap(({ timetable, value }) =>
+    lessonsOf(value).map((lesson) => ({ ...lesson, edupage_id: timetable.id })),
+  );
+  const fingerprints = downloads.map(({ fingerprint, timetable }) => ({
+    edupage_id: timetable.id,
+    fingerprint,
+  }));
   return database.transaction(async (client) => {
     await openGuard(client, 'timetables');
-    const ids = new Map<string, number>();
-    for (const timetable of listed) {
-      const { academicYear, term } = semesterOf(timetable.dateFrom);
-      const upserted = await run(client, upsertTimetableSql, [
-        timetable.id,
-        timetable.title,
-        timetable.dateFrom,
-        academicYear,
-        term,
-        main.has(timetable.id),
-        timetable.hidden,
-      ]);
-      ids.set(timetable.id, idRow.parse(upserted.rows[0]).id);
-    }
-    let lessons = 0;
-    for (const { fingerprint, timetable, value } of downloads) {
-      const id = ids.get(timetable.id);
-      if (id === undefined) {
-        continue;
-      }
-      const rows = lessonsOf(value);
-      await run(client, clearLessonsSql, [id]);
-      lessons += await affected(client, insertLessonsSql, [id, json(rows)]);
-      await run(client, fingerprintSql, [fingerprint, id]);
-    }
+    await run(client, upsertTimetablesSql, [json(timetables)]);
+    await run(client, clearLessonsSql, [json(changed)]);
+    const lessons = await affected(client, insertLessonsSql, [
+      json(lessonRows),
+    ]);
+    await run(client, fingerprintSql, [json(fingerprints)]);
     const rebuilt = await rebuildTeaching(client);
     return {
-      changed: downloads.map(({ timetable }) => timetable.id),
+      changed,
       fetched,
       lessons,
       main: main.size,
