@@ -18,24 +18,23 @@ export const publishedSemesters = 6;
 export type MatchState = (typeof matchStates)[number];
 
 // The class types a subject's trailing parentheses name, from summer
-// 2022/23 on: a lecture type makes the teacher a professor, an exercise
-// type an assistant. The English program's c and e say neither for sure,
-// so its teachers' positions decide, as in a timetable without types.
-// Other parentheses belong to the subject's name.
-export const lectureKinds = ['п', 'п+ав'] as const;
-
-export const exerciseKinds = ['ав', 'в', 'аб', 'лаб', 'ав+лаб'] as const;
-
-export const unsureKinds = ['c', 'e'] as const;
-
+// 2022/23 on (п lecture, ав exercises, c and e the English program's); the
+// lesson keeps them apart from the subject. Other parentheses belong to the
+// subject's name. They decide nothing: a teacher's position does.
 export const classKinds: readonly string[] = [
-  ...lectureKinds,
-  ...exerciseKinds,
-  ...unsureKinds,
+  'п',
+  'п+ав',
+  'ав',
+  'в',
+  'аб',
+  'лаб',
+  'ав+лаб',
+  'c',
+  'e',
 ];
 
-// The positions whose holders count as professors in a timetable that
-// names no class type.
+// The positions whose holders are professors; everyone else who teaches is
+// an assistant.
 export const professorPositions = [
   'Редовен професор',
   'Вонреден професор',
