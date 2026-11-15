@@ -154,7 +154,8 @@ by hand, or fetches every one again.
 `course_teaching` is derived from the lessons in the same transaction: each
 staff member's weekly periods of a course in each main timetable, as
 professor when their position is Редовен професор, Вонреден професор,
-Доцент, Насловен вонреден професор or Професор во пензија and assistant
+Доцент, Насловен вонреден професор, Визитинг професор or Професор во
+пензија and assistant
 otherwise, whatever classes they held. A subject matches a course by its name, English name or a linked
 curriculum entry's name, and a combined slot "A / B" when each part does; a
 teacher matches a staff member by name, with either of two surnames left
