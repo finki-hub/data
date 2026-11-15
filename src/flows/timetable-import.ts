@@ -22,6 +22,7 @@ export const timetableImportCron = '0 30 4 * * *';
 
 const summary = {
   changed: '{{ import.changed }}',
+  empty: '{{ import.empty }}',
   fetched: '{{ import.fetched }}',
   lessons: '{{ import.lessons }}',
   main: '{{ import.main }}',
@@ -35,6 +36,7 @@ const answers = [
   'main',
   'fetched',
   'changed',
+  'empty',
   'lessons',
   'teaching',
   'unmatched',

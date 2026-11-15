@@ -21,6 +21,7 @@ import {
   insertLessonsSql,
   insertTeachingSql,
   matchLessonsSql,
+  teachingLockSql,
   unmatchedSql,
   upsertTimetablesSql,
 } from './sql.js';
@@ -48,6 +49,7 @@ export type Fetched = {
 
 export type ImportSummary = {
   readonly changed: readonly string[];
+  readonly empty: readonly string[];
   readonly fetched: number;
   readonly lessons: number;
   readonly main: number;
@@ -85,13 +87,15 @@ const sha256 = (text: string): string =>
 
 // Rebuilds course_teaching and the lessons' match columns from the stored
 // lessons, the courses, the staff and the two alias lists. The caller's
-// transaction must not have opened another writer's guard.
+// transaction must not have opened another writer's guard. The lock makes
+// an import and a rebuild after an edit run one after the other.
 export const rebuildTeaching = async (
   client: SqlClient,
 ): Promise<{
   readonly teaching: number;
   readonly unmatched: ImportSummary['unmatched'];
 }> => {
+  await run(client, teachingLockSql);
   await openGuard(client, 'course_teaching');
   await run(client, clearTeachingSql);
   const teaching = await affected(client, insertTeachingSql);
@@ -106,56 +110,106 @@ type Download = {
   readonly value: Timetable;
 };
 
-type DownloadPlan = {
+type Plan = {
   readonly all: boolean;
   readonly known: ReadonlyMap<string, null | string>;
   readonly listed: readonly ListedTimetable[];
+};
+
+type Round = {
+  // Fetched and parsed, empty ones included.
+  readonly downloads: readonly Download[];
+  // Answered without a card: never a main timetable this run.
+  readonly empty: ReadonlySet<string>;
   readonly main: ReadonlySet<string>;
 };
 
-// The main timetables to store: every one never imported or still visible
-// on EduPage (with `all`, every one), unless its fingerprint is unchanged.
-// They are fetched in parallel; the API serves each from its cache or
-// archive.
-const download = async (
-  { all, known, listed, main }: DownloadPlan,
+// How many timetables are fetched at once.
+const fetchConcurrency = 4;
+
+const fetchOne = async (
+  timetable: ListedTimetable,
   source: TimetableSource,
-): Promise<{ downloads: Download[]; fetched: number }> => {
-  const wanted = listed.filter(
-    ({ hidden, id }) =>
-      main.has(id) && (all || (known.get(id) ?? null) === null || !hidden),
-  );
-  const responses = await Promise.all(
-    wanted.map((timetable) => source(`/timetables/${timetable.id}`)),
-  );
-  const downloads: Download[] = [];
-  for (const [index, timetable] of wanted.entries()) {
-    const response = responses[index];
-    const fingerprint = response === undefined ? '' : sha256(response.text);
-    if (response === undefined || fingerprint === known.get(timetable.id)) {
-      continue;
-    }
-    const parsed = timetableSchema.safeParse(response.json);
-    if (!parsed.success) {
-      throw new TimetableImportError(
-        `Timetable ${timetable.id}: unexpected response`,
-        { code: 'TIMETABLE_INVALID' },
-      );
-    }
-    // An empty timetable never replaces stored lessons.
-    if (parsed.data.cards.length > 0) {
-      downloads.push({ fingerprint, timetable, value: parsed.data });
-    }
+): Promise<Download> => {
+  const response = await source(`/timetables/${timetable.id}`);
+  const parsed = timetableSchema.safeParse(response.json);
+  if (!parsed.success) {
+    throw new TimetableImportError(
+      `Timetable ${timetable.id}: unexpected response`,
+      { code: 'TIMETABLE_INVALID' },
+    );
   }
-  return { downloads, fetched: wanted.length };
+  return {
+    fingerprint: sha256(response.text),
+    timetable,
+    value: parsed.data,
+  };
 };
 
-export const runTimetableImport = async (
-  options: unknown,
-  database: SqlDatabase,
+// The timetables in groups of fetchConcurrency, one group after another.
+const fetchAll = async (
+  timetables: readonly ListedTimetable[],
   source: TimetableSource,
-): Promise<ImportSummary> => {
-  const { all } = importOptionsSchema.parse(options ?? {});
+): Promise<Download[]> => {
+  if (timetables.length === 0) {
+    return [];
+  }
+  const group = await Promise.all(
+    timetables
+      .slice(0, fetchConcurrency)
+      .map((timetable) => fetchOne(timetable, source)),
+  );
+  return [
+    ...group,
+    ...(await fetchAll(timetables.slice(fetchConcurrency), source)),
+  ];
+};
+
+// Fetches the main timetables not fetched yet that need it: every one
+// never imported or still visible on EduPage (with `all`, every one). A
+// main timetable that answers empty stops being main, so the one before it
+// in its semester is fetched in the next round when it needs to be.
+const fetchRound = async (
+  plan: Plan,
+  round: Round,
+  source: TimetableSource,
+): Promise<Round> => {
+  const { all, known, listed } = plan;
+  const fetched = new Set(round.downloads.map(({ timetable }) => timetable.id));
+  const wanted = listed.filter(
+    ({ hidden, id }) =>
+      round.main.has(id) &&
+      !fetched.has(id) &&
+      (all || (known.get(id) ?? null) === null || !hidden),
+  );
+  if (wanted.length === 0) {
+    return round;
+  }
+  const downloads = [...round.downloads, ...(await fetchAll(wanted, source))];
+  const empty = new Set(
+    downloads
+      .filter(({ value }) => value.cards.length === 0)
+      .map(({ timetable }) => timetable.id),
+  );
+  const main = mainTimetables(listed.filter(({ id }) => !empty.has(id)));
+  return fetchRound(plan, { downloads, empty, main }, source);
+};
+
+// The timetables whose lessons are stored: those that answered with cards
+// and changed, or with `all` every one, so a parser change reaches them.
+const toStore = (
+  { all, known }: Plan,
+  downloads: readonly Download[],
+): Download[] =>
+  downloads.filter(
+    ({ fingerprint, timetable, value }) =>
+      value.cards.length > 0 &&
+      (all || fingerprint !== known.get(timetable.id)),
+  );
+
+const readListing = async (
+  source: TimetableSource,
+): Promise<readonly ListedTimetable[]> => {
   const response = await source('/timetables');
   const listing = listingSchema.safeParse(response.json);
   if (!listing.success || listing.data.length === 0) {
@@ -164,18 +218,29 @@ export const runTimetableImport = async (
       { code: 'LISTING_INVALID' },
     );
   }
-  const listed = listing.data;
-  const main = mainTimetables(listed);
+  return listing.data;
+};
+
+export const runTimetableImport = async (
+  options: unknown,
+  database: SqlDatabase,
+  source: TimetableSource,
+): Promise<ImportSummary> => {
+  const { all } = importOptionsSchema.parse(options ?? {});
+  const listed = await readListing(source);
   const stored = await run(database, fingerprintsSql);
   const known = new Map(
     fingerprintRows
       .parse(stored.rows)
       .map((row) => [row.edupage_id, row.fingerprint]),
   );
-  const { downloads, fetched } = await download(
-    { all, known, listed, main },
+  const plan = { all, known, listed };
+  const { downloads, empty, main } = await fetchRound(
+    plan,
+    { downloads: [], empty: new Set(), main: mainTimetables(listed) },
     source,
   );
+  const stores = toStore(plan, downloads);
   const timetables = listed.map((timetable) => {
     const { academicYear, term } = semesterOf(timetable.dateFrom);
     return {
@@ -188,15 +253,16 @@ export const runTimetableImport = async (
       title: timetable.title,
     };
   });
-  const changed = downloads.map(({ timetable }) => timetable.id);
-  const lessonRows = downloads.flatMap(({ timetable, value }) =>
+  const changed = stores.map(({ timetable }) => timetable.id);
+  const lessonRows = stores.flatMap(({ timetable, value }) =>
     lessonsOf(value).map((lesson) => ({ ...lesson, edupage_id: timetable.id })),
   );
-  const fingerprints = downloads.map(({ fingerprint, timetable }) => ({
+  const fingerprints = stores.map(({ fingerprint, timetable }) => ({
     edupage_id: timetable.id,
     fingerprint,
   }));
   return database.transaction(async (client) => {
+    await run(client, teachingLockSql);
     await openGuard(client, 'timetables');
     await run(client, upsertTimetablesSql, [json(timetables)]);
     await run(client, clearLessonsSql, [json(changed)]);
@@ -207,7 +273,8 @@ export const runTimetableImport = async (
     const rebuilt = await rebuildTeaching(client);
     return {
       changed,
-      fetched,
+      empty: [...empty],
+      fetched: downloads.length,
       lessons,
       main: main.size,
       teaching: rebuilt.teaching,
@@ -234,5 +301,12 @@ export const httpSource =
       );
     }
     const text = await response.text();
-    return { json: JSON.parse(text) as unknown, text };
+    try {
+      return { json: JSON.parse(text) as unknown, text };
+    } catch (error) {
+      throw new TimetableImportError(`Timetables API ${path}: not JSON`, {
+        cause: error,
+        code: 'TIMETABLES_API_FAILED',
+      });
+    }
   };

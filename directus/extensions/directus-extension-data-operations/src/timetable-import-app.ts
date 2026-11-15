@@ -4,7 +4,7 @@ import { defineOperationApp } from '@directus/extensions-sdk';
 // timetable-import.ts.
 export default defineOperationApp({
   description:
-    'Imports the timetables from the timetables API and rebuilds course_teaching. Answer: { timetables, main, fetched, changed, lessons, teaching, unmatched }.',
+    'Imports the timetables from the timetables API and rebuilds course_teaching. Answer: { timetables, main, fetched, changed, empty, lessons, teaching, unmatched }.',
   icon: 'calendar_view_week',
   id: 'finki-hub-timetable-import',
   name: 'FINKI Hub timetable import',

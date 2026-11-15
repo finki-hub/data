@@ -32,6 +32,7 @@ import {
   insertLessonsSql,
   insertTeachingSql,
   matchLessonsSql,
+  teachingLockSql,
   upsertTimetablesSql,
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/sql.js';
 import { teachingKeys } from '../src/data-model/teaching-collections.js';
@@ -42,6 +43,7 @@ import {
 } from '../src/flows/timetable-import.js';
 import { keyText } from './data-model-test-helpers.js';
 
+const listingPath = '/timetables';
 const databases = 'Бази на податоци';
 const velinov = 'Горан Велинов';
 const writeEvents = ['create', 'update', 'delete'];
@@ -221,7 +223,7 @@ const source =
   (path: string): Promise<Fetched> =>
     Promise.resolve(
       fetched(
-        path === '/timetables'
+        path === listingPath
           ? listing
           : (timetables[path.replace('/timetables/', '')] ?? timetable),
       ),
@@ -243,12 +245,13 @@ describe('the timetable import', () => {
     });
 
     expect(fetchedPaths).toEqual([
-      '/timetables',
+      listingPath,
       '/timetables/31',
       '/timetables/28',
     ]);
     expect(summary).toEqual({
       changed: ['31', '28'],
+      empty: [],
       fetched: 2,
       lessons: 2,
       main: 2,
@@ -260,14 +263,17 @@ describe('the timetable import', () => {
 
     const [statements = []] = transactions;
 
-    expect(statements[0]?.sql).toBe(openGuardSql('timetables'));
-    expect(statements.map(({ sql }) => sql).slice(1, 5)).toEqual([
+    expect(statements.slice(0, 2).map(({ sql }) => sql)).toEqual([
+      teachingLockSql,
+      openGuardSql('timetables'),
+    ]);
+    expect(statements.map(({ sql }) => sql).slice(2, 6)).toEqual([
       upsertTimetablesSql,
       clearLessonsSql,
       insertLessonsSql,
       fingerprintSql,
     ]);
-    expect(statements.slice(1, 5).map(jsonBinding)).toEqual([
+    expect(statements.slice(2, 6).map(jsonBinding)).toEqual([
       [
         timetableRow('31', '2026-10-10', { hidden: false, main: true }),
         timetableRow('30', '2026-10-02', { hidden: true, main: false }),
@@ -311,20 +317,45 @@ describe('the timetable import', () => {
       source(listing),
     );
 
+    // `all` stores every one again, so a parser change reaches it.
     expect(all.fetched).toBe(2);
-    expect(all.changed).toEqual(['28']);
+    expect(all.changed).toEqual(['31', '28']);
   });
 
-  test('never replaces stored lessons with an empty timetable', async () => {
-    const { database } = fakeDatabase();
+  test('never stores an empty timetable and hands its semester to the one before it', async () => {
+    const { database, transactions } = fakeDatabase();
     const summary = await runTimetableImport(
       {},
       database,
       source(listing, { '28': { cards: [] }, '31': { cards: [] } }),
     );
 
-    expect(summary.changed).toEqual([]);
-    expect(summary.lessons).toBe(0);
+    expect(summary.empty).toEqual(['31', '28']);
+    expect(summary.changed).toEqual(['30']);
+    expect(summary.main).toBe(1);
+
+    const upsert = transactions[0]?.find(
+      ({ sql }) => sql === upsertTimetablesSql,
+    );
+
+    expect(
+      (upsert === undefined ? [] : jsonBinding(upsert)).filter(
+        (row) => z.object({ main: z.literal(true) }).safeParse(row).success,
+      ),
+    ).toHaveLength(1);
+  });
+
+  test('refuses a response that is not JSON with its own code', async () => {
+    const fetcher = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response('<html>', { status: 200 })),
+    );
+
+    await expect(
+      httpSource('https://api.example', fetcher)(listingPath),
+    ).rejects.toMatchObject({
+      code: 'TIMETABLES_API_FAILED',
+      message: 'Timetables API /timetables: not JSON',
+    });
   });
 
   test('refuses an empty or malformed listing and a malformed timetable before writing', async () => {
@@ -353,7 +384,7 @@ describe('the timetable import', () => {
     );
 
     await expect(
-      httpSource('https://api.example/', fetcher)('/timetables'),
+      httpSource('https://api.example/', fetcher)(listingPath),
     ).resolves.toEqual({ json: [], text: '[]' });
     expect(fetcher).toHaveBeenCalledWith(
       'https://api.example/timetables',
@@ -365,7 +396,7 @@ describe('the timetable import', () => {
     );
 
     await expect(
-      httpSource('https://api.example', failing)('/timetables'),
+      httpSource('https://api.example', failing)(listingPath),
     ).rejects.toThrow('Timetables API /timetables: HTTP 503');
   });
 });

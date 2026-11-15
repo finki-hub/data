@@ -26,6 +26,11 @@ LEFT JOIN "academic_years" y ON y."label" = r."academic_year"
 ON CONFLICT ("edupage_id") DO UPDATE SET "title" = EXCLUDED."title", "date_from" = EXCLUDED."date_from",
   "academic_year" = EXCLUDED."academic_year", "term" = EXCLUDED."term", "main" = EXCLUDED."main", "hidden" = EXCLUDED."hidden"`;
 
+// The lock of the import and the rebuild, held to the end of the
+// transaction: two rebuilds never clear and refill course_teaching at once.
+export const teachingLockSql =
+  "SELECT pg_advisory_xact_lock(hashtext('finki_hub.timetable_writer'))";
+
 export const fingerprintsSql =
   'SELECT "edupage_id", "fingerprint" FROM "timetables"';
 
