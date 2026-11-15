@@ -24,6 +24,7 @@ export const publicReads: readonly PublicRead[] = [
     fields: ['id', 'label', 'published', 'enrollments'],
   },
   { collection: 'anto_quotes', fields: '*' },
+  { collection: 'course_accreditation_staff', fields: '*' },
   { collection: 'course_curricula', fields: '*' },
   // Not the calculation's internal revision.
   {
@@ -32,6 +33,7 @@ export const publicReads: readonly PublicRead[] = [
   },
   { collection: 'course_equivalencies', fields: '*' },
   { collection: 'course_equivalency_members', fields: '*' },
+  { collection: 'course_teaching', fields: '*' },
   // Not the Moodle mappings and history lines of a course.
   {
     collection: 'courses',
@@ -57,6 +59,8 @@ export const publicReads: readonly PublicRead[] = [
       'content',
       'content_en',
       'syllabus',
+      'teaching',
+      'accreditation_staff',
     ],
   },
   {
@@ -96,6 +100,8 @@ export const publicReads: readonly PublicRead[] = [
   },
   { collection: 'study_programs', fields: '*' },
   { collection: 'teaching_assignments', fields: '*' },
+  { collection: 'timetable_lessons', fields: '*' },
+  { collection: 'timetables', fields: '*' },
 ];
 
 // The policy and role of the MCP server's token.

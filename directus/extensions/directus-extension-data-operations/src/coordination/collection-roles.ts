@@ -83,6 +83,20 @@ type WriteGuard = {
 const content = <const Collection extends string>(collection: Collection) =>
   ({ collection, role: 'content' }) as const;
 
+// A table of the timetable import, which opens all three with one setting.
+const timetableDerived = <const Collection extends string>(
+  collection: Collection,
+) =>
+  ({
+    collection,
+    guard: {
+      hint: 'Source: timetables-api.finki-hub.com, courses, staff, course_aliases, staff_aliases; rebuilt by: Data / Import timetables',
+      writer: 'timetable_writer',
+      writtenBy: 'timetable import',
+    },
+    role: 'derived',
+  }) as const;
+
 // Sources in the order their triggers are installed, then the others.
 const collectionRoles = [
   // Every course is counted in every academic year.
@@ -108,6 +122,9 @@ const collectionRoles = [
   content('deans_office'),
   content('exam_sessions'),
   content('anto_quotes'),
+  content('course_aliases'),
+  content('staff_aliases'),
+  content('course_accreditation_staff'),
   {
     caseLast: true,
     collection: 'academic_years',
@@ -170,6 +187,11 @@ const collectionRoles = [
     },
     role: 'derived',
   },
+  // The timetable import writes all three; an edit of a course, a staff
+  // member or an alias rebuilds course_teaching (teaching-rebuild.ts).
+  timetableDerived('timetables'),
+  timetableDerived('timetable_lessons'),
+  timetableDerived('course_teaching'),
   {
     collection: 'moodle_import_rows',
     guard: {

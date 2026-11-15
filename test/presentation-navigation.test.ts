@@ -73,7 +73,8 @@ describe('navigation', () => {
       { label: 'Enrollments', sort: 5 },
       { label: 'Moodle users', sort: 6 },
       { label: 'Sessions & quotes', sort: 7 },
-      { label: 'Internals', sort: 8 },
+      { label: 'Timetables', sort: 8 },
+      { label: 'Internals', sort: 9 },
     ]);
     expect(
       Object.fromEntries(
@@ -81,7 +82,12 @@ describe('navigation', () => {
       ),
     ).toEqual({
       folder_bot_content: ['exam_sessions', 'anto_quotes'],
-      folder_courses: ['courses', 'teaching_assignments', 'discord_channels'],
+      folder_courses: [
+        'courses',
+        'teaching_assignments',
+        'course_accreditation_staff',
+        'discord_channels',
+      ],
       folder_curriculum: [
         'curriculum_entries',
         'course_equivalencies',
@@ -108,6 +114,13 @@ describe('navigation', () => {
       ],
       folder_staff_rooms: ['staff', 'rooms', 'deans_office'],
       folder_students: ['students', 'student_council'],
+      folder_timetables: [
+        'course_teaching',
+        'timetables',
+        'timetable_lessons',
+        'course_aliases',
+        'staff_aliases',
+      ],
     });
   });
 

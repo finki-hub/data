@@ -32,6 +32,7 @@ import {
   relationsOf,
   toRelationPayload,
 } from '../src/data-model/relations.js';
+import { teachingKeys } from '../src/data-model/teaching-collections.js';
 import { DirectusRequestError } from '../src/directus-request.js';
 import { type CompositeKey } from '../src/schema-relations.js';
 import {
@@ -45,6 +46,7 @@ import {
   findCollection,
   findField,
   installedState,
+  keyText,
   mutations,
 } from './data-model-test-helpers.js';
 
@@ -144,8 +146,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(29);
-    expect(new Set(dataModelCollectionKeys).size).toBe(29);
+    expect(dataModelCollectionKeys).toHaveLength(35);
+    expect(new Set(dataModelCollectionKeys).size).toBe(35);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -348,12 +350,7 @@ describe('domain keys', () => {
   });
 
   test('declares composite keys only where the domain table says unique', () => {
-    expect(
-      compositeKeys.map(
-        ({ collection, columns, kind }) =>
-          `${kind} ${collection} (${columns.join(', ')})`,
-      ),
-    ).toEqual([
+    expect(compositeKeys.map(keyText)).toEqual([
       'unique teaching_assignments (course, staff, role)',
       'unique deans_office (year, position)',
       'unique course_curricula (course, generation)',
@@ -370,6 +367,8 @@ describe('domain keys', () => {
       'unique moodle_counted_lines (entry, course, academic_year, pattern_mapping)',
       'unique data_operation_matches (claim_token, page_token, entry, pattern_mapping)',
       'unique course_enrollments (course, academic_year)',
+      // The teaching keys: timetable-import.test.ts.
+      ...teachingKeys.map(keyText),
     ]);
 
     expect(compositeKeys.flatMap(unknownColumns)).toEqual([]);
@@ -724,6 +723,10 @@ describe('relations and aliases', () => {
       'moodle_pattern_mappings.counted_lines',
       'courses.enrollments',
       'academic_years.enrollments',
+      'timetables.lessons',
+      'courses.teaching',
+      'staff.teaching',
+      'timetables.teaching',
     ]);
     expect(
       aliases.filter(({ derived, readOnly }) => derived !== readOnly),
@@ -740,6 +743,8 @@ describe('relations and aliases', () => {
       'pattern_mappings',
       'counted_lines',
       'enrollments',
+      'teaching',
+      'accreditation_staff',
     ]);
     expect(aliasesFor('moodle_users').map(({ alias }) => alias.field)).toEqual([
       'history_memberships',
@@ -765,12 +770,13 @@ describe('relations and aliases', () => {
     ).toEqual([
       'teaching_assignments.course: sort',
       'moodle_history_memberships.moodle_user: sort',
+      'course_accreditation_staff.course: sort',
     ]);
     expect(
       sorted.map(
         ({ collection, sortField }) => findField(collection, sortField).kind,
       ),
-    ).toEqual(['integer', 'integer']);
+    ).toEqual(['integer', 'integer', 'integer']);
     expect(
       [
         'academic_years',

@@ -1,4 +1,4 @@
-import type { ModelRelation } from '../src/schema-relations.js';
+import type { CompositeKey, ModelRelation } from '../src/schema-relations.js';
 import type {
   ModelCollection,
   ModelField,
@@ -297,3 +297,7 @@ export const mutations = (
   requests: readonly RecordedRequest[],
 ): readonly RecordedRequest[] =>
   requests.filter(({ method }) => method !== 'GET');
+
+// A composite key as `<kind> <collection> (<columns>)`.
+export const keyText = ({ collection, columns, kind }: CompositeKey): string =>
+  `${kind} ${collection} (${columns.join(', ')})`;

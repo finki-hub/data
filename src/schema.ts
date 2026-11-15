@@ -128,10 +128,13 @@ export const assertNever = (value: never): never => {
 export type ModelCollectionKey =
   | 'academic_years'
   | 'anto_quotes'
+  | 'course_accreditation_staff'
+  | 'course_aliases'
   | 'course_curricula'
   | 'course_enrollments'
   | 'course_equivalencies'
   | 'course_equivalency_members'
+  | 'course_teaching'
   | 'courses'
   | 'curriculum_entries'
   | 'curriculum_entry_program_states'
@@ -151,10 +154,13 @@ export type ModelCollectionKey =
   | 'moodle_users'
   | 'rooms'
   | 'staff'
+  | 'staff_aliases'
   | 'student_council'
   | 'students'
   | 'study_programs'
-  | 'teaching_assignments';
+  | 'teaching_assignments'
+  | 'timetable_lessons'
+  | 'timetables';
 
 // What an M2O field may point at: a collection of the model, or the
 // Directus files (a file field, stored as the file's UUID).

@@ -13,7 +13,7 @@ The live instance is <https://data.finki-hub.com>.
 | Path | What it holds |
 | --- | --- |
 | `src/data-model/` | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs. |
-| `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule. |
+| `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable import. |
 | `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint and the `/legacy` endpoint. |
 | `directus/extensions/directus-extension-course-search/` | The **Search** layout over Moodle users (has all of / none of these courses). |
 | `directus/branding/` | Logo, login artwork and theme, applied by `npm run brand`. |
@@ -39,8 +39,10 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `curriculum_entry_program_states`, `curriculum_generations`,
 `study_programs`, `course_equivalencies`, `course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
-`rooms`, `deans_office`, `discord_channels`, `discord_channel_courses`,
-`student_council`, `exam_sessions` and `anto_quotes`. Students are public only as council members (name and
+`course_teaching`, `course_accreditation_staff`, `timetables`,
+`timetable_lessons`, `rooms`, `deans_office`, `discord_channels`,
+`discord_channel_courses`, `student_council`, `exam_sessions` and
+`anto_quotes`. Students are public only as council members (name and
 index number); every other student, every Moodle user and the operations
 bookkeeping stay private. These read permissions (and the `MCP` role's
 identical ones) are declared in `src/data-model/access.ts` and created by
@@ -88,7 +90,10 @@ The model is declared in `src/data-model/` and installed by
   not in `courses.json`.
   Their curriculum lives in **Curriculum links** (`course_curricula`, one
   per generation), their staff in **Teaching staff**
-  (`teaching_assignments`), their Discord channels in
+  (`teaching_assignments`), who taught them in each semester in **Course
+  teaching** (`course_teaching`, from the timetables, below), their
+  syllabus teachers in **Accreditation teachers**
+  (`course_accreditation_staff`), their Discord channels in
   `discord_channel_courses`.
 - **Curriculum** (`curriculum_generations`, `study_programs`,
   `curriculum_entries`, `curriculum_entry_program_states`,
@@ -131,6 +136,33 @@ Process pending** (every 15 seconds) runs the first pending one. **Data /
 Mark pending** (the **Recalculate** panel) marks them pending by hand and
 retries a failed run. The **Unmapped history lines** bookmark lists the
 lines no mapping counts.
+
+## Teaching staff from the timetables
+
+**Data / Import timetables daily** (04:30) reads
+[timetables-api.finki-hub.com](https://github.com/finki-hub/timetables-listing),
+which keeps every EduPage timetable in R2. It stores every listed timetable
+in `timetables` and, for the main timetable of each semester (the one that
+starts last), its lessons in `timetable_lessons`: the weekly periods of each
+subject, class type and teacher. It fetches the visible timetables and those
+never imported; **Data / Import timetables** on the dashboard does the same
+by hand, or fetches every one again.
+
+`course_teaching` is derived from the lessons in the same transaction: each
+staff member's weekly periods of a course in each main timetable, as
+professor for a lecture (п) and assistant for exercises (ав); a timetable
+before summer 2022/23 names no class type, so the staff member's position
+decides. A subject matches a course by its name, English name or a linked
+curriculum entry's name, and a combined slot "A / B" when each part does; a
+teacher matches a staff member by name, with either of two surnames left
+out. Anything else needs an alias: **Timetable course names**
+(`course_aliases`) and **Timetable staff names** (`staff_aliases`) map a
+timetable name to a course or staff member, or ignore it without one. Every
+edit of an alias, a course, a staff member or a curriculum entry rebuilds
+`course_teaching` at once. Filtering `timetable_lessons` by **Course match**
+or **Teacher match** Unmatched lists what still needs an alias.
+
+All three tables are written only by the import and its rebuild.
 
 ## Replacing the Moodle snapshot
 

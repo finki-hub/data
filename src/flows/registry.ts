@@ -13,6 +13,7 @@ import {
 import { matchingFlows } from './match-history-lines.js';
 import { automaticProcessingFlows } from './process-pending.js';
 import { snapshotImportFlows } from './snapshot-import.js';
+import { timetableImportFlows } from './timetable-import.js';
 
 // One managed Flow family: its declared code (every id of its templates
 // carries it), a name for the setup report and its templates in
@@ -44,6 +45,11 @@ export const flowFamilies: readonly FlowFamily[] = [
     code: flowFamilyCodes.matching,
     name: 'History line matching',
     templates: matchingFlows,
+  },
+  {
+    code: flowFamilyCodes.timetables,
+    name: 'Timetable import',
+    templates: timetableImportFlows,
   },
   {
     code: flowFamilyCodes.automation,

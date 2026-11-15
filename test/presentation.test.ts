@@ -427,6 +427,8 @@ describe('field presentation', () => {
     expect(findFieldGroup('courses', 'staff')?.members).toEqual([
       'status',
       'assignments',
+      'teaching',
+      'accreditation_staff',
     ]);
     expect(choicesOf('courses', 'status')).toEqual([
       { text: 'Active', value: 'active' },
