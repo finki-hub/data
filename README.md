@@ -13,7 +13,7 @@ The live instance is <https://data.finki-hub.com>.
 | Path | What it holds |
 | --- | --- |
 | `src/data-model/` | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs. |
-| `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable import. |
+| `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable and thesis imports. |
 | `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint and the `/legacy` endpoint. |
 | `directus/extensions/directus-extension-course-search/` | The **Search** layout over Moodle users (has all of / none of these courses). |
 | `directus/branding/` | Logo, login artwork and theme, applied by `npm run brand`. |
@@ -40,11 +40,13 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `study_programs`, `course_equivalencies`, `course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
 `course_teaching`, `course_accreditation_staff`, `timetables`,
-`timetable_lessons`, `rooms`, `deans_office`, `discord_channels`,
+`timetable_lessons`, `bachelor_theses`, `master_theses`,
+`bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`, `discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
 `anto_quotes`. Students are public only as council members (name and
 index number); every other student, every Moodle user and the operations
-bookkeeping stay private. These read permissions (and the `MCP` role's
+bookkeeping stay private. The theses name their students, as the
+faculty's own thesis lists do. These read permissions (and the `MCP` role's
 identical ones) are declared in `src/data-model/access.ts` and created by
 `npm run setup`.
 
@@ -157,9 +159,9 @@ by hand, or fetches every one again.
 staff member's weekly periods of a course in each main timetable, as
 professor when their position is Редовен професор, Вонреден професор,
 Доцент, Насловен вонреден професор, Визитинг професор or Професор во
-пензија and assistant
-otherwise, whatever classes they held. A subject matches a course by its name, English name or a linked
-curriculum entry's name, and a combined slot "A / B" when each part does; a
+пензија and assistant otherwise, whatever classes they held. A subject
+matches a course by its name, English name or a linked curriculum entry's
+name, and a combined slot "A / B" when each part does; a
 teacher matches a staff member by name, with either of two surnames left
 out. Anything else needs an alias: **Timetable course names**
 (`course_aliases`) and **Timetable staff names** (`staff_aliases`) map a
@@ -171,6 +173,32 @@ or **Teacher match** Unmatched lists what still needs an alias.
 All three tables are written only by the import and its rebuild. The
 import also marks the six latest main timetables **Published**
 (`timetables.recent`): the window `courses.json` reads.
+
+## Theses
+
+**Data / Import theses daily** (05:00) reads every bachelor's and master's
+thesis from the theses APIs of
+[theses-listing](https://github.com/finki-hub/theses-listing)
+(`bachelors-api` and `masters-api.finki-hub.com`, or `BACHELORS_API_URL`
+and `MASTERS_API_URL`) into `bachelor_theses` and `master_theses`: title,
+abstract, student, status, the day it was submitted (bachelor) or
+defended (master), document id and the mentor and committee names as
+written. Each kind has its own tables, so either can grow fields of its
+own. The
+theses carry no stable key, so every import replaces them all; **Data /
+Import theses** on the dashboard runs it by hand. An empty or unexpected
+list is refused without writing anything, and so is a list shorter than
+the stored theses, since the faculty never deletes one; the button's
+**Accept fewer theses** lets through a run that is meant to shrink.
+
+`bachelor_thesis_staff` and `master_thesis_staff` are derived in the same
+transaction: each staff member's role (mentor, a master's committee
+president, or member) on each thesis, matched to staff
+exactly as the timetables' teachers are, so **Timetable staff names**
+(`staff_aliases`) also map or ignore a thesis name. Every edit of a staff
+member or an alias rebuilds them. The import answers the names still
+unmatched, most frequent first. All four tables are written only by the
+import and its rebuild.
 
 ## Replacing the Moodle snapshot
 

@@ -17,6 +17,7 @@ export const flowFamilyCodes = {
   history: '09',
   matching: '17',
   snapshot: '10',
+  theses: '19',
   timetables: '18',
 } as const;
 

@@ -132,6 +132,8 @@ describe("the dean's office", () => {
       'dean_terms',
       'teaching',
       'accreditation_courses',
+      'bachelor_theses',
+      'master_theses',
     ]);
 
     const terms = aliases.find(({ alias }) => alias.field === 'dean_terms');

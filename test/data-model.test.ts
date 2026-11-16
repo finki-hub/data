@@ -33,6 +33,7 @@ import {
   toRelationPayload,
 } from '../src/data-model/relations.js';
 import { teachingKeys } from '../src/data-model/teaching-collections.js';
+import { thesisKeys } from '../src/data-model/thesis-collections.js';
 import { DirectusRequestError } from '../src/directus-request.js';
 import { type CompositeKey } from '../src/schema-relations.js';
 import {
@@ -146,8 +147,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(35);
-    expect(new Set(dataModelCollectionKeys).size).toBe(35);
+    expect(dataModelCollectionKeys).toHaveLength(39);
+    expect(new Set(dataModelCollectionKeys).size).toBe(39);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -369,6 +370,8 @@ describe('domain keys', () => {
       'unique course_enrollments (course, academic_year)',
       // The teaching keys: timetable-import.test.ts.
       ...teachingKeys.map(keyText),
+      // The thesis keys: thesis-import.test.ts.
+      ...thesisKeys.map(keyText),
     ]);
 
     expect(compositeKeys.flatMap(unknownColumns)).toEqual([]);
@@ -727,6 +730,10 @@ describe('relations and aliases', () => {
       'courses.teaching',
       'staff.teaching',
       'timetables.teaching',
+      'bachelor_theses.committee',
+      'staff.bachelor_theses',
+      'master_theses.committee',
+      'staff.master_theses',
     ]);
     expect(
       aliases.filter(({ derived, readOnly }) => derived !== readOnly),

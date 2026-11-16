@@ -13,6 +13,7 @@ import {
 import { matchingFlows } from './match-history-lines.js';
 import { automaticProcessingFlows } from './process-pending.js';
 import { snapshotImportFlows } from './snapshot-import.js';
+import { thesisImportFlows } from './thesis-import.js';
 import { timetableImportFlows } from './timetable-import.js';
 
 // One managed Flow family: its declared code (every id of its templates
@@ -50,6 +51,11 @@ export const flowFamilies: readonly FlowFamily[] = [
     code: flowFamilyCodes.timetables,
     name: 'Timetable import',
     templates: timetableImportFlows,
+  },
+  {
+    code: flowFamilyCodes.theses,
+    name: 'Thesis import',
+    templates: thesisImportFlows,
   },
   {
     code: flowFamilyCodes.automation,

@@ -24,6 +24,8 @@ export const publicReads: readonly PublicRead[] = [
     fields: ['id', 'label', 'published', 'enrollments'],
   },
   { collection: 'anto_quotes', fields: '*' },
+  { collection: 'bachelor_thesis_staff', fields: '*' },
+  { collection: 'bachelor_theses', fields: '*' },
   { collection: 'course_accreditation_staff', fields: '*' },
   { collection: 'course_curricula', fields: '*' },
   // Not the calculation's internal revision.
@@ -89,6 +91,8 @@ export const publicReads: readonly PublicRead[] = [
   { collection: 'discord_channel_courses', fields: '*' },
   { collection: 'discord_channels', fields: '*' },
   { collection: 'exam_sessions', fields: '*' },
+  { collection: 'master_thesis_staff', fields: '*' },
+  { collection: 'master_theses', fields: '*' },
   { collection: 'rooms', fields: '*' },
   { collection: 'staff', fields: '*' },
   { collection: 'student_council', fields: '*' },

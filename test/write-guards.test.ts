@@ -131,6 +131,12 @@ describe('write guards of the collection-role registry', () => {
         'timetable_lessons',
         'course_teaching',
       ],
+      'finki_hub.thesis_writer': [
+        'bachelor_theses',
+        'bachelor_thesis_staff',
+        'master_theses',
+        'master_thesis_staff',
+      ],
     });
     expect(openGuardSql('moodle_counted_lines')).toBe(
       openGuardSql('course_enrollments'),

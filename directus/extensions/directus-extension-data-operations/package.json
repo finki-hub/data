@@ -26,6 +26,8 @@
       { "type": "operation", "name": "finki-hub-snapshot-promote", "source": { "app": "src/snapshot-promote-app.ts", "api": "src/snapshot-promote.ts" } },
       { "type": "operation", "name": "finki-hub-timetable-import", "source": { "app": "src/timetable-import-app.ts", "api": "src/timetable-import.ts" } },
       { "type": "hook", "name": "finki-hub-teaching-rebuild", "source": "src/teaching-rebuild.ts" },
+      { "type": "operation", "name": "finki-hub-thesis-import", "source": { "app": "src/thesis-import-app.ts", "api": "src/thesis-import.ts" } },
+      { "type": "hook", "name": "finki-hub-thesis-rebuild", "source": "src/thesis-rebuild.ts" },
       { "type": "endpoint", "name": "finki-hub-data-status", "source": "src/status-endpoint.ts" },
       { "type": "endpoint", "name": "legacy", "source": "src/legacy-endpoint.ts" },
       { "type": "panel", "name": "finki-hub-run-operation", "source": "src/panel.ts" },
