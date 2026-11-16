@@ -32,6 +32,8 @@ describe('required columns of the published rows', () => {
     expect(requiredOf('staff')).toEqual([
       'name',
       'active',
+      // Not published; whether FINKI employs them (true unless set).
+      'finki',
       'title',
       'position',
       'email',

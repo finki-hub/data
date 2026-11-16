@@ -220,6 +220,7 @@ const englishLabels: readonly string[] = [
   'staff: Staff / Staff member',
   'staff.name: Name',
   'staff.active: Active',
+  'staff.finki: FINKI staff',
   'staff.title: Title',
   'staff.position: Position',
   'staff.email: Email',

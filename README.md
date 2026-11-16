@@ -105,7 +105,9 @@ The model is declared in `src/data-model/` and installed by
   reaches `courses.json` only once its **Published** flag is set.
 - **Staff, rooms, dean's office, students, student council and Discord
   channels**: plain lists. A course may have several Discord channels (an
-  undergraduate and a master's one).
+  undergraduate and a master's one). **FINKI staff** (`staff.finki`) is off
+  for other faculties' professors, visiting professors and external
+  collaborators: only FINKI staff are marked inactive when they leave.
 - **Exam sessions and Anto quotes** (`exam_sessions`, `anto_quotes`): what
   the bots publish beside the course data. A session's schedule is
   uploaded on its form; the file lands in the R2 storage location.
