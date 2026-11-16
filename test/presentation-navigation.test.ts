@@ -125,8 +125,10 @@ describe('navigation', () => {
         'course_teaching',
         'timetables',
         'timetable_lessons',
+        'timetable_slots',
         'course_aliases',
         'staff_aliases',
+        'room_aliases',
       ],
     });
   });

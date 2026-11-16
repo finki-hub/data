@@ -25,7 +25,12 @@ const namedSchema = z.object({ name: z.string() });
 export const timetableSchema = z.object({
   cards: z.array(
     z.object({
+      classes: z.array(namedSchema).optional(),
+      classrooms: z.array(namedSchema).optional(),
+      dayIndex: z.number().int().min(0).max(6).optional(),
       durationPeriods: z.number().int().nonnegative(),
+      endTime: z.string().optional(),
+      startTime: z.string().optional(),
       subject: namedSchema,
       teachers: z.array(namedSchema),
     }),
@@ -143,3 +148,57 @@ export const lessonsOf = (timetable: Timetable): Lesson[] => {
   }
   return lessons.values().toArray();
 };
+
+export type Slot = {
+  readonly classroom: null | string;
+  // 1 Monday to 7 Sunday.
+  readonly day: null | number;
+  readonly ends: null | string;
+  readonly groups: null | string;
+  readonly kind: null | string;
+  readonly periods: number;
+  readonly starts: null | string;
+  readonly subject: string;
+  readonly teachers: null | string;
+};
+
+// The names of a card's teachers or classes as one text, or null.
+const namesOf = (named: ReadonlyArray<{ readonly name: string }>) => {
+  const names = named
+    .map(({ name }) => tidy(name))
+    .filter((name) => name !== '');
+  return names.length === 0 ? null : names.join(', ');
+};
+
+const textOrNull = (value = ''): null | string => {
+  const text = tidy(value);
+  return text === '' ? null : text;
+};
+
+// A timetable's slots: one per card and classroom it is held in (one with
+// no classroom for a card without any), with its day, times, teachers and
+// classes as the timetable names them.
+export const slotsOf = (timetable: Timetable): Slot[] =>
+  timetable.cards.flatMap((card) => {
+    const { kind, subject } = splitSubject(card.subject.name);
+    if (subject === '') {
+      return [];
+    }
+    const rooms = (card.classrooms ?? [])
+      .map(({ name }) => tidy(name))
+      .filter((name) => name !== '');
+    const slot = {
+      day: card.dayIndex === undefined ? null : card.dayIndex + 1,
+      ends: textOrNull(card.endTime),
+      groups: namesOf(card.classes ?? []),
+      kind,
+      periods: card.durationPeriods,
+      starts: textOrNull(card.startTime),
+      subject,
+      teachers: namesOf(card.teachers),
+    };
+    return (rooms.length === 0 ? [null] : rooms).map((classroom) => ({
+      ...slot,
+      classroom,
+    }));
+  });

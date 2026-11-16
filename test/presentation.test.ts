@@ -429,6 +429,7 @@ describe('field presentation', () => {
       'assignments',
       'teaching',
       'accreditation_staff',
+      'slots',
     ]);
     expect(choicesOf('courses', 'status')).toEqual([
       { text: 'Active', value: 'active' },

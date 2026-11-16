@@ -30,10 +30,13 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/parse.js';
 import {
   clearLessonsSql,
+  clearSlotsSql,
   fingerprintSql,
   insertLessonsSql,
+  insertSlotsSql,
   insertTeachingSql,
   matchLessonsSql,
+  matchSlotsSql,
   teachingLockSql,
   upsertTimetablesSql,
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/sql.js';
@@ -216,7 +219,7 @@ const fakeDatabase = (fingerprints: Record<string, string> = {}) => {
         });
       }
       return sql.startsWith('SELECT\n  count(DISTINCT')
-        ? Promise.resolve({ rows: [{ subjects: 2, teachers: 1 }] })
+        ? Promise.resolve({ rows: [{ rooms: 0, subjects: 2, teachers: 1 }] })
         : Promise.resolve({ rowCount: 3, rows: [] });
     },
   });
@@ -291,9 +294,10 @@ describe('the timetable import', () => {
       fetched: 2,
       lessons: 2,
       main: 2,
+      slots: 3,
       teaching: 3,
       timetables: 3,
-      unmatched: { subjects: 2, teachers: 1 },
+      unmatched: { rooms: 0, subjects: 2, teachers: 1 },
     });
     expect(transactions).toHaveLength(1);
 
@@ -303,13 +307,15 @@ describe('the timetable import', () => {
       teachingLockSql,
       openGuardSql('timetables'),
     ]);
-    expect(statements.map(({ sql }) => sql).slice(2, 6)).toEqual([
+    expect(statements.map(({ sql }) => sql).slice(2, 8)).toEqual([
       upsertTimetablesSql,
       clearLessonsSql,
       insertLessonsSql,
+      clearSlotsSql,
+      insertSlotsSql,
       fingerprintSql,
     ]);
-    expect(statements.slice(2, 6).map(jsonBinding)).toEqual([
+    expect(statements.slice(2, 8).map(jsonBinding)).toEqual([
       [
         timetableRow('31', winter2026, { hidden: false, main: true }),
         timetableRow('30', '2026-10-02', { hidden: true, main: false }),
@@ -323,6 +329,19 @@ describe('the timetable import', () => {
         subject: databases,
         teacher: velinov,
       })),
+      ['31', '28'],
+      ['31', '28'].map((edupage_id) => ({
+        classroom: null,
+        day: null,
+        edupage_id,
+        ends: null,
+        groups: null,
+        kind: 'п',
+        periods: 2,
+        starts: null,
+        subject: databases,
+        teachers: velinov,
+      })),
       ['31', '28'].map((edupage_id) => ({
         edupage_id,
         fingerprint: createHash('sha256')
@@ -331,7 +350,10 @@ describe('the timetable import', () => {
       })),
     ]);
     expect(statements.map(({ sql }) => sql)).toContain(insertTeachingSql);
-    expect(statements.map(({ sql }) => sql).at(-2)).toBe(matchLessonsSql);
+    expect(statements.map(({ sql }) => sql).slice(-3, -1)).toEqual([
+      matchLessonsSql,
+      matchSlotsSql,
+    ]);
   });
 
   test('fetches only visible and new timetables unless asked for all, and skips an unchanged one', async () => {
@@ -522,6 +544,9 @@ describe('the teaching data keys', () => {
       'unique timetable_lessons (timetable, subject, kind, teacher)',
       'unique course_teaching (course, staff, timetable, role)',
       'index course_teaching (timetable)',
+      'index timetable_slots (timetable)',
+      'index timetable_slots (course)',
+      'index timetable_slots (room)',
       'unique course_aliases (name, course)',
       'unique course_accreditation_staff (course, staff, generation)',
     ]);

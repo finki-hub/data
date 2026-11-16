@@ -5,13 +5,15 @@ import type { SqlDatabase } from './coordination/sql-port.js';
 import { sqlDatabase } from './coordinate.js';
 import { rebuildTeaching } from './teaching/import.js';
 
-// The collections course_teaching is matched against: an item written
-// through Directus to any of them rebuilds it (and the lessons' match
-// columns) after the write committed. The timetable import rebuilds it
+// The collections course_teaching and the slots are matched against: an
+// item written through Directus to any of them rebuilds them (and the
+// lessons' match columns) after the write committed. The timetable import rebuilds it
 // itself.
 export const teachingInputs = [
   'course_aliases',
   'staff_aliases',
+  'room_aliases',
+  'rooms',
   'courses',
   'staff',
   'curriculum_entries',
