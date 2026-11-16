@@ -11,17 +11,21 @@ import {
   mainTimetables,
   recentTimetables,
   semesterOf,
+  slotsOf,
   type Timetable,
   timetableSchema,
 } from './parse.js';
 import {
   clearLessonsSql,
+  clearSlotsSql,
   clearTeachingSql,
   fingerprintSql,
   fingerprintsSql,
   insertLessonsSql,
+  insertSlotsSql,
   insertTeachingSql,
   matchLessonsSql,
+  matchSlotsSql,
   teachingLockSql,
   unmatchedSql,
   upsertTimetablesSql,
@@ -55,9 +59,14 @@ export type ImportSummary = {
   readonly fetched: number;
   readonly lessons: number;
   readonly main: number;
+  readonly slots: number;
   readonly teaching: number;
   readonly timetables: number;
-  readonly unmatched: { readonly subjects: number; readonly teachers: number };
+  readonly unmatched: {
+    readonly rooms: number;
+    readonly subjects: number;
+    readonly teachers: number;
+  };
 };
 
 export type TimetableSource = (path: string) => Promise<Fetched>;
@@ -66,6 +75,7 @@ const fingerprintRows = z.array(
   z.object({ edupage_id: z.string(), fingerprint: z.string().nullable() }),
 );
 const unmatchedRow = z.object({
+  rooms: z.coerce.number().int(),
   subjects: z.coerce.number().int(),
   teachers: z.coerce.number().int(),
 });
@@ -87,8 +97,9 @@ export class TimetableImportError extends Error {
 const sha256 = (text: string): string =>
   createHash('sha256').update(text).digest('hex');
 
-// Rebuilds course_teaching and the lessons' match columns from the stored
-// lessons, the courses, the staff and the two alias lists. The caller's
+// Rebuilds course_teaching, the lessons' match columns and the slots'
+// courses and rooms from the stored lessons and slots, the courses, the
+// staff, the rooms and the three alias lists. The caller's
 // transaction must not have opened another writer's guard. The lock makes
 // an import and a rebuild after an edit run one after the other.
 export const rebuildTeaching = async (
@@ -102,6 +113,7 @@ export const rebuildTeaching = async (
   await run(client, clearTeachingSql);
   const teaching = await affected(client, insertTeachingSql);
   await run(client, matchLessonsSql);
+  await run(client, matchSlotsSql);
   const unmatched = await run(client, unmatchedSql);
   return { teaching, unmatched: unmatchedRow.parse(unmatched.rows[0]) };
 };
@@ -261,6 +273,9 @@ export const runTimetableImport = async (
   const lessonRows = stores.flatMap(({ timetable, value }) =>
     lessonsOf(value).map((lesson) => ({ ...lesson, edupage_id: timetable.id })),
   );
+  const slotRows = stores.flatMap(({ timetable, value }) =>
+    slotsOf(value).map((slot) => ({ ...slot, edupage_id: timetable.id })),
+  );
   const fingerprints = stores.map(({ fingerprint, timetable }) => ({
     edupage_id: timetable.id,
     fingerprint,
@@ -273,6 +288,8 @@ export const runTimetableImport = async (
     const lessons = await affected(client, insertLessonsSql, [
       json(lessonRows),
     ]);
+    await run(client, clearSlotsSql, [json(changed)]);
+    const slots = await affected(client, insertSlotsSql, [json(slotRows)]);
     await run(client, fingerprintSql, [json(fingerprints)]);
     const rebuilt = await rebuildTeaching(client);
     return {
@@ -281,6 +298,7 @@ export const runTimetableImport = async (
       fetched: downloads.length,
       lessons,
       main: main.size,
+      slots,
       teaching: rebuilt.teaching,
       timetables: listed.length,
       unmatched: rebuilt.unmatched,

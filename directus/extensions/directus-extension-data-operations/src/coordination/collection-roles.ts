@@ -83,14 +83,14 @@ type WriteGuard = {
 const content = <const Collection extends string>(collection: Collection) =>
   ({ collection, role: 'content' }) as const;
 
-// A table of the timetable import, which opens all three with one setting.
+// A table of the timetable import, which opens all four with one setting.
 const timetableDerived = <const Collection extends string>(
   collection: Collection,
 ) =>
   ({
     collection,
     guard: {
-      hint: 'Source: timetables-api.finki-hub.com, courses, staff, course_aliases, staff_aliases; rebuilt by: Data / Import timetables',
+      hint: 'Source: timetables-api.finki-hub.com, courses, staff, rooms, course_aliases, staff_aliases, room_aliases; rebuilt by: Data / Import timetables',
       writer: 'timetable_writer',
       writtenBy: 'timetable import',
     },
@@ -138,6 +138,7 @@ const collectionRoles = [
   content('anto_quotes'),
   content('course_aliases'),
   content('staff_aliases'),
+  content('room_aliases'),
   content('course_accreditation_staff'),
   {
     caseLast: true,
@@ -206,6 +207,7 @@ const collectionRoles = [
   timetableDerived('timetables'),
   timetableDerived('timetable_lessons'),
   timetableDerived('course_teaching'),
+  timetableDerived('timetable_slots'),
   // The thesis import writes all four; an edit of a staff member or an
   // alias rebuilds the staff tables (thesis-rebuild.ts).
   thesisDerived('bachelor_theses'),

@@ -63,6 +63,7 @@ export const publicReads: readonly PublicRead[] = [
       'syllabus',
       'teaching',
       'accreditation_staff',
+      'slots',
     ],
   },
   {
@@ -93,6 +94,7 @@ export const publicReads: readonly PublicRead[] = [
   { collection: 'exam_sessions', fields: '*' },
   { collection: 'master_thesis_staff', fields: '*' },
   { collection: 'master_theses', fields: '*' },
+  { collection: 'room_aliases', fields: '*' },
   { collection: 'rooms', fields: '*' },
   { collection: 'staff', fields: '*' },
   { collection: 'student_council', fields: '*' },
@@ -105,6 +107,7 @@ export const publicReads: readonly PublicRead[] = [
   { collection: 'study_programs', fields: '*' },
   { collection: 'teaching_assignments', fields: '*' },
   { collection: 'timetable_lessons', fields: '*' },
+  { collection: 'timetable_slots', fields: '*' },
   { collection: 'timetables', fields: '*' },
 ];
 

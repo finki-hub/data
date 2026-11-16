@@ -9,10 +9,10 @@
 -- teaching_assignments, student_council, course_equivalencies,
 -- course_equivalency_members, discord_channels, discord_channel_courses,
 -- deans_office, exam_sessions, anto_quotes, course_aliases, staff_aliases,
--- course_accreditation_staff, moodle_history_memberships,
+-- room_aliases, course_accreditation_staff, moodle_history_memberships,
 -- course_enrollments, moodle_counted_lines, timetables, timetable_lessons,
--- course_teaching, bachelor_theses, bachelor_thesis_staff, master_theses,
--- master_thesis_staff, moodle_import_rows, data_operations,
+-- course_teaching, timetable_slots, bachelor_theses, bachelor_thesis_staff,
+-- master_theses, master_thesis_staff, moodle_import_rows, data_operations,
 -- data_operation_matches, directus_*) carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves

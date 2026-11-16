@@ -215,6 +215,84 @@ export const teachingCollections: readonly ModelCollection[] = [
     sort: 34,
   },
   {
+    collection: 'timetable_slots',
+    displayTemplate: '{{subject}}: {{day}} {{starts}} ({{classroom}})',
+    fields: [
+      importedLink('timetable', 'timetables', {
+        alias: 'slots',
+        fields: ['day', 'starts', 'subject', 'classroom'],
+        label: 'Timetable',
+        listLabel: 'Slots',
+        listTemplate: '{{day}} {{starts}}: {{subject}} ({{classroom}})',
+        template: timetableTemplate,
+      }),
+      required('subject', 'string', {
+        ...imported,
+        label: 'Subject',
+        note: 'As the timetable names it, without the class type.',
+      }),
+      scalar('kind', 'string', { ...imported, label: 'Class type' }),
+      m2o('course', 'courses', {
+        ...imported,
+        alias: {
+          field: 'slots',
+          fields: ['timetable', 'day', 'starts', 'room'],
+          label: 'Timetable slots',
+          readOnly: true,
+          template: '{{timetable.title}}: {{day}} {{starts}} {{room.name}}',
+        },
+        label: 'Course',
+        note: 'Empty when the subject stands for no course or for several.',
+        template: courseTemplate,
+      }),
+      scalar('day', 'integer', {
+        ...imported,
+        label: 'Day',
+        note: '1 Monday to 5 Friday.',
+      }),
+      scalar('starts', 'string', { ...imported, label: 'Starts' }),
+      scalar('ends', 'string', { ...imported, label: 'Ends' }),
+      weeklyPeriods(),
+      scalar('teachers', 'string', {
+        ...imported,
+        label: 'Teachers',
+        note: 'As the timetable names them.',
+      }),
+      scalar('groups', 'string', {
+        ...imported,
+        label: 'Classes',
+        note: 'The timetable classes that attend, such as 4г-СИИС.',
+      }),
+      scalar('classroom', 'string', {
+        ...imported,
+        label: 'Classroom',
+        note: 'As the timetable names the room.',
+      }),
+      m2o('room', 'rooms', {
+        ...imported,
+        alias: {
+          field: 'slots',
+          fields: ['timetable', 'day', 'starts', 'subject'],
+          label: 'Timetable slots',
+          readOnly: true,
+          template: '{{timetable.title}}: {{day}} {{starts}} {{subject}}',
+        },
+        label: 'Room',
+        template: '{{name}} ({{location}})',
+      }),
+      enumField('room_match', matchChoices, {
+        ...imported,
+        label: 'Room match',
+        nullable: false,
+      }),
+    ],
+    hidden: false,
+    icon: 'event_seat',
+    label: { plural: 'Timetable slots', singular: 'Timetable slot' },
+    singleton: false,
+    sort: 34,
+  },
+  {
     collection: 'course_aliases',
     displayTemplate: '{{name}} - {{course.name}}',
     fields: [
@@ -256,6 +334,29 @@ export const teachingCollections: readonly ModelCollection[] = [
     label: {
       plural: 'Timetable staff names',
       singular: 'Timetable staff name',
+    },
+    singleton: false,
+    sort: 36,
+  },
+  {
+    collection: 'room_aliases',
+    displayTemplate: '{{name}} - {{room.name}}',
+    fields: [
+      required('name', 'string', {
+        label: 'Timetable name',
+        unique: true,
+      }),
+      m2o('room', 'rooms', {
+        label: 'Room',
+        note: 'Empty: the name is ignored, such as online.',
+        template: '{{name}} ({{location}})',
+      }),
+    ],
+    hidden: false,
+    icon: 'meeting_room',
+    label: {
+      plural: 'Timetable room names',
+      singular: 'Timetable room name',
     },
     singleton: false,
     sort: 36,
@@ -325,6 +426,12 @@ export const teachingKeys: readonly CompositeKey[] = [
     kind: 'index',
     name: 'course_teaching_timetable_index',
   },
+  ...(['timetable', 'course', 'room'] as const).map((column): CompositeKey => ({
+    collection: 'timetable_slots',
+    columns: [column],
+    kind: 'index',
+    name: `timetable_slots_${column}_index`,
+  })),
   // A name maps to a course once; a row without a course ignores it.
   {
     collection: 'course_aliases',

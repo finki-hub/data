@@ -35,6 +35,18 @@ export const fingerprintsSql =
 export const clearLessonsSql = `DELETE FROM "timetable_lessons" WHERE "timetable" IN (
   SELECT t."id" FROM "timetables" t WHERE t."edupage_id" IN (SELECT json_array_elements_text(?::json)))`;
 
+// Binding: the changed timetables' EduPage ids as JSON.
+export const clearSlotsSql = `DELETE FROM "timetable_slots" WHERE "timetable" IN (
+  SELECT t."id" FROM "timetables" t WHERE t."edupage_id" IN (SELECT json_array_elements_text(?::json)))`;
+
+// Binding: the slots as JSON, each with its timetable's EduPage id. The
+// course and room are set by the rebuild that follows in the same
+// transaction.
+export const insertSlotsSql = `INSERT INTO "timetable_slots" ("timetable", "subject", "kind", "day", "starts", "ends", "periods", "teachers", "groups", "classroom", "room_match")
+SELECT t."id", r."subject", r."kind", r."day", r."starts", r."ends", r."periods", r."teachers", r."groups", r."classroom", 'unmatched'
+FROM json_to_recordset(?::json) AS r("edupage_id" text, "subject" text, "kind" text, "day" integer, "starts" text, "ends" text, "periods" integer, "teachers" text, "groups" text, "classroom" text)
+JOIN "timetables" t ON t."edupage_id" = r."edupage_id"`;
+
 // Binding: the lessons as JSON, each with its timetable's EduPage id. The
 // match columns are set by the rebuild that follows in the same
 // transaction.
@@ -120,7 +132,15 @@ const timetableTeachersSql = `SELECT DISTINCT "teacher", ${key('"teacher"')} AS 
 // matches neither.
 // An alias decides its name outright, a row without a target ignores it.
 // A combined slot "A / B" matches when each part does.
-const resolvedSql = String.raw`course_names AS (
+// The course every distinct subject of `table` (timetable_lessons or
+// timetable_slots) stands for: by the course's name, then its English
+// name, then the name of a curriculum entry linked to it; a name that
+// matches two courses at its best rank matches neither, an alias decides
+// its name outright and a combined slot "A / B" matches when each part
+// does. Ends with subject_courses ("subject", "course").
+export const courseResolvedSql = (
+  table: string,
+): string => String.raw`course_names AS (
   SELECT ${key('c."name"')} AS "key", c."id" AS "course", 1 AS "rank" FROM "courses" c
   UNION ALL
   SELECT ${key('c."name_en"')}, c."id", 2 FROM "courses" c WHERE c."name_en" IS NOT NULL
@@ -134,7 +154,7 @@ course_keys AS (
   GROUP BY n."key" HAVING count(DISTINCT n."course") = 1
 ),
 subjects AS (
-  SELECT DISTINCT "subject", ${key('"subject"')} AS "key" FROM "timetable_lessons"
+  SELECT DISTINCT "subject", ${key('"subject"')} AS "key" FROM "${table}"
 ),
 aliased_subjects AS (
   SELECT s."subject", a."course" FROM subjects s JOIN "course_aliases" a ON ${key('a."name"')} = s."key"
@@ -157,7 +177,9 @@ subject_courses AS (
   UNION SELECT "subject", "course" FROM direct_subjects
   UNION SELECT "subject", "course" FROM subject_parts
   WHERE "subject" IN (SELECT "subject" FROM subject_parts GROUP BY "subject" HAVING bool_and("course" IS NOT NULL))
-),
+)`;
+
+const resolvedSql = `${courseResolvedSql('timetable_lessons')},
 ${staffResolvedSql(timetableTeachersSql)}`;
 
 export const clearTeachingSql = 'DELETE FROM "course_teaching"';
@@ -202,5 +224,61 @@ WHERE m."id" = l."id"
 
 export const unmatchedSql = `SELECT
   count(DISTINCT l."subject") FILTER (WHERE l."course_match" = 'unmatched')::integer AS "subjects",
-  count(DISTINCT l."teacher") FILTER (WHERE l."teacher_match" = 'unmatched')::integer AS "teachers"
+  count(DISTINCT l."teacher") FILTER (WHERE l."teacher_match" = 'unmatched')::integer AS "teachers",
+  (SELECT count(DISTINCT s."classroom") FROM "timetable_slots" s JOIN "timetables" m ON m."id" = s."timetable" AND m."main"
+    WHERE s."room_match" = 'unmatched')::integer AS "rooms"
 FROM "timetable_lessons" l JOIN "timetables" t ON t."id" = l."timetable" AND t."main"`;
+
+// The room every distinct classroom of the slots stands for: by the
+// room's name and location either way round ("315 ТМФ", "ТМФ 315"), then
+// by its name alone; a name that matches two rooms at its best rank
+// matches neither. A room alias decides its name outright, one without a
+// room ignores it (such as online).
+const roomResolvedSql = `room_names AS (
+  SELECT ${key(`r."name" || ' ' || r."location"`)} AS "key", r."id" AS "room", 0 AS "rank" FROM "rooms" r
+  UNION ALL
+  SELECT ${key(`r."location" || ' ' || r."name"`)}, r."id", 0 FROM "rooms" r
+  UNION ALL
+  SELECT ${key('r."name"')}, r."id", 1 FROM "rooms" r
+),
+room_keys AS (
+  SELECT n."key", min(n."room") AS "room"
+  FROM (SELECT *, min("rank") OVER (PARTITION BY "key") AS "best" FROM room_names) n
+  WHERE n."rank" = n."best"
+  GROUP BY n."key" HAVING count(DISTINCT n."room") = 1
+),
+classrooms AS (
+  SELECT DISTINCT "classroom", ${key('"classroom"')} AS "key" FROM "timetable_slots" WHERE "classroom" IS NOT NULL
+),
+aliased_rooms AS (
+  SELECT c."classroom", a."room" FROM classrooms c JOIN "room_aliases" a ON ${key('a."name"')} = c."key"
+),
+classroom_rooms AS (
+  SELECT "classroom", "room" FROM aliased_rooms
+  UNION
+  SELECT c."classroom", k."room" FROM classrooms c JOIN room_keys k ON k."key" = c."key"
+  WHERE NOT EXISTS (SELECT 1 FROM aliased_rooms a WHERE a."classroom" = c."classroom")
+)`;
+
+// Every slot's course (when its subject stands for exactly one) and room,
+// and how its classroom matched; only changed rows are written. A slot
+// without a classroom is ignored.
+export const matchSlotsSql = `WITH ${courseResolvedSql('timetable_slots')},
+${roomResolvedSql},
+matches AS (
+  SELECT s."id",
+    (SELECT min(c."course") FROM subject_courses c WHERE c."subject" = s."subject" AND c."course" IS NOT NULL
+      HAVING count(DISTINCT c."course") = 1) AS "course",
+    (SELECT r."room" FROM classroom_rooms r WHERE r."classroom" = s."classroom") AS "room",
+    CASE
+      WHEN s."classroom" IS NULL THEN 'ignored'
+      WHEN EXISTS (SELECT 1 FROM classroom_rooms r WHERE r."classroom" = s."classroom" AND r."room" IS NOT NULL) THEN 'matched'
+      WHEN EXISTS (SELECT 1 FROM classroom_rooms r WHERE r."classroom" = s."classroom") THEN 'ignored'
+      ELSE 'unmatched'
+    END AS "room_match"
+  FROM "timetable_slots" s
+)
+UPDATE "timetable_slots" s SET "course" = m."course", "room" = m."room", "room_match" = m."room_match"
+FROM matches m
+WHERE m."id" = s."id"
+  AND (s."course", s."room", s."room_match") IS DISTINCT FROM (m."course", m."room", m."room_match")`;

@@ -146,6 +146,27 @@ export const statisticsPanels: readonly PanelDeclaration[] = [
       yAxis: 'count',
     },
   ),
+  barChart(
+    {
+      height: 32,
+      icon: 'meeting_room',
+      id: dashboardId('e6'),
+      name: 'Room use',
+      note: 'Weekly periods summed over the six published semesters, by room.',
+      width: 52,
+      x: 1,
+      y: 81,
+    },
+    {
+      collection: 'timetable_slots',
+      filter: { timetable: { recent: { _eq: true } } },
+      function: 'sum',
+      horizontal: true,
+      xAxis: 'room',
+      xAxisDisplayField: 'name',
+      yAxis: 'periods',
+    },
+  ),
 ];
 
 export const installStatisticsDashboard = (

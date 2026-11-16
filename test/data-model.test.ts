@@ -147,8 +147,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(39);
-    expect(new Set(dataModelCollectionKeys).size).toBe(39);
+    expect(dataModelCollectionKeys).toHaveLength(41);
+    expect(new Set(dataModelCollectionKeys).size).toBe(41);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -730,6 +730,9 @@ describe('relations and aliases', () => {
       'courses.teaching',
       'staff.teaching',
       'timetables.teaching',
+      'timetables.slots',
+      'courses.slots',
+      'rooms.slots',
       'bachelor_theses.committee',
       'staff.bachelor_theses',
       'master_theses.committee',
@@ -751,6 +754,7 @@ describe('relations and aliases', () => {
       'counted_lines',
       'enrollments',
       'teaching',
+      'slots',
       'accreditation_staff',
     ]);
     expect(aliasesFor('moodle_users').map(({ alias }) => alias.field)).toEqual([

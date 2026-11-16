@@ -40,7 +40,8 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `study_programs`, `course_equivalencies`, `course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
 `course_teaching`, `course_accreditation_staff`, `timetables`,
-`timetable_lessons`, `bachelor_theses`, `master_theses`,
+`timetable_lessons`, `timetable_slots`, `room_aliases`, `bachelor_theses`,
+`master_theses`,
 `bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`, `discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
 `anto_quotes`. Students are public only as council members (name and
@@ -178,7 +179,17 @@ edit of an alias, a course, a staff member or a curriculum entry rebuilds
 `course_teaching` at once. Filtering `timetable_lessons` by **Course match**
 or **Teacher match** Unmatched lists what still needs an alias.
 
-All three tables are written only by the import and its rebuild. The
+The import also keeps every class of a main timetable in
+`timetable_slots`: its day, times, teachers, timetable classes and
+classroom as written, with the course its subject stands for and the room
+its classroom does. A classroom matches a room by name and location
+either way round ("315 ТМФ", "ТМФ 315"), then by its name alone;
+**Timetable room names** (`room_aliases`) map any other spelling ("Б 2.1")
+or ignore it without a room ("online"). An edit of a room or a room alias
+rebuilds them too, and **Room match** Unmatched lists what still needs an
+alias.
+
+All four tables are written only by the import and its rebuild. The
 import also marks the six latest main timetables **Published**
 (`timetables.recent`): the window `courses.json` reads.
 
@@ -212,8 +223,8 @@ import and its rebuild.
 
 The **Statistics** dashboard in Studio (installed by setup like Data
 operations) charts theses per year, bachelor theses mentored and the
-teaching load of the six published semesters by staff member, and course
-enrollments per academic year. Nothing is stored for it: each chart groups
+teaching load of the six published semesters by staff member, course
+enrollments per academic year and the use of each room. Nothing is stored for it: each chart groups
 and aggregates a public collection as it reads it, and any API reader can
 ask the same, for example
 `/items/bachelor_thesis_staff?aggregate[count]=id&groupBy[]=staff&groupBy[]=year&filter[role][_eq]=mentor`.

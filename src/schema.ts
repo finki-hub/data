@@ -156,6 +156,7 @@ export type ModelCollectionKey =
   | 'moodle_import_rows'
   | 'moodle_pattern_mappings'
   | 'moodle_users'
+  | 'room_aliases'
   | 'rooms'
   | 'staff'
   | 'staff_aliases'
@@ -164,6 +165,7 @@ export type ModelCollectionKey =
   | 'study_programs'
   | 'teaching_assignments'
   | 'timetable_lessons'
+  | 'timetable_slots'
   | 'timetables';
 
 // What an M2O field may point at: a collection of the model, or the
