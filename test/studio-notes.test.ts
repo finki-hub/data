@@ -93,6 +93,7 @@ const remainingNotes = [
   'timetable_slots.teachers: As the timetable names them.',
   'timetable_slots.groups: The timetable classes that attend, such as 4г-СИИС.',
   'timetable_slots.classroom: As the timetable names the room.',
+  'timetable_slot_staff.teacher: As the timetable names them.',
   'course_aliases.name: As the timetables name the subject, without the class type. A combined slot takes one row per course.',
   'course_aliases.course: Empty: the name is ignored.',
   'staff_aliases.staff: Empty: the name is ignored, such as a demonstrator slot.',

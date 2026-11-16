@@ -132,6 +132,7 @@ describe("the dean's office", () => {
       'dean_terms',
       'coordinated_programs',
       'teaching',
+      'slots',
       'accreditation_courses',
       'bachelor_theses',
       'master_theses',

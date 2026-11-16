@@ -83,7 +83,7 @@ type WriteGuard = {
 const content = <const Collection extends string>(collection: Collection) =>
   ({ collection, role: 'content' }) as const;
 
-// A table of the timetable import, which opens all four with one setting.
+// A table of the timetable import, which opens all five with one setting.
 const timetableDerived = <const Collection extends string>(
   collection: Collection,
 ) =>
@@ -209,6 +209,7 @@ const collectionRoles = [
   timetableDerived('timetable_lessons'),
   timetableDerived('course_teaching'),
   timetableDerived('timetable_slots'),
+  timetableDerived('timetable_slot_staff'),
   // The thesis import writes all four; an edit of a staff member or an
   // alias rebuilds the staff tables (thesis-rebuild.ts).
   thesisDerived('bachelor_theses'),

@@ -260,6 +260,26 @@ classroom_rooms AS (
   WHERE NOT EXISTS (SELECT 1 FROM aliased_rooms a WHERE a."classroom" = c."classroom")
 )`;
 
+// Every name of a slot's teachers (joined with ", ", as the import writes
+// them), with its slot.
+const slotTeachersSql = `SELECT s."id" AS "slot", btrim(n."name") AS "teacher"
+FROM "timetable_slots" s CROSS JOIN LATERAL unnest(string_to_array(s."teachers", ',')) AS n("name")
+WHERE btrim(n."name") <> ''`;
+
+export const clearSlotStaffSql = 'DELETE FROM "timetable_slot_staff"';
+
+// Every slot's staff: each of its teachers that stands for a staff member,
+// matched as the lessons' teachers are.
+export const insertSlotStaffSql = `WITH slot_teachers AS (
+  ${slotTeachersSql}
+),
+${staffResolvedSql(`SELECT DISTINCT "teacher", ${key('"teacher"')} AS "key" FROM slot_teachers`)}
+INSERT INTO "timetable_slot_staff" ("slot", "staff", "teacher")
+SELECT DISTINCT ON (st."slot", ts."staff") st."slot", ts."staff", st."teacher"
+FROM slot_teachers st
+JOIN teacher_staff ts ON ts."teacher" = st."teacher" AND ts."staff" IS NOT NULL
+ORDER BY st."slot", ts."staff", st."teacher"`;
+
 // Every slot's course (when its subject stands for exactly one) and room,
 // and how its classroom matched; only changed rows are written. A slot
 // without a classroom is ignored.

@@ -51,7 +51,7 @@ type ImportedLink = {
 // at.
 const importedLink = (
   field: string,
-  related: 'courses' | 'staff' | 'timetables',
+  related: 'courses' | 'staff' | 'timetable_slots' | 'timetables',
   link: ImportedLink,
 ) =>
   m2o(field, related, {
@@ -292,6 +292,41 @@ export const teachingCollections: readonly ModelCollection[] = [
     singleton: false,
     sort: 34,
   },
+  // Who teaches each slot: every name of the slot's teachers that stands
+  // for a staff member, matched like the lessons' teachers.
+  {
+    collection: 'timetable_slot_staff',
+    displayTemplate: '{{staff.name}}: {{slot.subject}}',
+    fields: [
+      importedLink('slot', 'timetable_slots', {
+        alias: 'staff',
+        fields: ['staff', 'teacher'],
+        label: 'Slot',
+        listLabel: 'Staff',
+        listTemplate: '{{staff.name}}',
+        template: '{{subject}}: {{day}} {{starts}} ({{classroom}})',
+      }),
+      importedLink('staff', 'staff', {
+        alias: 'slots',
+        fields: ['slot'],
+        label: 'Staff member',
+        listLabel: 'Timetable slots',
+        listTemplate:
+          '{{slot.timetable.title}}: {{slot.day}} {{slot.starts}} {{slot.subject}}',
+        template: staffTemplate,
+      }),
+      required('teacher', 'string', {
+        ...imported,
+        label: 'Teacher',
+        note: 'As the timetable names them.',
+      }),
+    ],
+    hidden: false,
+    icon: 'person_pin_circle',
+    label: { plural: 'Timetable slot staff', singular: 'Timetable slot staff' },
+    singleton: false,
+    sort: 34,
+  },
   {
     collection: 'course_aliases',
     displayTemplate: '{{name}} - {{course.name}}',
@@ -432,6 +467,18 @@ export const teachingKeys: readonly CompositeKey[] = [
     kind: 'index',
     name: `timetable_slots_${column}_index`,
   })),
+  {
+    collection: 'timetable_slot_staff',
+    columns: ['slot', 'staff'],
+    kind: 'unique',
+    name: 'timetable_slot_staff_slot_staff_unique',
+  },
+  {
+    collection: 'timetable_slot_staff',
+    columns: ['staff'],
+    kind: 'index',
+    name: 'timetable_slot_staff_staff_index',
+  },
   // A name maps to a course once; a row without a course ignores it.
   {
     collection: 'course_aliases',
