@@ -37,7 +37,8 @@ The data is public and read-only for anonymous callers, with CORS open:
 
 Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `curriculum_entry_program_states`, `curriculum_generations`,
-`study_programs`, `course_equivalencies`, `course_equivalency_members`,
+`study_programs`, `degree_programs`, `course_equivalencies`,
+`course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
 `course_teaching`, `course_accreditation_staff`, `timetables`,
 `timetable_lessons`, `timetable_slots`, `room_aliases`, `bachelor_theses`,
@@ -152,6 +153,16 @@ Process pending** (every 15 seconds) runs the first pending one. **Data /
 Mark pending** (the **Recalculate** panel) marks them pending by hand and
 retries a failed run. The **Unmapped history lines** bookmark lists the
 lines no mapping counts.
+
+## Degree programs
+
+**Degree programs** (`degree_programs`) lists the programs FCSE offers as
+finki.ukim.mk names them: each official code (KN23, KN23_3, BKK23_2, KNID)
+with its names, cycle, duration, accreditation year, language (only where
+an official page states it) and page. A first-cycle program links the
+**Study programs** curriculum column its courses' states are kept under;
+the four- and three-year variants of a program share one. Edit it in
+Studio when the faculty adds or retires a program.
 
 ## Teaching staff from the timetables
 

@@ -147,8 +147,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(41);
-    expect(new Set(dataModelCollectionKeys).size).toBe(41);
+    expect(dataModelCollectionKeys).toHaveLength(42);
+    expect(new Set(dataModelCollectionKeys).size).toBe(42);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',

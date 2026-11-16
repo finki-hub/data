@@ -5,7 +5,7 @@ import {
   curriculumEntryTemplate,
   equivalencyTemplate,
 } from './content-collections.js';
-import { enumField, m2o, scalar } from './fields.js';
+import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
 // Curriculum generations and their study programs are rows added in
 // Studio, never a code list: a new generation or program is a new row,
@@ -34,6 +34,15 @@ export const published = () =>
     label: 'Published',
     nullable: false,
   });
+
+// The cycles of study a degree program belongs to.
+export const degreeCycles = ['first', 'second', 'third'] as const;
+
+const cycleChoices = labelledChoices(degreeCycles, {
+  first: 'First cycle (undergraduate)',
+  second: 'Second cycle (master)',
+  third: 'Third cycle (doctoral)',
+});
 
 export const generationCollections: readonly ModelCollection[] = [
   {
@@ -89,6 +98,52 @@ export const generationCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'workspaces',
     label: { plural: 'Study programs', singular: 'Study program' },
+    singleton: false,
+    sort: 27,
+  },
+  // The degree programs FCSE offers, as finki.ukim.mk lists them: each
+  // official code (KN23, KN23_3, BKK23_2, KNID) with its names, cycle,
+  // duration and accreditation. A first-cycle program links the curriculum
+  // column its courses' states are kept under; several programs (a four- and
+  // a three-year variant) share one.
+  {
+    collection: 'degree_programs',
+    displayTemplate: '{{code}} - {{name}}',
+    fields: [
+      scalar('code', 'string', {
+        label: 'Code',
+        note: 'As finki.ukim.mk names the program, such as KN23_3.',
+        nullable: false,
+        unique: true,
+      }),
+      scalar('name', 'string', { label: 'Name', nullable: false }),
+      scalar('name_en', 'string', { label: 'English name' }),
+      enumField('cycle', cycleChoices, { label: 'Cycle', nullable: false }),
+      scalar('duration_years', 'integer', { label: 'Duration (years)' }),
+      scalar('accreditation', 'string', {
+        label: 'Accreditation',
+        note: 'The year of the accreditation, such as 2023.',
+      }),
+      scalar('language', 'string', {
+        label: 'Language',
+        note: 'Only when an official page states it.',
+      }),
+      scalar('url', 'string', { label: 'Program page' }),
+      m2o('curriculum_program', 'study_programs', {
+        alias: {
+          field: 'degree_programs',
+          fields: ['code', 'name', 'duration_years'],
+          label: 'Degree programs',
+          template: '{{code}} - {{name}}',
+        },
+        label: 'Curriculum program',
+        note: 'The curriculum column whose course states apply; first cycle only.',
+        template: programTemplate,
+      }),
+    ],
+    hidden: false,
+    icon: 'school',
+    label: { plural: 'Degree programs', singular: 'Degree program' },
     singleton: false,
     sort: 27,
   },
