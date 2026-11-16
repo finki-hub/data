@@ -26,6 +26,10 @@ import {
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { staff } from '../directus/extensions/directus-extension-data-operations/src/exports/staff.js';
+import {
+  bachelorTheses,
+  masterTheses,
+} from '../directus/extensions/directus-extension-data-operations/src/exports/theses.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';
@@ -105,6 +109,8 @@ const filterPaths = (filter: unknown, prefix = ''): string[] => {
 // checked at every collection it passes through.
 const readable: Readonly<Record<string, null | readonly string[]>> = {
   academic_years: ['id', 'label', 'published'],
+  bachelor_thesis_staff: null,
+  bachelor_theses: null,
   course_accreditation_staff: null,
   course_curricula: null,
   course_enrollments: ['academic_year', 'count', 'course', 'id'],
@@ -115,6 +121,8 @@ const readable: Readonly<Record<string, null | readonly string[]>> = {
   curriculum_entries: null,
   curriculum_entry_program_states: ['entry', 'program', 'state'],
   curriculum_generations: ['code', 'has_curriculum', 'id', 'published'],
+  master_thesis_staff: null,
+  master_theses: null,
   moodle_course_mappings: ['academic_year', 'course'],
   rooms: null,
   staff: null,
@@ -464,7 +472,9 @@ describe('the keys a consumer requires', () => {
     ]);
     expect(requiredOf(staff)).toEqual(['name', 'title', 'position', 'email']);
     expect(requiredOf(rooms)).toEqual(['name', 'type', 'location']);
-    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(10);
+    expect(requiredOf(bachelorTheses)).toEqual(['title']);
+    expect(requiredOf(masterTheses)).toEqual(['title']);
+    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(12);
   });
 
   test("refuses a courses.json row without a published generation's availability", () => {

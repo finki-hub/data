@@ -62,6 +62,14 @@ file is rebuilt at most once a minute and carries its SHA-256 as the
 `ETag`; when a rebuild fails (for example an Active course without a
 professor), the last good file keeps being served.
 
+It also serves `bachelor_theses.json` and `master_theses.json`, which the
+old bucket never had: one row per thesis in id order with its title,
+abstract, student, status, day (`submitted` or `presented`), document id
+and its mentor and committee (`mentor`, `member_1`, `member_2`; `mentor`,
+`president`, `member`). A person is published by their name in
+`staff.json` when the thesis's name matched a staff member, else as the
+thesis writes it.
+
 ### MCP
 
 Directus's built-in MCP server is enabled at

@@ -106,6 +106,11 @@ const staffTable = (table: StaffTable): ModelCollection => ({
       table.roles.map((role) => ({ label: roleLabels[role], value: role })),
       { ...imported, label: 'Role', nullable: false },
     ),
+    text(
+      'name',
+      'Name as written',
+      'As the thesis names the staff member; the public thesis files publish the staff name instead.',
+    ),
   ],
   hidden: false,
   icon: 'groups',

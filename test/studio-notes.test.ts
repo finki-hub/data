@@ -86,10 +86,12 @@ const remainingNotes = [
   'bachelor_theses.submitted: YYYY-MM-DD.',
   'bachelor_theses.file_id: The id theses-listing downloads the document by.',
   'bachelor_theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
+  'bachelor_thesis_staff.name: As the thesis names the staff member; the public thesis files publish the staff name instead.',
   'master_theses.status: The step the thesis is at, as the faculty system names it.',
   'master_theses.presented: YYYY-MM-DD; empty until it is set.',
   'master_theses.file_id: The id theses-listing downloads the document by.',
   'master_theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
+  'master_thesis_staff.name: As the thesis names the staff member; the public thesis files publish the staff name instead.',
 ];
 
 // Every Studio name, note and template of the model and the presentation,

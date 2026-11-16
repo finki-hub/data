@@ -22,9 +22,10 @@ import { storeFromDataset } from './store-test-helpers.js';
 
 // The files read from their own collection alone: rooms and staff. The
 // synthetic course rows carry curriculum ambiguities, so courses.json is
-// proven over the parity store (relational-export.test.ts).
-const directoryDefinitions = exportDefinitions.filter(
-  ({ filename }) => filename !== 'courses.json',
+// proven over the parity store (relational-export.test.ts), and the thesis
+// files in thesis-export.test.ts.
+const directoryDefinitions = exportDefinitions.filter(({ filename }) =>
+  ['rooms.json', 'staff.json'].includes(filename),
 );
 
 const rowsSchema = z.array(z.record(z.string(), z.string()));

@@ -44,11 +44,17 @@ const assetsSchema = z.strictObject({
 
 type Assets = z.infer<typeof assetsSchema>;
 
+// The files with committed parity data: the three the old bucket served.
+// The thesis files are proven in thesis-export.test.ts.
+const parityDefinitions = exportDefinitions.filter(({ filename }) =>
+  ['courses.json', 'rooms.json', 'staff.json'].includes(filename),
+);
+
 const projected = async (
   store: Parameters<typeof storeReader>[0],
   reader = storeReader(store),
 ): Promise<Assets> =>
-  assetsSchema.parse(await engineAssets(exportDefinitions, reader));
+  assetsSchema.parse(await engineAssets(parityDefinitions, reader));
 
 // The three files the definitions publish over a store, as data, to
 // compare with the committed expected files.
@@ -184,6 +190,8 @@ describe('parity with the committed public files', () => {
       'courses.json',
       'rooms.json',
       'staff.json',
+      'bachelor_theses.json',
+      'master_theses.json',
     ]);
 
     for (const file of publicFileNames) {

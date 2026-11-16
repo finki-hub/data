@@ -52,14 +52,17 @@ const resolvedSql = (names: string): string => `thesis_names AS (
 ),
 ${staffResolvedSql(thesisTeachersSql)}`;
 
-// Every staff member's role on each thesis of the table, matched by name
-// and through staff_aliases as the timetables' teachers are.
+// Every staff member's role on each thesis of the table, with the name the
+// thesis gives them, matched by name and through staff_aliases as the
+// timetables' teachers are. A staff member named twice in one role keeps
+// the first name.
 export const insertCommitteeSql = (thesis: ThesisTable): string =>
   `WITH ${resolvedSql(namesOf(thesis))}
-INSERT INTO "${thesis.committee}" ("thesis", "staff", "role")
-SELECT DISTINCT n."thesis", s."staff", n."role"
+INSERT INTO "${thesis.committee}" ("thesis", "staff", "role", "name")
+SELECT DISTINCT ON (n."thesis", s."staff", n."role") n."thesis", s."staff", n."role", n."name"
 FROM thesis_names n
-JOIN teacher_staff s ON s."teacher" = n."name" AND s."staff" IS NOT NULL`;
+JOIN teacher_staff s ON s."teacher" = n."name" AND s."staff" IS NOT NULL
+ORDER BY n."thesis", s."staff", n."role", n."name"`;
 
 // The names of either kind of thesis no staff member or alias stands for,
 // most frequent first.
