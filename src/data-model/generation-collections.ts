@@ -4,6 +4,7 @@ import { programStates } from './choice-lists.js';
 import {
   curriculumEntryTemplate,
   equivalencyTemplate,
+  staffTemplate,
 } from './content-collections.js';
 import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 
@@ -129,6 +130,33 @@ export const generationCollections: readonly ModelCollection[] = [
         note: 'Only when an official page states it.',
       }),
       scalar('url', 'string', { label: 'Program page' }),
+      scalar('title', 'string', {
+        label: 'Degree title',
+        note: 'The title awarded on completion, as the program page writes it.',
+      }),
+      scalar('title_en', 'string', { label: 'English degree title' }),
+      scalar('ects', 'integer', {
+        label: 'ECTS',
+        note: 'The credits the program awards in total.',
+      }),
+      m2o('coordinator', 'staff', {
+        alias: {
+          field: 'coordinated_programs',
+          fields: ['code', 'name'],
+          label: 'Coordinated programs',
+          template: '{{code}} - {{name}}',
+        },
+        label: 'Coordinator',
+        template: staffTemplate,
+      }),
+      scalar('description', 'text', {
+        label: 'Description',
+        note: 'In the language the program page has it.',
+      }),
+      scalar('rules', 'text', {
+        label: 'Curriculum rules',
+        note: 'Course counts, elective limits and extracurricular credits, as the program page states them.',
+      }),
       m2o('curriculum_program', 'study_programs', {
         alias: {
           field: 'degree_programs',

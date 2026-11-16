@@ -130,6 +130,7 @@ describe("the dean's office", () => {
     expect(aliases.map(({ alias }) => alias.field)).toEqual([
       'assignments',
       'dean_terms',
+      'coordinated_programs',
       'teaching',
       'accreditation_courses',
       'bachelor_theses',
