@@ -253,12 +253,12 @@ export const teachingCollections: readonly ModelCollection[] = [
       scalar('starts', 'string', { ...imported, label: 'Starts' }),
       scalar('ends', 'string', { ...imported, label: 'Ends' }),
       weeklyPeriods(),
-      scalar('teachers', 'string', {
+      scalar('teachers', 'text', {
         ...imported,
         label: 'Teachers',
         note: 'As the timetable names them.',
       }),
-      scalar('groups', 'string', {
+      scalar('groups', 'text', {
         ...imported,
         label: 'Classes',
         note: 'The timetable classes that attend, such as 4г-СИИС.',
