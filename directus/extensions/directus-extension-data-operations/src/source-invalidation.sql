@@ -12,8 +12,8 @@
 -- room_aliases, degree_programs, course_accreditation_staff,
 -- moodle_history_memberships, course_enrollments, moodle_counted_lines,
 -- timetables, timetable_lessons, course_teaching, timetable_slots,
--- bachelor_theses, bachelor_thesis_staff, master_theses,
--- master_thesis_staff, moodle_import_rows, data_operations,
+-- timetable_slot_staff, bachelor_theses, bachelor_thesis_staff,
+-- master_theses, master_thesis_staff, moodle_import_rows, data_operations,
 -- data_operation_matches, directus_*) carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves

@@ -86,6 +86,8 @@ export const schemaConstraints: Migration = {
     'CREATE INDEX IF NOT EXISTS "timetable_slots_timetable_index" ON "timetable_slots" ("timetable")',
     'CREATE INDEX IF NOT EXISTS "timetable_slots_course_index" ON "timetable_slots" ("course")',
     'CREATE INDEX IF NOT EXISTS "timetable_slots_room_index" ON "timetable_slots" ("room")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "timetable_slot_staff_slot_staff_unique" ON "timetable_slot_staff" ("slot", "staff")',
+    'CREATE INDEX IF NOT EXISTS "timetable_slot_staff_staff_index" ON "timetable_slot_staff" ("staff")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_aliases_name_course_unique" ON "course_aliases" ("name", "course") NULLS NOT DISTINCT',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_accreditation_staff_course_staff_generation_unique" ON "course_accreditation_staff" ("course", "staff", "generation")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "bachelor_thesis_staff_thesis_staff_role_unique" ON "bachelor_thesis_staff" ("thesis", "staff", "role")',

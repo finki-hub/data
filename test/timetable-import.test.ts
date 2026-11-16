@@ -31,9 +31,11 @@ import {
 import {
   clearLessonsSql,
   clearSlotsSql,
+  clearSlotStaffSql,
   fingerprintSql,
   insertLessonsSql,
   insertSlotsSql,
+  insertSlotStaffSql,
   insertTeachingSql,
   matchLessonsSql,
   matchSlotsSql,
@@ -350,9 +352,11 @@ describe('the timetable import', () => {
       })),
     ]);
     expect(statements.map(({ sql }) => sql)).toContain(insertTeachingSql);
-    expect(statements.map(({ sql }) => sql).slice(-3, -1)).toEqual([
+    expect(statements.map(({ sql }) => sql).slice(-5, -1)).toEqual([
       matchLessonsSql,
       matchSlotsSql,
+      clearSlotStaffSql,
+      insertSlotStaffSql,
     ]);
   });
 
@@ -547,6 +551,8 @@ describe('the teaching data keys', () => {
       'index timetable_slots (timetable)',
       'index timetable_slots (course)',
       'index timetable_slots (room)',
+      'unique timetable_slot_staff (slot, staff)',
+      'index timetable_slot_staff (staff)',
       'unique course_aliases (name, course)',
       'unique course_accreditation_staff (course, staff, generation)',
     ]);

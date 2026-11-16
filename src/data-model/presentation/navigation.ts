@@ -82,6 +82,7 @@ export const folders: readonly Folder[] = [
       'timetables',
       'timetable_lessons',
       'timetable_slots',
+      'timetable_slot_staff',
       'course_aliases',
       'staff_aliases',
       'room_aliases',
