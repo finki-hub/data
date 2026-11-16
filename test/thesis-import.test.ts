@@ -24,6 +24,7 @@ import {
   clearThesesSql,
   insertCommitteeSql,
   insertThesesSql,
+  storedCountSql,
   thesisLockSql,
   unmatchedNamesSql,
 } from '../directus/extensions/directus-extension-data-operations/src/theses/sql.js';
@@ -79,11 +80,16 @@ const master = {
   title: 'Title',
 };
 
-const fakeDatabase = () => {
+// A database that records every statement, holding `stored` theses of
+// each kind.
+const fakeDatabase = (stored = 0) => {
   const transactions: Statement[][] = [];
   const client = (log: Statement[]): SqlClient => ({
     raw: (sql, bindings = []) => {
       log.push({ bindings, sql });
+      if (sql.startsWith('SELECT count(*)')) {
+        return Promise.resolve({ rows: [{ count: stored }] });
+      }
       if (sql === unmatchedNamesSql) {
         return Promise.resolve({
           rows: [{ name: 'Тони Јаневски', theses: '9' }],
@@ -103,10 +109,12 @@ const fakeDatabase = () => {
   return { database, transactions };
 };
 
-const source =
-  (answers: Record<string, unknown>) =>
-  (url: string): Promise<unknown> =>
-    Promise.resolve(answers[url]);
+const feed = (answers: Record<string, unknown>) => ({
+  apis,
+  source: (url: string): Promise<unknown> => Promise.resolve(answers[url]),
+});
+
+const both = feed({ [bachelorsUrl]: [bachelor], [mastersUrl]: [master] });
 
 const thesisRows = (statement: Statement | undefined): unknown =>
   z
@@ -127,6 +135,9 @@ describe('thesis parsing', () => {
     expect(isoDate('2.11.2026')).toBe('2026-11-02');
     expect(isoDate('')).toBeNull();
     expect(isoDate('2026-11-02')).toBeNull();
+    expect(isoDate('31.02.2026')).toBeNull();
+    expect(isoDate('29.02.2024')).toBe('2024-02-29');
+    expect(isoDate('1.13.2026')).toBeNull();
     expect(tidy('  a  b ')).toBe('a b');
     expect(tidy(' '.repeat(3))).toBeNull();
   });
@@ -136,11 +147,7 @@ describe('the thesis import', () => {
   test('replaces every thesis and rebuilds their staff in one transaction', async () => {
     const { database, transactions } = fakeDatabase();
 
-    const summary = await runThesisImport(
-      database,
-      source({ [bachelorsUrl]: [bachelor], [mastersUrl]: [master] }),
-      apis,
-    );
+    const summary = await runThesisImport({}, database, both);
 
     expect(summary).toEqual({
       bachelors: 1,
@@ -155,9 +162,11 @@ describe('the thesis import', () => {
     expect(sqls).toEqual([
       thesisLockSql,
       openGuardSql('bachelor_theses'),
+      storedCountSql(bachelorTable),
       clearCommitteeSql(bachelorTable),
       clearThesesSql(bachelorTable),
       insertThesesSql(bachelorTable),
+      storedCountSql(masterTable),
       clearCommitteeSql(masterTable),
       clearThesesSql(masterTable),
       insertThesesSql(masterTable),
@@ -169,7 +178,7 @@ describe('the thesis import', () => {
       insertCommitteeSql(masterTable),
       unmatchedNamesSql,
     ]);
-    expect(thesisRows(transactions[0]?.[4])).toEqual([
+    expect(thesisRows(transactions[0]?.[5])).toEqual([
       {
         description: 'Апстракт',
         file_id: '9850',
@@ -183,7 +192,7 @@ describe('the thesis import', () => {
         title: 'Наслов',
       },
     ]);
-    expect(thesisRows(transactions[0]?.[7])).toEqual([
+    expect(thesisRows(transactions[0]?.[9])).toEqual([
       {
         description: 'Abstract',
         file_id: '1461',
@@ -204,19 +213,38 @@ describe('the thesis import', () => {
 
     await expect(
       runThesisImport(
+        {},
         database,
-        source({ [bachelorsUrl]: [], [mastersUrl]: [master] }),
-        apis,
+        feed({ [bachelorsUrl]: [], [mastersUrl]: [master] }),
       ),
     ).rejects.toMatchObject({ code: 'THESES_INVALID' });
     await expect(
       runThesisImport(
+        {},
         database,
-        source({ [bachelorsUrl]: { error: 'down' }, [mastersUrl]: [master] }),
-        apis,
+        feed({ [bachelorsUrl]: { error: 'down' }, [mastersUrl]: [master] }),
       ),
     ).rejects.toBeInstanceOf(ThesisImportError);
     expect(transactions).toEqual([]);
+  });
+
+  test('refuses a list shorter than the stored theses unless the run accepts it', async () => {
+    const { database, transactions } = fakeDatabase(2);
+
+    await expect(runThesisImport({}, database, both)).rejects.toMatchObject({
+      code: 'THESES_SHRANK',
+      message: 'bachelor_theses: 1 listed, 2 stored',
+    });
+    expect(
+      transactions[0]?.some(({ sql }) => sql.startsWith('DELETE')),
+    ).toBeFalsy();
+
+    await expect(
+      runThesisImport({ shrink: 'true' }, database, both),
+    ).resolves.toMatchObject({ bachelors: 1, masters: 1 });
+    expect(
+      transactions[1]?.some(({ sql }) => sql.startsWith('SELECT count(*)')),
+    ).toBeFalsy();
   });
 
   test('matches committee names to staff as the timetables do', () => {
@@ -254,6 +282,14 @@ describe('the theses API source', () => {
     await expect(httpThesisSource(failed)(bachelorsUrl)).rejects.toMatchObject({
       code: 'THESES_API_FAILED',
     });
+
+    const unreachable = vi.fn<typeof fetch>(() =>
+      Promise.reject(new TypeError('fetch failed')),
+    );
+
+    await expect(
+      httpThesisSource(unreachable)(bachelorsUrl),
+    ).rejects.toMatchObject({ code: 'THESES_API_FAILED' });
   });
 });
 

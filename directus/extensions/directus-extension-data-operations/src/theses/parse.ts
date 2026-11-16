@@ -17,7 +17,7 @@ export const bachelorsSchema = z.array(
     mentor: text,
     status: text,
     student: text,
-    title: z.string(),
+    title: text,
   }),
 );
 
@@ -31,7 +31,7 @@ export const mastersSchema = z.array(
     president: text,
     status: text,
     student: text,
-    title: z.string(),
+    title: text,
   }),
 );
 
@@ -56,7 +56,7 @@ type SharedRow = {
   readonly status: null | string;
   readonly student_index: null | string;
   readonly student_name: null | string;
-  readonly title: string;
+  readonly title: null | string;
 };
 
 const spaces = /\s+/gu;
@@ -81,16 +81,30 @@ export const splitStudent = (
     : { index: groups['index'] ?? null, name: tidy(groups['name']) };
 };
 
+const isLeap = (year: number): boolean =>
+  (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+
+// The days of a month (1 to 12) of a year; none for any other month.
+const daysIn = (year: number, month: number): number =>
+  [31, isLeap(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][
+    month - 1
+  ] ?? 0;
+
 const datePattern = /^(?<day>\d{1,2})\.(?<month>\d{1,2})\.(?<year>\d{4})$/u;
 
-// "12.11.2026" as 2026-11-12; anything else is null.
+// "12.11.2026" as 2026-11-12; anything else, or a day that does not
+// exist, is null.
 export const isoDate = (value: null | string | undefined): null | string => {
   const groups = datePattern.exec(tidy(value) ?? '')?.groups;
   if (groups === undefined) {
     return null;
   }
   const { day = '', month = '', year = '' } = groups;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  // Only a real day: 31.02.2026 is not one.
+  const days = daysIn(Number(year), Number(month));
+  return Number(day) >= 1 && Number(day) <= days
+    ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    : null;
 };
 
 const fileIdOf = (value: null | number | string | undefined): null | string =>
@@ -111,7 +125,7 @@ export const bachelorRows = (
       student_index: student.index,
       student_name: student.name,
       submitted: isoDate(thesis.dateOfSubmission),
-      title: tidy(thesis.title) ?? '',
+      title: tidy(thesis.title),
     };
   });
 
@@ -130,6 +144,6 @@ export const masterRows = (
       status: tidy(thesis.status),
       student_index: student.index,
       student_name: student.name,
-      title: tidy(thesis.title) ?? '',
+      title: tidy(thesis.title),
     };
   });

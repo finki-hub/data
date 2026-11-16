@@ -18,6 +18,9 @@ const quoted = (column: string): string => `"${column}"`;
 export const clearThesesSql = ({ table }: ThesisTable): string =>
   `DELETE FROM "${table}"`;
 
+export const storedCountSql = ({ table }: ThesisTable): string =>
+  `SELECT count(*)::integer AS "count" FROM "${table}"`;
+
 export const clearCommitteeSql = ({ committee }: ThesisTable): string =>
   `DELETE FROM "${committee}"`;
 

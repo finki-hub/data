@@ -45,7 +45,8 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
 `anto_quotes`. Students are public only as council members (name and
 index number); every other student, every Moodle user and the operations
-bookkeeping stay private. These read permissions (and the `MCP` role's
+bookkeeping stay private. The theses name their students, as the
+faculty's own thesis lists do. These read permissions (and the `MCP` role's
 identical ones) are declared in `src/data-model/access.ts` and created by
 `npm run setup`.
 
@@ -185,8 +186,10 @@ defended (master), document id and the mentor and committee names as
 written. Each kind has its own tables, so either can grow fields of its
 own. The
 theses carry no stable key, so every import replaces them all; **Data /
-Import theses** on the dashboard runs it by hand, and an empty or
-unexpected list is refused without writing anything.
+Import theses** on the dashboard runs it by hand. An empty or unexpected
+list is refused without writing anything, and so is a list shorter than
+the stored theses, since the faculty never deletes one; the button's
+**Accept fewer theses** lets through a run that is meant to shrink.
 
 `bachelor_thesis_staff` and `master_thesis_staff` are derived in the same
 transaction: each staff member's role (mentor, a master's committee

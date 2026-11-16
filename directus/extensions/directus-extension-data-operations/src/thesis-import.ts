@@ -18,10 +18,13 @@ const setting = (value: unknown, fallback: string): string =>
 // and rebuilds the thesis staff tables. Run by Data / Import theses (daily and by
 // hand).
 export default defineOperationApi({
-  handler: (_options, { database, env }) =>
-    runThesisImport(sqlDatabase(database), httpThesisSource(), {
-      bachelors: setting(env['BACHELORS_API_URL'], defaultBachelorsApi),
-      masters: setting(env['MASTERS_API_URL'], defaultMastersApi),
+  handler: (options, { database, env }) =>
+    runThesisImport(options, sqlDatabase(database), {
+      apis: {
+        bachelors: setting(env['BACHELORS_API_URL'], defaultBachelorsApi),
+        masters: setting(env['MASTERS_API_URL'], defaultMastersApi),
+      },
+      source: httpThesisSource(),
     }),
   id: thesisImportId,
 });

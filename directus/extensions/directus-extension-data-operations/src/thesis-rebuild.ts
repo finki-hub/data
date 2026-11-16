@@ -22,7 +22,7 @@ export const registerThesisRebuild = (
   log: Log,
 ): void => {
   const schedule = rebuildScheduler(
-    () => database.transaction((client) => rebuildCommittee(client)),
+    () => database.transaction(rebuildCommittee),
     log,
     'Thesis committee',
   );

@@ -288,15 +288,23 @@ export const runTimetableImport = async (
 };
 
 // The source over the timetables API: GET <base><path>, JSON, within a
-// minute.
+// minute; any failure answers TIMETABLES_API_FAILED.
 export const httpSource =
   (base: string, fetcher: typeof fetch = fetch): TimetableSource =>
   async (path) => {
     const root = base.endsWith('/') ? base.slice(0, -1) : base;
-    const response = await fetcher(`${root}${path}`, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(60_000),
-    });
+    let response: Response;
+    try {
+      response = await fetcher(`${root}${path}`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (error) {
+      throw new TimetableImportError(
+        `Timetables API ${path}: unreachable or too slow`,
+        { cause: error, code: 'TIMETABLES_API_FAILED' },
+      );
+    }
     if (!response.ok) {
       throw new TimetableImportError(
         `Timetables API ${path}: HTTP ${String(response.status)}`,

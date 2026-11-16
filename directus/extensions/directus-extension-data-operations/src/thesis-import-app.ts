@@ -8,6 +8,22 @@ export default defineOperationApp({
   icon: 'history_edu',
   id: 'finki-hub-thesis-import',
   name: 'FINKI Hub thesis import',
-  options: [],
-  overview: () => [],
+  options: [
+    {
+      field: 'shrink',
+      meta: {
+        interface: 'input',
+        note: 'true accepts a list shorter than the stored theses, for example {{ $trigger.body.shrink }}.',
+        width: 'full',
+      },
+      name: 'Accept fewer theses',
+      type: 'string',
+    },
+  ],
+  overview: (options: Record<string, unknown>) => [
+    {
+      label: 'Accept fewer theses',
+      text: typeof options['shrink'] === 'string' ? options['shrink'] : '--',
+    },
+  ],
 });

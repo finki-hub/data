@@ -21,14 +21,26 @@ export const [thesisImportFlow, thesisScheduleFlow] = importFlows({
     message: 'Thesis import failed: {{ import.message }}',
   },
   family: flowFamilyCodes.theses,
-  fields: [],
+  fields: [
+    {
+      field: 'shrink',
+      meta: {
+        interface: 'boolean',
+        note: 'Off: a list shorter than the stored theses is refused, since the faculty never deletes one.',
+        width: 'full',
+      },
+      name: 'Accept fewer theses',
+      type: 'boolean',
+    },
+  ],
   icon: 'history_edu',
-  manualOptions: {},
+  input: ['shrink'],
+  manualOptions: { shrink: '{{ $trigger.body.shrink }}' },
   name: 'Data / Import theses',
   note: 'Replaces every thesis and rebuilds the thesis staff tables in the same transaction',
   operation: 'finki-hub-thesis-import',
   scheduleDoes: `${does} every day at 05:00`,
-  scheduleOptions: {},
+  scheduleOptions: { shrink: false },
   stepLabel: 'Import the theses',
 });
 

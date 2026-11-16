@@ -6,7 +6,7 @@ import {
   masterRoles,
 } from '../../directus/extensions/directus-extension-data-operations/src/theses/vocabulary.js';
 import { staffTemplate } from './content-collections.js';
-import { enumField, m2o, required, scalar } from './fields.js';
+import { enumField, m2o, scalar } from './fields.js';
 
 // FCSE's bachelor's and master's theses, each kind in its own tables so
 // either can grow fields of its own: Data / Import theses reads them from
@@ -35,7 +35,7 @@ const text = (field: string, label: string, note?: string): ModelField =>
 
 // The fields both kinds share, before their own.
 const sharedFields = (): ModelField[] => [
-  required('title', 'text', { ...imported, label: 'Title' }),
+  scalar('title', 'text', { ...imported, label: 'Title' }),
   scalar('description', 'text', { ...imported, label: 'Abstract' }),
   text('student_index', 'Index number'),
   text('student_name', 'Student'),
