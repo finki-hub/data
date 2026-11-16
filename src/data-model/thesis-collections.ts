@@ -53,6 +53,10 @@ const documentField = () =>
     'The id theses-listing downloads the document by.',
   );
 
+// The year of the thesis's day, which the statistics group by.
+const yearField = (note: string) =>
+  scalar('year', 'integer', { ...imported, label: 'Year', note });
+
 const importedAt = () =>
   scalar('imported_at', 'timestamp', {
     ...imported,
@@ -111,6 +115,7 @@ const staffTable = (table: StaffTable): ModelCollection => ({
       'Name as written',
       'As the thesis names the staff member; the public thesis files publish the staff name instead.',
     ),
+    yearField("The thesis's year, for grouping."),
   ],
   hidden: false,
   icon: 'groups',
@@ -126,6 +131,7 @@ export const thesisCollections: readonly ModelCollection[] = [
     fields: [
       ...sharedFields(),
       text('submitted', 'Submitted', 'YYYY-MM-DD.'),
+      yearField('The year it was submitted, for grouping.'),
       documentField(),
       text('mentor', 'Mentor'),
       text('member_1', 'Committee member'),
@@ -153,6 +159,7 @@ export const thesisCollections: readonly ModelCollection[] = [
     fields: [
       ...sharedFields(),
       text('presented', 'Defended', 'YYYY-MM-DD; empty until it is set.'),
+      yearField('The year it was defended, for grouping.'),
       documentField(),
       text('mentor', 'Mentor'),
       text('president', 'Committee president'),

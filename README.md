@@ -208,6 +208,18 @@ member or an alias rebuilds them. The import answers the names still
 unmatched, most frequent first. All four tables are written only by the
 import and its rebuild.
 
+## Statistics
+
+The **Statistics** dashboard in Studio (installed by setup like Data
+operations) charts theses per year, bachelor theses mentored and the
+teaching load of the six published semesters by staff member, and course
+enrollments per academic year. Nothing is stored for it: each chart groups
+and aggregates a public collection as it reads it, and any API reader can
+ask the same, for example
+`/items/bachelor_thesis_staff?aggregate[count]=id&groupBy[]=staff&groupBy[]=year&filter[role][_eq]=mentor`.
+The thesis tables and their staff tables carry the thesis's `year` for
+this.
+
 ## Replacing the Moodle snapshot
 
 The snapshot comes from
