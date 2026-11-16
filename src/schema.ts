@@ -144,6 +144,7 @@ export type ModelCollectionKey =
   | 'data_operation_matches'
   | 'data_operations'
   | 'deans_office'
+  | 'degree_programs'
   | 'discord_channel_courses'
   | 'discord_channels'
   | 'exam_sessions'

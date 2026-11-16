@@ -95,6 +95,7 @@ describe('navigation', () => {
         'course_equivalency_members',
         'curriculum_generations',
         'study_programs',
+        'degree_programs',
       ],
       folder_enrollments: [
         'academic_years',
