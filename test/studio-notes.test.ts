@@ -82,6 +82,12 @@ const remainingNotes = [
   'course_aliases.name: As the timetables name the subject, without the class type. A combined slot takes one row per course.',
   'course_aliases.course: Empty: the name is ignored.',
   'staff_aliases.staff: Empty: the name is ignored, such as a demonstrator slot.',
+  'theses.status: The step the thesis is at, as the faculty system names it.',
+  'theses.date: YYYY-MM-DD: the submission of a bachelor thesis, the defence of a master thesis (empty until it is set).',
+  'theses.file_id: The id theses-listing downloads the document by.',
+  'theses.president: Master theses only.',
+  'theses.member_2: Bachelor theses only.',
+  'theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
 ];
 
 // Every Studio name, note and template of the model and the presentation,

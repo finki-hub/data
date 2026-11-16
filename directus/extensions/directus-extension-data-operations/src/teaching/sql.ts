@@ -9,7 +9,7 @@ const literals = (values: readonly string[]): string =>
   values.map((value) => `'${value.replaceAll("'", "''")}'`).join(', ');
 
 // The key two names match by: lower case, inner whitespace collapsed.
-const key = (expression: string): string =>
+export const key = (expression: string): string =>
   String.raw`lower(regexp_replace(btrim(${expression}), '\s+', ' ', 'g'))`;
 
 // Binding: the listed timetables as JSON ({edupage_id, title, date_from,
@@ -47,6 +47,69 @@ JOIN "timetables" t ON t."edupage_id" = r."edupage_id"`;
 export const fingerprintSql = `UPDATE "timetables" t SET "fingerprint" = r."fingerprint", "imported_at" = now()
 FROM json_to_recordset(?::json) AS r("edupage_id" text, "fingerprint" text)
 WHERE t."edupage_id" = r."edupage_id"`;
+
+// The staff member every distinct name of `teachers` (a query of one
+// "teacher" column and its "key") stands for: by the full name, then by the
+// first name and one of two surnames on either side ("Александра Дединец"
+// and "Александра Каневче Дединец"), with the academic titles left out
+// and the surname written first tried after the name as written. A name
+// that matches two staff members at its best rank matches neither; an
+// alias decides its name outright, a row without a staff member ignores
+// it. Ends with teacher_staff ("teacher", "staff").
+export const staffResolvedSql = (teachers: string): string => `staff_words AS (
+  SELECT s."id", string_to_array(${key('s."name"')}, ' ') AS "words" FROM "staff" s
+),
+staff_names AS (
+  SELECT array_to_string("words", ' ') AS "key", "id" AS "staff", 0 AS "rank" FROM staff_words
+  UNION ALL
+  SELECT "words"[1] || ' ' || "words"[3], "id", 1 FROM staff_words WHERE cardinality("words") = 3
+  UNION ALL
+  SELECT "words"[1] || ' ' || "words"[2], "id", 1 FROM staff_words WHERE cardinality("words") = 3
+),
+teachers AS (
+  ${teachers}
+),
+teacher_words AS (
+  SELECT t."teacher", ARRAY(
+    SELECT u."word" FROM unnest(string_to_array(t."key", ' ')) WITH ORDINALITY AS u("word", "position")
+    WHERE u."word" NOT IN (${literals(academicTitles)}) ORDER BY u."position"
+  ) AS "words"
+  FROM teachers t
+),
+teacher_orders AS (
+  SELECT "teacher", "words", 0 AS "rank" FROM teacher_words
+  UNION ALL
+  SELECT "teacher", "words"[cardinality("words")] || "words"[1:cardinality("words") - 1], 2
+  FROM teacher_words WHERE cardinality("words") > 1
+),
+teacher_names AS (
+  SELECT "teacher", array_to_string("words", ' ') AS "key", "rank" FROM teacher_orders
+  UNION ALL
+  SELECT "teacher", "words"[1] || ' ' || "words"[3], "rank" + 1 FROM teacher_orders WHERE cardinality("words") = 3
+  UNION ALL
+  SELECT "teacher", "words"[1] || ' ' || "words"[2], "rank" + 1 FROM teacher_orders WHERE cardinality("words") = 3
+),
+teacher_candidates AS (
+  SELECT t."teacher", n."staff", t."rank" + n."rank" AS "rank"
+  FROM teacher_names t JOIN staff_names n ON n."key" = t."key"
+),
+teacher_keys AS (
+  SELECT c."teacher", min(c."staff") AS "staff"
+  FROM (SELECT *, min("rank") OVER (PARTITION BY "teacher") AS "best" FROM teacher_candidates) c
+  WHERE c."rank" = c."best"
+  GROUP BY c."teacher" HAVING count(DISTINCT c."staff") = 1
+),
+aliased_teachers AS (
+  SELECT t."teacher", a."staff" FROM teachers t JOIN "staff_aliases" a ON ${key('a."name"')} = t."key"
+),
+teacher_staff AS (
+  SELECT "teacher", "staff" FROM aliased_teachers
+  UNION
+  SELECT k."teacher", k."staff" FROM teacher_keys k
+  WHERE NOT EXISTS (SELECT 1 FROM aliased_teachers a WHERE a."teacher" = k."teacher")
+)`;
+
+const timetableTeachersSql = `SELECT DISTINCT "teacher", ${key('"teacher"')} AS "key" FROM "timetable_lessons"`;
 
 // The courses and staff every distinct subject and teacher of the lessons
 // stands for. A course name matches by the course's name, then its
@@ -95,58 +158,7 @@ subject_courses AS (
   UNION SELECT "subject", "course" FROM subject_parts
   WHERE "subject" IN (SELECT "subject" FROM subject_parts GROUP BY "subject" HAVING bool_and("course" IS NOT NULL))
 ),
-staff_words AS (
-  SELECT s."id", string_to_array(${key('s."name"')}, ' ') AS "words" FROM "staff" s
-),
-staff_names AS (
-  SELECT array_to_string("words", ' ') AS "key", "id" AS "staff", 0 AS "rank" FROM staff_words
-  UNION ALL
-  SELECT "words"[1] || ' ' || "words"[3], "id", 1 FROM staff_words WHERE cardinality("words") = 3
-  UNION ALL
-  SELECT "words"[1] || ' ' || "words"[2], "id", 1 FROM staff_words WHERE cardinality("words") = 3
-),
-teachers AS (
-  SELECT DISTINCT "teacher", ${key('"teacher"')} AS "key" FROM "timetable_lessons"
-),
-teacher_words AS (
-  SELECT t."teacher", ARRAY(
-    SELECT u."word" FROM unnest(string_to_array(t."key", ' ')) WITH ORDINALITY AS u("word", "position")
-    WHERE u."word" NOT IN (${literals(academicTitles)}) ORDER BY u."position"
-  ) AS "words"
-  FROM teachers t
-),
-teacher_orders AS (
-  SELECT "teacher", "words", 0 AS "rank" FROM teacher_words
-  UNION ALL
-  SELECT "teacher", "words"[cardinality("words")] || "words"[1:cardinality("words") - 1], 2
-  FROM teacher_words WHERE cardinality("words") > 1
-),
-teacher_names AS (
-  SELECT "teacher", array_to_string("words", ' ') AS "key", "rank" FROM teacher_orders
-  UNION ALL
-  SELECT "teacher", "words"[1] || ' ' || "words"[3], "rank" + 1 FROM teacher_orders WHERE cardinality("words") = 3
-  UNION ALL
-  SELECT "teacher", "words"[1] || ' ' || "words"[2], "rank" + 1 FROM teacher_orders WHERE cardinality("words") = 3
-),
-teacher_candidates AS (
-  SELECT t."teacher", n."staff", t."rank" + n."rank" AS "rank"
-  FROM teacher_names t JOIN staff_names n ON n."key" = t."key"
-),
-teacher_keys AS (
-  SELECT c."teacher", min(c."staff") AS "staff"
-  FROM (SELECT *, min("rank") OVER (PARTITION BY "teacher") AS "best" FROM teacher_candidates) c
-  WHERE c."rank" = c."best"
-  GROUP BY c."teacher" HAVING count(DISTINCT c."staff") = 1
-),
-aliased_teachers AS (
-  SELECT t."teacher", a."staff" FROM teachers t JOIN "staff_aliases" a ON ${key('a."name"')} = t."key"
-),
-teacher_staff AS (
-  SELECT "teacher", "staff" FROM aliased_teachers
-  UNION
-  SELECT k."teacher", k."staff" FROM teacher_keys k
-  WHERE NOT EXISTS (SELECT 1 FROM aliased_teachers a WHERE a."teacher" = k."teacher")
-)`;
+${staffResolvedSql(timetableTeachersSql)}`;
 
 export const clearTeachingSql = 'DELETE FROM "course_teaching"';
 

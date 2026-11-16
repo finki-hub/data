@@ -146,8 +146,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(35);
-    expect(new Set(dataModelCollectionKeys).size).toBe(35);
+    expect(dataModelCollectionKeys).toHaveLength(37);
+    expect(new Set(dataModelCollectionKeys).size).toBe(37);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -369,6 +369,8 @@ describe('domain keys', () => {
       'unique course_enrollments (course, academic_year)',
       // The teaching keys: timetable-import.test.ts.
       ...teachingKeys.map(keyText),
+      'unique thesis_committee (thesis, staff, role)',
+      'index thesis_committee (staff)',
     ]);
 
     expect(compositeKeys.flatMap(unknownColumns)).toEqual([]);
@@ -727,6 +729,8 @@ describe('relations and aliases', () => {
       'courses.teaching',
       'staff.teaching',
       'timetables.teaching',
+      'theses.committee',
+      'staff.theses',
     ]);
     expect(
       aliases.filter(({ derived, readOnly }) => derived !== readOnly),

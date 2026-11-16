@@ -100,6 +100,8 @@ export const publicReads: readonly PublicRead[] = [
   },
   { collection: 'study_programs', fields: '*' },
   { collection: 'teaching_assignments', fields: '*' },
+  { collection: 'thesis_committee', fields: '*' },
+  { collection: 'theses', fields: '*' },
   { collection: 'timetable_lessons', fields: '*' },
   { collection: 'timetables', fields: '*' },
 ];

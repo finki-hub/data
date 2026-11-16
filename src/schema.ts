@@ -159,6 +159,8 @@ export type ModelCollectionKey =
   | 'students'
   | 'study_programs'
   | 'teaching_assignments'
+  | 'theses'
+  | 'thesis_committee'
   | 'timetable_lessons'
   | 'timetables';
 

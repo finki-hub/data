@@ -74,7 +74,8 @@ describe('navigation', () => {
       { label: 'Moodle users', sort: 6 },
       { label: 'Sessions & quotes', sort: 7 },
       { label: 'Timetables', sort: 8 },
-      { label: 'Internals', sort: 9 },
+      { label: 'Theses', sort: 9 },
+      { label: 'Internals', sort: 10 },
     ]);
     expect(
       Object.fromEntries(
@@ -114,6 +115,7 @@ describe('navigation', () => {
       ],
       folder_staff_rooms: ['staff', 'rooms', 'deans_office'],
       folder_students: ['students', 'student_council'],
+      folder_theses: ['theses', 'thesis_committee'],
       folder_timetables: [
         'course_teaching',
         'timetables',

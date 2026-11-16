@@ -85,6 +85,8 @@ export const schemaConstraints: Migration = {
     'CREATE INDEX IF NOT EXISTS "course_teaching_timetable_index" ON "course_teaching" ("timetable")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_aliases_name_course_unique" ON "course_aliases" ("name", "course") NULLS NOT DISTINCT',
     'CREATE UNIQUE INDEX IF NOT EXISTS "course_accreditation_staff_course_staff_generation_unique" ON "course_accreditation_staff" ("course", "staff", "generation")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "thesis_committee_thesis_staff_role_unique" ON "thesis_committee" ("thesis", "staff", "role")',
+    'CREATE INDEX IF NOT EXISTS "thesis_committee_staff_index" ON "thesis_committee" ("staff")',
     `DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'course_enrollments_count_nonnegative') THEN

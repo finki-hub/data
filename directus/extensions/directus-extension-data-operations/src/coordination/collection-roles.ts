@@ -97,6 +97,20 @@ const timetableDerived = <const Collection extends string>(
     role: 'derived',
   }) as const;
 
+// A table of the thesis import, which opens both with one setting.
+const thesisDerived = <const Collection extends string>(
+  collection: Collection,
+) =>
+  ({
+    collection,
+    guard: {
+      hint: 'Source: bachelors-api and masters-api.finki-hub.com, staff, staff_aliases; rebuilt by: Data / Import theses',
+      writer: 'thesis_writer',
+      writtenBy: 'thesis import',
+    },
+    role: 'derived',
+  }) as const;
+
 // Sources in the order their triggers are installed, then the others.
 const collectionRoles = [
   // Every course is counted in every academic year.
@@ -192,6 +206,10 @@ const collectionRoles = [
   timetableDerived('timetables'),
   timetableDerived('timetable_lessons'),
   timetableDerived('course_teaching'),
+  // The thesis import writes both; an edit of a staff member or an alias
+  // rebuilds thesis_committee (thesis-rebuild.ts).
+  thesisDerived('theses'),
+  thesisDerived('thesis_committee'),
   {
     collection: 'moodle_import_rows',
     guard: {

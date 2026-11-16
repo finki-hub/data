@@ -11,8 +11,8 @@
 -- deans_office, exam_sessions, anto_quotes, course_aliases, staff_aliases,
 -- course_accreditation_staff, moodle_history_memberships,
 -- course_enrollments, moodle_counted_lines, timetables, timetable_lessons,
--- course_teaching, moodle_import_rows, data_operations,
--- data_operation_matches, directus_*) carry no trigger.
+-- course_teaching, theses, thesis_committee, moodle_import_rows,
+-- data_operations, data_operation_matches, directus_*) carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
 -- a mapping to another course or year, and any DELETE, marks the domain,

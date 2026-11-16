@@ -111,6 +111,8 @@ describe('studio metadata', () => {
       'timetables',
       'timetable_lessons',
       'course_teaching',
+      'theses',
+      'thesis_committee',
     ]);
 
     // The history lines are the one source among them: Studio edits their

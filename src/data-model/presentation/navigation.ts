@@ -87,6 +87,14 @@ export const folders: readonly Folder[] = [
   },
   {
     collapse: 'closed',
+    collection: 'folder_theses',
+    icon: 'history_edu',
+    label: 'Theses',
+    members: ['theses', 'thesis_committee'],
+    sort: 9,
+  },
+  {
+    collapse: 'closed',
     collection: 'folder_internals',
     icon: 'settings_suggest',
     label: 'Internals',
@@ -101,7 +109,7 @@ export const folders: readonly Folder[] = [
       'data_operation_matches',
       'data_operations',
     ],
-    sort: 9,
+    sort: 10,
   },
 ];
 
