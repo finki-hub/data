@@ -419,6 +419,7 @@ const englishLabels: readonly string[] = [
   'bachelor_thesis_staff.thesis: Thesis',
   'bachelor_thesis_staff.staff: Staff member',
   'bachelor_thesis_staff.role: Role',
+  'bachelor_thesis_staff.name: Name as written',
   'master_theses: Master theses / Master thesis',
   'master_theses.title: Title',
   'master_theses.description: Abstract',
@@ -436,6 +437,7 @@ const englishLabels: readonly string[] = [
   'master_thesis_staff.thesis: Thesis',
   'master_thesis_staff.staff: Staff member',
   'master_thesis_staff.role: Role',
+  'master_thesis_staff.name: Name as written',
 ];
 
 // The label of every scraper field, as `<field>: <label>` in declaration
