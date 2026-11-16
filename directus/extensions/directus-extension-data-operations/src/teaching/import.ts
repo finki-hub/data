@@ -36,10 +36,10 @@ export const defaultTimetablesApi = 'https://timetables-api.finki-hub.com';
 
 export const importOptionsSchema = z.object({
   // Fetch every main timetable again, not only the visible ones and those
-  // never imported. The Flow passes it as a template, so an absent one
-  // renders as ''.
+  // never imported. The Flow passes it as a template: only true or 'true'
+  // turns it on, whatever an absent one renders as.
   all: z
-    .union([z.boolean(), z.literal(['true', 'false', '']), z.null()])
+    .unknown()
     .optional()
     .transform((value) => value === true || value === 'true'),
 });
