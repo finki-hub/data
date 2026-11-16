@@ -93,6 +93,11 @@ export const contentCollections: readonly ModelCollection[] = [
     fields: [
       required('name', 'string', { label: 'Name' }),
       required('active', 'boolean', { label: 'Active' }),
+      required('finki', 'boolean', {
+        defaultValue: true,
+        label: 'FINKI staff',
+        note: 'Off for other faculties, visiting professors and external collaborators: they stay active unless there is a reason not to.',
+      }),
       required('title', 'string', { label: 'Title' }),
       requiredChoice('position', staffPositions, 'Position'),
       required('email', 'string', { label: 'Email' }),
