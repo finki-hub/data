@@ -161,8 +161,13 @@ finki.ukim.mk names them: each official code (KN23, KN23_3, BKK23_2, KNID)
 with its names, cycle, duration, accreditation year, language (only where
 an official page states it) and page. A first-cycle program links the
 **Study programs** curriculum column its courses' states are kept under;
-the four- and three-year variants of a program share one. Edit it in
-Studio when the faculty adds or retires a program.
+the four- and three-year variants of a program share one. Where the
+program page has them, a row also keeps the awarded degree title (in
+Macedonian and English), the total ECTS, the coordinator (linked to
+**Staff**, which lists their **Coordinated programs**), the description
+and the curriculum rules (course counts, elective limits); the 2018 pages
+list only courses. Edit it in Studio when the faculty adds or retires a
+program.
 
 ## Teaching staff from the timetables
 
