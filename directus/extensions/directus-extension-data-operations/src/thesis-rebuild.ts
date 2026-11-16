@@ -11,7 +11,7 @@ import {
 } from './teaching-rebuild.js';
 import { rebuildCommittee } from './theses/import.js';
 
-// The collections thesis_committee is matched against: an item written
+// The collections the thesis staff tables are matched against: an item written
 // through Directus to either rebuilds it after the write committed. The
 // thesis import rebuilds it itself.
 export const thesisInputs = ['staff', 'staff_aliases'] as const;

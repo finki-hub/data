@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import type { ThesisLevel } from './vocabulary.js';
-
 // What the import reads from the two theses APIs of theses-listing
 // (bachelors-api and masters-api.finki-hub.com), and the rows it stores.
 // Pure.
@@ -37,17 +35,24 @@ export const mastersSchema = z.array(
   }),
 );
 
-export type ThesisRow = {
-  // The day of the submission (bachelor) or of the defence (master),
-  // YYYY-MM-DD.
-  readonly date: null | string;
-  readonly description: null | string;
-  readonly file_id: null | string;
-  readonly level: ThesisLevel;
+export type BachelorRow = SharedRow & {
   readonly member_1: null | string;
   readonly member_2: null | string;
-  readonly mentor: null | string;
+  // The day of the submission, YYYY-MM-DD.
+  readonly submitted: null | string;
+};
+
+export type MasterRow = SharedRow & {
+  readonly member: null | string;
+  // The day of the defence, YYYY-MM-DD; empty until it is set.
+  readonly presented: null | string;
   readonly president: null | string;
+};
+
+type SharedRow = {
+  readonly description: null | string;
+  readonly file_id: null | string;
+  readonly mentor: null | string;
   readonly status: null | string;
   readonly student_index: null | string;
   readonly student_name: null | string;
@@ -93,38 +98,34 @@ const fileIdOf = (value: null | number | string | undefined): null | string =>
 
 export const bachelorRows = (
   theses: z.infer<typeof bachelorsSchema>,
-): ThesisRow[] =>
+): BachelorRow[] =>
   theses.map((thesis) => {
     const student = splitStudent(thesis.student);
     return {
-      date: isoDate(thesis.dateOfSubmission),
       description: tidy(thesis.description),
       file_id: fileIdOf(thesis.fileId),
-      level: 'bachelor',
       member_1: tidy(thesis.member1),
       member_2: tidy(thesis.member2),
       mentor: tidy(thesis.mentor),
-      president: null,
       status: tidy(thesis.status),
       student_index: student.index,
       student_name: student.name,
+      submitted: isoDate(thesis.dateOfSubmission),
       title: tidy(thesis.title) ?? '',
     };
   });
 
 export const masterRows = (
   theses: z.infer<typeof mastersSchema>,
-): ThesisRow[] =>
+): MasterRow[] =>
   theses.map((thesis) => {
     const student = splitStudent(thesis.student);
     return {
-      date: isoDate(thesis.dateOfPresentation),
       description: tidy(thesis.description),
       file_id: fileIdOf(thesis.fileId),
-      level: 'master',
-      member_1: tidy(thesis.member),
-      member_2: null,
+      member: tidy(thesis.member),
       mentor: tidy(thesis.mentor),
+      presented: isoDate(thesis.dateOfPresentation),
       president: tidy(thesis.president),
       status: tidy(thesis.status),
       student_index: student.index,

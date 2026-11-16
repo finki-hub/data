@@ -115,7 +115,12 @@ describe('navigation', () => {
       ],
       folder_staff_rooms: ['staff', 'rooms', 'deans_office'],
       folder_students: ['students', 'student_council'],
-      folder_theses: ['theses', 'thesis_committee'],
+      folder_theses: [
+        'bachelor_theses',
+        'master_theses',
+        'bachelor_thesis_staff',
+        'master_thesis_staff',
+      ],
       folder_timetables: [
         'course_teaching',
         'timetables',

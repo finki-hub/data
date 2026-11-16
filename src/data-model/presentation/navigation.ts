@@ -90,7 +90,12 @@ export const folders: readonly Folder[] = [
     collection: 'folder_theses',
     icon: 'history_edu',
     label: 'Theses',
-    members: ['theses', 'thesis_committee'],
+    members: [
+      'bachelor_theses',
+      'master_theses',
+      'bachelor_thesis_staff',
+      'master_thesis_staff',
+    ],
     sort: 9,
   },
   {

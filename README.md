@@ -40,7 +40,8 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `study_programs`, `course_equivalencies`, `course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
 `course_teaching`, `course_accreditation_staff`, `timetables`,
-`timetable_lessons`, `theses`, `thesis_committee`, `rooms`, `deans_office`, `discord_channels`,
+`timetable_lessons`, `bachelor_theses`, `master_theses`,
+`bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`, `discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
 `anto_quotes`. Students are public only as council members (name and
 index number); every other student, every Moodle user and the operations
@@ -178,19 +179,23 @@ import also marks the six latest main timetables **Published**
 thesis from the theses APIs of
 [theses-listing](https://github.com/finki-hub/theses-listing)
 (`bachelors-api` and `masters-api.finki-hub.com`, or `BACHELORS_API_URL`
-and `MASTERS_API_URL`) into `theses`: title, abstract, student, status,
-date, document id and the mentor and committee names as written. The
+and `MASTERS_API_URL`) into `bachelor_theses` and `master_theses`: title,
+abstract, student, status, the day it was submitted (bachelor) or
+defended (master), document id and the mentor and committee names as
+written. Each kind has its own tables, so either can grow fields of its
+own. The
 theses carry no stable key, so every import replaces them all; **Data /
 Import theses** on the dashboard runs it by hand, and an empty or
 unexpected list is refused without writing anything.
 
-`thesis_committee` is derived in the same transaction: each staff member's
-role (mentor, president or member) on each thesis, matched to staff
+`bachelor_thesis_staff` and `master_thesis_staff` are derived in the same
+transaction: each staff member's role (mentor, a master's committee
+president, or member) on each thesis, matched to staff
 exactly as the timetables' teachers are, so **Timetable staff names**
 (`staff_aliases`) also map or ignore a thesis name. Every edit of a staff
-member or an alias rebuilds it. The import answers the names still
-unmatched, most frequent first. Both tables are written only by the import
-and its rebuild.
+member or an alias rebuilds them. The import answers the names still
+unmatched, most frequent first. All four tables are written only by the
+import and its rebuild.
 
 ## Replacing the Moodle snapshot
 

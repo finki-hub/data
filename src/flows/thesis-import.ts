@@ -25,7 +25,7 @@ export const [thesisImportFlow, thesisScheduleFlow] = importFlows({
   icon: 'history_edu',
   manualOptions: {},
   name: 'Data / Import theses',
-  note: 'Replaces every thesis and rebuilds thesis_committee in the same transaction',
+  note: 'Replaces every thesis and rebuilds the thesis staff tables in the same transaction',
   operation: 'finki-hub-thesis-import',
   scheduleDoes: `${does} every day at 05:00`,
   scheduleOptions: {},

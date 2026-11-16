@@ -15,7 +15,7 @@ const setting = (value: unknown, fallback: string): string =>
 
 // Imports the theses from the theses APIs (BACHELORS_API_URL and
 // MASTERS_API_URL, by default bachelors-api and masters-api.finki-hub.com)
-// and rebuilds thesis_committee. Run by Data / Import theses (daily and by
+// and rebuilds the thesis staff tables. Run by Data / Import theses (daily and by
 // hand).
 export default defineOperationApi({
   handler: (_options, { database, env }) =>

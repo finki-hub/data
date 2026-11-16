@@ -128,6 +128,8 @@ export const assertNever = (value: never): never => {
 export type ModelCollectionKey =
   | 'academic_years'
   | 'anto_quotes'
+  | 'bachelor_theses'
+  | 'bachelor_thesis_staff'
   | 'course_accreditation_staff'
   | 'course_aliases'
   | 'course_curricula'
@@ -145,6 +147,8 @@ export type ModelCollectionKey =
   | 'discord_channel_courses'
   | 'discord_channels'
   | 'exam_sessions'
+  | 'master_theses'
+  | 'master_thesis_staff'
   | 'moodle_counted_lines'
   | 'moodle_course_entries'
   | 'moodle_course_mappings'
@@ -159,8 +163,6 @@ export type ModelCollectionKey =
   | 'students'
   | 'study_programs'
   | 'teaching_assignments'
-  | 'theses'
-  | 'thesis_committee'
   | 'timetable_lessons'
   | 'timetables';
 

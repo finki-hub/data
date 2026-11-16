@@ -97,7 +97,7 @@ const timetableDerived = <const Collection extends string>(
     role: 'derived',
   }) as const;
 
-// A table of the thesis import, which opens both with one setting.
+// A table of the thesis import, which opens all four with one setting.
 const thesisDerived = <const Collection extends string>(
   collection: Collection,
 ) =>
@@ -206,10 +206,12 @@ const collectionRoles = [
   timetableDerived('timetables'),
   timetableDerived('timetable_lessons'),
   timetableDerived('course_teaching'),
-  // The thesis import writes both; an edit of a staff member or an alias
-  // rebuilds thesis_committee (thesis-rebuild.ts).
-  thesisDerived('theses'),
-  thesisDerived('thesis_committee'),
+  // The thesis import writes all four; an edit of a staff member or an
+  // alias rebuilds the staff tables (thesis-rebuild.ts).
+  thesisDerived('bachelor_theses'),
+  thesisDerived('bachelor_thesis_staff'),
+  thesisDerived('master_theses'),
+  thesisDerived('master_thesis_staff'),
   {
     collection: 'moodle_import_rows',
     guard: {

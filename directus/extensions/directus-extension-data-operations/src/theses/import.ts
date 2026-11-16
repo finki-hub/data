@@ -17,10 +17,11 @@ import {
   thesisLockSql,
   unmatchedNamesSql,
 } from './sql.js';
+import { bachelorTable, masterTable, thesisTables } from './vocabulary.js';
 
 // The thesis import: reads every bachelor's and master's thesis from the
 // theses APIs of theses-listing, replaces the stored theses with them and
-// rebuilds thesis_committee, all in one transaction.
+// rebuilds their staff tables, all in one transaction.
 
 export const defaultBachelorsApi = 'https://bachelors-api.finki-hub.com';
 export const defaultMastersApi = 'https://masters-api.finki-hub.com';
@@ -63,7 +64,7 @@ export class ThesisImportError extends Error {
   }
 }
 
-// Rebuilds thesis_committee from the stored theses, the staff and
+// Rebuilds both staff tables from the stored theses, the staff and
 // staff_aliases. The caller's transaction must not have opened another
 // writer's guard.
 export const rebuildCommittee = async (
@@ -73,9 +74,12 @@ export const rebuildCommittee = async (
   readonly unmatched: readonly UnmatchedName[];
 }> => {
   await run(client, thesisLockSql);
-  await openGuard(client, 'thesis_committee');
-  await run(client, clearCommitteeSql);
-  const committee = await affected(client, insertCommitteeSql);
+  await openGuard(client, 'bachelor_thesis_staff');
+  let committee = 0;
+  for (const thesis of thesisTables) {
+    await run(client, clearCommitteeSql(thesis));
+    committee += await affected(client, insertCommitteeSql(thesis));
+  }
   const unmatched = await run(client, unmatchedNamesSql);
   return { committee, unmatched: unmatchedRows.parse(unmatched.rows) };
 };
@@ -114,13 +118,18 @@ export const runThesisImport = async (
       code: 'THESES_INVALID',
     });
   }
-  const rows = [...bachelorRows(bachelors), ...masterRows(masters)];
+  const rows = [
+    [bachelorTable, bachelorRows(bachelors)],
+    [masterTable, masterRows(masters)],
+  ] as const;
   return database.transaction(async (client) => {
     await run(client, thesisLockSql);
-    await openGuard(client, 'theses');
-    await run(client, clearCommitteeSql);
-    await run(client, clearThesesSql);
-    await run(client, insertThesesSql, [json(rows)]);
+    await openGuard(client, 'bachelor_theses');
+    for (const [thesis, values] of rows) {
+      await run(client, clearCommitteeSql(thesis));
+      await run(client, clearThesesSql(thesis));
+      await run(client, insertThesesSql(thesis), [json(values)]);
+    }
     const rebuilt = await rebuildCommittee(client);
     return {
       bachelors: bachelors.length,

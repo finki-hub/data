@@ -28,6 +28,10 @@ import {
   unmatchedNamesSql,
 } from '../directus/extensions/directus-extension-data-operations/src/theses/sql.js';
 import {
+  bachelorTable,
+  masterTable,
+} from '../directus/extensions/directus-extension-data-operations/src/theses/vocabulary.js';
+import {
   registerThesisRebuild,
   thesisInputs,
 } from '../directus/extensions/directus-extension-data-operations/src/thesis-rebuild.js';
@@ -129,7 +133,7 @@ describe('thesis parsing', () => {
 });
 
 describe('the thesis import', () => {
-  test('replaces every thesis and rebuilds the committees in one transaction', async () => {
+  test('replaces every thesis and rebuilds their staff in one transaction', async () => {
     const { database, transactions } = fakeDatabase();
 
     const summary = await runThesisImport(
@@ -140,7 +144,7 @@ describe('the thesis import', () => {
 
     expect(summary).toEqual({
       bachelors: 1,
-      committee: 5,
+      committee: 10,
       masters: 1,
       unmatched: [{ name: 'Тони Јаневски', theses: 9 }],
     });
@@ -150,39 +154,42 @@ describe('the thesis import', () => {
 
     expect(sqls).toEqual([
       thesisLockSql,
-      openGuardSql('theses'),
-      clearCommitteeSql,
-      clearThesesSql,
-      insertThesesSql,
+      openGuardSql('bachelor_theses'),
+      clearCommitteeSql(bachelorTable),
+      clearThesesSql(bachelorTable),
+      insertThesesSql(bachelorTable),
+      clearCommitteeSql(masterTable),
+      clearThesesSql(masterTable),
+      insertThesesSql(masterTable),
       thesisLockSql,
-      openGuardSql('thesis_committee'),
-      clearCommitteeSql,
-      insertCommitteeSql,
+      openGuardSql('bachelor_thesis_staff'),
+      clearCommitteeSql(bachelorTable),
+      insertCommitteeSql(bachelorTable),
+      clearCommitteeSql(masterTable),
+      insertCommitteeSql(masterTable),
       unmatchedNamesSql,
     ]);
     expect(thesisRows(transactions[0]?.[4])).toEqual([
       {
-        date: '2026-11-02',
         description: 'Апстракт',
         file_id: '9850',
-        level: 'bachelor',
         member_1: 'Георгина Мирчева',
         member_2: 'Магдалена Костоска',
         mentor: 'Игор Мишковски',
-        president: null,
         status: 'Одбрана',
         student_index: '216022',
         student_name: 'Бојана Јанческа',
+        submitted: '2026-11-02',
         title: 'Наслов',
       },
+    ]);
+    expect(thesisRows(transactions[0]?.[7])).toEqual([
       {
-        date: null,
         description: 'Abstract',
         file_id: '1461',
-        level: 'master',
-        member_1: 'Игор Мишковски',
-        member_2: null,
+        member: 'Игор Мишковски',
         mentor: 'Ристе Стојанов',
+        presented: null,
         president: 'Костадин Мишев',
         status: '24. Магистерската е завршена.',
         student_index: '1234',
@@ -213,14 +220,22 @@ describe('the thesis import', () => {
   });
 
   test('matches committee names to staff as the timetables do', () => {
-    expect(insertCommitteeSql).toContain(
+    const bachelorSql = insertCommitteeSql(bachelorTable);
+
+    expect(bachelorSql).toContain(
       staffResolvedSql(
         `SELECT DISTINCT "name" AS "teacher", lower(regexp_replace(btrim("name"), '\\s+', ' ', 'g')) AS "key" FROM thesis_names`,
       ),
     );
-    expect(insertCommitteeSql).toContain(
-      `('mentor', t."mentor"), ('president', t."president"), ('member', t."member_1"), ('member', t."member_2")`,
+    expect(bachelorSql).toContain(`INSERT INTO "bachelor_thesis_staff"`);
+    expect(bachelorSql).toContain(
+      `('mentor', t."mentor"), ('member', t."member_1"), ('member', t."member_2")`,
     );
+    expect(insertCommitteeSql(masterTable)).toContain(
+      `('mentor', t."mentor"), ('president', t."president"), ('member', t."member")`,
+    );
+    expect(unmatchedNamesSql).toContain('FROM "bachelor_theses" t');
+    expect(unmatchedNamesSql).toContain('FROM "master_theses" t');
   });
 });
 
@@ -242,7 +257,7 @@ describe('the theses API source', () => {
   });
 });
 
-describe('the thesis committee rebuild', () => {
+describe('the thesis staff rebuild', () => {
   test('rebuilds after every item write to staff or its aliases', () => {
     const events: string[] = [];
     registerThesisRebuild(
@@ -266,8 +281,10 @@ describe('the thesis import Flows and keys', () => {
 
   test('keep one row per thesis, staff member and role', () => {
     expect(thesisKeys.map(keyText)).toEqual([
-      'unique thesis_committee (thesis, staff, role)',
-      'index thesis_committee (staff)',
+      'unique bachelor_thesis_staff (thesis, staff, role)',
+      'index bachelor_thesis_staff (staff)',
+      'unique master_thesis_staff (thesis, staff, role)',
+      'index master_thesis_staff (staff)',
     ]);
   });
 });
