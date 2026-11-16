@@ -409,6 +409,7 @@ const englishLabels: readonly string[] = [
   'bachelor_theses.student_name: Student',
   'bachelor_theses.status: Status',
   'bachelor_theses.submitted: Submitted',
+  'bachelor_theses.year: Year',
   'bachelor_theses.file_id: Document id',
   'bachelor_theses.mentor: Mentor',
   'bachelor_theses.member_1: Committee member',
@@ -420,6 +421,7 @@ const englishLabels: readonly string[] = [
   'bachelor_thesis_staff.staff: Staff member',
   'bachelor_thesis_staff.role: Role',
   'bachelor_thesis_staff.name: Name as written',
+  'bachelor_thesis_staff.year: Year',
   'master_theses: Master theses / Master thesis',
   'master_theses.title: Title',
   'master_theses.description: Abstract',
@@ -427,6 +429,7 @@ const englishLabels: readonly string[] = [
   'master_theses.student_name: Student',
   'master_theses.status: Status',
   'master_theses.presented: Defended',
+  'master_theses.year: Year',
   'master_theses.file_id: Document id',
   'master_theses.mentor: Mentor',
   'master_theses.president: Committee president',
@@ -438,6 +441,7 @@ const englishLabels: readonly string[] = [
   'master_thesis_staff.staff: Staff member',
   'master_thesis_staff.role: Role',
   'master_thesis_staff.name: Name as written',
+  'master_thesis_staff.year: Year',
 ];
 
 // The label of every scraper field, as `<field>: <label>` in declaration

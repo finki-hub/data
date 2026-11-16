@@ -11,6 +11,9 @@ export const masterRoles = ['mentor', 'president', 'member'] as const;
 export type ThesisTable = {
   // The table of the staff members' roles on its theses.
   readonly committee: 'bachelor_thesis_staff' | 'master_thesis_staff';
+  // The day column (YYYY-MM-DD) whose year the thesis and its staff rows
+  // are counted in.
+  readonly date: 'presented' | 'submitted';
   // The stored columns, as the import's rows name them.
   readonly fields: readonly string[];
   // The columns holding a staff member's name, with the role they give.
@@ -30,6 +33,7 @@ const shared = [
 // own.
 export const bachelorTable: ThesisTable = {
   committee: 'bachelor_thesis_staff',
+  date: 'submitted',
   fields: [...shared, 'submitted', 'file_id', 'mentor', 'member_1', 'member_2'],
   names: [
     ['mentor', 'mentor'],
@@ -41,6 +45,7 @@ export const bachelorTable: ThesisTable = {
 
 export const masterTable: ThesisTable = {
   committee: 'master_thesis_staff',
+  date: 'presented',
   fields: [...shared, 'presented', 'file_id', 'mentor', 'president', 'member'],
   names: [
     ['mentor', 'mentor'],

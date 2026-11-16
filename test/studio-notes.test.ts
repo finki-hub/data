@@ -84,14 +84,18 @@ const remainingNotes = [
   'staff_aliases.staff: Empty: the name is ignored, such as a demonstrator slot.',
   'bachelor_theses.status: The step the thesis is at, as the faculty system names it.',
   'bachelor_theses.submitted: YYYY-MM-DD.',
+  'bachelor_theses.year: The year it was submitted, for grouping.',
   'bachelor_theses.file_id: The id theses-listing downloads the document by.',
   'bachelor_theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
   'bachelor_thesis_staff.name: As the thesis names the staff member; the public thesis files publish the staff name instead.',
+  "bachelor_thesis_staff.year: The thesis's year, for grouping.",
   'master_theses.status: The step the thesis is at, as the faculty system names it.',
   'master_theses.presented: YYYY-MM-DD; empty until it is set.',
+  'master_theses.year: The year it was defended, for grouping.',
   'master_theses.file_id: The id theses-listing downloads the document by.',
   'master_theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
   'master_thesis_staff.name: As the thesis names the staff member; the public thesis files publish the staff name instead.',
+  "master_thesis_staff.year: The thesis's year, for grouping.",
 ];
 
 // Every Studio name, note and template of the model and the presentation,

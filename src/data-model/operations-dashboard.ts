@@ -21,15 +21,23 @@ import { snapshotFlowId } from '../flows/snapshot-import.js';
 
 export const operationsDashboardId = dashboardId('d0');
 
-const operationsDashboard = {
+const operationsDashboard: DashboardDeclaration = {
   color: null,
   icon: 'monitor_heart',
   id: operationsDashboardId,
   name: 'Data operations',
   note: 'Calculations, published keys and manual data operations.',
-} as const;
+};
 
-type PanelDeclaration = {
+export type DashboardDeclaration = {
+  readonly color: null;
+  readonly icon: string;
+  readonly id: string;
+  readonly name: string;
+  readonly note: string;
+};
+
+export type PanelDeclaration = {
   readonly height: number;
   readonly icon: string;
   readonly id: string;
@@ -124,9 +132,9 @@ const json = (body: unknown) => ({
   method: 'POST',
 });
 
-const panelPayload = (panel: PanelDeclaration) => ({
+const panelPayload = (dashboard: string, panel: PanelDeclaration) => ({
   color: null,
-  dashboard: operationsDashboardId,
+  dashboard,
   height: panel.height,
   icon: panel.icon,
   id: panel.id,
@@ -140,24 +148,25 @@ const panelPayload = (panel: PanelDeclaration) => ({
   width: panel.width,
 });
 
-// Creates the dashboard and each default panel that is missing; reports
+// Creates a dashboard and each of its panels that is missing; reports
 // what it created and what it left as it was, by name.
-export const installOperationsDashboard = async (
+export const installDashboard = async (
   request: DirectusRequest,
-  panels: readonly PanelDeclaration[] = defaultPanels,
+  declaration: DashboardDeclaration,
+  panels: readonly PanelDeclaration[],
 ): Promise<FlowInstallSummary> => {
   const created: string[] = [];
   const skipped: string[] = [];
   const [dashboard] = idRows.parse(
     await request(
-      `/dashboards?fields=id&limit=1&filter[id][_eq]=${operationsDashboardId}`,
+      `/dashboards?fields=id&limit=1&filter[id][_eq]=${declaration.id}`,
     ),
   );
   if (dashboard === undefined) {
-    await request('/dashboards', json(operationsDashboard));
-    created.push(operationsDashboard.name);
+    await request('/dashboards', json(declaration));
+    created.push(declaration.name);
   } else {
-    skipped.push(operationsDashboard.name);
+    skipped.push(declaration.name);
   }
   const ids = panels.map(({ id }) => id).join(',');
   const present = new Set(
@@ -167,10 +176,19 @@ export const installOperationsDashboard = async (
   );
   const missing = panels.filter(({ id }) => !present.has(id));
   if (missing.length > 0) {
-    await request('/panels', json(missing.map((panel) => panelPayload(panel))));
+    await request(
+      '/panels',
+      json(missing.map((panel) => panelPayload(declaration.id, panel))),
+    );
   }
   for (const { id, name } of panels) {
     (present.has(id) ? skipped : created).push(name);
   }
   return { created, skipped };
 };
+
+export const installOperationsDashboard = (
+  request: DirectusRequest,
+  panels: readonly PanelDeclaration[] = defaultPanels,
+): Promise<FlowInstallSummary> =>
+  installDashboard(request, operationsDashboard, panels);

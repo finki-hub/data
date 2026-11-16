@@ -24,13 +24,18 @@ export const storedCountSql = ({ table }: ThesisTable): string =>
 export const clearCommitteeSql = ({ committee }: ThesisTable): string =>
   `DELETE FROM "${committee}"`;
 
-// Binding: the theses as JSON (BachelorRow or MasterRow).
-export const insertThesesSql = ({ fields, table }: ThesisTable): string => {
+// Binding: the theses as JSON (BachelorRow or MasterRow). The year is
+// the day's, for grouping.
+export const insertThesesSql = ({
+  date,
+  fields,
+  table,
+}: ThesisTable): string => {
   const columns = fields.map(quoted).join(', ');
   const values = fields.map((field) => `r.${quoted(field)}`).join(', ');
   const types = fields.map((field) => `${quoted(field)} text`).join(', ');
-  return `INSERT INTO "${table}" (${columns}, "imported_at")
-SELECT ${values}, now()
+  return `INSERT INTO "${table}" (${columns}, "year", "imported_at")
+SELECT ${values}, left(r.${quoted(date)}, 4)::integer, now()
 FROM json_to_recordset(?::json) AS r(${types})`;
 };
 
@@ -39,7 +44,7 @@ const namesOf = ({ names, table }: ThesisTable): string => {
   const pairs = names
     .map(([role, column]) => `('${role}', t.${quoted(column)})`)
     .join(', ');
-  return `SELECT t."id" AS "thesis", r."role", r."name"
+  return `SELECT t."id" AS "thesis", t."year", r."role", r."name"
   FROM "${table}" t
   CROSS JOIN LATERAL (VALUES ${pairs}) AS r("role", "name")
   WHERE r."name" IS NOT NULL`;
@@ -53,13 +58,13 @@ const resolvedSql = (names: string): string => `thesis_names AS (
 ${staffResolvedSql(thesisTeachersSql)}`;
 
 // Every staff member's role on each thesis of the table, with the name the
-// thesis gives them, matched by name and through staff_aliases as the
-// timetables' teachers are. A staff member named twice in one role keeps
-// the first name.
+// thesis gives them and its year, matched by name and through
+// staff_aliases as the timetables' teachers are. A staff member named
+// twice in one role keeps the first name.
 export const insertCommitteeSql = (thesis: ThesisTable): string =>
   `WITH ${resolvedSql(namesOf(thesis))}
-INSERT INTO "${thesis.committee}" ("thesis", "staff", "role", "name")
-SELECT DISTINCT ON (n."thesis", s."staff", n."role") n."thesis", s."staff", n."role", n."name"
+INSERT INTO "${thesis.committee}" ("thesis", "staff", "role", "name", "year")
+SELECT DISTINCT ON (n."thesis", s."staff", n."role") n."thesis", s."staff", n."role", n."name", n."year"
 FROM thesis_names n
 JOIN teacher_staff s ON s."teacher" = n."name" AND s."staff" IS NOT NULL
 ORDER BY n."thesis", s."staff", n."role", n."name"`;
