@@ -494,10 +494,13 @@ describe('the course teaching rebuild', () => {
 });
 
 describe('the timetable import Flows', () => {
-  test('read an unticked box, which the Flow renders as an empty string, as off', () => {
+  test('read an unticked box as off, whatever the Flow renders it as', () => {
     expect(importOptionsSchema.parse({ all: '' })).toEqual({ all: false });
     expect(importOptionsSchema.parse({ all: 'true' })).toEqual({ all: true });
     expect(importOptionsSchema.parse({})).toEqual({ all: false });
+    expect(
+      importOptionsSchema.parse({ all: '{{ $trigger.body.all }}' }),
+    ).toEqual({ all: false });
   });
 
   test('offer the import on the dashboard and run it daily', () => {
