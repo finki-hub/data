@@ -17,6 +17,7 @@ import {
 import {
   type Fetched,
   httpSource,
+  importOptionsSchema,
   runTimetableImport,
   TimetableImportError,
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/import.js';
@@ -493,6 +494,12 @@ describe('the course teaching rebuild', () => {
 });
 
 describe('the timetable import Flows', () => {
+  test('read an unticked box, which the Flow renders as an empty string, as off', () => {
+    expect(importOptionsSchema.parse({ all: '' })).toEqual({ all: false });
+    expect(importOptionsSchema.parse({ all: 'true' })).toEqual({ all: true });
+    expect(importOptionsSchema.parse({})).toEqual({ all: false });
+  });
+
   test('offer the import on the dashboard and run it daily', () => {
     expect(timetableImportFlow.trigger).toBe('manual');
     expect(timetableImportFlow.options['collections']).toEqual([

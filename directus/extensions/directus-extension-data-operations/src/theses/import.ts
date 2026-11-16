@@ -31,9 +31,10 @@ import {
 // deletes a thesis, so a list shorter than the stored one is a broken
 // source and refused, unless the run accepts it (`shrink`).
 
+// A flag the Flow passes as a template: an absent one renders as ''.
 export const thesisImportOptionsSchema = z.object({
   shrink: z
-    .union([z.boolean(), z.literal('true'), z.literal('false'), z.null()])
+    .union([z.boolean(), z.literal(['true', 'false', '']), z.null()])
     .optional()
     .transform((value) => value === true || value === 'true'),
 });
