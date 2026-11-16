@@ -239,11 +239,15 @@ describe('the thesis import', () => {
       transactions[0]?.some(({ sql }) => sql.startsWith('DELETE')),
     ).toBeFalsy();
 
+    // An unticked box renders the Flow's template as ''.
+    await expect(
+      runThesisImport({ shrink: '' }, database, both),
+    ).rejects.toMatchObject({ code: 'THESES_SHRANK' });
     await expect(
       runThesisImport({ shrink: 'true' }, database, both),
     ).resolves.toMatchObject({ bachelors: 1, masters: 1 });
     expect(
-      transactions[1]?.some(({ sql }) => sql.startsWith('SELECT count(*)')),
+      transactions[2]?.some(({ sql }) => sql.startsWith('SELECT count(*)')),
     ).toBeFalsy();
   });
 
