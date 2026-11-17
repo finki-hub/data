@@ -32,6 +32,8 @@ export const folders: readonly Folder[] = [
       'curriculum_generations',
       'study_programs',
       'degree_programs',
+      'degree_program_courses',
+      'degree_program_slots',
     ],
     sort: 2,
   },

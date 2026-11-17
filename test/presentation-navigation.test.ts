@@ -96,6 +96,8 @@ describe('navigation', () => {
         'curriculum_generations',
         'study_programs',
         'degree_programs',
+        'degree_program_courses',
+        'degree_program_slots',
       ],
       folder_enrollments: [
         'academic_years',

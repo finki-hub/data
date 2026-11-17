@@ -89,6 +89,8 @@ export const publicReads: readonly PublicRead[] = [
     fields: ['id', 'code', 'label', 'has_curriculum', 'published', 'programs'],
   },
   { collection: 'deans_office', fields: '*' },
+  { collection: 'degree_program_courses', fields: '*' },
+  { collection: 'degree_program_slots', fields: '*' },
   { collection: 'degree_programs', fields: '*' },
   { collection: 'discord_channel_courses', fields: '*' },
   { collection: 'discord_channels', fields: '*' },

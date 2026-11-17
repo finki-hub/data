@@ -140,6 +140,8 @@ const collectionRoles = [
   content('staff_aliases'),
   content('room_aliases'),
   content('degree_programs'),
+  content('degree_program_courses'),
+  content('degree_program_slots'),
   content('course_accreditation_staff'),
   {
     caseLast: true,

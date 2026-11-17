@@ -169,6 +169,16 @@ and the curriculum rules (course counts, elective limits); the 2018 pages
 list only courses. Edit it in Studio when the faculty adds or retires a
 program.
 
+A master's program's courses are in **Degree program courses**
+(`degree_program_courses`): each mandatory course with its semester, each
+elective with its group (the program's or the faculty's list, winter or
+summer, or a group of its own name) and recommended semester, with the
+code, ECTS and prerequisites the program page gives. **Degree program
+slots** (`degree_program_slots`) say how many electives each semester
+takes, and from which lists. The master's courses are courses with
+**Degree cycle** Second; `courses.json` carries only the first-cycle
+courses.
+
 ## Teaching staff from the timetables
 
 **Data / Import timetables daily** (04:30) reads

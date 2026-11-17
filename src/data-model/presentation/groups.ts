@@ -17,7 +17,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     field: 'curriculum',
     headerIcon: 'menu_book',
     label: 'Curriculum',
-    members: ['curricula', 'equivalencies'],
+    members: ['curricula', 'equivalencies', 'degree_programs'],
     sort: 2,
     start: 'open',
   },
