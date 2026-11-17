@@ -327,6 +327,41 @@ export const teachingCollections: readonly ModelCollection[] = [
     singleton: false,
     sort: 34,
   },
+  // Every course a slot is held for: one, or each part of a joint class
+  // ("Избрани теми од математика / Дискретна математика"), matched like
+  // the lessons' subjects. The slot's own course is set only when there
+  // is exactly one.
+  {
+    collection: 'timetable_slot_courses',
+    displayTemplate: '{{course.name}}: {{slot.subject}}',
+    fields: [
+      importedLink('slot', 'timetable_slots', {
+        alias: 'courses',
+        fields: ['course'],
+        label: 'Slot',
+        listLabel: 'Courses',
+        listTemplate: '{{course.name}}',
+        template: '{{subject}}: {{day}} {{starts}} ({{classroom}})',
+      }),
+      importedLink('course', 'courses', {
+        alias: 'slot_links',
+        fields: ['slot'],
+        label: 'Course',
+        listLabel: 'All timetable slots',
+        listTemplate:
+          '{{slot.timetable.title}}: {{slot.day}} {{slot.starts}} {{slot.subject}}',
+        template: courseTemplate,
+      }),
+    ],
+    hidden: false,
+    icon: 'event_note',
+    label: {
+      plural: 'Timetable slot courses',
+      singular: 'Timetable slot course',
+    },
+    singleton: false,
+    sort: 34,
+  },
   {
     collection: 'course_aliases',
     displayTemplate: '{{name}} - {{course.name}}',
@@ -478,6 +513,18 @@ export const teachingKeys: readonly CompositeKey[] = [
     columns: ['staff'],
     kind: 'index',
     name: 'timetable_slot_staff_staff_index',
+  },
+  {
+    collection: 'timetable_slot_courses',
+    columns: ['slot', 'course'],
+    kind: 'unique',
+    name: 'timetable_slot_courses_slot_course_unique',
+  },
+  {
+    collection: 'timetable_slot_courses',
+    columns: ['course'],
+    kind: 'index',
+    name: 'timetable_slot_courses_course_index',
   },
   // A name maps to a course once; a row without a course ignores it.
   {

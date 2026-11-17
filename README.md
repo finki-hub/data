@@ -41,7 +41,7 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `course_equivalency_members`,
 `course_enrollments`, `academic_years`, `staff`, `teaching_assignments`,
 `course_teaching`, `course_accreditation_staff`, `timetables`,
-`timetable_lessons`, `timetable_slots`, `timetable_slot_staff`, `room_aliases`, `bachelor_theses`,
+`timetable_lessons`, `timetable_slots`, `timetable_slot_staff`, `timetable_slot_courses`, `room_aliases`, `bachelor_theses`,
 `master_theses`,
 `bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`, `discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
@@ -205,9 +205,14 @@ or ignore it without a room ("online"). An edit of a room or a room alias
 rebuilds them too, and **Room match** Unmatched lists what still needs an
 alias. `timetable_slot_staff` links each slot to the staff its teachers
 stand for, matched like the lessons' teachers (so the same staff aliases
-apply); a staff member's form lists their **Timetable slots**.
+apply); a staff member's form lists their **Timetable slots**. A joint
+class names two courses ("Избрани теми од математика / Дискретна
+математика"): the slot's own course is set only when its subject stands
+for one, and `timetable_slot_courses` links every course a slot is held
+for, both parts of a joint class included, listed on the course form as
+**All timetable slots**.
 
-All five tables are written only by the import and its rebuild. The
+All six tables are written only by the import and its rebuild. The
 import also marks the six latest main timetables **Published**
 (`timetables.recent`): the window `courses.json` reads.
 

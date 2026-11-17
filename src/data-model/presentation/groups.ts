@@ -32,6 +32,7 @@ export const fieldGroups: readonly FieldGroup[] = [
       'teaching',
       'accreditation_staff',
       'slots',
+      'slot_links',
     ],
     sort: 3,
     start: 'open',

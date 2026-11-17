@@ -280,6 +280,16 @@ FROM slot_teachers st
 JOIN teacher_staff ts ON ts."teacher" = st."teacher" AND ts."staff" IS NOT NULL
 ORDER BY st."slot", ts."staff", st."teacher"`;
 
+export const clearSlotCoursesSql = 'DELETE FROM "timetable_slot_courses"';
+
+// Every course a slot is held for: the course its subject stands for, or
+// each part's of a joint class "A / B" whose parts all match.
+export const insertSlotCoursesSql = `WITH ${courseResolvedSql('timetable_slots')}
+INSERT INTO "timetable_slot_courses" ("slot", "course")
+SELECT DISTINCT s."id", c."course"
+FROM "timetable_slots" s
+JOIN subject_courses c ON c."subject" = s."subject" AND c."course" IS NOT NULL`;
+
 // Every slot's course (when its subject stands for exactly one) and room,
 // and how its classroom matched; only changed rows are written. A slot
 // without a classroom is ignored.

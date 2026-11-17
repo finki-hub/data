@@ -128,6 +128,7 @@ describe('navigation', () => {
         'timetable_lessons',
         'timetable_slots',
         'timetable_slot_staff',
+        'timetable_slot_courses',
         'course_aliases',
         'staff_aliases',
         'room_aliases',

@@ -166,6 +166,7 @@ export type ModelCollectionKey =
   | 'study_programs'
   | 'teaching_assignments'
   | 'timetable_lessons'
+  | 'timetable_slot_courses'
   | 'timetable_slot_staff'
   | 'timetable_slots'
   | 'timetables';

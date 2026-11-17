@@ -132,6 +132,7 @@ describe('write guards of the collection-role registry', () => {
         'course_teaching',
         'timetable_slots',
         'timetable_slot_staff',
+        'timetable_slot_courses',
       ],
       'finki_hub.thesis_writer': [
         'bachelor_theses',

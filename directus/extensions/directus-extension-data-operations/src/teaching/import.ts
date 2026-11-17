@@ -17,12 +17,14 @@ import {
 } from './parse.js';
 import {
   clearLessonsSql,
+  clearSlotCoursesSql,
   clearSlotsSql,
   clearSlotStaffSql,
   clearTeachingSql,
   fingerprintSql,
   fingerprintsSql,
   insertLessonsSql,
+  insertSlotCoursesSql,
   insertSlotsSql,
   insertSlotStaffSql,
   insertTeachingSql,
@@ -100,7 +102,7 @@ const sha256 = (text: string): string =>
   createHash('sha256').update(text).digest('hex');
 
 // Rebuilds course_teaching, the lessons' match columns and the slots'
-// courses, rooms and staff from the stored lessons and slots, the courses, the
+// courses, rooms, staff and joint courses from the stored lessons and slots, the courses, the
 // staff, the rooms and the three alias lists. The caller's
 // transaction must not have opened another writer's guard. The lock makes
 // an import and a rebuild after an edit run one after the other.
@@ -118,6 +120,8 @@ export const rebuildTeaching = async (
   await run(client, matchSlotsSql);
   await run(client, clearSlotStaffSql);
   await run(client, insertSlotStaffSql);
+  await run(client, clearSlotCoursesSql);
+  await run(client, insertSlotCoursesSql);
   const unmatched = await run(client, unmatchedSql);
   return { teaching, unmatched: unmatchedRow.parse(unmatched.rows[0]) };
 };
