@@ -64,6 +64,8 @@ export const publicReads: readonly PublicRead[] = [
       'teaching',
       'accreditation_staff',
       'slots',
+      'slot_links',
+      'degree_programs',
     ],
   },
   {
