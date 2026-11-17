@@ -87,13 +87,15 @@ describe('the native query of an export read', () => {
 
   test('adds no deep query to a read of plain fields, and none to an aggregate', () => {
     expect(readQuery(courses.rows)).toEqual({
-      fields: ['id', 'name', 'name_en', 'abbreviation', 'tags', 'status'],
-      filter: {
-        _or: [
-          { degree_cycle: { _null: true } },
-          { degree_cycle: { _eq: 'first' } },
-        ],
-      },
+      fields: [
+        'id',
+        'name',
+        'name_en',
+        'abbreviation',
+        'tags',
+        'status',
+        'degree_cycle',
+      ],
       limit: -1,
       sort: ['id'],
     });
