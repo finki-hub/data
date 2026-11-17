@@ -176,9 +176,8 @@ summer, or a group of its own name) and recommended semester, with the
 code, ECTS and prerequisites the program page gives. **Degree program
 slots** (`degree_program_slots`) say how many electives each semester
 takes, and from which lists. The master's courses are courses with
-**Degree cycle** Second; `courses.json` carries them too, with `cycle`
-`second` (and `first` on the undergraduate courses), so its readers can
-tell them apart.
+**Degree cycle** Second; `courses.json` carries only the first-cycle
+courses.
 
 ## Teaching staff from the timetables
 

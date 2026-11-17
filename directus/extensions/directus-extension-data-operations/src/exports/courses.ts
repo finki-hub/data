@@ -108,9 +108,6 @@ export const courses: ExportDefinition = {
     },
     { key: 'channel', rule: 'boolean', value: channel },
     { key: 'tags', rule: 'text', value: 'tags' },
-    // first, or second for a master's course (no undergraduate
-    // accreditation); missing for a course without one.
-    { key: 'cycle', rule: 'text', value: 'degree_cycle' },
     { key: 'assistants', rule: 'text', value: assistants },
     // One block per published generation, newest first.
     {
@@ -180,17 +177,17 @@ export const courses: ExportDefinition = {
       sort: ['course', 'id'],
     },
   },
+  // The first-cycle courses (and those without a cycle): the master's
+  // courses are kept for the degree programs, not for the file's readers.
   rows: {
     collection: 'courses',
-    fields: [
-      'id',
-      'name',
-      'name_en',
-      'abbreviation',
-      'tags',
-      'status',
-      'degree_cycle',
-    ],
+    fields: ['id', 'name', 'name_en', 'abbreviation', 'tags', 'status'],
+    filter: {
+      _or: [
+        { degree_cycle: { _null: true } },
+        { degree_cycle: { _eq: 'first' } },
+      ],
+    },
     sort: ['id'],
   },
 };
