@@ -93,7 +93,8 @@ export const courses: ExportDefinition = {
     // The official English name (FINKI's English subject page).
     { key: 'name-en', rule: 'text', value: 'name_en' },
     { key: 'abbreviation', rule: 'text', value: 'abbreviation' },
-    { key: 'professors', required: true, rule: 'text', value: professors },
+    // Required of every course but a master's one (see professors).
+    { key: 'professors', rule: 'text', value: professors },
     // The published-year rule: one key per published academic year, its
     // label, newest first, valued by the course's count for that year.
     { keys: 'published_years', rule: 'number', value: enrollmentCount },
@@ -108,6 +109,9 @@ export const courses: ExportDefinition = {
     },
     { key: 'channel', rule: 'boolean', value: channel },
     { key: 'tags', rule: 'text', value: 'tags' },
+    // first, or second for a master's course (no undergraduate
+    // accreditation); missing for a course without one.
+    { key: 'cycle', rule: 'text', value: 'degree_cycle' },
     { key: 'assistants', rule: 'text', value: assistants },
     // One block per published generation, newest first.
     {
@@ -177,17 +181,17 @@ export const courses: ExportDefinition = {
       sort: ['course', 'id'],
     },
   },
-  // The first-cycle courses (and those without a cycle): the master's
-  // courses are kept for the degree programs, not for the file's readers.
   rows: {
     collection: 'courses',
-    fields: ['id', 'name', 'name_en', 'abbreviation', 'tags', 'status'],
-    filter: {
-      _or: [
-        { degree_cycle: { _null: true } },
-        { degree_cycle: { _eq: 'first' } },
-      ],
-    },
+    fields: [
+      'id',
+      'name',
+      'name_en',
+      'abbreviation',
+      'tags',
+      'status',
+      'degree_cycle',
+    ],
     sort: ['id'],
   },
 };

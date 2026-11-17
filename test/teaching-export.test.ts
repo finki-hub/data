@@ -153,6 +153,22 @@ describe('teaching staff by status', () => {
     });
   });
 
+  test("leaves the professors out of a master's course without one", async () => {
+    const store = withValues(
+      withoutLinks(await importedStore(), theta, 'professor'),
+      { collection: 'courses', id: theta },
+      { degree_cycle: 'second' },
+    );
+
+    const courses = await coursesOf(store);
+    const named = courses.find(
+      (course) => course['name'] === courseNames.theta,
+    );
+
+    expect(named).toBeDefined();
+    expect(named).not.toHaveProperty('professors');
+  });
+
   test('needs no professor link for an Inactive or All professors course', async () => {
     const inactive = withStatus(
       withoutLinks(await importedStore(), theta, 'professor'),
