@@ -113,6 +113,7 @@ describe('studio metadata', () => {
       'course_teaching',
       'timetable_slots',
       'timetable_slot_staff',
+      'timetable_slot_courses',
       'bachelor_theses',
       'bachelor_thesis_staff',
       'master_theses',

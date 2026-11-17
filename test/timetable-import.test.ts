@@ -30,10 +30,12 @@ import {
 } from '../directus/extensions/directus-extension-data-operations/src/teaching/parse.js';
 import {
   clearLessonsSql,
+  clearSlotCoursesSql,
   clearSlotsSql,
   clearSlotStaffSql,
   fingerprintSql,
   insertLessonsSql,
+  insertSlotCoursesSql,
   insertSlotsSql,
   insertSlotStaffSql,
   insertTeachingSql,
@@ -352,11 +354,13 @@ describe('the timetable import', () => {
       })),
     ]);
     expect(statements.map(({ sql }) => sql)).toContain(insertTeachingSql);
-    expect(statements.map(({ sql }) => sql).slice(-5, -1)).toEqual([
+    expect(statements.map(({ sql }) => sql).slice(-7, -1)).toEqual([
       matchLessonsSql,
       matchSlotsSql,
       clearSlotStaffSql,
       insertSlotStaffSql,
+      clearSlotCoursesSql,
+      insertSlotCoursesSql,
     ]);
   });
 
@@ -553,6 +557,8 @@ describe('the teaching data keys', () => {
       'index timetable_slots (room)',
       'unique timetable_slot_staff (slot, staff)',
       'index timetable_slot_staff (staff)',
+      'unique timetable_slot_courses (slot, course)',
+      'index timetable_slot_courses (course)',
       'unique course_aliases (name, course)',
       'unique course_accreditation_staff (course, staff, generation)',
     ]);
