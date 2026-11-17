@@ -1,7 +1,9 @@
+import type { CompositeKey } from '../schema-relations.js';
 import type { ModelCollection } from '../schema.js';
 
 import { programStates } from './choice-lists.js';
 import {
+  courseTemplate,
   curriculumEntryTemplate,
   equivalencyTemplate,
   staffTemplate,
@@ -45,6 +47,44 @@ const cycleChoices = labelledChoices(degreeCycles, {
   third: 'Third cycle (doctoral)',
 });
 
+// A course's place in a degree program: mandatory in a semester, or
+// elective in one of the program's groups.
+export const programCourseKinds = ['mandatory', 'elective'] as const;
+
+const programCourseKindChoices = labelledChoices(programCourseKinds, {
+  elective: 'Elective',
+  mandatory: 'Mandatory',
+});
+
+// The elective groups a master's program page lists: the program's own
+// and the faculty's, each for the winter or the summer semester, and a
+// group of the program's own name.
+export const electiveGroups = [
+  'program_winter',
+  'program_summer',
+  'faculty_winter',
+  'faculty_summer',
+  'named',
+] as const;
+
+const electiveGroupChoices = labelledChoices(electiveGroups, {
+  faculty_summer: 'Faculty, summer',
+  faculty_winter: 'Faculty, winter',
+  named: 'A named group',
+  program_summer: 'Study program, summer',
+  program_winter: 'Study program, winter',
+});
+
+// What an elective slot of a semester may be filled with.
+export const electiveSlotKinds = ['program', 'program_or_faculty'] as const;
+
+const electiveSlotKindChoices = labelledChoices(electiveSlotKinds, {
+  program: 'From the study program',
+  program_or_faculty: 'From the study program or the faculty',
+});
+
+const degreeProgramTemplate = '{{code}} - {{name}}';
+
 export const generationCollections: readonly ModelCollection[] = [
   {
     collection: 'curriculum_generations',
@@ -80,7 +120,7 @@ export const generationCollections: readonly ModelCollection[] = [
           field: 'programs',
           fields: ['code', 'name', 'published'],
           label: 'Study programs',
-          template: '{{code}} - {{name}}',
+          template: degreeProgramTemplate,
         },
         label: 'Generation',
         nullable: false,
@@ -109,7 +149,7 @@ export const generationCollections: readonly ModelCollection[] = [
   // a three-year variant) share one.
   {
     collection: 'degree_programs',
-    displayTemplate: '{{code}} - {{name}}',
+    displayTemplate: degreeProgramTemplate,
     fields: [
       scalar('code', 'string', {
         label: 'Code',
@@ -144,7 +184,7 @@ export const generationCollections: readonly ModelCollection[] = [
           field: 'coordinated_programs',
           fields: ['code', 'name'],
           label: 'Coordinated programs',
-          template: '{{code}} - {{name}}',
+          template: degreeProgramTemplate,
         },
         label: 'Coordinator',
         template: staffTemplate,
@@ -162,7 +202,7 @@ export const generationCollections: readonly ModelCollection[] = [
           field: 'degree_programs',
           fields: ['code', 'name', 'duration_years'],
           label: 'Degree programs',
-          template: '{{code}} - {{name}}',
+          template: degreeProgramTemplate,
         },
         label: 'Curriculum program',
         note: 'The curriculum column whose course states apply; first cycle only.',
@@ -172,6 +212,109 @@ export const generationCollections: readonly ModelCollection[] = [
     hidden: false,
     icon: 'school',
     label: { plural: 'Degree programs', singular: 'Degree program' },
+    singleton: false,
+    sort: 27,
+  },
+  // The courses of a degree program, as its finki.ukim.mk page lists them:
+  // each mandatory course with its semester, each elective with its group
+  // and recommended semester. Kept for the master's programs; a course
+  // listed under two codes has a row for each.
+  {
+    collection: 'degree_program_courses',
+    displayTemplate: '{{program.code}}: {{code}} {{course.name}}',
+    fields: [
+      m2o('program', 'degree_programs', {
+        alias: {
+          field: 'courses',
+          fields: ['code', 'course', 'kind', 'semester', 'group'],
+          label: 'Courses',
+          template: '{{semester}} {{kind}}: {{code}} {{course.name}}',
+        },
+        label: 'Degree program',
+        nullable: false,
+        template: degreeProgramTemplate,
+      }),
+      m2o('course', 'courses', {
+        alias: {
+          field: 'degree_programs',
+          fields: ['program', 'kind', 'semester', 'group'],
+          label: 'In degree programs',
+          template: '{{program.code}}: {{kind}} {{semester}}',
+        },
+        label: 'Course',
+        nullable: false,
+        template: courseTemplate,
+      }),
+      scalar('code', 'string', {
+        label: 'Code',
+        note: 'As the program page lists it, such as DCS-Z-02.',
+        nullable: false,
+      }),
+      enumField('kind', programCourseKindChoices, {
+        label: 'Kind',
+        nullable: false,
+      }),
+      scalar('semester', 'integer', {
+        label: 'Semester',
+        note: 'Of a mandatory course; the recommended one of an elective.',
+      }),
+      enumField('group', electiveGroupChoices, {
+        label: 'Elective group',
+        note: 'Empty for a mandatory course.',
+      }),
+      scalar('group_name', 'string', {
+        label: 'Group name',
+        note: 'As the program page names the group.',
+      }),
+      scalar('credits', 'integer', { label: 'ECTS' }),
+      scalar('requires', 'text', {
+        label: 'Prerequisites',
+        note: 'As the program page writes them.',
+      }),
+    ],
+    hidden: false,
+    icon: 'format_list_numbered',
+    label: {
+      plural: 'Degree program courses',
+      singular: 'Degree program course',
+    },
+    singleton: false,
+    sort: 27,
+  },
+  // The elective slots of a degree program's semesters: how many electives
+  // a student picks there, and from which lists.
+  {
+    collection: 'degree_program_slots',
+    displayTemplate: '{{program.code}}: {{semester}} {{kind}} x{{count}}',
+    fields: [
+      m2o('program', 'degree_programs', {
+        alias: {
+          field: 'elective_slots',
+          fields: ['semester', 'kind', 'count'],
+          label: 'Elective slots',
+          template: '{{semester}}: {{count}} x {{kind}}',
+        },
+        label: 'Degree program',
+        nullable: false,
+        template: degreeProgramTemplate,
+      }),
+      scalar('semester', 'integer', { label: 'Semester', nullable: false }),
+      enumField('kind', electiveSlotKindChoices, {
+        label: 'Kind',
+        nullable: false,
+      }),
+      scalar('count', 'integer', {
+        label: 'Electives',
+        minimum: 1,
+        nullable: false,
+      }),
+    ],
+    hidden: false,
+    icon: 'playlist_add',
+    label: {
+      plural: 'Degree program slots',
+      singular: 'Degree program slot',
+    },
     singleton: false,
     sort: 27,
   },
@@ -247,5 +390,28 @@ export const generationCollections: readonly ModelCollection[] = [
     label: { plural: 'Equivalency members', singular: 'Equivalency member' },
     singleton: false,
     sort: 29,
+  },
+];
+
+// One row per program, course and code; a course's programs are found by
+// it.
+export const degreeProgramKeys: readonly CompositeKey[] = [
+  {
+    collection: 'degree_program_courses',
+    columns: ['program', 'course', 'code'],
+    kind: 'unique',
+    name: 'degree_program_courses_program_course_code_unique',
+  },
+  {
+    collection: 'degree_program_courses',
+    columns: ['course'],
+    kind: 'index',
+    name: 'degree_program_courses_course_index',
+  },
+  {
+    collection: 'degree_program_slots',
+    columns: ['program', 'semester', 'kind'],
+    kind: 'unique',
+    name: 'degree_program_slots_program_semester_kind_unique',
   },
 ];

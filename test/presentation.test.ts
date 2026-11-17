@@ -272,6 +272,7 @@ describe('curriculum generations in the forms', () => {
     expect(findFieldGroup('courses', 'curriculum')?.members).toEqual([
       'curricula',
       'equivalencies',
+      'degree_programs',
     ]);
   });
 
