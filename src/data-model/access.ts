@@ -64,6 +64,8 @@ export const publicReads: readonly PublicRead[] = [
       'teaching',
       'accreditation_staff',
       'slots',
+      'slot_links',
+      'degree_programs',
     ],
   },
   {
@@ -126,11 +128,28 @@ export const mcpAccess = {
 export type AccessInstallSummary = {
   readonly created: readonly string[];
   readonly skipped: readonly string[];
+  readonly updated: readonly string[];
 };
 
 const idRows = z.array(z.object({ id: z.string() }));
 const policyRows = z.array(z.object({ policy: z.string() }));
-const collectionRows = z.array(z.object({ collection: z.string() }));
+const permissionRows = z.array(
+  z.object({
+    collection: z.string(),
+    fields: z.array(z.string()).nullable().optional(),
+    id: z.union([z.number(), z.string()]),
+  }),
+);
+
+// Whether a permission's fields are those a read declares, in any order.
+const sameFields = (
+  fields: null | readonly string[] | undefined,
+  read: PublicRead,
+): boolean => {
+  const wanted = read.fields === '*' ? ['*'] : read.fields;
+  const have = new Set(fields);
+  return have.size === new Set(wanted).size && wanted.every((f) => have.has(f));
+};
 
 const firstId = async (
   request: DirectusRequest,
@@ -203,33 +222,45 @@ const permissionOf = (policy: string, read: PublicRead) => ({
   validation: {},
 });
 
-// Creates every missing public and MCP read permission.
+// Creates every missing public and MCP read permission, and brings the
+// fields of an existing one up to the declared list (a field the model
+// gains, such as an alias, is readable once setup has run).
 export const installPublicAccess = async (
   request: DirectusRequest,
 ): Promise<AccessInstallSummary> => {
   const created: string[] = [];
   const skipped: string[] = [];
+  const updated: string[] = [];
   const policies = [
     { label: 'public', policy: await publicPolicy(request) },
     { label: 'mcp', policy: await mcpPolicy(request, created) },
   ];
   for (const { label, policy } of policies) {
-    const readable = new Set(
-      collectionRows
+    const existing = new Map(
+      permissionRows
         .parse(
           await request(
-            `/permissions?fields=collection&limit=-1&filter[policy][_eq]=${policy}&filter[action][_eq]=read`,
+            `/permissions?fields=id,collection,fields&limit=-1&filter[policy][_eq]=${policy}&filter[action][_eq]=read`,
           ),
         )
-        .map(({ collection }) => collection),
+        .map((row) => [row.collection, row]),
     );
     const missing = publicReads.filter(
-      ({ collection }) => !readable.has(collection),
+      ({ collection }) => !existing.has(collection),
     );
     for (const read of publicReads) {
-      (readable.has(read.collection) ? skipped : created).push(
-        `${label} ${read.collection}`,
-      );
+      const row = existing.get(read.collection);
+      if (row === undefined) {
+        created.push(`${label} ${read.collection}`);
+      } else if (sameFields(row.fields, read)) {
+        skipped.push(`${label} ${read.collection}`);
+      } else {
+        await request(`/permissions/${row.id}`, {
+          body: JSON.stringify({ fields: permissionOf(policy, read).fields }),
+          method: 'PATCH',
+        });
+        updated.push(`${label} ${read.collection}`);
+      }
     }
     if (missing.length > 0) {
       await request('/permissions', {
@@ -238,5 +269,5 @@ export const installPublicAccess = async (
       });
     }
   }
-  return { created, skipped };
+  return { created, skipped, updated };
 };
