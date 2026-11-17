@@ -19,7 +19,14 @@ type Call = {
 
 // A Directus that answers the access reads from `state` and records every
 // write.
+// The fields a collection's read declares.
+const fieldsOf = (collection: string): readonly string[] => {
+  const read = publicReads.find((r) => r.collection === collection);
+  return read === undefined || read.fields === '*' ? ['*'] : read.fields;
+};
+
 const fakeDirectus = (state: {
+  readonly fields?: Readonly<Record<string, readonly string[]>>;
   readonly mcpPolicy: null | string;
   readonly readable: Readonly<Record<string, readonly string[]>>;
 }) => {
@@ -43,16 +50,23 @@ const fakeDirectus = (state: {
     if (path.startsWith('/roles')) {
       return Promise.resolve([]);
     }
+    if (method === 'PATCH') {
+      return Promise.resolve({});
+    }
     const policy = policyFilter.exec(path)?.groups?.['policy'] ?? '';
     return Promise.resolve(
-      (state.readable[policy] ?? []).map((collection) => ({ collection })),
+      (state.readable[policy] ?? []).map((collection, index) => ({
+        collection,
+        fields: state.fields?.[collection] ?? fieldsOf(collection),
+        id: index + 1,
+      })),
     );
   };
   return { calls, request };
 };
 
 const writes = (calls: readonly Call[]) =>
-  calls.filter(({ method }) => method === 'POST');
+  calls.filter(({ method }) => method === 'POST' || method === 'PATCH');
 
 describe('the public and MCP read permissions', () => {
   test('name collections of the model, each once', () => {
@@ -129,5 +143,34 @@ describe('the public and MCP read permissions', () => {
     ]);
     expect(summary.created).toEqual(['public anto_quotes']);
     expect(summary.skipped).toHaveLength(2 * publicReads.length - 1);
+  });
+
+  test('brings an existing read up to its declared fields', async () => {
+    const all = publicReads.map(({ collection }) => collection);
+    const courses = fieldsOf('courses');
+    const { calls, request } = fakeDirectus({
+      fields: { courses: courses.slice(0, -1) },
+      mcpPolicy: 'mcp-policy',
+      readable: { 'mcp-policy': all, 'public-policy': all },
+    });
+
+    const summary = await installPublicAccess(request);
+
+    const index = all.indexOf('courses') + 1;
+
+    expect(writes(calls)).toEqual([
+      {
+        body: { fields: [...courses] },
+        method: 'PATCH',
+        path: `/permissions/${index}`,
+      },
+      {
+        body: { fields: [...courses] },
+        method: 'PATCH',
+        path: `/permissions/${index}`,
+      },
+    ]);
+    expect(summary.updated).toEqual(['public courses', 'mcp courses']);
+    expect(summary.created).toEqual([]);
   });
 });
