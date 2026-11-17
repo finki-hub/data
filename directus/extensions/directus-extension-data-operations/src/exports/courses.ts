@@ -93,7 +93,8 @@ export const courses: ExportDefinition = {
     // The official English name (FINKI's English subject page).
     { key: 'name-en', rule: 'text', value: 'name_en' },
     { key: 'abbreviation', rule: 'text', value: 'abbreviation' },
-    { key: 'professors', required: true, rule: 'text', value: professors },
+    // Required of every course but a master's one (see professors).
+    { key: 'professors', rule: 'text', value: professors },
     // The published-year rule: one key per published academic year, its
     // label, newest first, valued by the course's count for that year.
     { keys: 'published_years', rule: 'number', value: enrollmentCount },

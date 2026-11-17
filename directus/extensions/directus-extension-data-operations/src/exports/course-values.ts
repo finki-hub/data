@@ -250,15 +250,16 @@ const teachersOf = (
 };
 
 // professors: the text of All professors or Inactive, else the professor
-// names (teachersOf); an Active course without one is refused. The staff
-// of a status that replaces them is not read.
+// names (teachersOf); an Active course without one is refused, except a
+// master's course (its program pages may name none), whose key is then
+// left out. The staff of a status that replaces them is not read.
 export const professors: Resolver = (context) => {
   const status = statusOf(context);
   const names = status === 'active' ? teachersOf(context, 'professor') : [];
-  return (
-    professorsText(status, names) ??
-    unresolved(`Course ${courseId(context)}: professor missing`)
-  );
+  const text = professorsText(status, names);
+  return text !== null || context.row['degree_cycle'] === 'second'
+    ? text
+    : unresolved(`Course ${courseId(context)}: professor missing`);
 };
 
 // assistants: the Inactive text, else the assistant names (teachersOf);

@@ -465,16 +465,17 @@ describe('the keys a consumer requires', () => {
   );
 
   test('requires exactly the keys the consumers read on every row', () => {
+    // professors too, but for a master's course: the resolver refuses
+    // its absence (teaching-export.test.ts).
     expect(requiredOf(courses)).toEqual([
       'name',
-      'professors',
       'published_generations available',
     ]);
     expect(requiredOf(staff)).toEqual(['name', 'title', 'position', 'email']);
     expect(requiredOf(rooms)).toEqual(['name', 'type', 'location']);
     expect(requiredOf(bachelorTheses)).toEqual(['title']);
     expect(requiredOf(masterTheses)).toEqual(['title']);
-    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(12);
+    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(11);
   });
 
   test("refuses a courses.json row without a published generation's availability", () => {
