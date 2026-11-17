@@ -7,10 +7,12 @@ import { rowsOf, type SourceReader } from './engine.js';
 import { exportError } from './errors.js';
 import { defaultMaxBytes, type Row, type SourceRead } from './types.js';
 
-// The legacy files that are not a list of rows: anto.json, the list of
-// the Anto quotes, and sessions.json, an object from each exam session's
-// name to the file name of its schedule. Both are read in id order, so a
-// new row comes last, as it did in the old bucket.
+// The legacy files that are not a list of rows of text values: anto.json,
+// the list of the Anto quotes, and sessions.json, an object from each exam
+// session's name to the file name of its schedule, both read in id order,
+// so a new row comes last, as it did in the old bucket; and
+// degree_programs.json and degree_program_courses.json, the programs and
+// their curricula, which the old bucket never had.
 
 export type PlainFile = {
   readonly filename: string;
@@ -95,7 +97,119 @@ export const examSessions: PlainFile = {
   },
 };
 
-export const plainFiles: readonly PlainFile[] = [antoQuotes, examSessions];
+const programRows = z.array(
+  z.object({
+    code: z.string().trim().min(1),
+    cycle: z.string().nullable(),
+    ects: z.number().nullable(),
+    title: z.string().nullable(),
+    title_en: z.string().nullable(),
+  }),
+);
+
+// degree_programs.json: every degree program with its titles, cycle and
+// ECTS, in code order; a title or the ECTS the program pages lack is null.
+export const degreePrograms: PlainFile = {
+  filename: 'degree_programs.json',
+  payload: (rows) => {
+    const parsed = programRows.safeParse(rows);
+    return parsed.success
+      ? parsed.data.map(({ code, cycle, ects, title, title_en }) => ({
+          code,
+          cycle,
+          ects,
+          title,
+          title_en,
+        }))
+      : refuse('degree_programs.json', 'a program has no code');
+  },
+  read: {
+    collection: 'degree_programs',
+    fields: ['code', 'title', 'title_en', 'cycle', 'ects'],
+    sort: ['code'],
+  },
+};
+
+const programCourseRows = z.array(
+  z.object({
+    code: z.string().nullable(),
+    course: z.object({
+      degree_cycle: z.string().nullable(),
+      name: z.string().trim().min(1),
+    }),
+    credits: z.number().nullable(),
+    group: z.string().nullable(),
+    group_name: z.string().nullable(),
+    kind: z.string().min(1),
+    program: z.object({ code: z.string().trim().min(1) }),
+    semester: z.number().nullable(),
+  }),
+);
+
+type ProgramCourse = z.infer<typeof programCourseRows>[number];
+
+const textOrder = new Intl.Collator('mk');
+
+// None sorts last.
+const lastIfNone = (value: null | string): string => value ?? '￿';
+
+// By program, then semester (none last), then catalog code (none last),
+// then course name.
+const programCourseOrder = (left: ProgramCourse, right: ProgramCourse) =>
+  textOrder.compare(left.program.code, right.program.code) ||
+  (left.semester ?? Infinity) - (right.semester ?? Infinity) ||
+  textOrder.compare(lastIfNone(left.code), lastIfNone(right.code)) ||
+  textOrder.compare(left.course.name, right.course.name);
+
+// degree_program_courses.json: one row per course of a program's
+// curriculum. `course` and `cycle` are the course's name and cycle in
+// courses.json, together its key there (one name is in both cycles); the
+// rest is the curriculum entry, null where the program page gives none.
+export const degreeProgramCourses: PlainFile = {
+  filename: 'degree_program_courses.json',
+  payload: (rows) => {
+    const parsed = programCourseRows.safeParse(rows);
+    return parsed.success
+      ? parsed.data.toSorted(programCourseOrder).map((row) => ({
+          code: row.code,
+          course: row.course.name,
+          credits: row.credits,
+          cycle: row.course.degree_cycle,
+          group: row.group,
+          group_name: row.group_name,
+          kind: row.kind,
+          program: row.program.code,
+          semester: row.semester,
+        }))
+      : refuse(
+          'degree_program_courses.json',
+          'an entry has no program, course or kind',
+        );
+  },
+  read: {
+    collection: 'degree_program_courses',
+    fields: [
+      'id',
+      'program.code',
+      'course.name',
+      'course.degree_cycle',
+      'kind',
+      'semester',
+      'group',
+      'group_name',
+      'credits',
+      'code',
+    ],
+    sort: ['id'],
+  },
+};
+
+export const plainFiles: readonly PlainFile[] = [
+  antoQuotes,
+  examSessions,
+  degreePrograms,
+  degreeProgramCourses,
+];
 
 // One plain file from the live data as the published compact JSON.
 export const buildPlainFile = async (

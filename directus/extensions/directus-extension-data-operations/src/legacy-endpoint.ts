@@ -27,7 +27,8 @@ import {
 
 // GET /legacy/<file>: the public JSON files the consumers read from the old
 // assets bucket (anto.json, courses.json, rooms.json, sessions.json,
-// staff.json), in exactly that format, built from the live data, and
+// staff.json), in exactly that format, built from the live data, the
+// theses and degree program files the bucket never had, and
 // GET /legacy/sessions/<file name>: the schedule file a session of
 // sessions.json names. Anyone may read them, like the public API: every
 // file reads its public fields by name, so no private column is ever

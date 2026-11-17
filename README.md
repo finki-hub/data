@@ -72,6 +72,16 @@ and its mentor and committee (`mentor`, `member_1`, `member_2`; `mentor`,
 `staff.json` when the thesis's name matched a staff member, else as the
 thesis writes it.
 
+`degree_programs.json` lists every degree program (`code`, `title`,
+`title_en`, `cycle`, `ects`; null where the program pages give none) and
+`degree_program_courses.json` every course of a program's curriculum, one
+row per course and program: `course` and `cycle` (the course's `name` and
+`cycle` in `courses.json`, together its key there), `program`, `kind`
+(`mandatory`, `elective`), `semester`, `group` (`program_winter`,
+`program_summer`, `faculty_winter`, `faculty_summer`, `named`),
+`group_name`, `credits` and `code`, ordered by program and semester. Their
+values keep their types, unlike the text-only rows of the old files.
+
 ### MCP
 
 Directus's built-in MCP server is enabled at
