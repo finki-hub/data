@@ -348,6 +348,19 @@ derived, staging or status) is declared once in
 | `npm run generate:invalidation` | Rewrite `source-invalidation.sql` from the collection roles. |
 | `npm run setup` | Install the model, migrations, presentation, Flows and dashboard into a running Directus. |
 | `npm run brand` | Apply the branding. |
+| `npm run check:exports` | Build every `/legacy` file with this checkout's export code from a running Directus's data (read only) and compare it with the file served now. |
+
+CI tests the exports on sample data only, and one row the live data
+refuses fails its whole file. Before merging a change to an export, or to
+data it reads, run the check on the live data from the change's branch:
+
+```sh
+DIRECTUS_URL=http://127.0.0.1:8055 DIRECTUS_ADMIN_TOKEN=... npm run check:exports
+```
+
+It prints `<file>: builds, <rows> rows; live <rows>, identical` (or how
+many rows are new and gone), or `<file>: refused: <reason>`, and exits 1
+when a file is refused.
 
 Three suites run against a disposable, licensed Directus on loopback, never
 a project holding data:

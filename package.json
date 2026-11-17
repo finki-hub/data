@@ -25,6 +25,7 @@
     "build:search": "npm --prefix directus/extensions/directus-extension-course-search run build",
     "check": "tsc --noEmit && npm run check:sfc",
     "check:sfc": "vue-tsc --noEmit --project tsconfig.sfc.json",
+    "check:exports": "node --import tsx src/export-check-cli.ts",
     "format": "eslint . --cache --fix",
     "generate:invalidation": "node --import tsx src/source-invalidation-snapshot.ts",
     "lint": "eslint . --cache",
