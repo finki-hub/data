@@ -53,9 +53,16 @@ export const restReader =
     return items as readonly unknown[];
   };
 
+// The rows of a file as texts: the items of a list, the entries of a map
+// (sessions.json), else the whole body.
 const rowTexts = (body: string): string[] => {
-  const rows: unknown = JSON.parse(body);
-  return Array.isArray(rows) ? rows.map((row) => JSON.stringify(row)) : [];
+  const parsed: unknown = JSON.parse(body);
+  if (Array.isArray(parsed)) {
+    return parsed.map((row) => JSON.stringify(row));
+  }
+  return typeof parsed === 'object' && parsed !== null
+    ? Object.entries(parsed).map((entry) => JSON.stringify(entry))
+    : [body];
 };
 
 // How many rows of `from` are missing in `to`, each row counted as often

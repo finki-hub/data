@@ -81,8 +81,21 @@ describe('the export check', () => {
           build: () => Promise.resolve(prepared('c.json', [])),
           filename: 'c.json',
         },
+        {
+          build: () =>
+            Promise.resolve({
+              ...prepared('d.json', []),
+              body: '{"June":"jun.xlsx","May":"may.xlsx"}',
+              rows: 2,
+            }),
+          filename: 'd.json',
+        },
       ],
-      { 'a.json': '[{"x":1},{"x":2}]', 'b.json': '[{"x":1},{"x":2},{"x":2}]' },
+      {
+        'a.json': '[{"x":1},{"x":2}]',
+        'b.json': '[{"x":1},{"x":2},{"x":2}]',
+        'd.json': '{"June":"jun.xlsx"}',
+      },
     );
 
     expect(builds).toBeTruthy();
@@ -90,6 +103,7 @@ describe('the export check', () => {
       'a.json: builds, 2 rows; live 2, identical',
       'b.json: builds, 2 rows; live 3, 1 new, 2 gone',
       'c.json: builds, 0 rows; not served now',
+      'd.json: builds, 2 rows; live 1, 1 new, 0 gone',
     ]);
   });
 
