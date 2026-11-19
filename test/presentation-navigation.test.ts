@@ -62,11 +62,10 @@ describe('navigation', () => {
       { label: 'Degree programs', sort: 4 },
       { label: 'People', sort: 5 },
       { label: 'Timetables & rooms', sort: 6 },
-      { label: 'Name matching', sort: 7 },
-      { label: 'Enrollments', sort: 8 },
-      { label: 'Theses', sort: 9 },
-      { label: 'Discord bot', sort: 10 },
-      { label: 'Internals', sort: 11 },
+      { label: 'Enrollments', sort: 7 },
+      { label: 'Theses', sort: 8 },
+      { label: 'Discord bot', sort: 9 },
+      { label: 'Internals', sort: 10 },
     ]);
     expect(
       Object.fromEntries(
@@ -98,6 +97,9 @@ describe('navigation', () => {
         'moodle_course_mappings',
       ],
       folder_internals: [
+        'course_aliases',
+        'staff_aliases',
+        'room_aliases',
         'course_curricula',
         'curriculum_entry_program_states',
         'discord_channel_courses',
@@ -107,7 +109,6 @@ describe('navigation', () => {
         'data_operation_matches',
         'data_operations',
       ],
-      folder_name_matching: ['course_aliases', 'staff_aliases', 'room_aliases'],
       folder_people: ['staff', 'deans_office', 'student_council', 'students'],
       folder_teaching: [
         'course_teaching',
@@ -152,13 +153,15 @@ describe('navigation', () => {
     ).toEqual([]);
   });
 
-  test('files the hidden collections, and only them, in Internals', () => {
+  test('files the name aliases and the hidden collections, and only them, in Internals', () => {
     const hidden = hiddenCollections();
     const internals = folders.find(
       ({ collection }) => collection === 'folder_internals',
     );
 
-    expect(sorted(internals?.members ?? [])).toEqual(sorted(hidden));
+    expect(sorted(internals?.members ?? [])).toEqual(
+      sorted([...hidden, 'course_aliases', 'staff_aliases', 'room_aliases']),
+    );
     expect(
       collectionPlacements
         .filter(({ collection }) => hidden.includes(collection))

@@ -219,7 +219,7 @@ matches a course by its name, English name or a linked curriculum entry's
 name, and a combined slot "A / B" when each part does; a
 teacher matches a staff member by name, with either of two surnames left
 out. Anything else needs an alias: **Course Names** (`course_aliases`)
-and **Staff Names** (`staff_aliases`), in the Name Matching folder, map a
+and **Staff Names** (`staff_aliases`), in the Internals folder, map a
 timetable name to a course or staff member, or ignore it without one. Every
 edit of an alias, a course, a staff member or a curriculum entry rebuilds
 `course_teaching` at once. Filtering `timetable_lessons` by **Course Match**
