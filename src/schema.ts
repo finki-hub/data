@@ -157,6 +157,7 @@ export type ModelCollectionKey =
   | 'moodle_course_mappings'
   | 'moodle_history_memberships'
   | 'moodle_import_rows'
+  | 'moodle_left_uncounted'
   | 'moodle_pattern_mappings'
   | 'moodle_users'
   | 'room_aliases'

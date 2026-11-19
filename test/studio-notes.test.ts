@@ -80,6 +80,7 @@ const remainingNotes = [
   'moodle_import_rows: Written only by the Moodle snapshot import; nothing else reads it.',
   'moodle_course_entries.first_seen: When the history index first created this line.',
   'moodle_course_entries.mappings: A Moodle course link replaces every pattern for this Moodle course.',
+  'moodle_left_uncounted: Moodle courses named like a course that are another one; Needs attention stops listing them.',
   'moodle_pattern_mappings.pattern: Regular expression tested against each Moodle course name; ^ matches the start of the name.',
   'moodle_pattern_mappings.year_pattern: Group start or end captures the year the academic year starts or ends, in 2 or 4 digits (2 digits mean 20xx). A line without such a year is not counted.',
   "moodle_pattern_mappings.only_in_year: Counts the pattern only in this year, in place of the course's all-years mappings there.",

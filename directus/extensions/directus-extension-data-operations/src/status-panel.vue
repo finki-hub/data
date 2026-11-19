@@ -3,6 +3,7 @@ import { computed, toRef } from 'vue';
 
 import { useDataStatus } from './data-status.js';
 import { sectionsOf } from './managed-flows.js';
+import StatusAttention from './status-attention.vue';
 import { toolbarText } from './status-facts.js';
 import StatusKeys from './status-keys.vue';
 import StatusOperations from './status-operations.vue';
@@ -56,6 +57,10 @@ const data = useDataStatus(
       type="danger"
       >{{ data.statusError }}</v-notice
     >
+    <StatusAttention
+      v-if="data.status && data.shows('attention')"
+      :status="data.status"
+    />
     <StatusOperations
       v-if="data.status && data.shows('operations')"
       :status="data.status"

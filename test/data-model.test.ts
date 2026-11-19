@@ -147,8 +147,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(46);
-    expect(new Set(dataModelCollectionKeys).size).toBe(46);
+    expect(dataModelCollectionKeys).toHaveLength(47);
+    expect(new Set(dataModelCollectionKeys).size).toBe(47);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -363,6 +363,7 @@ describe('domain keys', () => {
       'index moodle_history_memberships (entry)',
       'unique moodle_course_mappings (entry, course, academic_year)',
       'index moodle_course_mappings (course, academic_year)',
+      'unique moodle_left_uncounted (entry)',
       'unique moodle_pattern_mappings (course, pattern, year_pattern, only_in_year)',
       'index moodle_pattern_mappings (course, only_in_year)',
       'unique moodle_counted_lines (entry, course, academic_year, pattern_mapping)',

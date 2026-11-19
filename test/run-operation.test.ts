@@ -64,6 +64,11 @@ const flow: ManualFlow = {
 };
 
 const idle: StatusView = {
+  attention: {
+    lookalikes: { count: 0, items: [] },
+    stale: [],
+    unmatched: { count: 0, items: [] },
+  },
   claim: null,
   domains: [],
   historyIndex: {

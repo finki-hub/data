@@ -316,7 +316,21 @@ refresh on their own.
 
 ## The Data operations dashboard
 
-**Insights → Data operations** shows the calculations and their last
+**Insights → Data operations** starts with **Needs attention**, the data
+that is not linked up yet, each row linking to where it is fixed:
+
+- failed calculations, and the timetable or thesis import when it has not
+  succeeded for 26 hours;
+- subjects, teachers and rooms of the recent timetables that match nothing
+  (add a Course, Staff or Room Name, or mark it ignored there);
+- Moodle courses of the current accreditations (2018 on) with at least 5
+  students that nothing counts but whose name starts with a course's name.
+  Fix the course's Moodle Patterns or add a Moodle Course Link; a Moodle
+  course that is another course goes into **Left Uncounted**
+  (`moodle_left_uncounted`, Enrollments), which only removes it from this
+  list and from the alert.
+
+Below it, the dashboard shows the calculations and their last
 failure, the Moodle snapshot counts and the rows whose **Published** flags
 decide the keys of `courses.json`, with **Recalculate** and **Import Moodle
 snapshot** buttons. A manual Flow named `Data / …` can be added as another

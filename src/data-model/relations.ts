@@ -230,6 +230,12 @@ export const compositeKeys: readonly CompositeKey[] = [
     kind: 'index',
     name: 'moodle_course_mappings_course_academic_year_index',
   },
+  {
+    collection: 'moodle_left_uncounted',
+    columns: ['entry'],
+    kind: 'unique',
+    name: 'moodle_left_uncounted_entry_unique',
+  },
   ...mappingKeys,
   {
     collection: 'course_enrollments',

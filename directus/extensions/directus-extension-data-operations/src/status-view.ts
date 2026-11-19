@@ -6,6 +6,7 @@ import {
   isClaimDomain,
 } from './coordination/domains.js';
 import {
+  type AttentionView,
   type DomainView,
   type KeySourceView,
   type StatusView,
@@ -29,6 +30,7 @@ export type ScheduledRun = {
 };
 
 type StatusInputs = {
+  readonly attention: AttentionView;
   readonly keySources: readonly KeySourceView[];
   readonly report: StatusReport;
   readonly schedule: readonly ScheduledRun[];
@@ -81,10 +83,12 @@ const lastErrorOf = (report: StatusReport): StatusView['lastError'] => {
 };
 
 export const statusView = ({
+  attention,
   keySources,
   report,
   schedule,
 }: StatusInputs): StatusView => ({
+  attention,
   claim: claimOf(report),
   domains: domainsOf(report),
   historyIndex: { ...report.historyIndex },

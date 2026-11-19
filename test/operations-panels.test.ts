@@ -351,7 +351,17 @@ const report: StatusReport = {
 const read = (failures: number, refused = false, busy = false) =>
   nextReadMs({ busy, failures, refused });
 
-const viewOf = () => statusView({ keySources: [], report, schedule: [] });
+const viewOf = () =>
+  statusView({
+    attention: {
+      lookalikes: { count: 0, items: [] },
+      stale: [],
+      unmatched: { count: 0, items: [] },
+    },
+    keySources: [],
+    report,
+    schedule: [],
+  });
 
 describe('the status view', () => {
   test('lists every declared domain with its state', () => {
@@ -564,6 +574,7 @@ describe('the Data operations dashboard', () => {
     expect(defaultPanels.map(({ id }) => id.slice(-4))).toEqual([
       '16d2',
       '16d3',
+      '16d8',
       '16d5',
       '16d7',
     ]);
@@ -592,7 +603,7 @@ describe('the Data operations dashboard', () => {
         .values()
         .map((row) => gridColumns(row))
         .toArray(),
-    ).toEqual([full, full, full]);
+    ).toEqual([full, full, full, full]);
   });
 
   test('creates what is missing and never touches what exists', async () => {

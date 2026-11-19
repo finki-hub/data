@@ -3,6 +3,7 @@ import type { ApiExtensionContext } from '@directus/types';
 import { defineEndpoint } from '@directus/extensions-sdk';
 
 import { requestRefusal } from './access.js';
+import { readAttention } from './attention-reads.js';
 import { coordinationStatus, sqlDatabase } from './coordinate.js';
 import { errorBody, forwardError } from './endpoint-errors.js';
 import { itemsReader } from './exports/directus.js';
@@ -20,8 +21,10 @@ const readStatus = async (
 ): Promise<StatusView> => {
   const report = await coordinationStatus(context.database);
   const keySources = await readKeySources(await itemsReader(context));
-  const schedule = await readSchedule(sqlDatabase(context.database));
-  return statusView({ keySources, report, schedule });
+  const sql = sqlDatabase(context.database);
+  const schedule = await readSchedule(sql);
+  const attention = await readAttention(sql);
+  return statusView({ attention, keySources, report, schedule });
 };
 
 export default defineEndpoint({
