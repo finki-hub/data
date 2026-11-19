@@ -78,7 +78,7 @@ describe('the public and MCP read permissions', () => {
     ).toEqual([]);
   });
 
-  test('keep the Moodle users, the operations and non-council students private', () => {
+  test('keep the Moodle users, the operations, non-council students and index numbers private', () => {
     const collections = publicReads.map(({ collection }) => collection);
 
     expect(collections).not.toContain('moodle_users');
@@ -87,8 +87,14 @@ describe('the public and MCP read permissions', () => {
       publicReads.find(({ collection }) => collection === 'students'),
     ).toEqual({
       collection: 'students',
-      fields: ['id', 'name', 'index_number', 'council_memberships'],
+      fields: ['id', 'name', 'council_memberships'],
       filter: { council_memberships: { _some: { id: { _nnull: true } } } },
+    });
+    expect(
+      publicReads.find(({ collection }) => collection === 'student_council'),
+    ).toEqual({
+      collection: 'student_council',
+      fields: ['id', 'year', 'position', 'student'],
     });
   });
 
