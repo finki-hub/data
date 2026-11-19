@@ -71,7 +71,7 @@ const statusPanel = (
 });
 
 // Recalculate and Import snapshot in the first row, as wide as the status
-// rows below. The ids keep their suffixes: d1 held the retired Publish
+// rows below: Needs attention, Calculations, Published keys. The ids keep their suffixes: d1 held the retired Publish
 // panel, d4 the retired Add enrollment rules panel and d6 the retired
 // Readiness panel.
 export const defaultPanels: readonly PanelDeclaration[] = [
@@ -99,6 +99,19 @@ export const defaultPanels: readonly PanelDeclaration[] = [
   ),
   statusPanel(
     {
+      height: 24,
+      icon: 'report',
+      id: dashboardId('d8'),
+      name: 'Needs attention',
+      note: 'Shows data that is not linked up yet.',
+      width: 52,
+      x: 1,
+      y: 13,
+    },
+    ['attention'],
+  ),
+  statusPanel(
+    {
       height: 32,
       icon: 'monitor_heart',
       id: dashboardId('d5'),
@@ -106,7 +119,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       note: 'Shows the calculation domains and the Moodle snapshot.',
       width: 52,
       x: 1,
-      y: 13,
+      y: 37,
     },
     ['operations'],
   ),
@@ -119,7 +132,7 @@ export const defaultPanels: readonly PanelDeclaration[] = [
       note: 'Shows the rows whose flags decide the public keys.',
       width: 52,
       x: 1,
-      y: 45,
+      y: 69,
     },
     ['keys'],
   ),

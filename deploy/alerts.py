@@ -50,6 +50,7 @@ join lateral (
 join courses c on c.id = best.id
 where e.label ~ '\d{4}'
   and not exists (select 1 from moodle_counted_lines l where l.entry = e.id)
+  and not exists (select 1 from moodle_left_uncounted u where u.entry = e.id)
   and (select count(*) from moodle_history_memberships m where m.entry = e.id) >= 5
 order by e.label
 """

@@ -196,20 +196,20 @@ describe('schema constraints', () => {
     expect(count).toBe(schemaConstraints.statements.length);
     expect(executed).toEqual([...schemaConstraints.statements]);
 
-    // Thirty-five keys and indexes, the count CHECK and the three pattern
+    // Thirty-six keys and indexes, the count CHECK and the three pattern
     // mapping CHECKs, a function and a trigger per curriculum guard
     // (generation and code) and per key guard, then the write guards of
     // the collection-role registry: one shared function and a statement
     // trigger per derived, candidate and staging table.
     const rowGuards = [...curriculumGuardStatements(), ...keyGuardStatements()];
-    const fixed = 39 + rowGuards.length;
+    const fixed = 40 + rowGuards.length;
 
     expect(count).toBe(fixed + writeGuardStatements().length);
     expect(executed[0]).toBe(
       'CREATE UNIQUE INDEX IF NOT EXISTS "teaching_assignments_course_staff_role_unique" ON "teaching_assignments" ("course", "staff", "role")',
     );
-    expect(executed.slice(36, 39)).toEqual(patternMappingChecks);
-    expect(executed.slice(39, fixed)).toEqual(rowGuards);
+    expect(executed.slice(37, 40)).toEqual(patternMappingChecks);
+    expect(executed.slice(40, fixed)).toEqual(rowGuards);
     expect(executed.slice(fixed)).toEqual([...writeGuardStatements()]);
 
     const guardTriggers = executed.slice(fixed + 1);

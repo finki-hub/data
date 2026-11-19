@@ -139,6 +139,7 @@ const collectionRoles = [
   content('course_aliases'),
   content('staff_aliases'),
   content('room_aliases'),
+  content('moodle_left_uncounted'),
   content('degree_programs'),
   content('degree_program_courses'),
   content('degree_program_slots'),

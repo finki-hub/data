@@ -225,4 +225,28 @@ export const moodleCollections: readonly ModelCollection[] = [
     singleton: false,
     sort: 20,
   },
+  // Moodle courses named like a course that are another one (an older
+  // curriculum, a different course), kept out of Needs attention on the
+  // Data operations dashboard. Nothing counts by them.
+  {
+    collection: 'moodle_left_uncounted',
+    displayTemplate: '{{entry.label}}',
+    fields: [
+      m2o('entry', 'moodle_course_entries', {
+        label: 'Moodle course',
+        nullable: false,
+        template: historyEntryTemplate,
+      }),
+      scalar('reason', 'text', { label: 'Reason' }),
+    ],
+    hidden: false,
+    icon: 'do_not_disturb_on',
+    label: {
+      plural: 'Left uncounted',
+      singular: 'Left uncounted Moodle course',
+    },
+    note: 'Moodle courses named like a course that are another one; Needs attention stops listing them.',
+    singleton: false,
+    sort: 21,
+  },
 ];

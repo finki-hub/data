@@ -43,7 +43,7 @@ export const statusPath = `/${statusEndpointId}`;
 
 // The parts of the data status a status panel shows; a panel lists any of
 // them, in this order.
-export const statusSections = ['operations', 'keys'] as const;
+export const statusSections = ['attention', 'operations', 'keys'] as const;
 
 export type StatusSection = (typeof statusSections)[number];
 
@@ -58,6 +58,7 @@ export const sectionsOf = (option: unknown): StatusSection[] => {
 
 // The section names are the names of the default panels that show them.
 export const statusSectionLabels: Readonly<Record<StatusSection, string>> = {
+  attention: 'Needs attention',
   keys: 'Published keys',
   operations: 'Calculations',
 };

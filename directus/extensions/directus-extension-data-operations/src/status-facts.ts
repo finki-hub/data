@@ -110,3 +110,32 @@ export const lastErrorText = ({
     ['At', instantText(at)],
     ...retriesFacts(retries),
   ]);
+
+type AttentionView = StatusView['attention'];
+
+// Every problem Needs attention lists: failed calculations, stopped
+// imports, unmatched timetable names and uncounted look-alike Moodle
+// courses.
+export const attentionTotal = (status: StatusView): number =>
+  status.domains.filter(({ state }) => state === 'failed').length +
+  status.attention.stale.length +
+  status.attention.unmatched.count +
+  status.attention.lookalikes.count;
+
+// The rows of a list the panel leaves out, or null when it shows them all.
+export const moreText = ({
+  count,
+  items,
+}: {
+  readonly count: number;
+  readonly items: readonly unknown[];
+}): null | string =>
+  count > items.length ? `And ${String(count - items.length)} more.` : null;
+
+// A daily import that stopped: when it last succeeded and what to run.
+export const importStoppedText = ({
+  flow,
+  lastAt,
+  name,
+}: AttentionView['stale'][number]): string =>
+  `${name}: last success ${lastAt === null ? 'never' : instantText(lastAt)}. Run ${flow} to see why.`;

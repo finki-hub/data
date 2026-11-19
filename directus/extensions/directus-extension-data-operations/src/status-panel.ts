@@ -12,7 +12,8 @@ import DataStatusPanel from './status-panel.vue';
 // source shows with no change here). Its option picks the sections.
 export default definePanel({
   component: DataStatusPanel,
-  description: 'Shows the data status: calculations and published keys.',
+  description:
+    'Shows the data status: what needs attention, calculations and published keys.',
   icon: 'monitor_heart',
   id: dataStatusPanelId,
   minHeight: 10,

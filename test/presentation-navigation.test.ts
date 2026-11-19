@@ -95,6 +95,7 @@ describe('navigation', () => {
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
+        'moodle_left_uncounted',
       ],
       folder_internals: [
         'course_aliases',

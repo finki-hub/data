@@ -48,7 +48,30 @@ const keySourceView = z.object({
   rows: z.array(keyRowView),
 });
 
+// Data not linked up yet (attention-reads.ts): Moodle courses named like
+// a course that nothing counts, timetable names that match nothing, and
+// daily imports that stopped. Each list holds its first rows; its count
+// covers them all.
+const attentionView = z.object({
+  lookalikes: z.object({
+    count,
+    items: z.array(z.object({ course: text, label: text, link: text })),
+  }),
+  stale: z.array(z.object({ flow: text, lastAt: maybeText, name: text })),
+  unmatched: z.object({
+    count,
+    items: z.array(
+      z.object({
+        kind: z.enum(['room', 'subject', 'teacher']),
+        link: text,
+        name: text,
+      }),
+    ),
+  }),
+});
+
 export const statusViewSchema = z.object({
+  attention: attentionView,
   // The running claim: which domain, since when, whether it went stale.
   claim: z
     .object({
@@ -97,6 +120,8 @@ export const statusViewSchema = z.object({
     }),
   ),
 });
+
+export type AttentionView = z.infer<typeof attentionView>;
 
 export type DomainView = z.infer<typeof domainView>;
 
