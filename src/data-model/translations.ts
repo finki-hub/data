@@ -1,7 +1,9 @@
 import type { CollectionLabel } from '../schema.js';
 
+import { titleCase } from './title-case.js';
+
 // Labels are English translations: Studio shows them for an English
-// interface language.
+// interface language, in Title Case (titleCase).
 const labelLanguage = 'en-US';
 
 export type FieldTranslation = {
@@ -18,7 +20,7 @@ type CollectionTranslation = FieldTranslation & {
 export const fieldTranslations = (
   label: string,
 ): readonly FieldTranslation[] => [
-  { language: labelLanguage, translation: label },
+  { language: labelLanguage, translation: titleCase(label) },
 ];
 
 // The `meta.translations` of a labelled collection: its name is the plural.
@@ -27,8 +29,8 @@ export const collectionTranslations = (
 ): readonly CollectionTranslation[] => [
   {
     language: labelLanguage,
-    plural: label.plural,
-    singular: label.singular,
-    translation: label.plural,
+    plural: titleCase(label.plural),
+    singular: titleCase(label.singular),
+    translation: titleCase(label.plural),
   },
 ];

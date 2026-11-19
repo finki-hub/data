@@ -17,13 +17,13 @@ import { enumField, labelledChoices, m2o, scalar } from './fields.js';
 // a pattern or year pattern that does not compile.
 
 const patternMappings = {
-  plural: 'Pattern mappings',
-  singular: 'Pattern mapping',
+  plural: 'Moodle patterns',
+  singular: 'Moodle pattern',
 } as const;
 
 const countedLines = {
-  plural: 'Counted lines',
-  singular: 'Counted line',
+  plural: 'Counted Moodle courses',
+  singular: 'Counted Moodle course',
 } as const;
 
 const historyLineTemplate = '{{label}}';
@@ -31,8 +31,8 @@ const patternMappingTemplate = '{{course.name}}: {{pattern}}';
 const lineInYearTemplate = '{{entry.label}} ({{academic_year.label}})';
 
 const sourceChoices = labelledChoices(countedLineSources, {
-  explicit: 'Explicit mapping',
-  pattern: 'Pattern mapping',
+  explicit: 'Moodle course link',
+  pattern: 'Moodle pattern',
 });
 
 export const mappingCollections: readonly ModelCollection[] = [
@@ -54,7 +54,7 @@ export const mappingCollections: readonly ModelCollection[] = [
       }),
       scalar('pattern', 'text', {
         label: 'Pattern',
-        note: 'Regular expression tested against each history line; ^ matches the start of the line.',
+        note: 'Regular expression tested against each Moodle course name; ^ matches the start of the name.',
         nullable: false,
       }),
       // The default only prefills a new row: the pattern guard sends null
@@ -101,7 +101,7 @@ export const mappingCollections: readonly ModelCollection[] = [
           readOnly: true,
           template: '{{course.name}} ({{academic_year.label}})',
         },
-        label: 'History line',
+        label: 'Moodle course',
         nullable: false,
         readOnly: true,
         template: historyLineTemplate,
@@ -136,7 +136,7 @@ export const mappingCollections: readonly ModelCollection[] = [
         alias: {
           field: 'counted_lines',
           fields: ['entry', 'academic_year'],
-          label: 'Lines it counts',
+          label: 'Moodle courses it counts',
           readOnly: true,
           template: lineInYearTemplate,
         },
@@ -170,7 +170,7 @@ export const mappingCollections: readonly ModelCollection[] = [
         readOnly: true,
       }),
       m2o('entry', 'moodle_course_entries', {
-        label: 'History line',
+        label: 'Moodle course',
         nullable: false,
         readOnly: true,
         template: historyLineTemplate,

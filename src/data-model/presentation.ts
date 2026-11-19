@@ -39,7 +39,7 @@ const folderPayload = (folder: Folder) => ({
     hidden: false,
     icon: folder.icon,
     sort: folder.sort,
-    translations: [{ language: 'en-US', translation: folder.label }],
+    translations: fieldTranslations(folder.label),
   },
 });
 
@@ -89,7 +89,7 @@ const readState = async (
 
 // Installs the Studio presentation once: sidebar folders and placement,
 // form groups, relational interface options, displays and shared presets
-// (the default views, Search and Unmapped history lines; only the import
+// (the default views, Search and Unmapped Moodle Courses; only the import
 // creates the incomplete-data bookmarks). Each element is written only
 // while it still carries the schema installer's defaults, so a rerun never
 // overwrites Studio edits and a project that already has the presentation

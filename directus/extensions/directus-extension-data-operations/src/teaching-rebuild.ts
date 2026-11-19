@@ -30,7 +30,7 @@ export type Log = { readonly error: (message: string) => void };
 export const rebuildScheduler = (
   rebuild: () => Promise<unknown>,
   log: Log,
-  what = 'Course teaching',
+  what = 'Timetable teaching',
 ): (() => Promise<void>) => {
   let running: null | Promise<void> = null;
   let queued = false;

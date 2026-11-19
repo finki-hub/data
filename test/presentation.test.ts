@@ -505,7 +505,7 @@ describe('field presentation', () => {
 });
 
 describe('setup and the bookmarks', () => {
-  test('setup creates only the Search and Unmapped history lines bookmarks', async () => {
+  test('setup creates only the Search and Unmapped Moodle Courses bookmarks', async () => {
     const { request, requests } = fakeDirectus(freshState());
 
     await installPresentation(request);
@@ -717,7 +717,7 @@ describe('installPresentation over Studio edits', () => {
     });
   });
 
-  test('installs Unmapped history lines as declared, keeps an existing one and installs it again once deleted', async () => {
+  test('installs Unmapped Moodle Courses as declared, keeps an existing one and installs it again once deleted', async () => {
     const isUnmapped = (call: RecordedRequest): boolean =>
       presetBody.safeParse(call.body).data?.bookmark ===
       unmappedLinesBookmark.bookmark;

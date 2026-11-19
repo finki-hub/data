@@ -181,8 +181,7 @@ def check_timetable_names(state: dict) -> list[str]:
     )
     return [
         f"⚠️ **New unmatched timetable names**: {names}. Add an alias under "
-        "Timetable course names, Timetable staff names or Timetable room "
-        "names in Studio."
+        "Name Matching (Course Names, Staff Names or Room Names) in Studio."
     ]
 
 
@@ -228,7 +227,7 @@ def check_moodle(state: dict) -> list[str]:
     more = f" and {len(new) - 10} more" if len(new) > 10 else ""
     return [
         f"⚠️ **New Moodle courses that look like a course but are not "
-        f"counted**: {shown}{more}. Fix that course's Moodle pattern in "
+        f"counted**: {shown}{more}. Fix that course's Moodle Patterns (Enrollments) in "
         "Studio, or leave it if it is a different course."
     ]
 

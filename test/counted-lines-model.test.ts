@@ -88,12 +88,15 @@ describe('the counted lines', () => {
     ]);
     expect(findCollection(counted)).toMatchObject({
       hidden: true,
-      label: { plural: 'Counted lines', singular: 'Counted line' },
+      label: {
+        plural: 'Counted Moodle courses',
+        singular: 'Counted Moodle course',
+      },
     });
     expect(findField(counted, 'source')).toMatchObject({
       choices: [
-        { label: 'Explicit mapping', value: 'explicit' },
-        { label: 'Pattern mapping', value: 'pattern' },
+        { label: 'Moodle course link', value: 'explicit' },
+        { label: 'Moodle pattern', value: 'pattern' },
       ],
     });
     expect(countedLineSources).toEqual(['explicit', 'pattern']);
@@ -139,13 +142,13 @@ describe('the counted lines', () => {
       {
         field: 'counted_lines',
         fields: ['entry', 'academic_year', 'source'],
-        label: 'Counted lines',
+        label: 'Counted Moodle courses',
         readOnly: true,
       },
       {
         field: 'counted_lines',
         fields: ['entry', 'academic_year'],
-        label: 'Lines it counts',
+        label: 'Moodle courses it counts',
         readOnly: true,
       },
       undefined,
@@ -155,7 +158,9 @@ describe('the counted lines', () => {
 
     expect(lines && toAliasPayload(lines, 5).meta).toMatchObject({
       readonly: true,
-      translations: [{ language: 'en-US', translation: 'Lines it counts' }],
+      translations: [
+        { language: 'en-US', translation: 'Moodle Courses It Counts' },
+      ],
     });
   });
 

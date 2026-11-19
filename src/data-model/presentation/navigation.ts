@@ -1,101 +1,107 @@
 import type { CollectionPlacement, Folder } from './types.js';
 
-// Sidebar folders by task, in display order, all closed when Studio opens.
-// A folder key carries the `folder_` prefix, so it never names a
-// collection. Moodle users is in no folder: its model sort (6) places it
-// between Enrollments and Sessions & quotes. Helper, staging and candidate
-// collections keep the `hidden` flag the model declares, sit in Internals
-// and stay reachable through the relation interfaces and their own URLs.
+// Sidebar folders by subject, in display order, all closed when Studio
+// opens. A folder key carries the `folder_` prefix, so it never names a
+// collection. Every collection sits in a folder. Helper, staging and
+// candidate collections keep the `hidden` flag the model declares, sit in
+// Internals and stay reachable through the relation interfaces and their
+// own URLs.
+const sidebarFolder = ({
+  icon,
+  key,
+  label,
+  members,
+}: {
+  readonly icon: string;
+  readonly key: string;
+  readonly label: string;
+  readonly members: readonly string[];
+}): Omit<Folder, 'sort'> => ({
+  collapse: 'closed',
+  collection: `folder_${key}`,
+  icon,
+  label,
+  members,
+});
+
 export const folders: readonly Folder[] = [
-  {
-    collapse: 'closed',
-    collection: 'folder_courses',
+  sidebarFolder({
     icon: 'school',
+    key: 'courses',
     label: 'Courses',
+    members: ['courses', 'course_equivalencies', 'course_equivalency_members'],
+  }),
+  // Who teaches a course, from each source courses.json reads.
+  sidebarFolder({
+    icon: 'co_present',
+    key: 'teaching',
+    label: 'Teaching',
     members: [
-      'courses',
-      'teaching_assignments',
+      'course_teaching',
       'course_accreditation_staff',
-      'discord_channels',
+      'teaching_assignments',
     ],
-    sort: 1,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_curriculum',
+  }),
+  // The undergraduate accreditations behind courses.json.
+  sidebarFolder({
     icon: 'menu_book',
-    label: 'Curriculum',
+    key: 'accreditations',
+    label: 'Accreditations',
+    members: ['curriculum_generations', 'study_programs', 'curriculum_entries'],
+  }),
+  sidebarFolder({
+    icon: 'account_tree',
+    key: 'degree_programs',
+    label: 'Degree programs',
     members: [
-      'curriculum_entries',
-      'course_equivalencies',
-      'course_equivalency_members',
-      'curriculum_generations',
-      'study_programs',
       'degree_programs',
       'degree_program_courses',
       'degree_program_slots',
     ],
-    sort: 2,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_staff_rooms',
+  }),
+  sidebarFolder({
     icon: 'groups',
-    label: 'Staff & rooms',
-    members: ['staff', 'rooms', 'deans_office'],
-    sort: 3,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_students',
-    icon: 'badge',
-    label: 'Students',
-    members: ['students', 'student_council'],
-    sort: 4,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_enrollments',
-    icon: 'history_edu',
-    label: 'Enrollments',
-    members: [
-      'academic_years',
-      'moodle_course_entries',
-      'moodle_pattern_mappings',
-      'moodle_course_mappings',
-    ],
-    sort: 5,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_bot_content',
-    icon: 'smart_toy',
-    label: 'Sessions & quotes',
-    members: ['exam_sessions', 'anto_quotes'],
-    sort: 7,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_timetables',
+    key: 'people',
+    label: 'People',
+    members: ['staff', 'deans_office', 'student_council', 'students'],
+  }),
+  sidebarFolder({
     icon: 'calendar_view_week',
-    label: 'Timetables',
+    key: 'timetables_rooms',
+    label: 'Timetables & rooms',
     members: [
-      'course_teaching',
       'timetables',
       'timetable_lessons',
       'timetable_slots',
       'timetable_slot_staff',
       'timetable_slot_courses',
-      'course_aliases',
-      'staff_aliases',
-      'room_aliases',
+      'rooms',
+      'exam_sessions',
     ],
-    sort: 8,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_theses',
+  }),
+  // The other spellings the imports match courses, staff and rooms by.
+  sidebarFolder({
+    icon: 'spellcheck',
+    key: 'name_matching',
+    label: 'Name matching',
+    members: ['course_aliases', 'staff_aliases', 'room_aliases'],
+  }),
+  sidebarFolder({
     icon: 'history_edu',
+    key: 'enrollments',
+    label: 'Enrollments',
+    members: [
+      'academic_years',
+      'course_enrollments',
+      'moodle_users',
+      'moodle_course_entries',
+      'moodle_pattern_mappings',
+      'moodle_course_mappings',
+    ],
+  }),
+  sidebarFolder({
+    icon: 'workspace_premium',
+    key: 'theses',
     label: 'Theses',
     members: [
       'bachelor_theses',
@@ -103,15 +109,18 @@ export const folders: readonly Folder[] = [
       'bachelor_thesis_staff',
       'master_thesis_staff',
     ],
-    sort: 9,
-  },
-  {
-    collapse: 'closed',
-    collection: 'folder_internals',
+  }),
+  sidebarFolder({
+    icon: 'smart_toy',
+    key: 'discord_bot',
+    label: 'Discord bot',
+    members: ['discord_channels', 'anto_quotes'],
+  }),
+  sidebarFolder({
     icon: 'settings_suggest',
+    key: 'internals',
     label: 'Internals',
     members: [
-      'course_enrollments',
       'course_curricula',
       'curriculum_entry_program_states',
       'discord_channel_courses',
@@ -121,9 +130,8 @@ export const folders: readonly Folder[] = [
       'data_operation_matches',
       'data_operations',
     ],
-    sort: 10,
-  },
-];
+  }),
+].map((entry, index) => ({ ...entry, sort: index + 1 }));
 
 export const collectionPlacements: readonly CollectionPlacement[] =
   folders.flatMap((folder) =>

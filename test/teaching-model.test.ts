@@ -175,13 +175,13 @@ describe('the staff links of a course', () => {
     ]);
   });
 
-  test('are labelled Teaching staff, listed by role and staff member, and Teaches on a staff member', () => {
+  test('are labelled Manual teaching staff, listed by role and staff member, and Teaches on a staff member', () => {
     expect(findCollection('teaching_assignments').label).toEqual({
-      plural: 'Teaching staff',
-      singular: 'Teaching assignment',
+      plural: 'Manual teaching staff',
+      singular: 'Manual teaching assignment',
     });
     expect(aliasOf('courses', 'assignments')).toMatchObject({
-      alias: { fields: ['role', 'staff'], label: 'Teaching staff' },
+      alias: { fields: ['role', 'staff'], label: 'Manual teaching staff' },
       relation: { sortField: 'sort' },
     });
     expect(aliasOf('staff', 'assignments')).toMatchObject({

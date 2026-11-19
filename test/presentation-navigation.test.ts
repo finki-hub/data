@@ -8,10 +8,10 @@ import {
   collectionPlacements,
   folders,
 } from '../src/data-model/presentation/navigation.js';
-import { findCollection } from './data-model-test-helpers.js';
 
-// The sidebar: seven folders by task, all closed, and Moodle users at the
-// root. The folder bodies setup sends are checked in presentation.test.ts.
+// The sidebar: eleven folders by subject, all closed, holding every
+// collection. The folder bodies setup sends are checked in
+// presentation.test.ts.
 
 const collator = new Intl.Collator('en');
 
@@ -35,15 +35,11 @@ const hiddenCollections = (): readonly string[] =>
     .map(({ collection }) => collection);
 
 describe('navigation', () => {
-  test('places every model collection but Moodle users in exactly one folder', () => {
+  test('places every model collection in exactly one folder', () => {
     const placed = collectionPlacements.map(({ collection }) => collection);
 
     expect(sorted(placed)).toEqual(
-      sorted(
-        dataModelCollections
-          .map(({ collection }) => collection)
-          .filter((collection) => collection !== 'moodle_users'),
-      ),
+      sorted(dataModelCollections.map(({ collection }) => collection)),
     );
     expect(new Set(placed).size).toBe(placed.length);
 
@@ -58,55 +54,50 @@ describe('navigation', () => {
     ).toEqual([]);
   });
 
-  test('groups the sidebar by task, with Moodle users at the root after Enrollments', () => {
-    const moodleUsers = findCollection('moodle_users');
-    const root = [
-      ...folders.map(({ label, sort }) => ({ label, sort })),
-      { label: moodleUsers.label?.plural, sort: moodleUsers.sort },
-    ].toSorted((a, b) => a.sort - b.sort);
-
-    expect(root).toEqual([
+  test('groups the sidebar by subject', () => {
+    expect(folders.map(({ label, sort }) => ({ label, sort }))).toEqual([
       { label: 'Courses', sort: 1 },
-      { label: 'Curriculum', sort: 2 },
-      { label: 'Staff & rooms', sort: 3 },
-      { label: 'Students', sort: 4 },
-      { label: 'Enrollments', sort: 5 },
-      { label: 'Moodle users', sort: 6 },
-      { label: 'Sessions & quotes', sort: 7 },
-      { label: 'Timetables', sort: 8 },
+      { label: 'Teaching', sort: 2 },
+      { label: 'Accreditations', sort: 3 },
+      { label: 'Degree programs', sort: 4 },
+      { label: 'People', sort: 5 },
+      { label: 'Timetables & rooms', sort: 6 },
+      { label: 'Name matching', sort: 7 },
+      { label: 'Enrollments', sort: 8 },
       { label: 'Theses', sort: 9 },
-      { label: 'Internals', sort: 10 },
+      { label: 'Discord bot', sort: 10 },
+      { label: 'Internals', sort: 11 },
     ]);
     expect(
       Object.fromEntries(
         folders.map(({ collection, members }) => [collection, members]),
       ),
     ).toEqual({
-      folder_bot_content: ['exam_sessions', 'anto_quotes'],
-      folder_courses: [
-        'courses',
-        'teaching_assignments',
-        'course_accreditation_staff',
-        'discord_channels',
-      ],
-      folder_curriculum: [
-        'curriculum_entries',
-        'course_equivalencies',
-        'course_equivalency_members',
+      folder_accreditations: [
         'curriculum_generations',
         'study_programs',
+        'curriculum_entries',
+      ],
+      folder_courses: [
+        'courses',
+        'course_equivalencies',
+        'course_equivalency_members',
+      ],
+      folder_degree_programs: [
         'degree_programs',
         'degree_program_courses',
         'degree_program_slots',
       ],
+      folder_discord_bot: ['discord_channels', 'anto_quotes'],
       folder_enrollments: [
         'academic_years',
+        'course_enrollments',
+        'moodle_users',
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
       ],
       folder_internals: [
-        'course_enrollments',
         'course_curricula',
         'curriculum_entry_program_states',
         'discord_channel_courses',
@@ -116,24 +107,27 @@ describe('navigation', () => {
         'data_operation_matches',
         'data_operations',
       ],
-      folder_staff_rooms: ['staff', 'rooms', 'deans_office'],
-      folder_students: ['students', 'student_council'],
+      folder_name_matching: ['course_aliases', 'staff_aliases', 'room_aliases'],
+      folder_people: ['staff', 'deans_office', 'student_council', 'students'],
+      folder_teaching: [
+        'course_teaching',
+        'course_accreditation_staff',
+        'teaching_assignments',
+      ],
       folder_theses: [
         'bachelor_theses',
         'master_theses',
         'bachelor_thesis_staff',
         'master_thesis_staff',
       ],
-      folder_timetables: [
-        'course_teaching',
+      folder_timetables_rooms: [
         'timetables',
         'timetable_lessons',
         'timetable_slots',
         'timetable_slot_staff',
         'timetable_slot_courses',
-        'course_aliases',
-        'staff_aliases',
-        'room_aliases',
+        'rooms',
+        'exam_sessions',
       ],
     });
   });
@@ -158,16 +152,13 @@ describe('navigation', () => {
     ).toEqual([]);
   });
 
-  test('files the hidden collections and Enrollment counts, and only them, in Internals', () => {
+  test('files the hidden collections, and only them, in Internals', () => {
     const hidden = hiddenCollections();
     const internals = folders.find(
       ({ collection }) => collection === 'folder_internals',
     );
 
-    expect(sorted(internals?.members ?? [])).toEqual(
-      sorted([...hidden, 'course_enrollments']),
-    );
-    expect(internals?.members[0]).toBe('course_enrollments');
+    expect(sorted(internals?.members ?? [])).toEqual(sorted(hidden));
     expect(
       collectionPlacements
         .filter(({ collection }) => hidden.includes(collection))

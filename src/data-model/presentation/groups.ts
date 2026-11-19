@@ -77,7 +77,7 @@ export const fieldGroups: readonly FieldGroup[] = [
     collection: 'moodle_course_entries',
     field: 'line',
     headerIcon: 'history_edu',
-    label: 'History line',
+    label: 'Moodle course',
     members: ['label', 'first_seen'],
     sort: 1,
     start: 'open',
