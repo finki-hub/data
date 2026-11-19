@@ -613,9 +613,9 @@ describe('installPresentation on a fresh schema', () => {
       byShape(writes, 'POST', collectionsPath)[0]?.body,
     );
 
-    expect(folder.collection).toBe('folder_courses');
+    expect(folder.collection).toBe('folder_search');
     expect(folder.meta.translations).toEqual([
-      { language: 'en-US', translation: 'Courses' },
+      { language: 'en-US', translation: 'Search' },
     ]);
     expect(folder.meta.collapse).toBe('closed');
     expect(

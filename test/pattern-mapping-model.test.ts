@@ -183,12 +183,11 @@ describe('the pattern mappings in Studio', () => {
       members: [
         'academic_years',
         'course_enrollments',
-        'moodle_users',
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
       ],
-      sort: 7,
+      sort: 8,
     });
   });
 

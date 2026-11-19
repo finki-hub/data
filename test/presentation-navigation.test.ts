@@ -56,16 +56,17 @@ describe('navigation', () => {
 
   test('groups the sidebar by subject', () => {
     expect(folders.map(({ label, sort }) => ({ label, sort }))).toEqual([
-      { label: 'Courses', sort: 1 },
-      { label: 'Teaching', sort: 2 },
-      { label: 'Accreditations', sort: 3 },
-      { label: 'Degree programs', sort: 4 },
-      { label: 'People', sort: 5 },
-      { label: 'Timetables & rooms', sort: 6 },
-      { label: 'Enrollments', sort: 7 },
-      { label: 'Theses', sort: 8 },
-      { label: 'Discord bot', sort: 9 },
-      { label: 'Internals', sort: 10 },
+      { label: 'Search', sort: 1 },
+      { label: 'Courses', sort: 2 },
+      { label: 'Teaching', sort: 3 },
+      { label: 'Accreditations', sort: 4 },
+      { label: 'Degree programs', sort: 5 },
+      { label: 'People', sort: 6 },
+      { label: 'Timetables & rooms', sort: 7 },
+      { label: 'Enrollments', sort: 8 },
+      { label: 'Theses', sort: 9 },
+      { label: 'Discord bot', sort: 10 },
+      { label: 'Internals', sort: 11 },
     ]);
     expect(
       Object.fromEntries(
@@ -91,7 +92,6 @@ describe('navigation', () => {
       folder_enrollments: [
         'academic_years',
         'course_enrollments',
-        'moodle_users',
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
@@ -109,6 +109,7 @@ describe('navigation', () => {
         'data_operation_matches',
         'data_operations',
       ],
+      folder_search: ['moodle_users'],
       folder_people: ['staff', 'deans_office', 'student_council', 'students'],
       folder_teaching: [
         'course_teaching',
