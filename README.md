@@ -14,7 +14,7 @@ The live instance is <https://data.finki-hub.com>.
 | --- | --- |
 | `src/data-model/` | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs. |
 | `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable and thesis imports. |
-| `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint and the `/legacy` endpoint. |
+| `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint, the `/legacy` endpoint and the `/docs` API reference. |
 | `directus/extensions/directus-extension-course-search/` | The **Search** layout over Moodle users (has all of / none of these courses, matched by course or by exact Moodle course name). |
 | `directus/branding/` | Logo, login artwork and theme, applied by `npm run brand`. |
 | `test/` | Unit and contract tests (`npm test`), plus two opt-in integration suites. |
@@ -26,7 +26,13 @@ output and not committed.
 
 ## Reading the data
 
-The data is public and read-only for anonymous callers, with CORS open:
+The data is public and read-only for anonymous callers, with CORS open.
+**[data.finki-hub.com/docs](https://data.finki-hub.com/docs)** is the
+interactive API reference: every public collection described and grouped by
+subject, the query parameters, and the `/legacy` files, built from the
+OpenAPI document Directus generates for anonymous callers
+(`/docs/openapi.json`; the raw one is `/server/specs/oas`, the GraphQL
+schema `/server/specs/graphql`).
 
 - **REST:** `GET https://data.finki-hub.com/items/<collection>`, with the
   usual Directus `fields`, `filter`, `sort`, `limit` and `deep` parameters,
