@@ -2,10 +2,11 @@ import type { CollectionPlacement, Folder } from './types.js';
 
 // Sidebar folders by subject, in display order, all closed when Studio
 // opens. A folder key carries the `folder_` prefix, so it never names a
-// collection. Every collection sits in a folder. Helper, staging and
-// candidate collections keep the `hidden` flag the model declares, sit in
-// Internals and stay reachable through the relation interfaces and their
-// own URLs.
+// collection. Every collection sits in a folder. Internals holds the
+// matching and bookkeeping tables: the other spellings the imports match
+// courses, staff and rooms by, then the helper, staging and candidate
+// collections, which keep the `hidden` flag the model declares and stay
+// reachable through the relation interfaces and their own URLs.
 const sidebarFolder = ({
   icon,
   key,
@@ -79,13 +80,6 @@ export const folders: readonly Folder[] = [
       'exam_sessions',
     ],
   }),
-  // The other spellings the imports match courses, staff and rooms by.
-  sidebarFolder({
-    icon: 'spellcheck',
-    key: 'name_matching',
-    label: 'Name matching',
-    members: ['course_aliases', 'staff_aliases', 'room_aliases'],
-  }),
   sidebarFolder({
     icon: 'history_edu',
     key: 'enrollments',
@@ -121,6 +115,9 @@ export const folders: readonly Folder[] = [
     key: 'internals',
     label: 'Internals',
     members: [
+      'course_aliases',
+      'staff_aliases',
+      'room_aliases',
       'course_curricula',
       'curriculum_entry_program_states',
       'discord_channel_courses',

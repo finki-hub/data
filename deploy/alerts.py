@@ -181,7 +181,7 @@ def check_timetable_names(state: dict) -> list[str]:
     )
     return [
         f"⚠️ **New unmatched timetable names**: {names}. Add an alias under "
-        "Name Matching (Course Names, Staff Names or Room Names) in Studio."
+        "Internals (Course Names, Staff Names or Room Names) in Studio."
     ]
 
 

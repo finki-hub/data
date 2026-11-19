@@ -188,7 +188,7 @@ describe('the pattern mappings in Studio', () => {
         'moodle_pattern_mappings',
         'moodle_course_mappings',
       ],
-      sort: 8,
+      sort: 7,
     });
   });
 
