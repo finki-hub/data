@@ -53,6 +53,26 @@ export const courseCondition = (course: string, excluded = false): Filter => {
   };
 };
 
+// A user's history lines that the last count counted for a course of this
+// name, in any academic year: every name variant, English name and Moodle
+// course link the counting maps to it.
+const countedFor = (course: string) => ({
+  entry: { counted_for: { course: { name: { _eq: course } } } },
+});
+
+export const countedCourseCondition = (
+  course: string,
+  excluded = false,
+): Filter =>
+  excluded
+    ? { history_memberships: { _none: countedFor(course) } }
+    : { history_memberships: countedFor(course) };
+
+// Only the memberships whose line counts for one of these courses.
+export const countedForAny = (courses: readonly string[]): Filter => ({
+  entry: { counted_for: { course: { name: { _in: [...courses] } } } },
+});
+
 export const profileUrl = (
   value: null | string | undefined,
 ): string | undefined => (value && httpUrl.test(value) ? value : undefined);

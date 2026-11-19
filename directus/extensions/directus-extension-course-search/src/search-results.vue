@@ -6,8 +6,7 @@ import type { Person, SearchController } from './index.js';
 import { countText } from './count-text.js';
 import { profileUrl, splitHistory } from './history.js';
 
-const { included, people, sort } = defineProps<{
-  included: string[];
+const { people, sort } = defineProps<{
   people: Person[];
   sort: SearchController['sort'];
 }>();
@@ -139,7 +138,7 @@ function toggleSort() {
                 <li
                   v-for="(course, index) in splitHistory(person.Courses)"
                   :key="`${index}-${course}`"
-                  :class="{ matched: included.includes(course) }"
+                  :class="{ matched: person.matched.includes(course) }"
                 >
                   {{ course }}
                 </li>

@@ -7,6 +7,11 @@ import SearchResults from './search-results.vue';
 
 defineOptions({ inheritAttrs: false });
 const { controller } = defineProps<{ controller: SearchController }>();
+
+function changeMatch(event: Event) {
+  const { value } = event.target as HTMLInputElement;
+  if (value === 'course' || value === 'line') controller.setMatch(value);
+}
 </script>
 
 <template>
@@ -26,6 +31,35 @@ const { controller } = defineProps<{ controller: SearchController }>();
           />Refresh data</v-button
         >
       </header>
+
+      <fieldset class="match-mode">
+        <legend>Match by</legend>
+        <label
+          ><input
+            type="radio"
+            name="match"
+            value="course"
+            :checked="controller.match === 'course'"
+            @change="changeMatch"
+          />Course</label
+        >
+        <label
+          ><input
+            type="radio"
+            name="match"
+            value="line"
+            :checked="controller.match === 'line'"
+            @change="changeMatch"
+          />Moodle course name</label
+        >
+        <p>
+          {{
+            controller.match === 'course'
+              ? 'A course matches every Moodle course counted for it: its name variants, English names and links, in every year.'
+              : 'A Moodle course name matches only that exact name.'
+          }}
+        </p>
+      </fieldset>
 
       <div class="criteria">
         <CoursePicker
@@ -114,7 +148,6 @@ const { controller } = defineProps<{ controller: SearchController }>();
           v-else-if="controller.people.length"
           :sort="controller.sort"
           :people="controller.people"
-          :included="controller.include"
           :inert="controller.loading"
           :class="{ refreshing: controller.loading }"
           @update:sort="controller.setSort"
@@ -190,6 +223,34 @@ p {
   color: var(--theme--foreground-subdued);
   line-height: 1.5;
   margin-block-start: 6px;
+}
+.match-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-block-end: 20px;
+  border: none;
+  padding: 0;
+}
+.match-mode legend {
+  float: left;
+  font-weight: 600;
+  color: var(--theme--foreground-accent);
+}
+.match-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.match-mode input {
+  accent-color: var(--theme--primary);
+}
+.match-mode p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
 }
 .criteria {
   display: grid;

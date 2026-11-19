@@ -11,6 +11,7 @@ export type ItemsReader = {
 export type SearchSort = '-Courses Count' | 'Courses Count' | 'Name';
 
 type PageRequest = {
+  readonly deep?: Query['deep'];
   readonly fields: readonly string[];
   readonly page: number;
   readonly query: { readonly filter: Filter; readonly search?: string };
@@ -63,10 +64,12 @@ export const readPage = async (
   request: PageRequest,
 ): Promise<unknown[]> => {
   const fields = [...request.fields];
+  const deep = request.deep === undefined ? {} : { deep: request.deep };
   if (request.sort === 'Name') {
     return [
       ...(await items.readByQuery({
         ...request.query,
+        ...deep,
         fields,
         limit: pageSize,
         offset: (request.page - 1) * pageSize,
@@ -92,6 +95,7 @@ export const readPage = async (
       : items.readByQuery({
           ...counted,
           ...segments.counted,
+          ...deep,
           fields,
           sort: [request.sort, 'Name', 'id'],
         }),
@@ -100,6 +104,7 @@ export const readPage = async (
       : items.readByQuery({
           ...uncounted,
           ...segments.uncounted,
+          ...deep,
           fields,
           sort: ['Name', 'id'],
         }),

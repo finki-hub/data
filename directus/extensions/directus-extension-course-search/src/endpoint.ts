@@ -1,4 +1,4 @@
-import type { Accountability, Filter } from '@directus/types';
+import type { Accountability, Filter, Query } from '@directus/types';
 
 import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
@@ -8,9 +8,16 @@ import {
   criteriaProblem,
   criteriaSchema,
   invalidCriteria,
+  type MatchMode,
+  matchModes,
 } from './criteria.js';
 import { filterPathProblem, relationalDepthLimit } from './filter-paths.js';
-import { courseCondition, splitHistory } from './history.js';
+import {
+  countedCourseCondition,
+  countedForAny,
+  courseCondition,
+  splitHistory,
+} from './history.js';
 
 const macedonianCollator = new Intl.Collator('mk');
 
@@ -23,6 +30,17 @@ declare global {
 }
 
 const historyRows = z.array(z.object({ Courses: z.string().nullish() }));
+const courseRows = z.array(z.object({ name: z.string().nullish() }));
+const matchedRows = z.array(
+  z
+    .object({
+      Courses: z.string().nullish(),
+      history_memberships: z
+        .array(z.object({ entry: z.object({ label: z.string() }).nullish() }))
+        .optional(),
+    })
+    .loose(),
+);
 const resultFields = [
   'id',
   'Name',
@@ -42,6 +60,7 @@ type SearchCriteria = {
   readonly exclude: readonly string[];
   readonly filter?: Filter | null | undefined;
   readonly include: readonly string[];
+  readonly match?: MatchMode;
   readonly search?: null | string | undefined;
 };
 
@@ -52,16 +71,92 @@ const errorBody = (code: string, message: string) => ({
 
 export const buildSearchQuery = (
   criteria: SearchCriteria,
-): CourseSearchQuery => ({
-  filter: {
-    _and: [
-      ...(criteria.filter ? [criteria.filter] : []),
-      ...criteria.include.map((course) => courseCondition(course)),
-      ...criteria.exclude.map((course) => courseCondition(course, true)),
-    ],
-  },
-  ...(criteria.search && { search: criteria.search }),
-});
+): CourseSearchQuery => {
+  const condition =
+    criteria.match === 'course' ? countedCourseCondition : courseCondition;
+  return {
+    filter: {
+      _and: [
+        ...(criteria.filter ? [criteria.filter] : []),
+        ...criteria.include.map((course) => condition(course)),
+        ...criteria.exclude.map((course) => condition(course, true)),
+      ],
+    },
+    ...(criteria.search && { search: criteria.search }),
+  };
+};
+
+type MatchCriteria = Pick<SearchCriteria, 'include' | 'match'>;
+
+// The fields and deep query of a result page. By course, they also bring
+// each user's memberships whose line counts for a picked course, so the
+// page can mark the lines that matched.
+export const matchedLinesQuery = (
+  criteria: MatchCriteria,
+): { readonly deep?: Query['deep']; readonly fields: string[] } =>
+  criteria.match === 'course' && criteria.include.length > 0
+    ? {
+        deep: {
+          history_memberships: {
+            _filter: countedForAny(criteria.include),
+            _limit: -1,
+          },
+        },
+        fields: [...resultFields, 'history_memberships.entry.label'],
+      }
+    : { fields: [...resultFields] };
+
+// Each row with `matched`, the history lines the picked courses matched in
+// history order, and without the memberships read to find them.
+export const withMatchedLines = (
+  rows: readonly unknown[],
+  criteria: MatchCriteria,
+): Array<Record<string, unknown>> =>
+  matchedRows.parse(rows).map(({ history_memberships, ...row }) => {
+    const picked = new Set(
+      criteria.match === 'course'
+        ? (history_memberships ?? []).flatMap(({ entry }) =>
+            entry ? [entry.label] : [],
+          )
+        : criteria.include,
+    );
+    return {
+      ...row,
+      matched: splitHistory(row.Courses).filter((line) => picked.has(line)),
+    };
+  });
+
+type Reader = (query: Record<string, unknown>) => Promise<readonly unknown[]>;
+
+// The names a picker offers: every course the last count counted a line
+// for, or every line of the Moodle users' histories.
+export const optionNames = async (
+  read: Reader,
+  match: MatchMode,
+): Promise<Set<string>> => {
+  const names = new Set<string>();
+  if (match === 'course') {
+    const rows = courseRows.parse(
+      await read({
+        fields: ['name'],
+        filter: { counted_lines: { id: { _nnull: true } } },
+        limit: -1,
+      }),
+    );
+    for (const { name } of rows) if (name) names.add(name);
+    return names;
+  }
+  for (let offset = 0; ; offset += 500) {
+    const rows = historyRows.parse(
+      await read({ fields: ['Courses'], limit: 500, offset, sort: ['id'] }),
+    );
+    for (const row of rows)
+      for (const course of splitHistory(row.Courses)) names.add(course);
+    if (rows.length < 500) return names;
+  }
+};
+
+const optionsMatch = z.enum(matchModes).catch('line');
 
 export default defineEndpoint((router, { env, getSchema, services }) => {
   const maxDepth = relationalDepthLimit(env);
@@ -78,24 +173,15 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
 
   router.get('/options', async (request, response, next) => {
     try {
-      const items = new services.ItemsService('moodle_users', {
-        accountability: request.accountability,
-        schema: await getSchema(),
-      });
-      const courses = new Set<string>();
-      for (let offset = 0; ; offset += 500) {
-        const rows = historyRows.parse(
-          await items.readByQuery({
-            fields: ['Courses'],
-            limit: 500,
-            offset,
-            sort: ['id'],
-          }),
-        );
-        for (const row of rows)
-          for (const course of splitHistory(row.Courses)) courses.add(course);
-        if (rows.length < 500) break;
-      }
+      const match = optionsMatch.parse(request.query['match']);
+      const items = new services.ItemsService(
+        match === 'course' ? 'courses' : 'moodle_users',
+        { accountability: request.accountability, schema: await getSchema() },
+      );
+      const courses = await optionNames(
+        (query) => items.readByQuery(query),
+        match,
+      );
       response.json({
         data: [...courses].sort((left, right) =>
           macedonianCollator.compare(left, right),
@@ -135,16 +221,19 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
         schema: await getSchema(),
       });
       const query = buildSearchQuery(criteria);
-      const [data, counts] = await Promise.all([
+      const [rows, counts] = await Promise.all([
         readPage(items, {
-          fields: resultFields,
+          ...matchedLinesQuery(criteria),
           page: criteria.page,
           query,
           sort: criteria.sort,
         }),
         items.readByQuery({ ...query, aggregate: { count: ['id'] } }),
       ]);
-      response.json({ data, total: countOf(counts) });
+      response.json({
+        data: withMatchedLines(rows, criteria),
+        total: countOf(counts),
+      });
     } catch (error) {
       next(error);
     }

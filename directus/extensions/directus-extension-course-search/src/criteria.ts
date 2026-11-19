@@ -10,6 +10,12 @@ import { nativeFilter } from './native-filter.js';
 
 const sorts = ['Name', 'Courses Count', '-Courses Count'] as const;
 
+// What a picked name is: a course, matched through every Moodle course the
+// count counts for it, or one Moodle course name, matched exactly.
+export const matchModes = ['course', 'line'] as const;
+
+export type MatchMode = (typeof matchModes)[number];
+
 const courseNames = z
   .array(z.string().min(1).max(courseNameLength))
   .max(courseLimit);
@@ -18,6 +24,7 @@ export const criteriaSchema = z.object({
   exclude: courseNames,
   filter: nativeFilter.nullish(),
   include: courseNames,
+  match: z.enum(matchModes).default('line'),
   page: z.number().int().min(1),
   search: z.string().max(searchLength).nullish(),
   sort: z.enum(sorts).default('Name'),
@@ -76,6 +83,7 @@ const reasons: Readonly<Record<Field, (issue: Issue) => string>> = {
   exclude: namesReason,
   filter: filterReason,
   include: namesReason,
+  match: () => 'expected course or line',
   page: () => 'expected an integer >= 1',
   search: (issue) =>
     issue.code === 'too_big'
