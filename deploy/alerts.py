@@ -77,8 +77,8 @@ def send(message: str) -> None:
         headers={"Content-Type": "application/json", "User-Agent": "finki-hub-alerts"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=20):
-        pass
+    with urllib.request.urlopen(request, timeout=20) as response:
+        response.read()
 
 
 def sql(query: str) -> str:
@@ -108,12 +108,8 @@ def legacy_status() -> int:
         return 0
 
 
-def watch() -> None:
-    first_run = not STATE.exists()
-    state = {} if first_run else json.loads(STATE.read_text())
-    messages = []
-
-    # Data operations: the last failure and the last snapshot import error.
+def check_operations(state: dict) -> list[str]:
+    """The last data operation failure and the last snapshot import error."""
     row = sql(
         "select coalesce(last_error_at::text,''), coalesce(last_error_code,''), "
         "coalesce(last_failed_domain,''), "
@@ -121,20 +117,26 @@ def watch() -> None:
         "coalesce(import_error,''), coalesce(import_finished_at::text,'') "
         "from data_operations order by id limit 1"
     )
-    if row:
-        error_at, code, domain, message, import_error, import_at = (row.split("\t") + [""] * 6)[:6]
-        if error_at and error_at != state.get("error_at") and code not in OVERTAKEN:
-            messages.append(
-                f"⚠️ **Directus data operation failed** ({domain or 'unknown'}): "
-                f"`{code}` {message}".strip()
-            )
-        state["error_at"] = error_at
-        import_key = f"{import_at}|{import_error[:100]}"
-        if import_error and import_key != state.get("import"):
-            messages.append(f"⚠️ **Moodle snapshot import failed**: {import_error[:300]}")
-        state["import"] = import_key
+    if not row:
+        return []
+    messages = []
+    error_at, code, domain, message, import_error, import_at = (row.split("\t") + [""] * 6)[:6]
+    if error_at and error_at != state.get("error_at") and code not in OVERTAKEN:
+        messages.append(
+            f"⚠️ **Directus data operation failed** ({domain or 'unknown'}): "
+            f"`{code}` {message}".strip()
+        )
+    state["error_at"] = error_at
+    import_key = f"{import_at}|{import_error[:100]}"
+    if import_error and import_key != state.get("import"):
+        messages.append(f"⚠️ **Moodle snapshot import failed**: {import_error[:300]}")
+    state["import"] = import_key
+    return messages
 
-    # Health of the container and of the public files.
+
+def check_health(state: dict) -> list[str]:
+    """The health of the container and of the public files."""
+    messages = []
     health = container_health()
     if health != state.get("health", "healthy"):
         messages.append(
@@ -151,9 +153,12 @@ def watch() -> None:
             else f"🔴 **{LEGACY} answers {status or 'nothing'}**"
         )
     state["legacy"] = status
+    return messages
 
-    # Timetables: names in the published timetables (the ones courses.json
-    # reads) that still match nothing, and the last successful import.
+
+def check_timetable_names(state: dict) -> list[str]:
+    """Names in the published timetables (the ones courses.json reads) that
+    still match nothing, each posted once."""
     rows = sql(
         "select 'subject', l.subject from timetable_lessons l "
         "join timetables t on t.id = l.timetable "
@@ -168,69 +173,82 @@ def watch() -> None:
     unmatched = rows.splitlines() if rows else []
     known = set(state.get("unmatched", []))
     new = [line for line in unmatched if line not in known]
-    if new:
-        names = ", ".join(
-            f'{kind} "{name}"' for kind, name in (line.split("\t", 1) for line in new)
-        )
-        messages.append(
-            f"⚠️ **New unmatched timetable names**: {names}. Add an alias under "
-            "Timetable course names, Timetable staff names or Timetable room "
-            "names in Studio."
-        )
     state["unmatched"] = unmatched
-
-    age = sql(
-        "select coalesce(extract(epoch from now() - max(checked_at))::bigint::text, '') "
-        "from timetables"
+    if not new:
+        return []
+    names = ", ".join(
+        f'{kind} "{name}"' for kind, name in (line.split("\t", 1) for line in new)
     )
-    last = sql("select coalesce(to_char(max(checked_at) at time zone 'UTC', "
-               "'YYYY-MM-DD HH24:MI'), 'never') from timetables")
-    stale = age != "" and int(age) > TIMETABLE_STALE_SECONDS
-    if stale != state.get("timetables_stale", False):
-        messages.append(
-            f"⚠️ **The timetable import has not succeeded since {last} UTC**. "
-            "Run Data / Import timetables in Studio to see why."
-            if stale else "✅ The timetable import succeeded again"
-        )
-    state["timetables_stale"] = stale
+    return [
+        f"⚠️ **New unmatched timetable names**: {names}. Add an alias under "
+        "Timetable course names, Timetable staff names or Timetable room "
+        "names in Studio."
+    ]
 
-    # Theses: every successful import replaces them all, stamping imported_at.
+
+def check_stale(state: dict, *, key: str, table: str, column: str,
+                limit: int, what: str, flow: str) -> list[str]:
+    """An import whose last success (the newest `column` of `table`) is older
+    than `limit` seconds, posted when it starts and when it ends."""
     age = sql(
-        "select coalesce(extract(epoch from now() - max(imported_at))::bigint::text, '') "
-        "from bachelor_theses"
+        f"select coalesce(extract(epoch from now() - max({column}))::bigint::text, '') "
+        f"from {table}"
     )
-    last = sql("select coalesce(to_char(max(imported_at) at time zone 'UTC', "
-               "'YYYY-MM-DD HH24:MI'), 'never') from bachelor_theses")
-    stale = age != "" and int(age) > THESES_STALE_SECONDS
-    if stale != state.get("theses_stale", False):
+    last = sql(f"select coalesce(to_char(max({column}) at time zone 'UTC', "
+               f"'YYYY-MM-DD HH24:MI'), 'never') from {table}")
+    stale = age != "" and int(age) > limit
+    messages = []
+    if stale != state.get(key, False):
         messages.append(
-            f"⚠️ **The thesis import has not succeeded since {last} UTC**. "
-            "Run Data / Import theses in Studio to see why."
-            if stale else "✅ The thesis import succeeded again"
+            f"⚠️ **The {what} import has not succeeded since {last} UTC**. "
+            f"Run Data / {flow} in Studio to see why."
+            if stale else f"✅ The {what} import succeeded again"
         )
-    state["theses_stale"] = stale
+    state[key] = stale
+    return messages
 
-    # Moodle: uncounted courses (with a year and at least 5 students) whose
-    # name starts with a course's name. The first check records the ones
-    # already there (old curricula, courses left out on purpose) silently.
+
+def check_moodle(state: dict) -> list[str]:
+    """Uncounted Moodle courses (with a year and at least 5 students) whose
+    name starts with a course's name, each posted once. The first check
+    records the ones already there (old curricula, courses left out on
+    purpose) silently."""
     rows = sql(MOODLE_UNCOUNTED)
     uncounted = rows.splitlines() if rows else []
-    if "moodle_uncounted" in state:
-        known = set(state["moodle_uncounted"])
-        new = [line for line in uncounted if line not in known]
-        if new:
-            shown = ", ".join(
-                f'"{label}" ({course})'
-                for label, course in (line.split("\t", 1) for line in new[:10])
-            )
-            more = f" and {len(new) - 10} more" if len(new) > 10 else ""
-            messages.append(
-                f"⚠️ **New Moodle courses that look like a course but are not "
-                f"counted**: {shown}{more}. Fix that course's Moodle pattern in "
-                "Studio, or leave it if it is a different course."
-            )
+    baseline = "moodle_uncounted" not in state
+    known = set(state.get("moodle_uncounted", []))
     state["moodle_uncounted"] = uncounted
+    new = [line for line in uncounted if line not in known]
+    if baseline or not new:
+        return []
+    shown = ", ".join(
+        f'"{label}" ({course})'
+        for label, course in (line.split("\t", 1) for line in new[:10])
+    )
+    more = f" and {len(new) - 10} more" if len(new) > 10 else ""
+    return [
+        f"⚠️ **New Moodle courses that look like a course but are not "
+        f"counted**: {shown}{more}. Fix that course's Moodle pattern in "
+        "Studio, or leave it if it is a different course."
+    ]
 
+
+def watch() -> None:
+    first_run = not STATE.exists()
+    state = {} if first_run else json.loads(STATE.read_text())
+    messages = [
+        *check_operations(state),
+        *check_health(state),
+        *check_timetable_names(state),
+        *check_stale(state, key="timetables_stale", table="timetables",
+                     column="checked_at", limit=TIMETABLE_STALE_SECONDS,
+                     what="timetable", flow="Import timetables"),
+        # Every successful thesis import replaces them all, stamping imported_at.
+        *check_stale(state, key="theses_stale", table="bachelor_theses",
+                     column="imported_at", limit=THESES_STALE_SECONDS,
+                     what="thesis", flow="Import theses"),
+        *check_moodle(state),
+    ]
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps(state))
     if first_run:
