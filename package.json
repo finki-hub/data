@@ -27,6 +27,7 @@
     "check:sfc": "vue-tsc --noEmit --project tsconfig.sfc.json",
     "check:exports": "node --import tsx src/export-check-cli.ts",
     "format": "eslint . --cache --fix",
+    "generate:api-docs": "node --import tsx src/api-docs-model-snapshot.ts",
     "generate:invalidation": "node --import tsx src/source-invalidation-snapshot.ts",
     "lint": "eslint . --cache",
     "setup": "node --import tsx src/setup-cli.ts",

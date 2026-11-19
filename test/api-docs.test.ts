@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
 import {
@@ -5,11 +6,18 @@ import {
   docsContentSecurityPolicy,
   docsGroups,
   docsPage,
+  fieldDescription,
+  inferSchema,
   legacyFileDescriptions,
   legacyTag,
   scalarScript,
 } from '../directus/extensions/directus-extension-data-operations/src/api-docs.js';
 import { legacyFiles } from '../directus/extensions/directus-extension-data-operations/src/legacy-endpoint.js';
+import {
+  apiDocsModelPath,
+  buildApiDocsModel,
+  serializeApiDocsModel,
+} from '../src/api-docs-model.js';
 import { publicReads } from '../src/data-model/access.js';
 import { folders } from '../src/data-model/presentation/navigation.js';
 import { titleCase } from '../src/data-model/title-case.js';
@@ -66,9 +74,29 @@ describe('the public API reference', () => {
     );
   });
 
-  test('keeps only reading the public collections, adds the /legacy files', () => {
+  test('keeps only reading the public collections, named as in Studio, and adds the /legacy files', () => {
     const raw = {
-      components: { schemas: { ItemsCourses: {} } },
+      components: {
+        schemas: {
+          ItemsCourses: {
+            properties: {
+              name: { type: 'string' },
+              tags: { nullable: true, type: 'string' },
+            },
+          },
+          ItemsCourseTeaching: {
+            properties: {
+              staff: {
+                nullable: true,
+                oneOf: [
+                  { type: 'integer' },
+                  { $ref: '#/components/schemas/ItemsStaff' },
+                ],
+              },
+            },
+          },
+        },
+      },
       info: { title: 'Dynamic API Specification' },
       openapi: '3.0.1',
       paths: {
@@ -82,14 +110,18 @@ describe('the public API reference', () => {
         '/server/ping': { get: {} },
       },
     };
+    const legacySchemas = { 'courses.json': { items: {}, type: 'array' } };
 
-    const spec = curateSpec(raw, 'https://data.finki-hub.com', [
-      'courses.json',
-    ]);
+    const spec = curateSpec(raw, {
+      legacyFilenames: ['courses.json'],
+      legacySchemas,
+      model: buildApiDocsModel(),
+      publicUrl: 'https://data.finki-hub.com',
+    });
 
     expect(spec['info']).toMatchObject({ title: 'FINKI Hub Data API' });
     expect(spec['servers']).toEqual([{ url: 'https://data.finki-hub.com' }]);
-    expect(spec['components']).toEqual(raw.components);
+    expect(spec['security']).toEqual([{}]);
     expect(Object.keys(spec.paths ?? {})).toEqual([
       '/items/courses',
       '/items/courses/{id}',
@@ -99,13 +131,139 @@ describe('the public API reference', () => {
     expect(spec.paths?.['/items/courses']).toEqual({
       get: {
         description: docsGroups[0]?.collections['courses'],
-        summary: 'List courses',
+        summary: 'List Courses',
         tags: ['Courses'],
       },
     });
+    expect(spec.paths?.['/items/courses/{id}']?.['get']).toMatchObject({
+      summary: 'Get one Course',
+    });
     expect(spec.paths?.['/legacy/courses.json']?.['get']).toMatchObject({
+      responses: {
+        '200': {
+          content: {
+            'application/json': { schema: legacySchemas['courses.json'] },
+          },
+        },
+      },
       tags: [legacyTag],
     });
+
+    const schemas = (
+      spec['components'] as {
+        schemas: Record<
+          string,
+          {
+            description?: string;
+            properties: Record<string, Record<string, unknown>>;
+          }
+        >;
+      }
+    ).schemas;
+
+    expect(schemas['ItemsCourses']?.description).toBe('Courses');
+    expect(schemas['ItemsCourses']?.properties['name']?.['description']).toBe(
+      'Name.',
+    );
+    // A typed nullable stays; one beside no type is dropped.
+    expect(
+      schemas['ItemsCourses']?.properties['tags']?.['nullable'],
+    ).toBeTruthy();
+    expect(schemas['ItemsCourseTeaching']?.properties['staff']).toEqual({
+      description: 'Staff Member.',
+      oneOf: [{ type: 'integer' }, { $ref: '#/components/schemas/ItemsStaff' }],
+    });
+  });
+
+  test('describes a field by its label, what it points to and its note', () => {
+    expect(fieldDescription({ label: 'Name' })).toBe('Name.');
+    expect(
+      fieldDescription({
+        label: 'Course',
+        related: { collection: 'courses', label: 'Course', many: false },
+      }),
+    ).toBe('Course.');
+    expect(
+      fieldDescription({
+        label: 'Mentor',
+        related: { collection: 'staff', label: 'Staff Member', many: false },
+      }),
+    ).toBe('Mentor (Staff Member).');
+    expect(
+      fieldDescription({
+        label: 'Teaches',
+        related: {
+          collection: 'teaching_assignments',
+          label: 'Manual Teaching Staff',
+          many: true,
+        },
+      }),
+    ).toBe('Teaches (list of Manual Teaching Staff).');
+    expect(
+      fieldDescription({
+        label: 'FINKI Staff',
+        note: 'Off for other faculties.',
+      }),
+    ).toBe('FINKI Staff. Off for other faculties.');
+  });
+
+  test("reads a /legacy file's shape from the file", () => {
+    expect(
+      inferSchema([
+        { name: 'A', semester: 1 },
+        { name: 'B', semester: 2, tags: 'x' },
+        { name: 'C', semester: null },
+      ]),
+    ).toEqual({
+      items: {
+        properties: {
+          name: { type: 'string' },
+          semester: { type: 'integer' },
+          tags: { type: 'string' },
+        },
+        required: ['name'],
+        type: 'object',
+      },
+      type: 'array',
+    });
+    expect(inferSchema(['a', 'b'])).toEqual({
+      items: { type: 'string' },
+      type: 'array',
+    });
+
+    const sessions = Object.fromEntries(
+      Array.from({ length: 30 }, (_, index) => [
+        `Сесија ${String(index)}`,
+        `${String(index)}.xlsx`,
+      ]),
+    );
+
+    expect(inferSchema(sessions)).toEqual({
+      additionalProperties: { type: 'string' },
+      type: 'object',
+    });
+
+    // A row is a record however many keys it has.
+    const wide = Object.fromEntries(
+      Array.from({ length: 30 }, (_, index) => [`key${String(index)}`, 'x']),
+    );
+
+    expect(inferSchema([wide])).toMatchObject({
+      items: { properties: { key0: { type: 'string' } }, type: 'object' },
+    });
+  });
+
+  test('reads a model snapshot generated from the current model', () => {
+    // npm run generate:api-docs rewrites the snapshot.
+    expect(apiDocsModelPath).toBe(
+      'directus/extensions/directus-extension-data-operations/src/api-docs-model.json',
+    );
+    expect(
+      readFileSync(
+        'directus/extensions/directus-extension-data-operations/src/api-docs-model.json',
+        'utf8',
+      ),
+    ).toBe(serializeApiDocsModel(buildApiDocsModel()));
   });
 
   test('loads the reference from the pinned script the page policy allows', () => {

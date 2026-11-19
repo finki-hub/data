@@ -10,14 +10,14 @@ The live instance is <https://data.finki-hub.com>.
 
 ## What is in this repository
 
-| Path | What it holds |
-| --- | --- |
-| `src/data-model/` | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs. |
-| `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable and thesis imports. |
+| Path                                                      | What it holds                                                                                                                                                                |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/data-model/`                                         | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs.                                                               |
+| `src/flows/`                                              | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable and thesis imports.                                        |
 | `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint, the `/legacy` endpoint and the `/docs` API reference. |
-| `directus/extensions/directus-extension-course-search/` | The **Search** layout over Moodle users (has all of / none of these courses, matched by course or by exact Moodle course name). |
-| `directus/branding/` | Logo, login artwork and theme, applied by `npm run brand`. |
-| `test/` | Unit and contract tests (`npm test`), plus two opt-in integration suites. |
+| `directus/extensions/directus-extension-course-search/`   | The **Search** layout over Moodle users (has all of / none of these courses, matched by course or by exact Moodle course name).                                              |
+| `directus/branding/`                                      | Logo, login artwork and theme, applied by `npm run brand`.                                                                                                                   |
+| `test/`                                                   | Unit and contract tests (`npm test`), plus two opt-in integration suites.                                                                                                    |
 
 The `Dockerfile` builds the image `ghcr.io/finki-hub/data`: the official
 Directus image with the CSV-import patch (`directus/patch-csv-import.cjs`)
@@ -413,16 +413,17 @@ derived, staging or status) is declared once in
 
 ## Development
 
-| Command | What it does |
-| --- | --- |
-| `npm test` | Every unit and contract test (Vitest). |
-| `npm run check` | `tsc --noEmit` and `vue-tsc` over the Vue components. |
-| `npm run lint` / `npm run format` | ESLint, and its fixes. |
-| `npm run build:operations` / `npm run build:search` | Build an extension bundle into its `dist/` (the image builds them itself). |
-| `npm run generate:invalidation` | Rewrite `source-invalidation.sql` from the collection roles. |
-| `npm run setup` | Install the model, migrations, presentation, Flows and dashboard into a running Directus. |
-| `npm run brand` | Apply the branding. |
-| `npm run check:exports` | Build every `/legacy` file with this checkout's export code from a running Directus's data (read only) and compare it with the file served now. |
+| Command                                             | What it does                                                                                                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                                          | Every unit and contract test (Vitest).                                                                                                                                                   |
+| `npm run check`                                     | `tsc --noEmit` and `vue-tsc` over the Vue components.                                                                                                                                    |
+| `npm run lint` / `npm run format`                   | ESLint, and its fixes.                                                                                                                                                                   |
+| `npm run build:operations` / `npm run build:search` | Build an extension bundle into its `dist/` (the image builds them itself).                                                                                                               |
+| `npm run generate:api-docs`                         | Rewrite the model snapshot the `/docs` API reference reads (Studio names, field labels and relations of the public collections) after the model changed; a test fails while it is stale. |
+| `npm run generate:invalidation`                     | Rewrite `source-invalidation.sql` from the collection roles.                                                                                                                             |
+| `npm run setup`                                     | Install the model, migrations, presentation, Flows and dashboard into a running Directus.                                                                                                |
+| `npm run brand`                                     | Apply the branding.                                                                                                                                                                      |
+| `npm run check:exports`                             | Build every `/legacy` file with this checkout's export code from a running Directus's data (read only) and compare it with the file served now.                                          |
 
 CI tests the exports on sample data only, and one row the live data
 refuses fails its whole file. Before merging a change to an export, or to
