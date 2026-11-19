@@ -329,6 +329,36 @@ To deploy a change:
    DIRECTUS_URL=http://127.0.0.1:8055 DIRECTUS_ADMIN_TOKEN=... npm run setup
    ```
 
+### Alerts
+
+`deploy/alerts.py` posts to Discord. `directus-watch.timer` runs
+`alerts.py watch` every 5 minutes, which reports, once when it starts and
+once when it is resolved:
+
+- a failed data operation or Moodle snapshot import;
+- the Directus container not healthy, or `/legacy/courses.json` not
+  answering 200;
+- the timetable or thesis import not succeeding for over a day;
+- new names in the published timetables that match no course, staff member
+  or room;
+- new Moodle courses that are not counted although their name starts with a
+  course's name, English name or alias (a Moodle pattern that misses a new
+  spelling or an English group).
+
+`directus-alert@.service` posts when a unit it is the `OnFailure` of fails
+(the Moodle sync and the watch itself). The webhook URL is read from
+`alerts.env` beside the script and never printed; the last seen state is
+kept in `/var/lib/directus-alerts`, and a check that has no state yet
+records what is already there without posting. To install or update them
+on the host, from this repository's checkout:
+
+```sh
+install -m 755 deploy/alerts.py /root/directus/alerts.py
+install -m 644 deploy/directus-watch.service deploy/directus-watch.timer \
+  deploy/directus-alert@.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now directus-watch.timer
+```
+
 Setup is idempotent: it creates what is missing, realigns enum choices,
 applies the migrations and never overwrites a Studio edit of a preset,
 Flow, panel, folder or permission. It never writes a data record. A request

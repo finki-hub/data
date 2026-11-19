@@ -1,0 +1,6 @@
+[Unit]
+Description=Post a Discord alert that %i failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /root/directus/alerts.py send "🔴 **%i failed** on finki-hub. Details: journalctl -u %i"
