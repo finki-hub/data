@@ -9,6 +9,8 @@ import {
 } from 'vue';
 import { z } from 'zod';
 
+import type { MatchMode } from './criteria.js';
+
 import { failureText } from './failure-text.js';
 import { pageSize } from './limits.js';
 import CourseSearch from './search-layout.vue';
@@ -21,6 +23,7 @@ const personSchema = z.object({
   Profile_old: z.string().nullish(),
   Courses: z.string().nullish(),
   'Courses Count': z.number().nullish(),
+  matched: z.array(z.string()).default([]),
 });
 const resultsSchema = z.object({
   data: z.array(personSchema),
@@ -34,6 +37,7 @@ export type Person = z.infer<typeof personSchema>;
 // the criteria, page and sort only through the setters, never by writing
 // to the prop.
 export type SearchController = {
+  readonly match: MatchMode;
   readonly include: string[];
   readonly exclude: string[];
   readonly page: number;
@@ -53,6 +57,7 @@ export type SearchController = {
   readonly loadCourses: () => Promise<void>;
   readonly search: () => Promise<void>;
   readonly refresh: () => Promise<void>;
+  readonly setMatch: (match: MatchMode) => void;
   readonly setInclude: (courses: string[]) => void;
   readonly setExclude: (courses: string[]) => void;
   readonly setPage: (page: number) => void;
@@ -67,6 +72,8 @@ const layout = defineLayout({
   slots: { options: () => null, sidebar: () => null, actions: () => null },
   setup(props) {
     const api = useApi();
+    // By course unless the user picks Moodle course names.
+    const match = ref<MatchMode>('course');
     const include = ref<string[]>([]);
     const exclude = ref<string[]>([]);
     const courses = ref<string[]>([]);
@@ -92,7 +99,7 @@ const layout = defineLayout({
       try {
         const response = await api.get<unknown>(
           '/finki-hub-course-history/options',
-          { signal: request.signal },
+          { params: { match: match.value }, signal: request.signal },
         );
         if (!request.signal.aborted)
           courses.value = optionsSchema.parse(response.data).data;
@@ -115,6 +122,7 @@ const layout = defineLayout({
         const response = await api.post<unknown>(
           '/finki-hub-course-history/search',
           {
+            match: match.value,
             include: include.value,
             exclude: exclude.value,
             page: page.value,
@@ -149,14 +157,22 @@ const layout = defineLayout({
     };
 
     watch(
-      [include, exclude, sort, () => props.filter, () => props.search],
+      [match, include, exclude, sort, () => props.filter, () => props.search],
       () => {
         page.value = 1;
       },
       { deep: true },
     );
     watch(
-      [include, exclude, page, sort, () => props.filter, () => props.search],
+      [
+        match,
+        include,
+        exclude,
+        page,
+        sort,
+        () => props.filter,
+        () => props.search,
+      ],
       search,
       { deep: true, immediate: true },
     );
@@ -169,6 +185,7 @@ const layout = defineLayout({
     return {
       refresh,
       controller: reactive({
+        match,
         include,
         exclude,
         courses,
@@ -185,6 +202,16 @@ const layout = defineLayout({
         search,
         reset,
         refresh,
+        // A picked name means something else in the other mode, so a
+        // switch clears both lists and loads the other mode's names.
+        setMatch: (value: MatchMode) => {
+          if (value === match.value) return;
+          include.value = [];
+          exclude.value = [];
+          courses.value = [];
+          match.value = value;
+          void loadCourses();
+        },
         setInclude: (value: string[]) => {
           include.value = value;
         },

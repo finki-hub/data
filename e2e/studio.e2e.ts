@@ -106,6 +106,9 @@ test('the course-history search finds users by the courses they took', async ({
     page.getByRole('heading', { name: 'Course history search' }),
   ).toBeVisible();
 
+  // The synthetic users have no counted lines, so the test picks the raw
+  // Moodle course name.
+  await page.getByRole('radio', { name: 'Moodle course name' }).check();
   const include = page.getByRole('combobox', {
     name: 'Has all these courses',
   });

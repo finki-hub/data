@@ -15,7 +15,7 @@ The live instance is <https://data.finki-hub.com>.
 | `src/data-model/` | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs. |
 | `src/flows/` | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable and thesis imports. |
 | `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint and the `/legacy` endpoint. |
-| `directus/extensions/directus-extension-course-search/` | The **Search** layout over Moodle users (has all of / none of these courses). |
+| `directus/extensions/directus-extension-course-search/` | The **Search** layout over Moodle users (has all of / none of these courses, matched by course or by exact Moodle course name). |
 | `directus/branding/` | Logo, login artwork and theme, applied by `npm run brand`. |
 | `test/` | Unit and contract tests (`npm test`), plus two opt-in integration suites. |
 
@@ -107,7 +107,11 @@ Title Case and files the collections into folders by subject: Search,
 Courses, Teaching, Accreditations, Degree Programs, People, Timetables &
 Rooms, Enrollments, Theses, Discord Bot and Internals. Search holds the
 Moodle users and their **Search** bookmark, which finds students by the
-courses they took or did not. The main collections:
+courses they took or did not. By course (the default), a course matches
+every Moodle course the last count counted for it, in any year: its name
+variants, English names and Moodle course links, so Search agrees with the
+enrollment counts. By Moodle course name, a name matches only that exact
+history line. Each result marks the history lines that matched. The main collections:
 
 - **Courses** (`courses`): name, English name (the official one from FINKI's
   English subject pages, published as `name-en`), abbreviation, tags,
