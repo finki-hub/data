@@ -26,6 +26,14 @@ const sidebarFolder = ({
 });
 
 export const folders: readonly Folder[] = [
+  // The Moodle users, whose Search bookmark finds students by the courses
+  // they took (or did not).
+  sidebarFolder({
+    icon: 'person_search',
+    key: 'search',
+    label: 'Search',
+    members: ['moodle_users'],
+  }),
   sidebarFolder({
     icon: 'school',
     key: 'courses',
@@ -87,7 +95,6 @@ export const folders: readonly Folder[] = [
     members: [
       'academic_years',
       'course_enrollments',
-      'moodle_users',
       'moodle_course_entries',
       'moodle_pattern_mappings',
       'moodle_course_mappings',

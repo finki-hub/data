@@ -103,10 +103,11 @@ the copy is refreshed. Edit the files, not the setting.
 
 The model is declared in `src/data-model/` and installed by
 `npm run setup`. Studio shows every collection, field and folder name in
-Title Case and files the collections into folders by subject: Courses,
-Teaching, Accreditations, Degree Programs, People, Timetables & Rooms, Name
-Matching, Enrollments, Theses, Discord Bot and Internals. The main
-collections:
+Title Case and files the collections into folders by subject: Search,
+Courses, Teaching, Accreditations, Degree Programs, People, Timetables &
+Rooms, Enrollments, Theses, Discord Bot and Internals. Search holds the
+Moodle users and their **Search** bookmark, which finds students by the
+courses they took or did not. The main collections:
 
 - **Courses** (`courses`): name, English name (the official one from FINKI's
   English subject pages, published as `name-en`), abbreviation, tags,
