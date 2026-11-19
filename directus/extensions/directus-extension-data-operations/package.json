@@ -30,6 +30,7 @@
       { "type": "hook", "name": "finki-hub-thesis-rebuild", "source": "src/thesis-rebuild.ts" },
       { "type": "endpoint", "name": "finki-hub-data-status", "source": "src/status-endpoint.ts" },
       { "type": "endpoint", "name": "legacy", "source": "src/legacy-endpoint.ts" },
+      { "type": "endpoint", "name": "docs", "source": "src/docs-endpoint.ts" },
       { "type": "panel", "name": "finki-hub-run-operation", "source": "src/panel.ts" },
       { "type": "panel", "name": "finki-hub-data-status-panel", "source": "src/status-panel.ts" }
     ],
