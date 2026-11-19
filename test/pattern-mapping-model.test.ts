@@ -75,7 +75,7 @@ describe('the pattern mappings collection', () => {
     ]);
     expect(findCollection(collection)).toMatchObject({
       hidden: false,
-      label: { plural: 'Pattern mappings', singular: 'Pattern mapping' },
+      label: { plural: 'Moodle patterns', singular: 'Moodle pattern' },
     });
   });
 
@@ -85,7 +85,7 @@ describe('the pattern mappings collection', () => {
     ).toMatchObject({
       meta: {
         required: false,
-        translations: [{ language: 'en-US', translation: 'Year pattern' }],
+        translations: [{ language: 'en-US', translation: 'Year Pattern' }],
       },
       schema: { default_value: defaultYearPattern, is_nullable: true },
       type: 'text',
@@ -113,7 +113,7 @@ describe('the pattern mappings collection', () => {
         (field) => findField(collection, field).note,
       ),
     ).toEqual([
-      'Regular expression tested against each history line; ^ matches the start of the line.',
+      'Regular expression tested against each Moodle course name; ^ matches the start of the name.',
       'Group start or end captures the year the academic year starts or ends, in 2 or 4 digits (2 digits mean 20xx). A line without such a year is not counted.',
       "Counts the pattern only in this year, in place of the course's all-years mappings there.",
     ]);
@@ -123,7 +123,7 @@ describe('the pattern mappings collection', () => {
     expect(courseList).toMatchObject({
       field: 'pattern_mappings',
       fields: ['pattern', 'year_pattern', 'only_in_year'],
-      label: 'Pattern mappings',
+      label: 'Moodle patterns',
     });
     expect(
       courseList === undefined ? null : toAliasPayload(courseList, 1).meta.note,
@@ -132,7 +132,7 @@ describe('the pattern mappings collection', () => {
     );
     expect(aliasOf('academic_years')).toMatchObject({
       field: 'pattern_mappings',
-      label: 'Pattern mappings',
+      label: 'Moodle patterns',
     });
   });
 
@@ -172,7 +172,7 @@ describe('the pattern mappings in Studio', () => {
     ).toBe(false);
   });
 
-  test('sit between History lines and Explicit mappings in the Enrollments folder', () => {
+  test('sit between Moodle courses and Moodle course links in the Enrollments folder', () => {
     expect(
       folders.find((folder) => folder.collection === 'folder_enrollments'),
     ).toEqual({
@@ -182,11 +182,13 @@ describe('the pattern mappings in Studio', () => {
       label: 'Enrollments',
       members: [
         'academic_years',
+        'course_enrollments',
+        'moodle_users',
         'moodle_course_entries',
         'moodle_pattern_mappings',
         'moodle_course_mappings',
       ],
-      sort: 5,
+      sort: 8,
     });
   });
 

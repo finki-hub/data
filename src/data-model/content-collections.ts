@@ -180,7 +180,7 @@ export const contentCollections: readonly ModelCollection[] = [
         alias: {
           field: 'assignments',
           fields: ['role', 'staff'],
-          label: 'Teaching staff',
+          label: 'Manual teaching staff',
           template: '{{role}}: {{staff.name}}',
         },
         label: 'Course',
@@ -206,7 +206,10 @@ export const contentCollections: readonly ModelCollection[] = [
     ],
     hidden: false,
     icon: 'co_present',
-    label: { plural: 'Teaching staff', singular: 'Teaching assignment' },
+    label: {
+      plural: 'Manual teaching staff',
+      singular: 'Manual teaching assignment',
+    },
     singleton: false,
     sort: 8,
   },

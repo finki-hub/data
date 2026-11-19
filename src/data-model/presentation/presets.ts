@@ -118,7 +118,7 @@ const defaultViews: readonly TabularPreset[] = [
 ];
 
 // Every shared preset setup installs: the default table views, the Search
-// bookmark and the Unmapped history lines bookmark, each once by
+// bookmark and the Unmapped Moodle Courses bookmark, each once by
 // collection and bookmark name, keeping an existing one. The
 // incomplete-data bookmarks come from the import
 // (src/import/incomplete-data-bookmarks.ts).

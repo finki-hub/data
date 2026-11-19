@@ -13,7 +13,7 @@ import { presetDefinitions } from '../src/data-model/presentation/presets.js';
 import { resolves } from './presentation-test-helpers.js';
 
 // The shared presets setup installs: the default table views, Search and
-// Unmapped history lines.
+// Unmapped Moodle Courses.
 
 const isTabular = (preset: PresetDefinition): preset is TabularPreset =>
   preset.layout === 'tabular';
@@ -36,7 +36,7 @@ const unresolvedPresetPaths = presetDefinitions
   );
 
 describe('presets', () => {
-  test('declares Search and Unmapped history lines as its only shared bookmarks, and none per generation', () => {
+  test('declares Search and Unmapped Moodle Courses as its only shared bookmarks, and none per generation', () => {
     expect(
       presetDefinitions.filter(({ bookmark }) => bookmark !== null),
     ).toEqual([searchBookmark, unmappedLinesBookmark]);
@@ -157,12 +157,12 @@ describe('presets', () => {
             collection === 'moodle_course_entries' && bookmark !== null,
         )
         .map(({ bookmark }) => bookmark),
-    ).toEqual(['Unmapped history lines']);
+    ).toEqual(['Unmapped Moodle Courses']);
   });
 
-  test('declares Unmapped history lines once: the lines without a counted line, newest First seen first', () => {
+  test('declares Unmapped Moodle Courses once: the lines without a counted line, newest First seen first', () => {
     expect(unmappedLinesBookmark).toEqual({
-      bookmark: 'Unmapped history lines',
+      bookmark: 'Unmapped Moodle Courses',
       collection: 'moodle_course_entries',
       filter: { counted_for: { id: { _null: true } } },
       icon: 'link_off',

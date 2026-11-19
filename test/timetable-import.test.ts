@@ -504,7 +504,9 @@ describe('the course teaching rebuild', () => {
     await schedule();
     await schedule();
 
-    expect(error).toHaveBeenCalledWith('Course teaching rebuild failed: boom');
+    expect(error).toHaveBeenCalledWith(
+      'Timetable teaching rebuild failed: boom',
+    );
     expect(rebuild).toHaveBeenCalledTimes(2);
   });
 

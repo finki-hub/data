@@ -504,12 +504,12 @@ describe('the status labels', () => {
         users: 1,
       }),
     ).toBe(
-      'Users: 1 · Indexed: 1 · History lines: 1 · Course count mismatches: 1',
+      'Users: 1 · Indexed: 1 · Moodle courses: 1 · Course count mismatches: 1',
     );
     expect(
       snapshotText({ ...none, entries: 12, indexedUsers: 2, users: 3 }),
     ).toBe(
-      'Users: 3 · Indexed: 2 · History lines: 12 · Course count mismatches: 0',
+      'Users: 3 · Indexed: 2 · Moodle courses: 12 · Course count mismatches: 0',
     );
   });
 

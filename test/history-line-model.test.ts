@@ -11,6 +11,7 @@ import { toCollectionPayload } from '../src/data-model/install.js';
 import { fieldPresentations } from '../src/data-model/presentation/fields.js';
 import { fieldGroups } from '../src/data-model/presentation/groups.js';
 import { aliasesFor } from '../src/data-model/relations.js';
+import { titleCase } from '../src/data-model/title-case.js';
 import { findCollection, findField } from './data-model-test-helpers.js';
 import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
@@ -21,9 +22,9 @@ import { effectiveFieldMeta } from './presentation-test-helpers.js';
 // where each line is counted.
 
 const firstSeenNote = 'When the history index first created this line.';
-const explicit = 'Explicit mappings';
+const explicit = 'Moodle course links';
 const explicitNote =
-  'An explicit mapping replaces every pattern for this line.';
+  'A Moodle course link replaces every pattern for this Moodle course.';
 
 const aliasOf = (collection: ModelCollectionKey, field: string) => {
   const found = aliasesFor(collection).find(
@@ -36,7 +37,7 @@ const aliasOf = (collection: ModelCollectionKey, field: string) => {
 };
 
 const translation = (label: string) => [
-  { language: 'en-US', translation: label },
+  { language: 'en-US', translation: titleCase(label) },
 ];
 
 describe('a history line', () => {
@@ -82,7 +83,7 @@ describe('a history line', () => {
     });
   });
 
-  test('is named History lines, without a collection note', () => {
+  test('is named Moodle courses, without a collection note', () => {
     const { meta } = toCollectionPayload(
       findCollection('moodle_course_entries'),
     );
@@ -91,16 +92,16 @@ describe('a history line', () => {
       translations: [
         {
           language: 'en-US',
-          plural: 'History lines',
-          singular: 'History line',
-          translation: 'History lines',
+          plural: 'Moodle Courses',
+          singular: 'Moodle Course',
+          translation: 'Moodle Courses',
         },
       ],
     });
     expect(Object.hasOwn(meta, 'note')).toBe(false);
   });
 
-  test('lists its Explicit mappings with the note that one replaces every pattern for the line', () => {
+  test('lists its Moodle course links with the note that one replaces every pattern for the line', () => {
     const mappings = aliasOf('moodle_course_entries', 'mappings');
 
     expect(mappings).toMatchObject({
@@ -124,7 +125,7 @@ describe('a history line', () => {
 });
 
 describe('explicit mappings', () => {
-  test('are named Explicit mappings, without a collection note', () => {
+  test('are named Moodle course links, without a collection note', () => {
     const { meta } = toCollectionPayload(
       findCollection('moodle_course_mappings'),
     );
@@ -133,9 +134,9 @@ describe('explicit mappings', () => {
       translations: [
         {
           language: 'en-US',
-          plural: explicit,
-          singular: 'Explicit mapping',
-          translation: explicit,
+          plural: 'Moodle Course Links',
+          singular: 'Moodle Course Link',
+          translation: 'Moodle Course Links',
         },
       ],
     });
@@ -230,7 +231,7 @@ describe('the history line form', () => {
       effectiveFieldMeta('moodle_course_entries', 'mappings'),
     ).toMatchObject({
       group: 'mapping',
-      note: 'An explicit mapping replaces every pattern for this line.',
+      note: 'A Moodle course link replaces every pattern for this Moodle course.',
     });
     expect(
       fieldPresentations

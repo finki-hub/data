@@ -92,7 +92,7 @@ export const snapshotText = ({
   factsText([
     ['Users', users],
     ['Indexed', indexedUsers],
-    ['History lines', entries],
+    ['Moodle courses', entries],
     ['Course count mismatches', countMismatches],
   ]);
 

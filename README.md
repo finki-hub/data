@@ -102,7 +102,11 @@ the copy is refreshed. Edit the files, not the setting.
 ## Data model
 
 The model is declared in `src/data-model/` and installed by
-`npm run setup`. The main collections:
+`npm run setup`. Studio shows every collection, field and folder name in
+Title Case and files the collections into folders by subject: Courses,
+Teaching, Accreditations, Degree Programs, People, Timetables & Rooms, Name
+Matching, Enrollments, Theses, Discord Bot and Internals. The main
+collections:
 
 - **Courses** (`courses`): name, English name (the official one from FINKI's
   English subject pages, published as `name-en`), abbreviation, tags,
@@ -110,24 +114,25 @@ The model is declared in `src/data-model/` and installed by
   Macedonian and English, from FINKI's subject page of the course's 2023
   curriculum entry (2018 for a course with none). The syllabus is in the API,
   not in `courses.json`.
-  Their curriculum lives in **Curriculum links** (`course_curricula`, one
-  per generation), who taught them in each semester in **Course teaching**
+  Their curriculum lives in **Curriculum Links** (`course_curricula`, one
+  per generation), who taught them in each semester in **Timetable Teaching**
   (`course_teaching`, from the timetables, below), their syllabus teachers
-  in **Accreditation teachers** (`course_accreditation_staff`), hand-kept
-  staff in **Teaching staff** (`teaching_assignments`), their Discord
+  in **Accreditation Teachers** (`course_accreditation_staff`), hand-kept
+  staff in **Manual Teaching Staff** (`teaching_assignments`), their Discord
   channels in `discord_channel_courses`. `courses.json` publishes as
   professors and assistants who taught the course in the six latest main
   timetables (three years), grouped by position, else
   its accreditation teachers as professors, else its hand-kept staff; a
   status of All professors or Inactive replaces them as before.
-- **Curriculum** (`curriculum_generations`, `study_programs`,
-  `curriculum_entries`, `curriculum_entry_program_states`,
-  `course_equivalencies`, `course_equivalency_members`): the 2013, 2018
-  and 2023 curricula as rows. A generation, program or academic year
+- **Accreditations** (`curriculum_generations`), **Accreditation Programs**
+  (`study_programs`) and **Accreditation Subjects** (`curriculum_entries`,
+  with their program states in `curriculum_entry_program_states`), and
+  **Equivalencies** (`course_equivalencies`, `course_equivalency_members`):
+  the 2013, 2018 and 2023 curricula as rows. A generation, program or academic year
   reaches `courses.json` only once its **Published** flag is set.
 - **Staff, rooms, dean's office, students, student council and Discord
   channels**: plain lists. A course may have several Discord channels (an
-  undergraduate and a master's one). **FINKI staff** (`staff.finki`) is off
+  undergraduate and a master's one). **FINKI Staff** (`staff.finki`) is off
   for other faculties' professors, visiting professors and external
   collaborators: only FINKI staff are marked inactive when they leave.
 - **Exam sessions and Anto quotes** (`exam_sessions`, `anto_quotes`): what
@@ -147,22 +152,26 @@ extension that setup applies.
 ## Enrollment counts
 
 A course's count for an academic year is the number of distinct Moodle
-accounts holding at least one history line counted for that course and
-year. Two kinds of mapping count a line:
+accounts in at least one Moodle course (`moodle_course_entries`, **Moodle
+Courses**) counted for that course and year. Two kinds of rule count a
+Moodle course:
 
-- a **Pattern mapping** tests its pattern against each history line and,
-  for an all-years mapping, reads the year from the line with its year
-  pattern; an only-in-year mapping counts its lines in its own year;
-- an **Explicit mapping** maps one history line to a course and year by
-  hand, and then overrides every pattern for that line.
+- a **Moodle Pattern** (`moodle_pattern_mappings`) tests its pattern
+  against each Moodle course name and, for an all-years pattern, reads the
+  year from the name with its year pattern; an only-in-year pattern counts
+  its Moodle courses in its own year and replaces the course's all-years
+  patterns there;
+- a **Moodle Course Link** (`moodle_course_mappings`) links one Moodle
+  course to a course and year by hand, and then overrides every pattern for
+  that Moodle course.
 
 A new course gets the default mapping `<name>-` automatically. The counts
 refresh by themselves: every edit of a source table marks the history
 index or the counts pending inside its own transaction, and **Data /
 Process pending** (every 15 seconds) runs the first pending one. **Data /
 Mark pending** (the **Recalculate** panel) marks them pending by hand and
-retries a failed run. The **Unmapped history lines** bookmark lists the
-lines no mapping counts.
+retries a failed run. The **Unmapped Moodle Courses** bookmark lists the
+Moodle courses no rule counts.
 
 ## Degree programs
 
@@ -170,23 +179,23 @@ lines no mapping counts.
 finki.ukim.mk names them: each official code (KN23, KN23_3, BKK23_2, KNID)
 with its names, cycle, duration, accreditation year, language (only where
 an official page states it) and page. A first-cycle program links the
-**Study programs** curriculum column its courses' states are kept under;
+**Accreditation Programs** curriculum column its courses' states are kept under;
 the four- and three-year variants of a program share one. Where the
 program page has them, a row also keeps the awarded degree title (in
 Macedonian and English), the total ECTS, the coordinator (linked to
-**Staff**, which lists their **Coordinated programs**), the description
+**Staff**, which lists their **Coordinated Programs**), the description
 and the curriculum rules (course counts, elective limits); the 2018 pages
 list only courses. Edit it in Studio when the faculty adds or retires a
 program.
 
-A master's program's courses are in **Degree program courses**
+A master's program's courses are in **Program Courses**
 (`degree_program_courses`): each mandatory course with its semester, each
 elective with its group (the program's or the faculty's list, winter or
 summer, or a group of its own name) and recommended semester, with the
-code, ECTS and prerequisites the program page gives. **Degree program
-slots** (`degree_program_slots`) say how many electives each semester
+code, ECTS and prerequisites the program page gives. **Elective
+Slots** (`degree_program_slots`) say how many electives each semester
 takes, and from which lists. The master's courses are courses with
-**Degree cycle** Second; `courses.json` carries them too, with `cycle`
+**Degree Cycle** Second; `courses.json` carries them too, with `cycle`
 `second` (and `first` on the undergraduate courses), so its readers can
 tell them apart.
 
@@ -209,29 +218,29 @@ professor when their position is Редовен професор, Вонреде
 matches a course by its name, English name or a linked curriculum entry's
 name, and a combined slot "A / B" when each part does; a
 teacher matches a staff member by name, with either of two surnames left
-out. Anything else needs an alias: **Timetable course names**
-(`course_aliases`) and **Timetable staff names** (`staff_aliases`) map a
+out. Anything else needs an alias: **Course Names** (`course_aliases`)
+and **Staff Names** (`staff_aliases`), in the Name Matching folder, map a
 timetable name to a course or staff member, or ignore it without one. Every
 edit of an alias, a course, a staff member or a curriculum entry rebuilds
-`course_teaching` at once. Filtering `timetable_lessons` by **Course match**
-or **Teacher match** Unmatched lists what still needs an alias.
+`course_teaching` at once. Filtering `timetable_lessons` by **Course Match**
+or **Teacher Match** Unmatched lists what still needs an alias.
 
 The import also keeps every class of a main timetable in
 `timetable_slots`: its day, times, teachers, timetable classes and
 classroom as written, with the course its subject stands for and the room
 its classroom does. A classroom matches a room by name and location
 either way round ("315 ТМФ", "ТМФ 315"), then by its name alone;
-**Timetable room names** (`room_aliases`) map any other spelling ("Б 2.1")
+**Room Names** (`room_aliases`) map any other spelling ("Б 2.1")
 or ignore it without a room ("online"). An edit of a room or a room alias
-rebuilds them too, and **Room match** Unmatched lists what still needs an
+rebuilds them too, and **Room Match** Unmatched lists what still needs an
 alias. `timetable_slot_staff` links each slot to the staff its teachers
 stand for, matched like the lessons' teachers (so the same staff aliases
-apply); a staff member's form lists their **Timetable slots**. A joint
+apply); a staff member's form lists their **Timetable Slots**. A joint
 class names two courses ("Избрани теми од математика / Дискретна
 математика"): the slot's own course is set only when its subject stands
 for one, and `timetable_slot_courses` links every course a slot is held
 for, both parts of a joint class included, listed on the course form as
-**All timetable slots**.
+**All Timetable Slots**.
 
 All six tables are written only by the import and its rebuild. The
 import also marks the six latest main timetables **Published**
@@ -257,7 +266,7 @@ the stored theses, since the faculty never deletes one; the button's
 `bachelor_thesis_staff` and `master_thesis_staff` are derived in the same
 transaction: each staff member's role (mentor, a master's committee
 president, or member) on each thesis, matched to staff
-exactly as the timetables' teachers are, so **Timetable staff names**
+exactly as the timetables' teachers are, so **Staff Names**
 (`staff_aliases`) also map or ignore a thesis name. Every edit of a staff
 member or an alias rebuilds them. The import answers the names still
 unmatched, most frequent first. All four tables are written only by the

@@ -15,7 +15,7 @@ import {
 // year: a plain O2M null on the counted lines, newest First seen first,
 // so the new lines of a later snapshot are at the top.
 export const unmappedLinesBookmark: TabularPreset = tabularPresetSchema.parse({
-  bookmark: 'Unmapped history lines',
+  bookmark: 'Unmapped Moodle Courses',
   collection: 'moodle_course_entries',
   filter: { counted_for: { id: { _null: true } } },
   icon: 'link_off',

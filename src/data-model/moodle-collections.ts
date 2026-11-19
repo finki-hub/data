@@ -15,8 +15,8 @@ const historyEntryTemplate = '{{label}}';
 // One history line mapped by hand to a course and academic year; its
 // aliases on the line, the course and the year carry the same name.
 const explicitMappings = {
-  plural: 'Explicit mappings',
-  singular: 'Explicit mapping',
+  plural: 'Moodle course links',
+  singular: 'Moodle course link',
 } as const;
 
 // The label of each scraper field; "(old)" and "(new)" name the two
@@ -125,7 +125,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     ],
     hidden: false,
     icon: 'history_edu',
-    label: { plural: 'History lines', singular: 'History line' },
+    label: { plural: 'Moodle courses', singular: 'Moodle course' },
     singleton: false,
     sort: 18,
   },
@@ -145,7 +145,7 @@ export const moodleCollections: readonly ModelCollection[] = [
             'entry.counted_for.academic_year',
             'sort',
           ],
-          label: 'History lines',
+          label: 'Moodle courses',
           readOnly: true,
           template: '{{entry.label}}',
         },
@@ -163,7 +163,7 @@ export const moodleCollections: readonly ModelCollection[] = [
           readOnly: true,
           template: '{{moodle_user.Name}}',
         },
-        label: 'History line',
+        label: 'Moodle course',
         nullable: false,
         readOnly: true,
         template: historyEntryTemplate,
@@ -175,7 +175,7 @@ export const moodleCollections: readonly ModelCollection[] = [
     ],
     hidden: true,
     icon: 'account_tree',
-    label: { plural: 'History memberships', singular: 'History membership' },
+    label: { plural: 'Moodle memberships', singular: 'Moodle membership' },
     singleton: false,
     sort: 19,
   },
@@ -189,10 +189,10 @@ export const moodleCollections: readonly ModelCollection[] = [
           field: 'mappings',
           fields: ['course', 'academic_year'],
           label: explicitMappings.plural,
-          note: 'An explicit mapping replaces every pattern for this line.',
+          note: 'A Moodle course link replaces every pattern for this Moodle course.',
           template: '{{course.name}} ({{academic_year.label}})',
         },
-        label: 'History line',
+        label: 'Moodle course',
         nullable: false,
         template: historyEntryTemplate,
       }),
