@@ -1,6 +1,13 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
 
-import { curateSpec, docsContentSecurityPolicy, docsPage } from './api-docs.js';
+import apiDocsModel from './api-docs-model.json' with { type: 'json' };
+import {
+  curateSpec,
+  docsContentSecurityPolicy,
+  docsPage,
+  inferSchema,
+  type JsonSchema,
+} from './api-docs.js';
 import { forwardError } from './endpoint-errors.js';
 import { legacyFiles } from './legacy-endpoint.js';
 
@@ -22,21 +29,47 @@ export default defineEndpoint({
       trailingSlash,
       '',
     );
-    const buildSpec = async () => {
-      const response = await fetch(
-        `http://127.0.0.1:${port}/server/specs/oas`,
-        { signal: AbortSignal.timeout(fetchTimeoutMs) },
-      );
+    // A JSON document of this server, read as an anonymous caller.
+    const readJson = async (path: string): Promise<unknown> => {
+      const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+        signal: AbortSignal.timeout(fetchTimeoutMs),
+      });
       if (!response.ok) {
-        throw new Error(
-          `OpenAPI specification answered ${String(response.status)}`,
-        );
+        throw new Error(`${path} answered ${String(response.status)}`);
       }
-      return curateSpec(
-        (await response.json()) as Record<string, never>,
-        publicUrl,
-        legacyFiles.map((file) => file.filename),
+      return response.json();
+    };
+
+    // Each /legacy file's shape, from the file itself; a file that does not
+    // answer is shown without one.
+    const readLegacySchemas = async (filenames: readonly string[]) => {
+      const entries = await Promise.all(
+        filenames.map(async (filename) => {
+          try {
+            return [
+              filename,
+              inferSchema(await readJson(`/legacy/${filename}`)),
+            ] as const;
+          } catch {
+            return [filename, {}] as const;
+          }
+        }),
       );
+      return Object.fromEntries(entries) as Record<string, JsonSchema>;
+    };
+
+    const buildSpec = async () => {
+      const legacyFilenames = legacyFiles.map((file) => file.filename);
+      const [raw, legacySchemas] = await Promise.all([
+        readJson('/server/specs/oas'),
+        readLegacySchemas(legacyFilenames),
+      ]);
+      return curateSpec(raw as Record<string, never>, {
+        legacyFilenames,
+        legacySchemas,
+        model: apiDocsModel,
+        publicUrl,
+      });
     };
 
     // One shared build per cacheMs; a failed one is dropped for the next call.

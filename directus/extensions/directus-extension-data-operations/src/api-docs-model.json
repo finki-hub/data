@@ -1,0 +1,1353 @@
+{
+  "collections": {
+    "academic_years": {
+      "fields": {
+        "label": {
+          "label": "Year"
+        },
+        "published": {
+          "label": "Published"
+        },
+        "enrollments": {
+          "label": "Enrollment Counts",
+          "related": {
+            "collection": "course_enrollments",
+            "label": "Enrollment Counts",
+            "many": true
+          }
+        }
+      },
+      "plural": "Academic Years",
+      "singular": "Academic Year"
+    },
+    "anto_quotes": {
+      "fields": {
+        "quote": {
+          "label": "Quote"
+        }
+      },
+      "plural": "Anto Quotes",
+      "singular": "Anto Quote"
+    },
+    "bachelor_theses": {
+      "fields": {
+        "title": {
+          "label": "Title"
+        },
+        "description": {
+          "label": "Abstract"
+        },
+        "student_index": {
+          "label": "Index Number"
+        },
+        "student_name": {
+          "label": "Student"
+        },
+        "status": {
+          "label": "Status",
+          "note": "The step the thesis is at, as the faculty system names it."
+        },
+        "submitted": {
+          "label": "Submitted",
+          "note": "YYYY-MM-DD."
+        },
+        "year": {
+          "label": "Year",
+          "note": "The year it was submitted, for grouping."
+        },
+        "file_id": {
+          "label": "Document Id",
+          "note": "The id theses-listing downloads the document by."
+        },
+        "mentor": {
+          "label": "Mentor"
+        },
+        "member_1": {
+          "label": "Committee Member"
+        },
+        "member_2": {
+          "label": "Second Committee Member"
+        },
+        "imported_at": {
+          "label": "Imported",
+          "note": "Every import replaces every thesis; the host alerts when it gets old."
+        },
+        "committee": {
+          "label": "Staff",
+          "related": {
+            "collection": "bachelor_thesis_staff",
+            "label": "Bachelor Thesis Staff",
+            "many": true
+          }
+        }
+      },
+      "plural": "Bachelor Theses",
+      "singular": "Bachelor Thesis"
+    },
+    "bachelor_thesis_staff": {
+      "fields": {
+        "thesis": {
+          "label": "Thesis",
+          "related": {
+            "collection": "bachelor_theses",
+            "label": "Bachelor Thesis",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "role": {
+          "label": "Role"
+        },
+        "name": {
+          "label": "Name As Written",
+          "note": "As the thesis names the staff member; the public thesis files publish the staff name instead."
+        },
+        "year": {
+          "label": "Year",
+          "note": "The thesis's year, for grouping."
+        }
+      },
+      "plural": "Bachelor Thesis Staff",
+      "singular": "Bachelor Thesis Staff"
+    },
+    "course_accreditation_staff": {
+      "fields": {
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "generation": {
+          "label": "Accreditation",
+          "related": {
+            "collection": "curriculum_generations",
+            "label": "Accreditation",
+            "many": false
+          }
+        },
+        "sort": {
+          "label": "Order"
+        }
+      },
+      "plural": "Accreditation Teachers",
+      "singular": "Accreditation Teacher"
+    },
+    "course_curricula": {
+      "fields": {
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "entry": {
+          "label": "Accreditation Subject",
+          "related": {
+            "collection": "curriculum_entries",
+            "label": "Accreditation Subject",
+            "many": false
+          }
+        },
+        "generation": {
+          "label": "Accreditation",
+          "related": {
+            "collection": "curriculum_generations",
+            "label": "Accreditation",
+            "many": false
+          }
+        },
+        "credits": {
+          "label": "Credits"
+        },
+        "available": {
+          "label": "Available"
+        }
+      },
+      "plural": "Curriculum Links",
+      "singular": "Curriculum Link"
+    },
+    "course_enrollments": {
+      "fields": {
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "academic_year": {
+          "label": "Academic Year",
+          "related": {
+            "collection": "academic_years",
+            "label": "Academic Year",
+            "many": false
+          }
+        },
+        "count": {
+          "label": "Count"
+        },
+        "computed_at": {
+          "label": "Computed At"
+        }
+      },
+      "plural": "Enrollment Counts",
+      "singular": "Enrollment Count"
+    },
+    "course_equivalencies": {
+      "fields": {
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "members": {
+          "label": "Members",
+          "related": {
+            "collection": "course_equivalency_members",
+            "label": "Equivalency Members",
+            "many": true
+          }
+        }
+      },
+      "plural": "Equivalencies",
+      "singular": "Equivalency"
+    },
+    "course_equivalency_members": {
+      "fields": {
+        "equivalency": {
+          "label": "Equivalency",
+          "related": {
+            "collection": "course_equivalencies",
+            "label": "Equivalency",
+            "many": false
+          }
+        },
+        "generation": {
+          "label": "Accreditation",
+          "related": {
+            "collection": "curriculum_generations",
+            "label": "Accreditation",
+            "many": false
+          }
+        },
+        "label": {
+          "label": "Label"
+        },
+        "entry": {
+          "label": "Accreditation Subject",
+          "related": {
+            "collection": "curriculum_entries",
+            "label": "Accreditation Subject",
+            "many": false
+          }
+        }
+      },
+      "plural": "Equivalency Members",
+      "singular": "Equivalency Member"
+    },
+    "course_teaching": {
+      "fields": {
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "timetable": {
+          "label": "Timetable",
+          "related": {
+            "collection": "timetables",
+            "label": "Timetable",
+            "many": false
+          }
+        },
+        "role": {
+          "label": "Role"
+        },
+        "periods": {
+          "label": "Weekly Periods"
+        }
+      },
+      "plural": "Timetable Teaching",
+      "singular": "Timetable Teaching"
+    },
+    "courses": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "name_en": {
+          "label": "English Name"
+        },
+        "abbreviation": {
+          "label": "Abbreviation"
+        },
+        "status": {
+          "label": "Status",
+          "note": "All professors publishes \"Сите професори\" as professors. Inactive publishes \"(неактивиран предмет)\" as professors and assistants."
+        },
+        "tags": {
+          "label": "Tags"
+        },
+        "degree_cycle": {
+          "label": "Degree Cycle"
+        },
+        "objectives": {
+          "label": "Objectives"
+        },
+        "objectives_en": {
+          "label": "English Objectives"
+        },
+        "content": {
+          "label": "Content"
+        },
+        "content_en": {
+          "label": "English Content"
+        },
+        "equivalencies": {
+          "label": "Equivalencies",
+          "related": {
+            "collection": "course_equivalencies",
+            "label": "Equivalencies",
+            "many": true
+          }
+        },
+        "assignments": {
+          "label": "Manual Teaching Staff",
+          "related": {
+            "collection": "teaching_assignments",
+            "label": "Manual Teaching Staff",
+            "many": true
+          }
+        },
+        "discord_channels": {
+          "label": "Discord Channels",
+          "related": {
+            "collection": "discord_channel_courses",
+            "label": "Channel Courses",
+            "many": true
+          }
+        },
+        "curricula": {
+          "label": "Curriculum Links",
+          "related": {
+            "collection": "course_curricula",
+            "label": "Curriculum Links",
+            "many": true
+          }
+        },
+        "degree_programs": {
+          "label": "In Degree Programs",
+          "related": {
+            "collection": "degree_program_courses",
+            "label": "Program Courses",
+            "many": true
+          }
+        },
+        "enrollments": {
+          "label": "Enrollment Counts",
+          "related": {
+            "collection": "course_enrollments",
+            "label": "Enrollment Counts",
+            "many": true
+          }
+        },
+        "teaching": {
+          "label": "Taught By (Timetables)",
+          "related": {
+            "collection": "course_teaching",
+            "label": "Timetable Teaching",
+            "many": true
+          }
+        },
+        "slots": {
+          "label": "Timetable Slots",
+          "related": {
+            "collection": "timetable_slots",
+            "label": "Timetable Slots",
+            "many": true
+          }
+        },
+        "slot_links": {
+          "label": "All Timetable Slots",
+          "related": {
+            "collection": "timetable_slot_courses",
+            "label": "Timetable Slot Courses",
+            "many": true
+          }
+        },
+        "accreditation_staff": {
+          "label": "Accreditation Teachers",
+          "related": {
+            "collection": "course_accreditation_staff",
+            "label": "Accreditation Teachers",
+            "many": true
+          }
+        }
+      },
+      "plural": "Courses",
+      "singular": "Course"
+    },
+    "curriculum_entries": {
+      "fields": {
+        "generation": {
+          "label": "Accreditation",
+          "related": {
+            "collection": "curriculum_generations",
+            "label": "Accreditation",
+            "many": false
+          }
+        },
+        "name": {
+          "label": "Name"
+        },
+        "catalog_order": {
+          "label": "Catalog Order"
+        },
+        "url": {
+          "label": "Link"
+        },
+        "code": {
+          "label": "Code",
+          "note": "The digit after L is the level: F18L3W055 is level 3."
+        },
+        "semester": {
+          "label": "Semester"
+        },
+        "prerequisites": {
+          "label": "Prerequisites"
+        },
+        "channel": {
+          "label": "Has A Discord Channel",
+          "note": "Published as channel. Independent of the course's Discord channel."
+        },
+        "course_links": {
+          "label": "Linked Courses",
+          "related": {
+            "collection": "course_curricula",
+            "label": "Curriculum Links",
+            "many": true
+          }
+        },
+        "program_states": {
+          "label": "Accreditation Programs",
+          "related": {
+            "collection": "curriculum_entry_program_states",
+            "label": "Program States",
+            "many": true
+          }
+        },
+        "equivalency_memberships": {
+          "label": "Equivalencies",
+          "related": {
+            "collection": "course_equivalency_members",
+            "label": "Equivalency Members",
+            "many": true
+          }
+        }
+      },
+      "plural": "Accreditation Subjects",
+      "singular": "Accreditation Subject"
+    },
+    "curriculum_entry_program_states": {
+      "fields": {
+        "entry": {
+          "label": "Accreditation Subject",
+          "related": {
+            "collection": "curriculum_entries",
+            "label": "Accreditation Subject",
+            "many": false
+          }
+        },
+        "program": {
+          "label": "Accreditation Program",
+          "related": {
+            "collection": "study_programs",
+            "label": "Accreditation Program",
+            "many": false
+          }
+        },
+        "state": {
+          "label": "State"
+        }
+      },
+      "plural": "Program States",
+      "singular": "Program State"
+    },
+    "curriculum_generations": {
+      "fields": {
+        "code": {
+          "label": "Code",
+          "note": "Prefixes the generation's keys in courses.json, such as 2023-name."
+        },
+        "label": {
+          "label": "Name"
+        },
+        "has_curriculum": {
+          "label": "Has A Curriculum",
+          "note": "Off for a generation known only from equivalency labels, such as 2013."
+        },
+        "published": {
+          "label": "Published"
+        },
+        "programs": {
+          "label": "Accreditation Programs",
+          "related": {
+            "collection": "study_programs",
+            "label": "Accreditation Programs",
+            "many": true
+          }
+        }
+      },
+      "plural": "Accreditations",
+      "singular": "Accreditation"
+    },
+    "deans_office": {
+      "fields": {
+        "year": {
+          "label": "Year"
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "position": {
+          "label": "Position"
+        }
+      },
+      "plural": "Dean's Office",
+      "singular": "Dean's Office Term"
+    },
+    "degree_program_courses": {
+      "fields": {
+        "program": {
+          "label": "Degree Program",
+          "related": {
+            "collection": "degree_programs",
+            "label": "Degree Program",
+            "many": false
+          }
+        },
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "code": {
+          "label": "Code",
+          "note": "As the program page lists it, such as DCS-Z-02."
+        },
+        "kind": {
+          "label": "Kind"
+        },
+        "semester": {
+          "label": "Semester",
+          "note": "Of a mandatory course; the recommended one of an elective."
+        },
+        "group": {
+          "label": "Elective Group",
+          "note": "Empty for a mandatory course."
+        },
+        "group_name": {
+          "label": "Group Name",
+          "note": "As the program page names the group."
+        },
+        "credits": {
+          "label": "ECTS"
+        },
+        "requires": {
+          "label": "Prerequisites",
+          "note": "As the program page writes them."
+        }
+      },
+      "plural": "Program Courses",
+      "singular": "Program Course"
+    },
+    "degree_program_slots": {
+      "fields": {
+        "program": {
+          "label": "Degree Program",
+          "related": {
+            "collection": "degree_programs",
+            "label": "Degree Program",
+            "many": false
+          }
+        },
+        "semester": {
+          "label": "Semester"
+        },
+        "kind": {
+          "label": "Kind"
+        },
+        "count": {
+          "label": "Electives"
+        }
+      },
+      "plural": "Elective Slots",
+      "singular": "Elective Slot"
+    },
+    "degree_programs": {
+      "fields": {
+        "code": {
+          "label": "Code",
+          "note": "As finki.ukim.mk names the program, such as KN23_3."
+        },
+        "name": {
+          "label": "Name"
+        },
+        "name_en": {
+          "label": "English Name"
+        },
+        "cycle": {
+          "label": "Cycle"
+        },
+        "duration_years": {
+          "label": "Duration (Years)"
+        },
+        "accreditation": {
+          "label": "Accreditation",
+          "note": "The year of the accreditation, such as 2023."
+        },
+        "language": {
+          "label": "Language",
+          "note": "Only when an official page states it."
+        },
+        "url": {
+          "label": "Program Page"
+        },
+        "title": {
+          "label": "Degree Title",
+          "note": "The title awarded on completion, as the program page writes it."
+        },
+        "title_en": {
+          "label": "English Degree Title"
+        },
+        "ects": {
+          "label": "ECTS",
+          "note": "The credits the program awards in total."
+        },
+        "coordinator": {
+          "label": "Coordinator",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "description": {
+          "label": "Description",
+          "note": "In the language the program page has it."
+        },
+        "rules": {
+          "label": "Curriculum Rules",
+          "note": "Course counts, elective limits and extracurricular credits, as the program page states them."
+        },
+        "curriculum_program": {
+          "label": "Curriculum Program",
+          "note": "The curriculum column whose course states apply; first cycle only.",
+          "related": {
+            "collection": "study_programs",
+            "label": "Accreditation Program",
+            "many": false
+          }
+        },
+        "courses": {
+          "label": "Courses",
+          "related": {
+            "collection": "degree_program_courses",
+            "label": "Program Courses",
+            "many": true
+          }
+        },
+        "elective_slots": {
+          "label": "Elective Slots",
+          "related": {
+            "collection": "degree_program_slots",
+            "label": "Elective Slots",
+            "many": true
+          }
+        }
+      },
+      "plural": "Degree Programs",
+      "singular": "Degree Program"
+    },
+    "discord_channel_courses": {
+      "fields": {
+        "discord_channel": {
+          "label": "Discord Channel",
+          "related": {
+            "collection": "discord_channels",
+            "label": "Discord Channel",
+            "many": false
+          }
+        },
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        }
+      },
+      "plural": "Channel Courses",
+      "singular": "Channel Course"
+    },
+    "discord_channels": {
+      "fields": {
+        "semester": {
+          "label": "Semester"
+        },
+        "channel": {
+          "label": "Channel"
+        },
+        "courses": {
+          "label": "Courses",
+          "related": {
+            "collection": "discord_channel_courses",
+            "label": "Channel Courses",
+            "many": true
+          }
+        }
+      },
+      "plural": "Discord Channels",
+      "singular": "Discord Channel"
+    },
+    "exam_sessions": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "file": {
+          "label": "Schedule File",
+          "note": "The PDF or Excel schedule, published under its file name.",
+          "related": {
+            "collection": "directus_files",
+            "label": "Directus Files",
+            "many": false
+          }
+        }
+      },
+      "plural": "Exam Sessions",
+      "singular": "Exam Session"
+    },
+    "master_theses": {
+      "fields": {
+        "title": {
+          "label": "Title"
+        },
+        "description": {
+          "label": "Abstract"
+        },
+        "student_index": {
+          "label": "Index Number"
+        },
+        "student_name": {
+          "label": "Student"
+        },
+        "status": {
+          "label": "Status",
+          "note": "The step the thesis is at, as the faculty system names it."
+        },
+        "presented": {
+          "label": "Defended",
+          "note": "YYYY-MM-DD; empty until it is set."
+        },
+        "year": {
+          "label": "Year",
+          "note": "The year it was defended, for grouping."
+        },
+        "file_id": {
+          "label": "Document Id",
+          "note": "The id theses-listing downloads the document by."
+        },
+        "mentor": {
+          "label": "Mentor"
+        },
+        "president": {
+          "label": "Committee President"
+        },
+        "member": {
+          "label": "Committee Member"
+        },
+        "imported_at": {
+          "label": "Imported",
+          "note": "Every import replaces every thesis; the host alerts when it gets old."
+        },
+        "committee": {
+          "label": "Staff",
+          "related": {
+            "collection": "master_thesis_staff",
+            "label": "Master Thesis Staff",
+            "many": true
+          }
+        }
+      },
+      "plural": "Master Theses",
+      "singular": "Master Thesis"
+    },
+    "master_thesis_staff": {
+      "fields": {
+        "thesis": {
+          "label": "Thesis",
+          "related": {
+            "collection": "master_theses",
+            "label": "Master Thesis",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "role": {
+          "label": "Role"
+        },
+        "name": {
+          "label": "Name As Written",
+          "note": "As the thesis names the staff member; the public thesis files publish the staff name instead."
+        },
+        "year": {
+          "label": "Year",
+          "note": "The thesis's year, for grouping."
+        }
+      },
+      "plural": "Master Thesis Staff",
+      "singular": "Master Thesis Staff"
+    },
+    "room_aliases": {
+      "fields": {
+        "name": {
+          "label": "Timetable Name"
+        },
+        "room": {
+          "label": "Room",
+          "note": "Empty: the name is ignored, such as online.",
+          "related": {
+            "collection": "rooms",
+            "label": "Room",
+            "many": false
+          }
+        }
+      },
+      "plural": "Room Names",
+      "singular": "Room Name"
+    },
+    "rooms": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "type": {
+          "label": "Type"
+        },
+        "location": {
+          "label": "Location"
+        },
+        "description": {
+          "label": "Description"
+        },
+        "floor": {
+          "label": "Floor"
+        },
+        "capacity": {
+          "label": "Capacity"
+        },
+        "mrbs": {
+          "label": "Booking Page"
+        },
+        "slots": {
+          "label": "Timetable Slots",
+          "related": {
+            "collection": "timetable_slots",
+            "label": "Timetable Slots",
+            "many": true
+          }
+        }
+      },
+      "plural": "Rooms",
+      "singular": "Room"
+    },
+    "staff": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "active": {
+          "label": "Active"
+        },
+        "finki": {
+          "label": "FINKI Staff",
+          "note": "Off for other faculties, visiting professors and external collaborators: they stay active unless there is a reason not to."
+        },
+        "title": {
+          "label": "Title"
+        },
+        "position": {
+          "label": "Position"
+        },
+        "email": {
+          "label": "Email"
+        },
+        "cabinet": {
+          "label": "Office"
+        },
+        "profile": {
+          "label": "Profile Page"
+        },
+        "courses": {
+          "label": "Moodle Profile"
+        },
+        "consultations": {
+          "label": "Consultations Page"
+        },
+        "assignments": {
+          "label": "Teaches",
+          "related": {
+            "collection": "teaching_assignments",
+            "label": "Manual Teaching Staff",
+            "many": true
+          }
+        },
+        "dean_terms": {
+          "label": "Dean's Office Terms",
+          "related": {
+            "collection": "deans_office",
+            "label": "Dean's Office",
+            "many": true
+          }
+        },
+        "coordinated_programs": {
+          "label": "Coordinated Programs",
+          "related": {
+            "collection": "degree_programs",
+            "label": "Degree Programs",
+            "many": true
+          }
+        },
+        "teaching": {
+          "label": "Teaches (Timetables)",
+          "related": {
+            "collection": "course_teaching",
+            "label": "Timetable Teaching",
+            "many": true
+          }
+        },
+        "slots": {
+          "label": "Timetable Slots",
+          "related": {
+            "collection": "timetable_slot_staff",
+            "label": "Timetable Slot Staff",
+            "many": true
+          }
+        },
+        "accreditation_courses": {
+          "label": "Accreditation Courses",
+          "related": {
+            "collection": "course_accreditation_staff",
+            "label": "Accreditation Teachers",
+            "many": true
+          }
+        },
+        "bachelor_theses": {
+          "label": "Bachelor Theses",
+          "related": {
+            "collection": "bachelor_thesis_staff",
+            "label": "Bachelor Thesis Staff",
+            "many": true
+          }
+        },
+        "master_theses": {
+          "label": "Master Theses",
+          "related": {
+            "collection": "master_thesis_staff",
+            "label": "Master Thesis Staff",
+            "many": true
+          }
+        }
+      },
+      "plural": "Staff",
+      "singular": "Staff Member"
+    },
+    "student_council": {
+      "fields": {
+        "year": {
+          "label": "Year"
+        },
+        "position": {
+          "label": "Position"
+        },
+        "student": {
+          "label": "Student",
+          "related": {
+            "collection": "students",
+            "label": "Student",
+            "many": false
+          }
+        }
+      },
+      "plural": "Student Council",
+      "singular": "Council Member"
+    },
+    "students": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "council_memberships": {
+          "label": "Council Memberships",
+          "related": {
+            "collection": "student_council",
+            "label": "Student Council",
+            "many": true
+          }
+        }
+      },
+      "plural": "Students",
+      "singular": "Student"
+    },
+    "study_programs": {
+      "fields": {
+        "generation": {
+          "label": "Accreditation",
+          "related": {
+            "collection": "curriculum_generations",
+            "label": "Accreditation",
+            "many": false
+          }
+        },
+        "code": {
+          "label": "Code",
+          "note": "Names the program's state key in courses.json, such as 2023-state-kn."
+        },
+        "name": {
+          "label": "Name"
+        },
+        "description": {
+          "label": "Description"
+        },
+        "published": {
+          "label": "Published"
+        },
+        "degree_programs": {
+          "label": "Degree Programs",
+          "related": {
+            "collection": "degree_programs",
+            "label": "Degree Programs",
+            "many": true
+          }
+        }
+      },
+      "plural": "Accreditation Programs",
+      "singular": "Accreditation Program"
+    },
+    "teaching_assignments": {
+      "fields": {
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "role": {
+          "label": "Role"
+        },
+        "sort": {
+          "label": "Order"
+        }
+      },
+      "plural": "Manual Teaching Staff",
+      "singular": "Manual Teaching Assignment"
+    },
+    "timetable_lessons": {
+      "fields": {
+        "timetable": {
+          "label": "Timetable",
+          "related": {
+            "collection": "timetables",
+            "label": "Timetable",
+            "many": false
+          }
+        },
+        "subject": {
+          "label": "Subject",
+          "note": "As the timetable names it, without the class type."
+        },
+        "kind": {
+          "label": "Class Type",
+          "note": "п lecture, ав exercises; empty before summer 2022/23."
+        },
+        "teacher": {
+          "label": "Teacher"
+        },
+        "periods": {
+          "label": "Weekly Periods"
+        },
+        "course_match": {
+          "label": "Course Match"
+        },
+        "teacher_match": {
+          "label": "Teacher Match"
+        }
+      },
+      "plural": "Timetable Lessons",
+      "singular": "Timetable Lesson"
+    },
+    "timetable_slot_courses": {
+      "fields": {
+        "slot": {
+          "label": "Slot",
+          "related": {
+            "collection": "timetable_slots",
+            "label": "Timetable Slot",
+            "many": false
+          }
+        },
+        "course": {
+          "label": "Course",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        }
+      },
+      "plural": "Timetable Slot Courses",
+      "singular": "Timetable Slot Course"
+    },
+    "timetable_slot_staff": {
+      "fields": {
+        "slot": {
+          "label": "Slot",
+          "related": {
+            "collection": "timetable_slots",
+            "label": "Timetable Slot",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "teacher": {
+          "label": "Teacher",
+          "note": "As the timetable names them."
+        }
+      },
+      "plural": "Timetable Slot Staff",
+      "singular": "Timetable Slot Staff"
+    },
+    "timetable_slots": {
+      "fields": {
+        "timetable": {
+          "label": "Timetable",
+          "related": {
+            "collection": "timetables",
+            "label": "Timetable",
+            "many": false
+          }
+        },
+        "subject": {
+          "label": "Subject",
+          "note": "As the timetable names it, without the class type."
+        },
+        "kind": {
+          "label": "Class Type"
+        },
+        "course": {
+          "label": "Course",
+          "note": "Empty when the subject stands for no course or for several.",
+          "related": {
+            "collection": "courses",
+            "label": "Course",
+            "many": false
+          }
+        },
+        "day": {
+          "label": "Day",
+          "note": "1 Monday to 5 Friday."
+        },
+        "starts": {
+          "label": "Starts"
+        },
+        "ends": {
+          "label": "Ends"
+        },
+        "periods": {
+          "label": "Weekly Periods"
+        },
+        "teachers": {
+          "label": "Teachers",
+          "note": "As the timetable names them."
+        },
+        "groups": {
+          "label": "Classes",
+          "note": "The timetable classes that attend, such as 4г-СИИС."
+        },
+        "classroom": {
+          "label": "Classroom",
+          "note": "As the timetable names the room."
+        },
+        "room": {
+          "label": "Room",
+          "related": {
+            "collection": "rooms",
+            "label": "Room",
+            "many": false
+          }
+        },
+        "room_match": {
+          "label": "Room Match"
+        },
+        "staff": {
+          "label": "Staff",
+          "related": {
+            "collection": "timetable_slot_staff",
+            "label": "Timetable Slot Staff",
+            "many": true
+          }
+        },
+        "courses": {
+          "label": "Courses",
+          "related": {
+            "collection": "timetable_slot_courses",
+            "label": "Timetable Slot Courses",
+            "many": true
+          }
+        }
+      },
+      "plural": "Timetable Slots",
+      "singular": "Timetable Slot"
+    },
+    "timetables": {
+      "fields": {
+        "edupage_id": {
+          "label": "EduPage Id"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "date_from": {
+          "label": "Starts"
+        },
+        "academic_year": {
+          "label": "Academic Year",
+          "related": {
+            "collection": "academic_years",
+            "label": "Academic Year",
+            "many": false
+          }
+        },
+        "term": {
+          "label": "Semester"
+        },
+        "main": {
+          "label": "Main Timetable",
+          "note": "The last timetable of its semester; only main timetables count."
+        },
+        "recent": {
+          "label": "Published",
+          "note": "One of the six latest main timetables, the three years courses.json reads its teaching staff from."
+        },
+        "hidden": {
+          "label": "Hidden On EduPage"
+        },
+        "fingerprint": {
+          "label": "Fingerprint"
+        },
+        "imported_at": {
+          "label": "Imported"
+        },
+        "checked_at": {
+          "label": "Last Import",
+          "note": "Every successful import sets it on each listed timetable; the host alerts when it gets old."
+        },
+        "lessons": {
+          "label": "Lessons",
+          "related": {
+            "collection": "timetable_lessons",
+            "label": "Timetable Lessons",
+            "many": true
+          }
+        },
+        "teaching": {
+          "label": "Teaching",
+          "related": {
+            "collection": "course_teaching",
+            "label": "Timetable Teaching",
+            "many": true
+          }
+        },
+        "slots": {
+          "label": "Slots",
+          "related": {
+            "collection": "timetable_slots",
+            "label": "Timetable Slots",
+            "many": true
+          }
+        }
+      },
+      "plural": "Timetables",
+      "singular": "Timetable"
+    }
+  }
+}
