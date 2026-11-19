@@ -51,9 +51,9 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `master_theses`,
 `bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`, `discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
-`anto_quotes`. Students are public only as council members (name and
-index number); every other student, every Moodle user and the operations
-bookkeeping stay private. The theses name their students, as the
+`anto_quotes`. Students are public only as council members, by name
+(their index numbers stay private); every other student, every Moodle user
+and the operations bookkeeping stay private. The theses name their students, as the
 faculty's own thesis lists do. These read permissions (and the `MCP` role's
 identical ones) are declared in `src/data-model/access.ts` and created by
 `npm run setup`.

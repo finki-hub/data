@@ -6,9 +6,10 @@ import type { ModelCollectionKey } from '../schema.js';
 // Who may read what without signing in: the public policy and the MCP
 // read-only policy (the role of the MCP server's static token) read exactly
 // these collections and fields. Everything else (the Moodle users and their
-// mappings, every student outside the council, the operations bookkeeping)
-// stays private. Setup creates a missing read permission and keeps an
-// existing one as it is, like every other Studio-owned setting.
+// mappings, every student outside the council, the council members' index
+// numbers, the operations bookkeeping) stays private. Setup creates a
+// missing read permission and sets an existing one's fields to the list
+// declared here.
 
 export type PublicRead = {
   readonly collection: ModelCollectionKey;
@@ -102,11 +103,17 @@ export const publicReads: readonly PublicRead[] = [
   { collection: 'room_aliases', fields: '*' },
   { collection: 'rooms', fields: '*' },
   { collection: 'staff', fields: '*' },
-  { collection: 'student_council', fields: '*' },
-  // Council members only, by name and index number.
+  // The student assembly by year, position and member, without index
+  // numbers: an assembly listing names its members, nothing reads the
+  // number, and it identifies a student in the faculty's systems.
+  {
+    collection: 'student_council',
+    fields: ['id', 'year', 'position', 'student'],
+  },
+  // Council members only, by name.
   {
     collection: 'students',
-    fields: ['id', 'name', 'index_number', 'council_memberships'],
+    fields: ['id', 'name', 'council_memberships'],
     filter: { council_memberships: { _some: { id: { _nnull: true } } } },
   },
   { collection: 'study_programs', fields: '*' },

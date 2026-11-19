@@ -157,20 +157,27 @@ test('the Moodle users and the operations stay private', async () => {
 });
 
 const publicStudents = z.object({
-  data: z.array(z.looseObject({ index_number: z.string() })),
+  data: z.array(z.looseObject({ name: z.string() })),
 });
 
-test('students are public only as council members, without their group', async () => {
+test('students are public only as council members, by name only', async () => {
   const { body, status } = await anonymous(
-    '/items/students?fields=*&filter[index_number][_starts_with]=9900',
+    '/items/students?fields=*&filter[name][_in]=Council Member,Private Student',
   );
   assert.equal(status, 200);
   const rows = publicStudents.parse(JSON.parse(body)).data;
   assert.deepEqual(
-    rows.map(({ index_number }) => index_number),
-    ['990001'],
+    rows.map(({ name }) => name),
+    ['Council Member'],
   );
   assert.equal(rows[0]?.['source_group'], undefined);
+  assert.equal(rows[0]?.['index_number'], undefined);
+
+  const council = await anonymous(
+    '/items/student_council?fields=*&filter[year][_eq]=2099',
+  );
+  assert.equal(council.status, 200);
+  assert.ok(!council.body.includes('990001'));
 });
 
 const legacy = async (file: string) => {
