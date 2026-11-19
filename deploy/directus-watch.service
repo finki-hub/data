@@ -1,0 +1,9 @@
+[Unit]
+OnFailure=directus-alert@%n.service
+Description=Check the FINKI Hub Directus deployment and alert on Discord
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /root/directus/alerts.py watch

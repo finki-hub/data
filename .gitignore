@@ -10,3 +10,4 @@ uploads/
 directus/extensions/*/dist/
 /test-results/
 /playwright-report/
+__pycache__/
