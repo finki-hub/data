@@ -15,9 +15,8 @@ import { folders } from '../src/data-model/presentation/navigation.js';
 import { titleCase } from '../src/data-model/title-case.js';
 
 const collator = new Intl.Collator('en');
-// A pinned version in the script URL, and an inline script in the page.
+// A pinned version in the script URL.
 const pinnedVersion = /@\d+\.\d+\.\d+\//u;
-const inlineScript = /<script>[^<]/u;
 
 const documented = docsGroups.flatMap(({ collections }) =>
   Object.keys(collections),
@@ -118,6 +117,19 @@ describe('the public API reference', () => {
     expect(docsContentSecurityPolicy).toContain(
       "script-src 'self' https://cdn.jsdelivr.net",
     );
-    expect(page).not.toMatch(inlineScript);
+
+    // Every script tag loads a file or carries the reference's data; none
+    // holds inline code the page policy would have to allow.
+    const scriptTags = page
+      .toLowerCase()
+      .split('<script')
+      .slice(1)
+      .map((tag) => tag.slice(0, tag.indexOf('>')));
+
+    expect(scriptTags).toHaveLength(2);
+
+    for (const tag of scriptTags) {
+      expect(tag.includes(' src=') || tag.includes(' data-url=')).toBeTruthy();
+    }
   });
 });
