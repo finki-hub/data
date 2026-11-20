@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { SqlClient } from './coordination/sql-port.js';
 import type { AttentionView } from './status-contract.js';
 
+import { issueKinds } from './faculty/vocabulary.js';
 import { itemPage } from './managed-flows.js';
 
 // The reads of the Needs attention section: data that is not linked up
@@ -78,11 +79,19 @@ GROUP BY kind, name, collection
 ORDER BY kind, name
 LIMIT ?`;
 
+// The people of the faculty structure pages that match no staff member and
+// the dean's office differences the last import recorded, in the order of
+// the table. Bindings: the list limit.
+const facultySql = `SELECT id, kind, body, name, detail, COUNT(*) OVER () AS total
+FROM faculty_import_issues
+ORDER BY kind, body, name, id
+LIMIT ?`;
+
 const iso = (column: string): string =>
   `to_char(MAX(${column}) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 // The last success of each daily import and whether it is overdue.
-// Bindings: staleAfterHours, twice.
+// Bindings: staleAfterHours, three times.
 const staleSql = `SELECT 'Timetables' AS name, 'Data / Import timetables' AS flow,
   ${iso('checked_at')} AS last_at,
   COALESCE(MAX(checked_at) < NOW() - make_interval(hours => ?), TRUE) AS stale
@@ -90,7 +99,11 @@ FROM timetables
 UNION ALL
 SELECT 'Theses', 'Data / Import theses', ${iso('imported_at')},
   COALESCE(MAX(imported_at) < NOW() - make_interval(hours => ?), TRUE)
-FROM bachelor_theses`;
+FROM bachelor_theses
+UNION ALL
+SELECT 'Faculty structure', 'Data / Import faculty structure', ${iso('imported_at')},
+  COALESCE(MAX(imported_at) < NOW() - make_interval(hours => ?), TRUE)
+FROM institutes`;
 
 const resultRows = <Row extends z.ZodType>(row: Row) =>
   z.object({ rows: z.array(row) });
@@ -113,6 +126,15 @@ const unmatchedRow = z.object({
   total,
 });
 
+const facultyRow = z.object({
+  body: z.string(),
+  detail: z.string().nullable(),
+  id,
+  kind: z.enum(issueKinds),
+  name: z.string(),
+  total,
+});
+
 const staleRow = z.object({
   flow: z.string(),
   last_at: z.string().nullable(),
@@ -130,10 +152,27 @@ export const readAttention = async (
   const unmatched = resultRows(unmatchedRow).parse(
     await sql.raw(unmatchedSql, [limit]),
   ).rows;
+  const faculty = resultRows(facultyRow).parse(
+    await sql.raw(facultySql, [limit]),
+  ).rows;
   const imports = resultRows(staleRow).parse(
-    await sql.raw(staleSql, [staleAfterHours, staleAfterHours]),
+    await sql.raw(staleSql, [
+      staleAfterHours,
+      staleAfterHours,
+      staleAfterHours,
+    ]),
   ).rows;
   return {
+    faculty: {
+      count: faculty[0]?.total ?? 0,
+      items: faculty.map((row) => ({
+        body: row.body,
+        detail: row.detail,
+        kind: row.kind,
+        link: itemPage('faculty_import_issues', row.id),
+        name: row.name,
+      })),
+    },
     lookalikes: {
       count: lookalikes[0]?.total ?? 0,
       items: lookalikes.map((row) => ({

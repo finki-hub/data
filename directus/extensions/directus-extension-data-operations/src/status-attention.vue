@@ -7,8 +7,9 @@ import { collectionPage } from './managed-flows.js';
 import { attentionTotal, importStoppedText, moreText } from './status-facts.js';
 
 // What is not linked up yet: Moodle courses named like a course that
-// nothing counts, timetable names that match nothing, daily imports that
-// stopped, and failed calculations. Each list links to its rows and to
+// nothing counts, timetable names that match nothing, faculty structure
+// people that match no staff member, daily imports that stopped, and failed
+// calculations. Each list links to its rows and to
 // where the fix goes.
 const { status } = defineProps<{ status: StatusView }>();
 
@@ -25,6 +26,11 @@ const fixes = {
   teacher: { label: 'Staff Names', link: collectionPage('staff_aliases') },
 } as const;
 const leftUncounted = collectionPage('moodle_left_uncounted');
+const staffPage = collectionPage('staff');
+const issueKindLabels = {
+  deans_office: "Dean's office",
+  unmatched_person: 'Unmatched',
+};
 const kindLabels = { room: 'Room', subject: 'Subject', teacher: 'Teacher' };
 </script>
 
@@ -105,6 +111,38 @@ const kindLabels = { room: 'Room', subject: 'Subject', teacher: 'Teacher' };
         class="note"
       >
         {{ moreText(attention.unmatched) }}
+      </p>
+    </div>
+
+    <div
+      v-if="attention.faculty.count > 0"
+      class="group"
+      data-check="faculty"
+    >
+      <h4>Faculty structure issues ({{ attention.faculty.count }})</h4>
+      <p class="note">
+        An unmatched person is on a page of finki.ukim.mk but matches no staff
+        member by profile page, email or name: add the profile page or email to
+        the person under
+        <router-link :to="staffPage">Staff</router-link>
+        and the next import links them. A Dean's office difference is only
+        flagged; Dean's Office stays as it is.
+      </p>
+      <ul>
+        <li
+          v-for="item in attention.faculty.items"
+          :key="item.link"
+        >
+          <span class="kind">{{ issueKindLabels[item.kind] }}</span>
+          <router-link :to="item.link">{{ item.name }}</router-link>
+          <span class="note"> · {{ item.detail ?? item.body }}</span>
+        </li>
+      </ul>
+      <p
+        v-if="moreText(attention.faculty)"
+        class="note"
+      >
+        {{ moreText(attention.faculty) }}
       </p>
     </div>
 

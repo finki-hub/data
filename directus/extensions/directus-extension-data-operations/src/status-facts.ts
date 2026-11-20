@@ -114,12 +114,13 @@ export const lastErrorText = ({
 type AttentionView = StatusView['attention'];
 
 // Every problem Needs attention lists: failed calculations, stopped
-// imports, unmatched timetable names and uncounted look-alike Moodle
-// courses.
+// imports, unmatched timetable names, faculty structure issues and
+// uncounted look-alike Moodle courses.
 export const attentionTotal = (status: StatusView): number =>
   status.domains.filter(({ state }) => state === 'failed').length +
   status.attention.stale.length +
   status.attention.unmatched.count +
+  status.attention.faculty.count +
   status.attention.lookalikes.count;
 
 // The rows of a list the panel leaves out, or null when it shows them all.

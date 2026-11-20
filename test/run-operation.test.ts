@@ -65,6 +65,7 @@ const flow: ManualFlow = {
 
 const idle: StatusView = {
   attention: {
+    faculty: { count: 0, items: [] },
     lookalikes: { count: 0, items: [] },
     stale: [],
     unmatched: { count: 0, items: [] },
