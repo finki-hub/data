@@ -57,7 +57,7 @@
         },
         "file_id": {
           "label": "Document Id",
-          "note": "The id theses-listing downloads the document by."
+          "note": "The id of the thesis document, when it has one."
         },
         "mentor": {
           "label": "Mentor"
@@ -70,7 +70,7 @@
         },
         "imported_at": {
           "label": "Imported",
-          "note": "Every import replaces every thesis; the host alerts when it gets old."
+          "note": "When the data was last imported from the faculty."
         },
         "committee": {
           "label": "Staff",
@@ -107,7 +107,7 @@
         },
         "name": {
           "label": "Name As Written",
-          "note": "As the thesis names the staff member; the public thesis files publish the staff name instead."
+          "note": "The staff member as the thesis names them."
         },
         "year": {
           "label": "Year",
@@ -318,7 +318,7 @@
         },
         "status": {
           "label": "Status",
-          "note": "All professors publishes \"Сите професори\" as professors. Inactive publishes \"(неактивиран предмет)\" as professors and assistants."
+          "note": "active, all_professors (taught by all professors, listed as \"Сите професори\") or inactive (not offered, listed as \"(неактивиран предмет)\")."
         },
         "tags": {
           "label": "Tags"
@@ -453,7 +453,7 @@
         },
         "channel": {
           "label": "Has A Discord Channel",
-          "note": "Published as channel. Independent of the course's Discord channel."
+          "note": "Whether the subject gets a channel on the FINKI Hub Discord server, as the courses.json channel key."
         },
         "course_links": {
           "label": "Linked Courses",
@@ -859,7 +859,7 @@
         },
         "imported_at": {
           "label": "Imported",
-          "note": "Every import replaces the structure; the host alerts when it gets old."
+          "note": "When the data was last imported from the faculty."
         },
         "members": {
           "label": "Members",
@@ -901,7 +901,7 @@
         },
         "file_id": {
           "label": "Document Id",
-          "note": "The id theses-listing downloads the document by."
+          "note": "The id of the thesis document, when it has one."
         },
         "mentor": {
           "label": "Mentor"
@@ -914,7 +914,7 @@
         },
         "imported_at": {
           "label": "Imported",
-          "note": "Every import replaces every thesis; the host alerts when it gets old."
+          "note": "When the data was last imported from the faculty."
         },
         "committee": {
           "label": "Staff",
@@ -951,7 +951,7 @@
         },
         "name": {
           "label": "Name As Written",
-          "note": "As the thesis names the staff member; the public thesis files publish the staff name instead."
+          "note": "The staff member as the thesis names them."
         },
         "year": {
           "label": "Year",
@@ -1024,7 +1024,7 @@
         },
         "finki": {
           "label": "FINKI Staff",
-          "note": "Off for other faculties, visiting professors and external collaborators: they stay active unless there is a reason not to."
+          "note": "False for staff of other faculties, visiting professors and external collaborators."
         },
         "title": {
           "label": "Title"
@@ -1451,7 +1451,7 @@
         },
         "checked_at": {
           "label": "Last Import",
-          "note": "Every successful import sets it on each listed timetable; the host alerts when it gets old."
+          "note": "When an import last found the timetable on the faculty's timetable site."
         },
         "lessons": {
           "label": "Lessons",

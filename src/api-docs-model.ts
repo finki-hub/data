@@ -15,6 +15,38 @@ import { titleCase } from './data-model/title-case.js';
 // generate:api-docs` writes it beside the docs endpoint, and
 // test/api-docs.test.ts fails while the snapshot is stale.
 
+// The notes the reference shows in place of a field's Studio note, which
+// is written for editing: what the value means to a reader of the API.
+const imported = 'When the data was last imported from the faculty.';
+const thesisDocument = 'The id of the thesis document, when it has one.';
+const thesisStaffName = 'The staff member as the thesis names them.';
+export const docsNotes: Readonly<Record<string, string>> = {
+  'bachelor_theses.file_id': thesisDocument,
+  'bachelor_theses.imported_at': imported,
+  'bachelor_thesis_staff.name': thesisStaffName,
+  'courses.status':
+    'active, all_professors (taught by all professors, listed as "Сите професори") or inactive (not offered, listed as "(неактивиран предмет)").',
+  'curriculum_entries.channel':
+    'Whether the subject gets a channel on the FINKI Hub Discord server, as the courses.json channel key.',
+  'institutes.imported_at': imported,
+  'master_theses.file_id': thesisDocument,
+  'master_theses.imported_at': imported,
+  'master_thesis_staff.name': thesisStaffName,
+  'staff.finki':
+    'False for staff of other faculties, visiting professors and external collaborators.',
+  'timetables.checked_at':
+    "When an import last found the timetable on the faculty's timetable site.",
+};
+
+const noteOf = (
+  collection: string,
+  field: string,
+  studioNote: string | undefined,
+) => {
+  const note = docsNotes[`${collection}.${field}`] ?? studioNote;
+  return note === undefined ? {} : { note };
+};
+
 const findCollection = (collection: string) =>
   dataModelCollections.find((model) => model.collection === collection);
 
@@ -53,7 +85,7 @@ const collectionModel = (
   for (const field of modelFields) {
     fields.set(field.field, {
       label: fieldLabel(field.field, field.label),
-      ...(field.note !== undefined && { note: field.note }),
+      ...noteOf(collection, field.field, field.note),
       ...(field.kind === 'm2o' && { related: related(field.related, false) }),
     });
   }
@@ -61,7 +93,7 @@ const collectionModel = (
   for (const { alias, relation } of aliases) {
     fields.set(alias.field, {
       label: fieldLabel(alias.field, alias.label),
-      ...(alias.note !== undefined && { note: alias.note }),
+      ...noteOf(collection, alias.field, alias.note),
       related: related(relation.collection, true),
     });
   }
