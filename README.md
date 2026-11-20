@@ -13,7 +13,7 @@ The live instance is <https://data.finki-hub.com>.
 | Path                                                      | What it holds                                                                                                                                                                |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/data-model/`                                         | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs.                                                               |
-| `src/flows/`                                              | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable and thesis imports.                                        |
+| `src/flows/`                                              | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable, thesis and faculty structure imports.                                        |
 | `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint, the `/legacy` endpoint and the `/docs` API reference. |
 | `directus/extensions/directus-extension-course-search/`   | The **Search** layout over Moodle users (has all of / none of these courses, matched by course or by exact Moodle course name).                                              |
 | `directus/branding/`                                      | Logo, login artwork and theme, applied by `npm run brand`.                                                                                                                   |
@@ -49,11 +49,12 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `course_teaching`, `course_accreditation_staff`, `timetables`,
 `timetable_lessons`, `timetable_slots`, `timetable_slot_staff`, `timetable_slot_courses`, `room_aliases`, `bachelor_theses`,
 `master_theses`,
-`bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`, `discord_channels`,
+`bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`,
+`institutes`, `institute_members`, `faculty_centers`, `discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
 `anto_quotes`. Students are public only as council members, by name
-(their index numbers stay private); every other student, every Moodle user
-and the operations bookkeeping stay private. The theses name their students, as the
+(their index numbers stay private); every other student, every Moodle user,
+the operations bookkeeping and `faculty_import_issues` stay private. The theses name their students, as the
 faculty's own thesis lists do. These read permissions (and the `MCP` role's
 identical ones) are declared in `src/data-model/access.ts` and created by
 `npm run setup`.
@@ -111,7 +112,8 @@ The model is declared in `src/data-model/` and installed by
 `npm run setup`. Studio shows every collection, field and folder name in
 Title Case and files the collections into folders by subject: Search,
 Courses, Teaching, Accreditations, Degree Programs, People, Timetables &
-Rooms, Enrollments, Theses, Discord Bot and Internals. Search holds the
+Rooms, Enrollments, Theses, Discord Bot and Internals. People also holds the
+institutes, their members and the centers. Search holds the
 Moodle users and their **Search** bookmark, which finds students by the
 courses they took or did not. By course (the default), a course matches
 every Moodle course the last count counted for it, in any year: its name
@@ -283,6 +285,37 @@ member or an alias rebuilds them. The import answers the names still
 unmatched, most frequent first. All four tables are written only by the
 import and its rebuild.
 
+## Faculty structure
+
+**Data / Import faculty structure daily** (05:30) reads the public pages of
+finki.ukim.mk (`FACULTY_SITE_URL` overrides the site) under
+`/za-nas/rakovodstvo-i-organizacija/`: the Dean's office page, the teaching and
+research council, the four institute pages and the list of centers, plus the
+staff profiles of the WordPress REST API (`nastaven_kadar`, their photos in
+`media`). It fills `institutes` (name, page and head), `institute_members`
+and `faculty_centers` (name, own site and head), sets `council_member`
+on staff, and sets each matched staff member's `photo` and `bio` (the
+resume tab of the profile page, as paragraphs; FINKI's default image is no
+photo). The Dean's office page is authoritative for the head of an institute:
+an institute's own page can name someone else. The parsers read the pages
+without a DOM; a page whose structure they do not recognise fails the whole
+run and keeps the previous data. The run pauses between requests, so it takes
+a few minutes; **Data / Import faculty structure** on the dashboard runs it by
+hand.
+
+People are matched to staff by their profile page (`staff.profile`), then
+email, then name without titles; a name two staff members share matches no
+one. Anyone left over is listed in **Needs attention** (stored in
+`faculty_import_issues`, a private table in Internals): add the profile page or
+email to the staff member and the next import links them. `deans_office` stays
+hand-kept; the import only flags a current term that differs from the Dean's
+office page in the same list. `institutes`, `institute_members`,
+`faculty_centers` and `faculty_import_issues` are written only by the import
+(the database refuses other writes); `photo`, `bio` and `council_member` of
+staff are read-only in Studio and written only by the import, while every
+other staff column stays editable. Deploy order: `npm run setup` (it adds the
+columns, tables and Flows) before the image that contains the extension.
+
 ## Statistics
 
 The **Statistics** dashboard in Studio (installed by setup like Data
@@ -325,8 +358,10 @@ refresh on their own.
 **Insights → Data operations** starts with **Needs attention**, the data
 that is not linked up yet, each row linking to where it is fixed:
 
-- failed calculations, and the timetable or thesis import when it has not
-  succeeded for 26 hours;
+- failed calculations, and the timetable, thesis or faculty structure import
+  when it has not succeeded for 26 hours;
+- people of the faculty structure pages that match no staff member, and a
+  Dean's office term that differs from the Dean's office page;
 - subjects, teachers and rooms of the recent timetables that match nothing
   (add a Course, Staff or Room Name, or mark it ignored there);
 - Moodle courses of the current accreditations (2018 on) with at least 5
@@ -372,7 +407,8 @@ once when it is resolved:
 - a failed data operation or Moodle snapshot import;
 - the Directus container not healthy, or `/legacy/courses.json` not
   answering 200;
-- the timetable or thesis import not succeeding for over a day;
+- the timetable, thesis or faculty structure import not succeeding for over a
+  day;
 - new names in the published timetables that match no course, staff member
   or room;
 - new Moodle courses that are not counted although their name starts with a

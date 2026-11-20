@@ -354,6 +354,7 @@ const read = (failures: number, refused = false, busy = false) =>
 const viewOf = () =>
   statusView({
     attention: {
+      faculty: { count: 0, items: [] },
       lookalikes: { count: 0, items: [] },
       stale: [],
       unmatched: { count: 0, items: [] },

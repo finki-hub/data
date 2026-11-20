@@ -14,7 +14,8 @@
 -- moodle_history_memberships, course_enrollments, moodle_counted_lines,
 -- timetables, timetable_lessons, course_teaching, timetable_slots,
 -- timetable_slot_staff, timetable_slot_courses, bachelor_theses,
--- bachelor_thesis_staff, master_theses, master_thesis_staff,
+-- bachelor_thesis_staff, master_theses, master_thesis_staff, institutes,
+-- institute_members, faculty_centers, faculty_import_issues,
 -- moodle_import_rows, data_operations, data_operation_matches, directus_*)
 -- carry no trigger.
 --

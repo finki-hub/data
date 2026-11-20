@@ -17,6 +17,7 @@ import {
 
 // A database stand-in that answers each statement by what it reads.
 const fakeSql = (answers: {
+  readonly faculty?: readonly unknown[];
   readonly lookalikes: readonly unknown[];
   readonly stale: readonly unknown[];
   readonly unmatched: readonly unknown[];
@@ -27,6 +28,9 @@ const fakeSql = (answers: {
       calls.push({ bindings, sql: statement });
       if (statement.includes('moodle_left_uncounted')) {
         return Promise.resolve({ rows: answers.lookalikes });
+      }
+      if (statement.includes('faculty_import_issues')) {
+        return Promise.resolve({ rows: answers.faculty ?? [] });
       }
       if (statement.includes('room_match')) {
         return Promise.resolve({ rows: answers.unmatched });
@@ -40,6 +44,16 @@ const fakeSql = (answers: {
 describe('Needs attention', () => {
   test('reads the look-alike Moodle courses, unmatched names and stopped imports', async () => {
     const { calls, sql } = fakeSql({
+      faculty: [
+        {
+          body: 'Teaching and research council',
+          detail: null,
+          id: 7,
+          kind: 'unmatched_person',
+          name: 'д-р Ново Лице',
+          total: '2',
+        },
+      ],
       lookalikes: [
         {
           course: 'Применета криптографија',
@@ -74,6 +88,18 @@ describe('Needs attention', () => {
     });
 
     await expect(readAttention(sql)).resolves.toEqual({
+      faculty: {
+        count: 2,
+        items: [
+          {
+            body: 'Teaching and research council',
+            detail: null,
+            kind: 'unmatched_person',
+            link: '/content/faculty_import_issues/7',
+            name: 'д-р Ново Лице',
+          },
+        ],
+      },
       lookalikes: {
         count: 3,
         items: [
@@ -97,7 +123,8 @@ describe('Needs attention', () => {
     expect(calls.map(({ bindings }) => bindings)).toEqual([
       [lookalikesFromYear, attentionListLimit],
       [attentionListLimit],
-      [staleAfterHours, staleAfterHours],
+      [attentionListLimit],
+      [staleAfterHours, staleAfterHours, staleAfterHours],
     ]);
     // A course left uncounted on purpose, and an uncounted line of an
     // older curriculum or of few students, stay off the list.
@@ -114,6 +141,7 @@ describe('Needs attention', () => {
     const { sql } = fakeSql({ lookalikes: [], stale: [], unmatched: [] });
 
     await expect(readAttention(sql)).resolves.toEqual({
+      faculty: { count: 0, items: [] },
       lookalikes: { count: 0, items: [] },
       stale: [],
       unmatched: { count: 0, items: [] },
@@ -123,6 +151,7 @@ describe('Needs attention', () => {
   test('totals every problem, failed calculations included', () => {
     const status = {
       attention: {
+        faculty: { count: 4, items: [] },
         lookalikes: { count: 2, items: [] },
         stale: [{ flow: 'Data / Import theses', lastAt: null, name: 'Theses' }],
         unmatched: { count: 3, items: [] },
@@ -145,7 +174,7 @@ describe('Needs attention', () => {
       ],
     } as unknown as StatusView;
 
-    expect(attentionTotal(status)).toBe(7);
+    expect(attentionTotal(status)).toBe(11);
   });
 
   test('says how many rows a list leaves out and when an import last succeeded', () => {

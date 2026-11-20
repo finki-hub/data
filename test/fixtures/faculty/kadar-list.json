@@ -1,0 +1,38 @@
+[
+  {
+    "id": 21650,
+    "slug": "slave-temkov",
+    "link": "https://finki.ukim.mk/kadar/slave-temkov/",
+    "title": {
+      "rendered": "Славе Темков"
+    },
+    "featured_media": 21657,
+    "kadar_kategorija": [
+      74
+    ]
+  },
+  {
+    "id": 21647,
+    "slug": "dimitar-mileski",
+    "link": "https://finki.ukim.mk/kadar/dimitar-mileski/",
+    "title": {
+      "rendered": "Димитар Милески"
+    },
+    "featured_media": 15124,
+    "kadar_kategorija": [
+      74
+    ]
+  },
+  {
+    "id": 21645,
+    "slug": "elizabeta-najdovska",
+    "link": "https://finki.ukim.mk/kadar/elizabeta-najdovska/",
+    "title": {
+      "rendered": "Елизабета Најдовска"
+    },
+    "featured_media": 15124,
+    "kadar_kategorija": [
+      80
+    ]
+  }
+]

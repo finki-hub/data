@@ -1,4 +1,4 @@
-import type { EnumChoice, ModelCollection } from '../schema.js';
+import type { EnumChoice, ModelCollection, ModelField } from '../schema.js';
 
 import {
   assignmentRoles,
@@ -58,6 +58,30 @@ const requiredChoice = (
   label: string,
 ) => enumField(field, choices, { allowOther: true, label, nullable: false });
 
+// The fields Data / Import faculty structure adds to staff; the rest of a staff member stays
+// hand-kept. Written only by the import (a Studio edit of them is not
+// offered), so the next import never contradicts a hand edit.
+// What a derived field says about where it comes from.
+const imported = { readOnly: true } as const;
+
+const facultyStaffFields = (): ModelField[] => [
+  scalar('photo', 'text', {
+    ...imported,
+    label: 'Photo',
+    note: "The address of the photo on the faculty's site; empty when the profile only has the faculty's default image.",
+  }),
+  scalar('bio', 'text', {
+    ...imported,
+    label: 'Biography',
+  }),
+  scalar('council_member', 'boolean', {
+    ...imported,
+    defaultValue: false,
+    label: 'Council member',
+    nullable: false,
+  }),
+];
+
 export const contentCollections: readonly ModelCollection[] = [
   {
     collection: 'courses',
@@ -106,6 +130,8 @@ export const contentCollections: readonly ModelCollection[] = [
       // The staff member's Moodle profile link, published as courses.
       scalar('courses', 'string', { label: 'Moodle profile' }),
       scalar('consultations', 'text', { label: 'Consultations page' }),
+      // Written by Data / Import faculty structure.
+      ...facultyStaffFields(),
     ],
     hidden: false,
     icon: 'group',

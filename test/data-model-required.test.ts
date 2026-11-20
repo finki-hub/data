@@ -37,6 +37,8 @@ describe('required columns of the published rows', () => {
       'title',
       'position',
       'email',
+      // Not published by hand; the import's council flag (false unless set).
+      'council_member',
     ]);
     expect(requiredOf('rooms')).toEqual(['name', 'type', 'location']);
   });

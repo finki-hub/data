@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { isCalculation } from './coordination/domains.js';
+import { issueKinds } from './faculty/vocabulary.js';
 
 // The answers of the status endpoint (status-endpoint.ts), declared once:
 // the endpoint builds them (status-view.ts) and the
@@ -49,10 +50,23 @@ const keySourceView = z.object({
 });
 
 // Data not linked up yet (attention-reads.ts): Moodle courses named like
-// a course that nothing counts, timetable names that match nothing, and
-// daily imports that stopped. Each list holds its first rows; its count
-// covers them all.
+// a course that nothing counts, timetable names that match nothing, people
+// of the faculty structure pages that match no staff member (or a dean's
+// office term that differs from the page), and daily imports that stopped.
+// Each list holds its first rows; its count covers them all.
 const attentionView = z.object({
+  faculty: z.object({
+    count,
+    items: z.array(
+      z.object({
+        body: text,
+        detail: maybeText,
+        kind: z.enum(issueKinds),
+        link: text,
+        name: text,
+      }),
+    ),
+  }),
   lookalikes: z.object({
     count,
     items: z.array(z.object({ course: text, label: text, link: text })),

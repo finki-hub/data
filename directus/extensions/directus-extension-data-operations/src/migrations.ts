@@ -97,6 +97,8 @@ export const schemaConstraints: Migration = {
     'CREATE INDEX IF NOT EXISTS "bachelor_thesis_staff_staff_index" ON "bachelor_thesis_staff" ("staff")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "master_thesis_staff_thesis_staff_role_unique" ON "master_thesis_staff" ("thesis", "staff", "role")',
     'CREATE INDEX IF NOT EXISTS "master_thesis_staff_staff_index" ON "master_thesis_staff" ("staff")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS "institute_members_institute_staff_unique" ON "institute_members" ("institute", "staff")',
+    'CREATE INDEX IF NOT EXISTS "institute_members_staff_index" ON "institute_members" ("staff")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "degree_program_courses_program_course_code_unique" ON "degree_program_courses" ("program", "course", "code")',
     'CREATE INDEX IF NOT EXISTS "degree_program_courses_course_index" ON "degree_program_courses" ("course")',
     'CREATE UNIQUE INDEX IF NOT EXISTS "degree_program_slots_program_semester_kind_unique" ON "degree_program_slots" ("program", "semester", "kind")',

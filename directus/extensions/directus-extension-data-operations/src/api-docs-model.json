@@ -772,6 +772,84 @@
       "plural": "Exam Sessions",
       "singular": "Exam Session"
     },
+    "faculty_centers": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "page": {
+          "label": "Page"
+        },
+        "head": {
+          "label": "Head",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "imported_at": {
+          "label": "Imported"
+        }
+      },
+      "plural": "Centers",
+      "singular": "Center"
+    },
+    "institute_members": {
+      "fields": {
+        "institute": {
+          "label": "Institute",
+          "related": {
+            "collection": "institutes",
+            "label": "Institute",
+            "many": false
+          }
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        }
+      },
+      "plural": "Institute Members",
+      "singular": "Institute Member"
+    },
+    "institutes": {
+      "fields": {
+        "name": {
+          "label": "Name"
+        },
+        "page": {
+          "label": "Page"
+        },
+        "head": {
+          "label": "Head",
+          "note": "As the Dean's office page names the head of the institute; the institute's own page can disagree.",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "imported_at": {
+          "label": "Imported",
+          "note": "Every import replaces the structure; the host alerts when it gets old."
+        },
+        "members": {
+          "label": "Members",
+          "related": {
+            "collection": "institute_members",
+            "label": "Institute Members",
+            "many": true
+          }
+        }
+      },
+      "plural": "Institutes",
+      "singular": "Institute"
+    },
     "master_theses": {
       "fields": {
         "title": {
@@ -946,6 +1024,16 @@
         "consultations": {
           "label": "Consultations Page"
         },
+        "photo": {
+          "label": "Photo",
+          "note": "The address of the photo on the faculty's site; empty when the profile only has the faculty's default image."
+        },
+        "bio": {
+          "label": "Biography"
+        },
+        "council_member": {
+          "label": "Council Member"
+        },
         "assignments": {
           "label": "Teaches",
           "related": {
@@ -1007,6 +1095,30 @@
           "related": {
             "collection": "master_thesis_staff",
             "label": "Master Thesis Staff",
+            "many": true
+          }
+        },
+        "headed_institutes": {
+          "label": "Heads Institute",
+          "related": {
+            "collection": "institutes",
+            "label": "Institutes",
+            "many": true
+          }
+        },
+        "institutes": {
+          "label": "Institutes",
+          "related": {
+            "collection": "institute_members",
+            "label": "Institute Members",
+            "many": true
+          }
+        },
+        "headed_centers": {
+          "label": "Heads Center",
+          "related": {
+            "collection": "faculty_centers",
+            "label": "Centers",
             "many": true
           }
         }
