@@ -59,8 +59,9 @@ export const programStates = verbatimChoices([
   'нема',
 ]);
 
-// The four positions of the dean's office, stored as the workbook writes
-// them and labelled in English. The list is closed: a term is keyed by its
+// The positions of the dean's office (Деканат: the dean, the vice deans
+// and the secretary), stored as the workbook writes them and labelled in
+// English. The list is closed: a term is keyed by its
 // year and position (deans_office_year_position_unique).
 export const deanPositions = labelledChoices(
   [
@@ -68,11 +69,13 @@ export const deanPositions = labelledChoices(
     'Продекан за настава',
     'Продекан за наука и соработка',
     'Продекан за финансии',
+    'Секретар',
   ],
   {
     Декан: 'Dean',
     'Продекан за настава': 'Vice-dean for teaching',
     'Продекан за наука и соработка': 'Vice-dean for science and cooperation',
     'Продекан за финансии': 'Vice-dean for finance',
+    Секретар: 'Secretary',
   },
 );

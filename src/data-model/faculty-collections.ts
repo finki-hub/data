@@ -81,7 +81,7 @@ export const facultyCollections: readonly ModelCollection[] = [
           template: instituteTemplate,
         },
         label: 'Head',
-        note: "As the Dean's office page names the head of the institute; the institute's own page can disagree.",
+        note: "As the management board (Деканатска управа) page names the head of the institute; the institute's own page can disagree.",
         template: staffTemplate,
       }),
       importedAt(true),

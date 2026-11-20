@@ -28,7 +28,7 @@ export type FacultyBody = (typeof facultyBodies)[number];
 export const bodyNames = {
   centers: 'Centers',
   council: 'Teaching and research council',
-  dean: "Dean's office",
+  dean: 'Management board',
   institutes: 'Institutes',
 } as const;
 

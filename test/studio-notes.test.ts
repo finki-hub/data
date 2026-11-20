@@ -119,7 +119,7 @@ const remainingNotes = [
   'master_theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
   'master_thesis_staff.name: As the thesis names the staff member; the public thesis files publish the staff name instead.',
   "master_thesis_staff.year: The thesis's year, for grouping.",
-  "institutes.head: As the Dean's office page names the head of the institute; the institute's own page can disagree.",
+  "institutes.head: As the management board (Деканатска управа) page names the head of the institute; the institute's own page can disagree.",
   'institutes.imported_at: Every import replaces the structure; the host alerts when it gets old.',
 ];
 

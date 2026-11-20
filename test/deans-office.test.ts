@@ -27,6 +27,7 @@ const positions = [
   'Продекан за настава',
   'Продекан за наука и соработка',
   'Продекан за финансии',
+  'Секретар',
 ];
 
 const holderLink = () => {
@@ -52,7 +53,7 @@ describe("the dean's office", () => {
     ]);
   });
 
-  test('offers the four positions only, labelled in English and refused otherwise', () => {
+  test('offers the five positions only, labelled in English and refused otherwise', () => {
     expect(deanPositions).toEqual([
       { label: 'Dean', value: 'Декан' },
       { label: 'Vice-dean for teaching', value: 'Продекан за настава' },
@@ -61,6 +62,7 @@ describe("the dean's office", () => {
         value: 'Продекан за наука и соработка',
       },
       { label: 'Vice-dean for finance', value: 'Продекан за финансии' },
+      { label: 'Secretary', value: 'Секретар' },
     ]);
     expect(findField('deans_office', 'position')).toMatchObject({
       choices: deanPositions,
