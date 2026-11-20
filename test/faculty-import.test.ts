@@ -43,9 +43,9 @@ import {
   clearStructureSql,
   currentTermSql,
   facultyLockSql,
+  insertBodyMembersSql,
   insertInstitutesSql,
   staffRefsSql,
-  updateCouncilSql,
   updateProfilesSql,
 } from '../directus/extensions/directus-extension-data-operations/src/faculty/sql.js';
 import {
@@ -87,6 +87,7 @@ const markup = /[<>]|&#/u;
 const missingDean = /no dean/u;
 const offSite = /not a page of the site/u;
 const site = 'https://finki.ukim.mk';
+const viceDeanTeaching = 'Продекан за настава';
 const softwareEngineering = 'Институт за софтверско инженерство';
 
 describe('reading the pages', () => {
@@ -107,7 +108,7 @@ describe('reading the pages', () => {
       office.officers.map(({ person, position }) => [position, person.name]),
     ).toEqual([
       ['Декан', 'д-р Петре Ламески'],
-      ['Продекан за настава', 'д-р Дејан Спасов'],
+      [viceDeanTeaching, 'д-р Дејан Спасов'],
       ['Продекан за наука и соработка', 'д-р Ристе Стојанов'],
       ['Продекан за финансии', 'д-р Александра Поповска Митровиќ'],
     ]);
@@ -130,10 +131,43 @@ describe('reading the pages', () => {
     expect(office.heads[1]?.person.email).toBe('ivan.chorbev@finki.ukim.mk');
   });
 
+  test('keeps the dean office cards in page order with their positions as written', () => {
+    expect(
+      parseDeanOffice(dean).members.map(({ person, position }) => [
+        position,
+        person.name,
+      ]),
+    ).toEqual([
+      ['Декан', 'д-р Петре Ламески'],
+      [viceDeanTeaching, 'д-р Дејан Спасов'],
+      ['Продекан за наука и соработка', 'д-р Ристе Стојанов'],
+      ['Продекан за финансии', 'д-р Александра Поповска Митровиќ'],
+      [
+        'Раководител на институт за теориски основи на информатика и пресметковно инженерство',
+        'д-р Весна Димитрова',
+      ],
+      ['Раководител на институт за софтверско инженерство', 'д-р Иван Чорбев'],
+      [
+        'Раководител на институт за информациски системи и мрежни технологии',
+        'д-р Боро Јакимовски',
+      ],
+      [
+        'Раководител на институт за интелигентни системи',
+        'д-р Невена Ацковска',
+      ],
+    ]);
+  });
+
   test('reads the council members and their profile links', () => {
     const members = parseCouncil(council);
 
-    expect(members).toHaveLength(5);
+    expect(members.map(({ name }) => name)).toEqual([
+      'д-р Марјан Гушев',
+      'д-р Катерина Здравкова',
+      'д-р Сузана Лошковска',
+      'д-р Верица Бакева',
+      'д-р Владимир Трајковиќ',
+    ]);
     expect(members[0]).toEqual({
       email: null,
       name: 'д-р Марјан Гушев',
@@ -360,7 +394,7 @@ describe('the faculty structure plan', () => {
     { name: 'Петре Ламески', position: 'Декан', staff: 1, year: 2_026 },
     {
       name: 'Ристе Стојанов',
-      position: 'Продекан за настава',
+      position: viceDeanTeaching,
       staff: 3,
       year: 2_026,
     },
@@ -388,7 +422,29 @@ describe('the faculty structure plan', () => {
   });
 
   test('matches the council and the centers, and records the people left over', () => {
-    expect(plan.councilIds).toEqual([]);
+    // Of both bodies only the dean office page's people are on staff here,
+    // in page order with the position as the page writes it.
+    expect(plan.bodyMembers).toEqual([
+      { body: 'management_board', position: 'Декан', sort: 1, staff: 1 },
+      {
+        body: 'management_board',
+        position: viceDeanTeaching,
+        sort: 2,
+        staff: 2,
+      },
+      {
+        body: 'management_board',
+        position: 'Продекан за наука и соработка',
+        sort: 3,
+        staff: 3,
+      },
+      {
+        body: 'management_board',
+        position: 'Раководител на институт за софтверско инженерство',
+        sort: 6,
+        staff: 5,
+      },
+    ]);
     expect(plan.centers.map(({ head }) => head)).toEqual(
       plan.centers.map(({ head }) => (head === 5 ? 5 : null)),
     );
@@ -435,7 +491,7 @@ describe('the faculty structure plan', () => {
     const flagged = plan.issues.filter(({ kind }) => kind === 'deans_office');
 
     expect(flagged.map(({ name }) => name)).toEqual([
-      'Продекан за настава',
+      viceDeanTeaching,
       'Продекан за наука и соработка',
     ]);
     expect(flagged[0]?.detail).toBe(
@@ -627,7 +683,7 @@ describe('the faculty structure import', () => {
       clearStructureSql,
     );
     expect(sql.at(-2)).toBe(updateProfilesSql);
-    expect(sql.at(-1)).toBe(updateCouncilSql);
+    expect(sql.at(-1)).toBe(insertBodyMembersSql);
 
     const institutes = log.find(
       ({ sql: text }) => text === insertInstitutesSql,
@@ -748,23 +804,20 @@ describe('the faculty structure model', () => {
     expect(facultyKeys.map(keyText)).toEqual([
       'unique institute_members (institute, staff)',
       'index institute_members (staff)',
+      'unique faculty_body_members (body, staff)',
     ]);
   });
 
   test('writes the staff columns only by the import: Studio shows them read-only', () => {
-    for (const field of ['photo', 'bio', 'council_member']) {
+    for (const field of ['photo', 'bio']) {
       expect(findField('staff', field)).toMatchObject({ readOnly: true });
     }
-
-    expect(findField('staff', 'council_member')).toMatchObject({
-      defaultValue: false,
-      nullable: false,
-    });
 
     for (const collection of [
       'institutes',
       'institute_members',
       'faculty_centers',
+      'faculty_body_members',
       'faculty_import_issues',
     ]) {
       expect(

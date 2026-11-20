@@ -772,6 +772,29 @@
       "plural": "Exam Sessions",
       "singular": "Exam Session"
     },
+    "faculty_body_members": {
+      "fields": {
+        "body": {
+          "label": "Body"
+        },
+        "position": {
+          "label": "Position"
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "sort": {
+          "label": "Page Order"
+        }
+      },
+      "plural": "Faculty Bodies",
+      "singular": "Faculty Body Member"
+    },
     "faculty_centers": {
       "fields": {
         "name": {
@@ -1030,9 +1053,6 @@
         },
         "bio": {
           "label": "Biography"
-        },
-        "council_member": {
-          "label": "Council Member"
         },
         "assignments": {
           "label": "Teaches",

@@ -150,6 +150,7 @@ export type ModelCollectionKey =
   | 'discord_channel_courses'
   | 'discord_channels'
   | 'exam_sessions'
+  | 'faculty_body_members'
   | 'faculty_centers'
   | 'faculty_import_issues'
   | 'institute_members'

@@ -50,7 +50,8 @@ Public collections: `courses`, `course_curricula`, `curriculum_entries`,
 `timetable_lessons`, `timetable_slots`, `timetable_slot_staff`, `timetable_slot_courses`, `room_aliases`, `bachelor_theses`,
 `master_theses`,
 `bachelor_thesis_staff`, `master_thesis_staff`, `rooms`, `deans_office`,
-`institutes`, `institute_members`, `faculty_centers`, `discord_channels`,
+`institutes`, `institute_members`, `faculty_centers`, `faculty_body_members`,
+`discord_channels`,
 `discord_channel_courses`, `student_council`, `exam_sessions` and
 `anto_quotes`. Students are public only as council members, by name
 (their index numbers stay private); every other student, every Moodle user,
@@ -293,8 +294,12 @@ finki.ukim.mk (`FACULTY_SITE_URL` overrides the site) under
 research council, the four institute pages and the list of centers, plus the
 staff profiles of the WordPress REST API (`nastaven_kadar`, their photos in
 `media`). It fills `institutes` (name, page and head), `institute_members`
-and `faculty_centers` (name, own site and head), sets `council_member`
-on staff, and sets each matched staff member's `photo` and `bio` (the
+and `faculty_centers` (name, own site and head), keeps the current
+members of the management board (Деканатска управа: the dean, the vice deans
+and the institute heads) and of the council (Наставно-научен совет) in
+`faculty_body_members` (body, position as the page writes it, staff member and
+`sort`, the place on the page; the council's position is empty), and sets
+each matched staff member's `photo` and `bio` (the
 resume tab of the profile page, as paragraphs; FINKI's default image is no
 photo). The Dean's office page is authoritative for the head of an institute:
 an institute's own page can name someone else. The parsers read the pages
@@ -308,11 +313,12 @@ email, then name without titles; a name two staff members share matches no
 one. Anyone left over is listed in **Needs attention** (stored in
 `faculty_import_issues`, a private table in Internals): add the profile page or
 email to the staff member and the next import links them. `deans_office` stays
-hand-kept; the import only flags a current term that differs from the Dean's
+the place for terms and history (`faculty_body_members` holds the current
+state only, replaced on every run); the import only flags a current term that differs from the Dean's
 office page in the same list. `institutes`, `institute_members`,
-`faculty_centers` and `faculty_import_issues` are written only by the import
-(the database refuses other writes); `photo`, `bio` and `council_member` of
-staff are read-only in Studio and written only by the import, while every
+`faculty_centers`, `faculty_body_members` and `faculty_import_issues` are
+written only by the import (the database refuses other writes); `photo` and
+`bio` of staff are read-only in Studio and written only by the import, while every
 other staff column stays editable. Deploy order: `npm run setup` (it adds the
 columns, tables and Flows) before the image that contains the extension.
 

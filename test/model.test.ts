@@ -118,6 +118,7 @@ describe('studio metadata', () => {
       'bachelor_thesis_staff',
       'master_theses',
       'master_thesis_staff',
+      'faculty_body_members',
       'institutes',
       'institute_members',
       'faculty_centers',

@@ -75,6 +75,7 @@ export const folders: readonly Folder[] = [
     members: [
       'staff',
       'deans_office',
+      'faculty_body_members',
       'institutes',
       'institute_members',
       'faculty_centers',

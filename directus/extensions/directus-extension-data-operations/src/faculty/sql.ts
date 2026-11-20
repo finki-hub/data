@@ -23,6 +23,7 @@ export const clearStructureSql: readonly string[] = [
   'DELETE FROM "institutes"',
   'DELETE FROM "faculty_centers"',
   'DELETE FROM "faculty_import_issues"',
+  'DELETE FROM "faculty_body_members"',
 ];
 
 // Binding: the institutes as JSON ({name, page, head}).
@@ -52,8 +53,7 @@ export const updateProfilesSql = `UPDATE "staff" s SET "photo" = r."photo", "bio
 FROM json_to_recordset(?::json) AS r("id" integer, "photo" text, "bio" text)
 WHERE s."id" = r."id" AND (s."photo" IS DISTINCT FROM r."photo" OR s."bio" IS DISTINCT FROM r."bio")`;
 
-// Binding: the staff ids of the council members as JSON. Only a row that
-// changes is written.
-export const updateCouncilSql = `WITH ids AS (SELECT json_array_elements_text(?::json)::integer AS "id")
-UPDATE "staff" s SET "council_member" = EXISTS (SELECT 1 FROM ids WHERE ids."id" = s."id")
-WHERE s."council_member" IS DISTINCT FROM EXISTS (SELECT 1 FROM ids WHERE ids."id" = s."id")`;
+// Binding: the body members as JSON ({body, position, staff, sort}).
+export const insertBodyMembersSql = `INSERT INTO "faculty_body_members" ("body", "position", "staff", "sort")
+SELECT r."body", r."position", r."staff", r."sort"
+FROM json_to_recordset(?::json) AS r("body" text, "position" text, "staff" integer, "sort" integer)`;
