@@ -1,5 +1,6 @@
 import type { DirectusRequest } from '../directus-request.js';
 
+import { facultyImportFlows } from './faculty-import.js';
 import {
   type FlowFamilyCode,
   flowFamilyCodes,
@@ -56,6 +57,11 @@ export const flowFamilies: readonly FlowFamily[] = [
     code: flowFamilyCodes.theses,
     name: 'Thesis import',
     templates: thesisImportFlows,
+  },
+  {
+    code: flowFamilyCodes.faculty,
+    name: 'Faculty structure import',
+    templates: facultyImportFlows,
   },
   {
     code: flowFamilyCodes.automation,

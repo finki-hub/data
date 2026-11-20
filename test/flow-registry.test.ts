@@ -35,6 +35,9 @@ const installedFlowIds = [
   // The thesis import family: its button and its daily schedule.
   '1901',
   '1902',
+  // The faculty structure import family: its button and its daily schedule.
+  '2001',
+  '2002',
   // Retiring publication (2026-11-14) removed the publication (1404,
   // 1405) and publish (1502, 1501) families.
   // Batch 1, step 17: the rule seeding family of Task 16 (1602, 1601) is
@@ -288,7 +291,8 @@ describe('the Flow family registry', () => {
   });
 
   // Process pending is the one schedule that triggers children; the daily
-  // timetable and thesis imports trigger none and may run before it.
+  // timetable, thesis and faculty structure imports trigger none and may run
+  // before it.
   test('installs every triggered child before its parent and the schedule last', () => {
     const order = flowTemplates().map(({ id }) => id);
     const late = flowTemplates().flatMap((template) =>
@@ -302,7 +306,7 @@ describe('the Flow family registry', () => {
     );
 
     expect(late).toEqual([]);
-    expect(schedules).toHaveLength(3);
+    expect(schedules).toHaveLength(4);
     expect(parents).toHaveLength(1);
     expect(flowTemplates().at(-1)).toBe(parents[0]);
     expect(flowFamilies.at(-1)?.code).toBe(flowFamilyCodes.automation);

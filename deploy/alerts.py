@@ -16,6 +16,7 @@
       spelling or an English group); posted once each, when it first appears
     - the timetable import not succeeding for over a day
     - the thesis import not succeeding for over a day
+    - the faculty structure import not succeeding for over a day
 
 The webhook URL is read from /root/directus/alerts.env (DISCORD_WEBHOOK_URL)
 and never printed. The last seen state lives in /var/lib/directus-alerts, so
@@ -59,6 +60,8 @@ LEGACY = "https://data.finki-hub.com/legacy/courses.json"
 TIMETABLE_STALE_SECONDS = 26 * 3600
 # The daily thesis import runs at 05:00; every success sets imported_at.
 THESES_STALE_SECONDS = 26 * 3600
+# The daily faculty structure import runs at 05:30; every success sets imported_at.
+FACULTY_STALE_SECONDS = 26 * 3600
 
 
 def webhook() -> str:
@@ -247,6 +250,9 @@ def watch() -> None:
         *check_stale(state, key="theses_stale", table="bachelor_theses",
                      column="imported_at", limit=THESES_STALE_SECONDS,
                      what="thesis", flow="Import theses"),
+        *check_stale(state, key="faculty_stale", table="institutes",
+                     column="imported_at", limit=FACULTY_STALE_SECONDS,
+                     what="faculty structure", flow="Import faculty structure"),
         *check_moodle(state),
     ]
     STATE.parent.mkdir(parents=True, exist_ok=True)

@@ -14,6 +14,7 @@ const idPrefix = '6a1d9f0e-2b3c-4d5e-8f70-00000000';
 // family is one code here and one registry entry.
 export const flowFamilyCodes = {
   automation: '13',
+  faculty: '20',
   history: '09',
   matching: '17',
   snapshot: '10',
