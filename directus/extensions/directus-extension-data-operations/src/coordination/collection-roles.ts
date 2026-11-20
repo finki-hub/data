@@ -111,6 +111,21 @@ const thesisDerived = <const Collection extends string>(
     role: 'derived',
   }) as const;
 
+// A table of the faculty structure import, which opens all four with one
+// setting.
+const facultyDerived = <const Collection extends string>(
+  collection: Collection,
+) =>
+  ({
+    collection,
+    guard: {
+      hint: 'Source: the structure pages of finki.ukim.mk, staff; rebuilt by: Data / Import faculty structure',
+      writer: 'faculty_writer',
+      writtenBy: 'faculty structure import',
+    },
+    role: 'derived',
+  }) as const;
+
 // Sources in the order their triggers are installed, then the others.
 const collectionRoles = [
   // Every course is counted in every academic year.
@@ -220,6 +235,13 @@ const collectionRoles = [
   thesisDerived('bachelor_thesis_staff'),
   thesisDerived('master_theses'),
   thesisDerived('master_thesis_staff'),
+  // The faculty structure import writes all four, and the photo, biography
+  // and council flag of staff (columns of a hand-kept table, which Studio
+  // does not offer for editing).
+  facultyDerived('institutes'),
+  facultyDerived('institute_members'),
+  facultyDerived('faculty_centers'),
+  facultyDerived('faculty_import_issues'),
   {
     collection: 'moodle_import_rows',
     guard: {

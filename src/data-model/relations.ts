@@ -7,6 +7,7 @@ import type {
 } from '../schema.js';
 
 import { dataModelCollections } from './collections.js';
+import { facultyKeys } from './faculty-collections.js';
 import { degreeProgramKeys } from './generation-collections.js';
 import { mappingKeys } from './mapping-collections.js';
 import { teachingKeys } from './teaching-collections.js';
@@ -245,5 +246,6 @@ export const compositeKeys: readonly CompositeKey[] = [
   },
   ...teachingKeys,
   ...thesisKeys,
+  ...facultyKeys,
   ...degreeProgramKeys,
 ];

@@ -118,6 +118,10 @@ describe('studio metadata', () => {
       'bachelor_thesis_staff',
       'master_theses',
       'master_thesis_staff',
+      'institutes',
+      'institute_members',
+      'faculty_centers',
+      'faculty_import_issues',
     ]);
 
     // The history lines are the one source among them: Studio edits their

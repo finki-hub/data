@@ -74,14 +74,18 @@ export const docsGroups: readonly DocsGroup[] = [
   {
     collections: {
       deans_office: "The dean's office of each term.",
+      faculty_centers: 'The faculty centers and their heads.',
+      institute_members: 'The staff members of each institute.',
+      institutes: 'The institutes of the faculty and their heads.',
       staff:
-        'Teaching staff: title, position, office, email and profile links.',
+        'Teaching staff: title, position, office, email, profile links, photo, biography and whether they sit on the teaching and research council.',
       student_council: 'The faculty student assembly (ФСС) of each year.',
       students: 'Students who are student assembly members, by name.',
     },
-    description: 'Staff, faculty management and the student assembly.',
+    description:
+      'Staff, faculty management, institutes, centers and the student assembly.',
     example:
-      '/items/staff?fields=name,title,position,email,cabinet&search=Димитрова',
+      '/items/staff?fields=name,title,position,email,cabinet,photo&search=Димитрова',
     name: 'People',
   },
   {

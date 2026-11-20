@@ -55,6 +55,7 @@ const remainingNotes = [
   'courses.status: All professors publishes "Сите професори" as professors. Inactive publishes "(неактивиран предмет)" as professors and assistants.',
   'courses.pattern_mappings: A new course gets <name>- with the default year pattern. A renamed course keeps its mappings; a new Moodle name needs its own pattern.',
   'staff.finki: Off for other faculties, visiting professors and external collaborators: they stay active unless there is a reason not to.',
+  "staff.photo: The address of the photo on the faculty's site; empty when the profile only has the faculty's default image.",
   'exam_sessions.file: The PDF or Excel schedule, published under its file name.',
   'curriculum_entries.code: The digit after L is the level: F18L3W055 is level 3.',
   "curriculum_entries.channel: Published as channel. Independent of the course's Discord channel.",
@@ -118,6 +119,8 @@ const remainingNotes = [
   'master_theses.imported_at: Every import replaces every thesis; the host alerts when it gets old.',
   'master_thesis_staff.name: As the thesis names the staff member; the public thesis files publish the staff name instead.',
   "master_thesis_staff.year: The thesis's year, for grouping.",
+  "institutes.head: As the Dean's office page names the head of the institute; the institute's own page can disagree.",
+  'institutes.imported_at: Every import replaces the structure; the host alerts when it gets old.',
 ];
 
 // Every Studio name, note and template of the model and the presentation,

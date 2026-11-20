@@ -15,6 +15,7 @@ import {
   dataModelCollectionKeys,
   dataModelCollections,
 } from '../src/data-model/collections.js';
+import { facultyKeys } from '../src/data-model/faculty-collections.js';
 import {
   enumMaxLength,
   toAliasPayload,
@@ -147,8 +148,8 @@ const relationBody = z.object({
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(47);
-    expect(new Set(dataModelCollectionKeys).size).toBe(47);
+    expect(dataModelCollectionKeys).toHaveLength(51);
+    expect(new Set(dataModelCollectionKeys).size).toBe(51);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',
@@ -373,6 +374,8 @@ describe('domain keys', () => {
       ...teachingKeys.map(keyText),
       // The thesis keys: thesis-import.test.ts.
       ...thesisKeys.map(keyText),
+      // The faculty structure keys: faculty-import.test.ts.
+      ...facultyKeys.map(keyText),
       'unique degree_program_courses (program, course, code)',
       'index degree_program_courses (course)',
       'unique degree_program_slots (program, semester, kind)',
@@ -745,6 +748,10 @@ describe('relations and aliases', () => {
       'staff.bachelor_theses',
       'master_theses.committee',
       'staff.master_theses',
+      'staff.headed_institutes',
+      'institutes.members',
+      'staff.institutes',
+      'staff.headed_centers',
     ]);
     expect(
       aliases.filter(({ derived, readOnly }) => derived !== readOnly),

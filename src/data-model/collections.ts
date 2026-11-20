@@ -5,6 +5,7 @@ import {
   contentCollections,
 } from './content-collections.js';
 import { curriculumCollections } from './curriculum-collections.js';
+import { facultyCollections } from './faculty-collections.js';
 import { generationCollections } from './generation-collections.js';
 import { mappingCollections } from './mapping-collections.js';
 import { moodleCollections } from './moodle-collections.js';
@@ -17,7 +18,7 @@ import { thesisCollections } from './thesis-collections.js';
 // content and reference lists the workbook import fills first, the bot
 // content, then the collections that link them, the Moodle collections
 // with their pattern mappings, the operations bookkeeping, the timetable
-// teaching data and the theses.
+// teaching data, the theses and the faculty structure.
 export const dataModelCollections: readonly ModelCollection[] = [
   ...contentCollections,
   ...referenceCollections,
@@ -29,6 +30,7 @@ export const dataModelCollections: readonly ModelCollection[] = [
   ...operationsCollections,
   ...teachingCollections,
   ...thesisCollections,
+  ...facultyCollections,
 ];
 
 export const dataModelCollectionKeys: readonly ModelCollectionKey[] =
