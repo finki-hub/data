@@ -175,7 +175,9 @@ describe('the public API reference', () => {
       oneOf: [{ type: 'integer' }, { $ref: '#/components/schemas/ItemsStaff' }],
     });
   });
+});
 
+describe('the public API reference fields, files and page', () => {
   test('describes a field by its label, what it points to and its note', () => {
     expect(fieldDescription({ label: 'Name' })).toBe('Name.');
     expect(

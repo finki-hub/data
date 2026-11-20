@@ -27,7 +27,7 @@ export const lookalikesFromYear = 2_018;
 // letters or more), unless listed in Left Uncounted; the most recent
 // first. The alert in deploy/alerts.py posts the new ones of every year.
 // Bindings: lookalikesFromYear, the list limit.
-const lookalikeSql = `WITH candidates AS (
+const lookalikeSql = String.raw`WITH candidates AS (
   SELECT e.id, e.label, substring(e.label from '(20[0-9]{2})')::integer AS year
   FROM moodle_course_entries e
   WHERE substring(e.label from '(20[0-9]{2})')::integer >= ?
@@ -50,7 +50,7 @@ FROM sized s
 JOIN LATERAL (
   SELECT names.id FROM names
   WHERE length(names.n) >= 6
-    AND starts_with(lower(regexp_replace(s.label, '\\s+', ' ', 'g')), names.n)
+    AND starts_with(lower(regexp_replace(s.label, '\s+', ' ', 'g')), names.n)
   ORDER BY length(names.n) DESC LIMIT 1
 ) best ON TRUE
 JOIN courses c ON c.id = best.id
