@@ -18,6 +18,23 @@ export const fieldPresentations: readonly FieldPresentation[] = [
     },
   },
   { collection: 'teaching_assignments', field: 'sort', meta: { hidden: true } },
+  // Bookkeeping of the imports, never read in Studio.
+  { collection: 'timetables', field: 'fingerprint', meta: { hidden: true } },
+  {
+    collection: 'course_enrollments',
+    field: 'computed_revision',
+    meta: { hidden: true },
+  },
+  // Moodle profile fields that are almost always empty (old messengers)
+  // or the same for everyone (the timezone); the scraper still fills them.
+  ...['AIM', 'ICQ', 'MSN', 'MoodleNet', 'Skype', 'Timezone', 'Yahoo'].flatMap(
+    (name) =>
+      ['new', 'old'].map((instance) => ({
+        collection: 'moodle_users',
+        field: `${name}_${instance}`,
+        meta: { hidden: true },
+      })),
+  ),
   // A channel's list picks existing courses; it never creates one (the
   // junction lists already create no related row).
   {
