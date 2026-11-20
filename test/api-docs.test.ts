@@ -16,6 +16,7 @@ import { legacyFiles } from '../directus/extensions/directus-extension-data-oper
 import {
   apiDocsModelPath,
   buildApiDocsModel,
+  docsNotes,
   serializeApiDocsModel,
 } from '../src/api-docs-model.js';
 import { publicReads } from '../src/data-model/access.js';
@@ -264,6 +265,16 @@ describe('the public API reference', () => {
         'utf8',
       ),
     ).toBe(serializeApiDocsModel(buildApiDocsModel()));
+  });
+
+  test('replaces only the notes of public fields', () => {
+    const { collections } = buildApiDocsModel();
+    const shown = Object.keys(docsNotes).map((key) => {
+      const [collection = '', field = ''] = key.split('.', 2);
+      return [key, collections[collection]?.fields[field]?.note] as const;
+    });
+
+    expect(Object.fromEntries(shown)).toStrictEqual(docsNotes);
   });
 
   test('loads the reference from the pinned script the page policy allows', () => {

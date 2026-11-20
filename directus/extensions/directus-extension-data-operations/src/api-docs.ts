@@ -73,19 +73,21 @@ export const docsGroups: readonly DocsGroup[] = [
   },
   {
     collections: {
-      deans_office: "The dean's office of each term.",
+      deans_office: 'The dean and vice deans of each term.',
       faculty_body_members:
         'The current members of the management board (Деканатска управа) and of the teaching and research council (Наставно-научен совет), in page order.',
       faculty_centers: 'The faculty centers and their heads.',
       institute_members: 'The staff members of each institute.',
       institutes: 'The institutes of the faculty and their heads.',
       staff:
-        'Teaching staff: title, position, office, email, profile links, photo, biography and whether they sit on the teaching and research council.',
-      student_council: 'The faculty student assembly (ФСС) of each year.',
-      students: 'Students who are student assembly members, by name.',
+        'Staff members, visiting professors and external collaborators: title, position, office, email, profile links, photo, biography, and whether they are active and FINKI staff.',
+      student_council:
+        'The members of the faculty student council (ФСС) of each year, by position.',
+      students:
+        'The students who have sat on the student council, by name only. Other students are not public.',
     },
     description:
-      'Staff, faculty management, institutes, centers and the student assembly.',
+      'Staff, faculty management, institutes, centers and the student council.',
     example:
       '/items/staff?fields=name,title,position,email,cabinet,photo&search=Димитрова',
     name: 'People',
@@ -93,7 +95,7 @@ export const docsGroups: readonly DocsGroup[] = [
   {
     collections: {
       exam_sessions:
-        'Exam sessions and colloquium weeks with their schedule files.',
+        'Exam sessions and colloquiums of each academic year, with their schedule files.',
       room_aliases: 'Other spellings of room names used by the timetables.',
       rooms: 'Rooms: type, location, floor and capacity.',
       timetable_lessons:
