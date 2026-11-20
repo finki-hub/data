@@ -116,6 +116,7 @@ describe('navigation', () => {
       folder_people: [
         'staff',
         'deans_office',
+        'faculty_body_members',
         'institutes',
         'institute_members',
         'faculty_centers',

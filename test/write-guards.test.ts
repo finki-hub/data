@@ -142,6 +142,7 @@ describe('write guards of the collection-role registry', () => {
       ],
       'finki_hub.faculty_writer': [
         'institutes',
+        'faculty_body_members',
         'institute_members',
         'faculty_centers',
         'faculty_import_issues',

@@ -239,6 +239,7 @@ const collectionRoles = [
   // and council flag of staff (columns of a hand-kept table, which Studio
   // does not offer for editing).
   facultyDerived('institutes'),
+  facultyDerived('faculty_body_members'),
   facultyDerived('institute_members'),
   facultyDerived('faculty_centers'),
   facultyDerived('faculty_import_issues'),

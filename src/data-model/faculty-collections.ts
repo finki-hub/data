@@ -3,6 +3,7 @@ import type { ModelCollection, ModelField } from '../schema.js';
 
 import {
   bodyNames,
+  facultyBodies,
   issueKinds,
 } from '../../directus/extensions/directus-extension-data-operations/src/faculty/vocabulary.js';
 import { staffTemplate } from './content-collections.js';
@@ -37,6 +38,33 @@ const importedAt = (noted = false) =>
   });
 
 export const facultyCollections: readonly ModelCollection[] = [
+  {
+    collection: 'faculty_body_members',
+    displayTemplate: '{{body}}: {{staff.name}}',
+    fields: [
+      enumField(
+        'body',
+        labelledChoices(facultyBodies, {
+          council: 'Наставно-научен совет',
+          management_board: 'Деканатска управа',
+        }),
+        { ...imported, label: 'Body', nullable: false },
+      ),
+      scalar('position', 'string', { ...imported, label: 'Position' }),
+      m2o('staff', 'staff', {
+        ...imported,
+        label: 'Staff member',
+        nullable: false,
+        template: staffTemplate,
+      }),
+      scalar('sort', 'integer', { ...imported, label: 'Page order' }),
+    ],
+    hidden: false,
+    icon: 'diversity_3',
+    label: { plural: 'Faculty bodies', singular: 'Faculty body member' },
+    singleton: false,
+    sort: 46,
+  },
   {
     collection: 'institutes',
     displayTemplate: instituteTemplate,
@@ -175,5 +203,11 @@ export const facultyKeys: readonly CompositeKey[] = [
     columns: ['staff'],
     kind: 'index',
     name: 'institute_members_staff_index',
+  },
+  {
+    collection: 'faculty_body_members',
+    columns: ['body', 'staff'],
+    kind: 'unique',
+    name: 'faculty_body_members_body_staff_unique',
   },
 ];

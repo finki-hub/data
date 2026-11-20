@@ -21,12 +21,12 @@ import {
   clearStructureSql,
   currentTermSql,
   facultyLockSql,
+  insertBodyMembersSql,
   insertCentersSql,
   insertInstitutesSql,
   insertIssuesSql,
   insertMembersSql,
   staffRefsSql,
-  updateCouncilSql,
   updateProfilesSql,
 } from './sql.js';
 import {
@@ -212,7 +212,7 @@ const writePlan = async (client: SqlClient, plan: Plan): Promise<void> => {
   await run(client, insertCentersSql, [json(plan.centers)]);
   await run(client, insertIssuesSql, [json(plan.issues)]);
   await run(client, updateProfilesSql, [json(plan.profiles)]);
-  await run(client, updateCouncilSql, [json(plan.councilIds)]);
+  await run(client, insertBodyMembersSql, [json(plan.bodyMembers)]);
 };
 
 export const runFacultyImport = async (
@@ -243,7 +243,7 @@ export const runFacultyImport = async (
     return {
       bios: plan.profiles.filter(({ bio }) => bio !== null).length,
       centers: plan.centers.length,
-      council: plan.councilIds.length,
+      council: plan.bodyMembers.filter(({ body }) => body === 'council').length,
       institutes: plan.institutes.length,
       issues: plan.issues.length,
       members: plan.members.length,

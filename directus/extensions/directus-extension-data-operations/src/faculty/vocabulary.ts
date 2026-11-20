@@ -18,6 +18,11 @@ export const issueKinds = ['deans_office', 'unmatched_person'] as const;
 
 export type IssueKind = (typeof issueKinds)[number];
 
+// The bodies whose current members the import keeps, in faculty_body_members.
+export const facultyBodies = ['management_board', 'council'] as const;
+
+export type FacultyBody = (typeof facultyBodies)[number];
+
 // The names the import gives the bodies it reads, as the dashboard lists
 // them.
 export const bodyNames = {

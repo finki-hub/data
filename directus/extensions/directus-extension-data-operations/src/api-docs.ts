@@ -74,6 +74,8 @@ export const docsGroups: readonly DocsGroup[] = [
   {
     collections: {
       deans_office: "The dean's office of each term.",
+      faculty_body_members:
+        'The current members of the management board (Деканатска управа) and of the teaching and research council (Наставно-научен совет), in page order.',
       faculty_centers: 'The faculty centers and their heads.',
       institute_members: 'The staff members of each institute.',
       institutes: 'The institutes of the faculty and their heads.',

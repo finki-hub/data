@@ -30,6 +30,11 @@ export type DeanOffice = {
     readonly institute: string;
     readonly person: Person;
   }>;
+  // Every card in page order, with the position as the page writes it.
+  readonly members: ReadonlyArray<{
+    readonly person: Person;
+    readonly position: string;
+  }>;
   // The dean and the vice deans, by the position the page names.
   readonly officers: ReadonlyArray<{
     readonly person: Person;
@@ -83,6 +88,7 @@ const emailOf = (html: string): null | string => {
 export const parseDeanOffice = (html: string): DeanOffice => {
   const officers: Array<DeanOffice['officers'][number]> = [];
   const heads: Array<DeanOffice['heads'][number]> = [];
+  const members: Array<DeanOffice['members'][number]> = [];
   for (const { inner } of elements(html, 'article', 'dekanat-card')) {
     const position = textOf(
       innerOf(inner, 'p', 'dekanat-card__position') ?? '',
@@ -99,6 +105,7 @@ export const parseDeanOffice = (html: string): DeanOffice => {
       hrefOf(nameBlock),
       emailOf(innerOf(inner, 'p', 'dekanat-card__email') ?? ''),
     );
+    members.push({ person: found, position });
     if (instituteHead.test(position)) {
       heads.push({
         institute: position.replace(instituteHead, '').trim(),
@@ -116,7 +123,7 @@ export const parseDeanOffice = (html: string): DeanOffice => {
       'dean office: no dean or no institute head',
     );
   }
-  return { heads, officers };
+  return { heads, members, officers };
 };
 
 // The council: every member card with the profile page it links.

@@ -13,7 +13,12 @@ import {
   type Person,
   type StaffRef,
 } from './match.js';
-import { type BodyName, bodyNames, type IssueKind } from './vocabulary.js';
+import {
+  type BodyName,
+  bodyNames,
+  type FacultyBody,
+  type IssueKind,
+} from './vocabulary.js';
 
 // What the import derives from the pages it read and from the staff and
 // dean's office it matches them to. Pure: the parsed pages in, the rows
@@ -44,12 +49,19 @@ export type Pages = {
 };
 
 export type Plan = {
+  // The current members of the management board and the council, in page
+  // order (`sort` is the place on the page).
+  readonly bodyMembers: ReadonlyArray<{
+    readonly body: FacultyBody;
+    readonly position: null | string;
+    readonly sort: number;
+    readonly staff: number;
+  }>;
   readonly centers: ReadonlyArray<{
     readonly head: null | number;
     readonly name: string;
     readonly page: null | string;
   }>;
-  readonly councilIds: readonly number[];
   readonly institutes: ReadonlyArray<{
     readonly head: null | number;
     readonly name: string;
@@ -290,17 +302,32 @@ export const buildPlan = (
     page: center.page,
   }));
 
-  const councilIds = unique(
-    pages.council
-      .map((person) => staffOf(bodyNames.council, person))
-      .filter(present),
-  );
+  // The people of both pages in page order; a person is on a body once.
+  // The unmatched ones are already recorded (heads and officers above).
+  const bodyMembers = [
+    ...pages.dean.members.map(({ person, position }) => ({
+      body: 'management_board' as const,
+      id: resolver.resolve(person),
+      position,
+    })),
+    ...pages.council.map((person) => ({
+      body: 'council' as const,
+      id: staffOf(bodyNames.council, person),
+      position: null,
+    })),
+  ].flatMap(({ body, id, position }, index, all) => {
+    const earlier = all
+      .slice(0, index)
+      .some((other) => other.body === body && other.id === id);
+    const sort = index - all.findIndex((other) => other.body === body) + 1;
+    return id === null || earlier ? [] : [{ body, position, sort, staff: id }];
+  });
 
   flagTerm(pages, term, resolver);
 
   return {
+    bodyMembers,
     centers,
-    councilIds,
     institutes,
     issues,
     members,

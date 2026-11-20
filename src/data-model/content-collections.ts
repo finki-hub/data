@@ -74,12 +74,6 @@ const facultyStaffFields = (): ModelField[] => [
     ...imported,
     label: 'Biography',
   }),
-  scalar('council_member', 'boolean', {
-    ...imported,
-    defaultValue: false,
-    label: 'Council member',
-    nullable: false,
-  }),
 ];
 
 export const contentCollections: readonly ModelCollection[] = [
