@@ -104,6 +104,10 @@ const holds = (live: unknown, declared: unknown): boolean =>
         holds((live as Record<string, unknown>)[key], value),
       );
 
+// A field's place in its form is the Studio user's to rearrange.
+const withoutSort = (meta: FieldPresentation['meta']) =>
+  Object.fromEntries(Object.entries(meta).filter(([key]) => key !== 'sort'));
+
 const groupStatuses = (
   state: PresentationState,
 ): ReadonlyMap<string, GroupStatus> =>
@@ -142,7 +146,7 @@ const planFields = (
       !applies &&
       live?.meta !== null &&
       live?.meta !== undefined &&
-      !holds(live.meta, patch.meta)
+      !holds(live.meta, withoutSort(patch.meta))
     ) {
       outdated.push(`${patch.collection}.${patch.field}`);
     }
