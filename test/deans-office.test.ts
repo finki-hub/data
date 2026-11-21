@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest';
 
-import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { schemaConstraints } from '../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import { deanPositions } from '../src/data-model/choice-lists.js';
 import {
@@ -17,6 +16,7 @@ import {
   toRelationPayload,
 } from '../src/data-model/relations.js';
 import { findCollection, findField } from './data-model-test-helpers.js';
+import { engineDefinitions as exportDefinitions } from './fixtures/sample-exports.js';
 import { effectiveFieldMeta } from './presentation-test-helpers.js';
 
 // The dean's office: each term a year, a position from a closed list and

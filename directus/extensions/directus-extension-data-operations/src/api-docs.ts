@@ -1,7 +1,7 @@
 // The public API reference at /docs: the OpenAPI document Directus generates
 // for anonymous callers, cut down to what they can use (reading the public
 // collections), described and grouped by subject like the Studio sidebar,
-// with the /legacy files added. This module imports nothing, so the docs
+// with the /catalog files added. This module imports nothing, so the docs
 // endpoint and the tests read it.
 
 export type DocsGroup = {
@@ -150,18 +150,12 @@ export const docsGroups: readonly DocsGroup[] = [
   },
 ];
 
-export const legacyTag = 'Legacy Files';
+export const catalogTag = 'Catalog';
 
-// The /legacy files and what each holds.
-export const legacyFileDescriptions: Readonly<Record<string, string>> = {
-  'anto.json': 'Anto quotes, as an array of strings.',
+// The /catalog files and what each holds.
+export const catalogFileDescriptions: Readonly<Record<string, string>> = {
   'courses.json':
-    'Every course with its accreditations, staff and enrollment counts, in the format the FINKI Hub site and bot read.',
-  'degree_program_courses.json': 'The courses of every study program.',
-  'degree_programs.json': 'Every study program.',
-  'rooms.json': 'Every room.',
-  'sessions.json': 'Exam session names mapped to their schedule files.',
-  'staff.json': 'Every staff member.',
+    'Every course with its accreditations, staff and enrollment counts, built from several collections.',
 };
 
 export type ApiDocsCollection = {
@@ -196,7 +190,9 @@ const description = `Read-only public data of FINKI Hub: courses, accreditations
 
 **GraphQL.** \`POST /graphql\`, with the schema at [/server/specs/graphql](/server/specs/graphql).
 
-**Files.** The \`/legacy\` JSON files are ready-made exports of the most used data.
+**Catalog.** \`/catalog/courses.json\` is every course as one ready-made file.
+
+**Files.** Exam schedules are public at \`/assets/<file id>/<file name>\`; \`exam_sessions\` links them.
 
 This reference describes the anonymous API. The full generated specification is at [/server/specs/oas](/server/specs/oas).`;
 
@@ -338,9 +334,9 @@ const mergeSchemas = (left: JsonSchema, right: JsonSchema): JsonSchema => {
   };
 };
 
-// The shape of a /legacy file, read from the file itself: the keys every
+// The shape of a /catalog file, read from the file itself: the keys every
 // row has are required, a value that is sometimes missing or null is not.
-// Only the file itself may be a map (sessions.json); a row is a record
+// Only the file itself may be a map; a row is a record
 // however many keys it has.
 export const inferSchema = (value: unknown, top = true): JsonSchema => {
   const type = typeOf(value);
@@ -375,17 +371,17 @@ export const inferSchema = (value: unknown, top = true): JsonSchema => {
   return type === 'null' ? {} : { type };
 };
 
-const legacyPaths = (
+const catalogPaths = (
   filenames: readonly string[],
   schemas: Readonly<Record<string, JsonSchema>>,
 ): Record<string, PathItem> =>
-  Object.fromEntries<PathItem>([
-    ...filenames.map((filename): [string, PathItem] => [
-      `/legacy/${filename}`,
+  Object.fromEntries<PathItem>(
+    filenames.map((filename): [string, PathItem] => [
+      `/catalog/${filename}`,
       {
         get: {
-          description: legacyFileDescriptions[filename] ?? '',
-          operationId: `legacy_${filename.replace('.json', '')}`,
+          description: catalogFileDescriptions[filename] ?? '',
+          operationId: `catalog_${filename.replace('.json', '')}`,
           responses: {
             '200': {
               content: {
@@ -395,46 +391,25 @@ const legacyPaths = (
             },
           },
           summary: filename,
-          tags: [legacyTag],
+          tags: [catalogTag],
         },
       },
     ]),
-    [
-      '/legacy/sessions/{file}',
-      {
-        get: {
-          description:
-            'The schedule file an exam session of sessions.json links.',
-          operationId: 'legacy_session_file',
-          parameters: [
-            {
-              in: 'path',
-              name: 'file',
-              required: true,
-              schema: { type: 'string' },
-            },
-          ],
-          responses: { '200': { description: 'The schedule file.' } },
-          summary: 'Exam session schedule file',
-          tags: [legacyTag],
-        },
-      },
-    ],
-  ]);
+  );
 
 const tagDescription = (group: DocsGroup) =>
   `${group.description}\n\nExample: [\`${group.example}\`](${group.example})`;
 
 // The anonymous OpenAPI document as the docs show it: only reading the
 // public collections, named and described as in Studio and grouped by
-// subject, the /legacy files with their shapes, and the schema fixes
+// subject, the /catalog files with their shapes, and the schema fixes
 // OpenAPI 3.0 validators ask for (a type beside nullable; every operation
 // open to anonymous callers).
 export const curateSpec = (
   raw: Spec,
   options: {
-    readonly legacyFilenames: readonly string[];
-    readonly legacySchemas: Readonly<Record<string, JsonSchema>>;
+    readonly catalogFilenames: readonly string[];
+    readonly catalogSchemas: Readonly<Record<string, JsonSchema>>;
     readonly model: ApiDocsModel;
     readonly publicUrl: string;
   },
@@ -488,7 +463,7 @@ export const curateSpec = (
     },
     paths: {
       ...paths,
-      ...legacyPaths(options.legacyFilenames, options.legacySchemas),
+      ...catalogPaths(options.catalogFilenames, options.catalogSchemas),
     },
     security: [{}],
     servers: [{ url: options.publicUrl }],
@@ -497,7 +472,7 @@ export const curateSpec = (
         description: tagDescription(group),
         name: group.name,
       })),
-      { description: 'Ready-made JSON exports.', name: legacyTag },
+      { description: 'Ready-made JSON exports.', name: catalogTag },
     ],
   };
 };
