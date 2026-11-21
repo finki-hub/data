@@ -280,8 +280,7 @@ const describeSchemas = (
   );
 };
 
-// The most keys an object may have before it reads as a map: sessions.json
-// maps every session's name to its file.
+// The most keys an object may have before it reads as a map.
 const mapKeys = 25;
 
 const typeOf = (value: unknown) => {
