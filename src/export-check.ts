@@ -2,8 +2,8 @@ import type { SourceReader } from '../directus/extensions/directus-extension-dat
 import type { PreparedFile } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import type { DirectusRequest } from './directus-request.js';
 
-import { readQuery } from '../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
 import { catalogFiles } from '../directus/extensions/directus-extension-data-operations/src/catalog-endpoint.js';
+import { readQuery } from '../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
 
 // The export check: builds every /catalog file with this checkout's export
 // code from a running Directus's data, read through its REST API, so a

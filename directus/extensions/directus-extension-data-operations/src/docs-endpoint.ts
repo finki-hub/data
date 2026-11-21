@@ -8,8 +8,8 @@ import {
   inferSchema,
   type JsonSchema,
 } from './api-docs.js';
-import { forwardError } from './endpoint-errors.js';
 import { catalogFiles } from './catalog-endpoint.js';
+import { forwardError } from './endpoint-errors.js';
 
 // GET /docs: the public API reference page; GET /docs/openapi.json: the
 // OpenAPI document it shows (api-docs.ts). The document is built from what

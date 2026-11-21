@@ -15,7 +15,7 @@ type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 // loopback and is written to, so it is named explicitly and never a
 // project holding data.
 
-let scheduleFileId = '';
+const uploaded = { scheduleFileId: '' };
 
 const loopbackHosts = new Set(['127.0.0.1', '[::1]', 'localhost']);
 
@@ -110,7 +110,7 @@ before(async () => {
   const file = created.parse(
     await data('/files', { body: form, method: 'POST' }),
   );
-  scheduleFileId = String(file.id);
+  uploaded.scheduleFileId = String(file.id);
   await post('/items/exam_sessions', [
     { file: file.id, name: '2099/2100 Јуни' },
     { file: file.id, name: '2099/2100 Септември' },
@@ -216,7 +216,7 @@ test('/catalog answers an unchanged file with 304', async () => {
 
 test('an exam schedule is public byte for byte', async () => {
   const response = await call(
-    `/assets/${scheduleFileId}/synthetic_session.pdf`,
+    `/assets/${uploaded.scheduleFileId}/synthetic_session.pdf`,
     {},
     false,
   );

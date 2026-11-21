@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
 import {
+  catalogFileDescriptions,
+  catalogTag,
   curateSpec,
   docsContentSecurityPolicy,
   docsGroups,
   docsPage,
   fieldDescription,
   inferSchema,
-  catalogFileDescriptions,
-  catalogTag,
   scalarScript,
 } from '../directus/extensions/directus-extension-data-operations/src/api-docs.js';
 import { catalogFiles } from '../directus/extensions/directus-extension-data-operations/src/catalog-endpoint.js';

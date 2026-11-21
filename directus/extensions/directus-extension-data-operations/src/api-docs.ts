@@ -375,8 +375,8 @@ const catalogPaths = (
   filenames: readonly string[],
   schemas: Readonly<Record<string, JsonSchema>>,
 ): Record<string, PathItem> =>
-  Object.fromEntries<PathItem>([
-    ...filenames.map((filename): [string, PathItem] => [
+  Object.fromEntries<PathItem>(
+    filenames.map((filename): [string, PathItem] => [
       `/catalog/${filename}`,
       {
         get: {
@@ -395,7 +395,7 @@ const catalogPaths = (
         },
       },
     ]),
-  ]);
+  );
 
 const tagDescription = (group: DocsGroup) =>
   `${group.description}\n\nExample: [\`${group.example}\`](${group.example})`;

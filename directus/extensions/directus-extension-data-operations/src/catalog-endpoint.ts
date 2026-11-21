@@ -1,6 +1,5 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
 
-import type { PreparedFile } from './exports/file-check.js';
 import type { ExportDefinition } from './exports/types.js';
 
 import { forwardError } from './endpoint-errors.js';
@@ -11,7 +10,11 @@ import {
   serializeFile,
   type SourceReader,
 } from './exports/engine.js';
-import { fileShape, validateFile } from './exports/file-check.js';
+import {
+  fileShape,
+  type PreparedFile,
+  validateFile,
+} from './exports/file-check.js';
 import { exportDefinitions } from './exports/index.js';
 
 // GET /catalog/courses.json: every course with its accreditations, staff
