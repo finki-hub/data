@@ -14,7 +14,7 @@ The live instance is <https://data.finki-hub.com>.
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/data-model/`                                         | The schema as code: every collection, field, relation, label and Studio presentation `npm run setup` installs.                                                               |
 | `src/flows/`                                              | The managed Flows: Moodle snapshot import, history index, enrollment counts and their schedule, and the timetable, thesis and faculty structure imports.                                        |
-| `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint, the `/legacy` endpoint and the `/docs` API reference. |
+| `directus/extensions/directus-extension-data-operations/` | The coordinator of the derived data, the snapshot import, the write guards, the dashboard panels, the status endpoint, the `/catalog` endpoint and the `/docs` API reference. |
 | `directus/extensions/directus-extension-course-search/`   | The **Search** layout over Moodle users (has all of / none of these courses, matched by course or by exact Moodle course name).                                              |
 | `directus/branding/`                                      | Logo, login artwork and theme, applied by `npm run brand`.                                                                                                                   |
 | `test/`                                                   | Unit and contract tests (`npm test`), plus two opt-in integration suites.                                                                                                    |
@@ -31,7 +31,7 @@ Of the uploaded files, only the exam schedules (the `Exam sessions` folder)
 are public, at `/assets/<file id>/<file name>`.
 **[data.finki-hub.com/docs](https://data.finki-hub.com/docs)** is the
 interactive API reference: every public collection described and grouped by
-subject, the query parameters, and the `/legacy` files, built from the
+subject, the query parameters, and the `/catalog` files, built from the
 OpenAPI document Directus generates for anonymous callers
 (`/docs/openapi.json`; the raw one is `/server/specs/oas`, the GraphQL
 schema `/server/specs/graphql`).
@@ -62,27 +62,20 @@ faculty's own thesis lists do. These read permissions (and the `MCP` role's
 identical ones) are declared in `src/data-model/access.ts` and created by
 `npm run setup`.
 
-### The legacy JSON files
+### The course catalog
 
-`GET https://data.finki-hub.com/legacy/<file>` serves `courses.json`,
-`rooms.json`, `staff.json`, `sessions.json` and `anto.json` in exactly the
-format the old assets bucket published, built from the live data, and
-`GET /legacy/sessions/<file name>` the schedule file an exam session links,
-so a consumer only swaps its base URL. The definitions live in
-`directus/extensions/directus-extension-data-operations/src/exports/`. A
-file is rebuilt at most once a minute and carries its SHA-256 as the
-`ETag`; when a rebuild fails (for example an Active course without a
-professor), the last good file keeps being served.
+`GET https://data.finki-hub.com/catalog/courses.json` serves every course
+with its accreditations, staff and enrollment counts, built from the live
+data by rules the collections alone do not carry (the staff from timetables,
+accreditation or manual links, the level from the code, only published
+generations and years). The definition lives in
+`directus/extensions/directus-extension-data-operations/src/exports/`. The
+file is rebuilt at most once a minute and carries its SHA-256 as the `ETag`;
+when a rebuild fails (for example an Active course without a professor), the
+last good file keeps being served.
 
-`degree_programs.json` lists every degree program (`code`, `title`,
-`title_en`, `cycle`, `ects`; null where the program pages give none) and
-`degree_program_courses.json` every course of a program's curriculum, one
-row per course and program: `course` and `cycle` (the course's `name` and
-`cycle` in `courses.json`, together its key there), `program`, `kind`
-(`mandatory`, `elective`), `semester`, `group` (`program_winter`,
-`program_summer`, `faculty_winter`, `faculty_summer`, `named`),
-`group_name`, `credits` and `code`, ordered by program and semester. Their
-values keep their types, unlike the text-only rows of the old files.
+Everything else is read from `/items`. Exam schedules, the files of the
+`Exam sessions` folder, are public at `/assets/<file id>/<file name>`.
 
 ### MCP
 
@@ -405,7 +398,7 @@ To deploy a change:
 once when it is resolved:
 
 - a failed data operation or Moodle snapshot import;
-- the Directus container not healthy, or `/legacy/courses.json` not
+- the Directus container not healthy, or `/catalog/courses.json` not
   answering 200;
 - the timetable, thesis or faculty structure import not succeeding for over a
   day;
@@ -459,7 +452,7 @@ derived, staging or status) is declared once in
 | `npm run generate:invalidation`                     | Rewrite `source-invalidation.sql` from the collection roles.                                                                                                                             |
 | `npm run setup`                                     | Install the model, migrations, presentation, Flows and dashboard into a running Directus.                                                                                                |
 | `npm run brand`                                     | Apply the branding.                                                                                                                                                                      |
-| `npm run check:exports`                             | Build every `/legacy` file with this checkout's export code from a running Directus's data (read only) and compare it with the file served now.                                          |
+| `npm run check:exports`                             | Build every `/catalog` file with this checkout's export code from a running Directus's data (read only) and compare it with the file served now.                                          |
 
 CI tests the exports on sample data only, and one row the live data
 refuses fails its whole file. Before merging a change to an export, or to
@@ -482,7 +475,7 @@ a project holding data:
   `DIRECTUS_SEARCH_TEST_TOKEN`, `DIRECTUS_SEARCH_TEST_MARKER_COLLECTION`
   and `DIRECTUS_SEARCH_TEST_MARKER_VALUE`;
 - `npm run test:integration` (the public and private reads and every
-  `/legacy` file) on a project setup has installed, named by
+  `/catalog` file) on a project setup has installed, named by
   `DIRECTUS_INTEGRATION_URL` and `DIRECTUS_INTEGRATION_TOKEN`;
 - `npm run test:e2e` (Playwright: the course-history search and the Data
   operations dashboard in Studio) on the same project, named by

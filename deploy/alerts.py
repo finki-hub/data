@@ -7,7 +7,7 @@
       was only overtaken by a newer edit and reran is not a failure)
     - a failed Moodle snapshot import
     - the Directus container not healthy
-    - /legacy/courses.json not answering 200
+    - /catalog/courses.json not answering 200
     - names in the published timetables that match no course, staff member
       or room
       (each posted once, when it first appears)
@@ -55,7 +55,7 @@ where e.label ~ '\d{4}'
   and (select count(*) from moodle_history_memberships m where m.entry = e.id) >= 5
 order by e.label
 """
-LEGACY = "https://data.finki-hub.com/legacy/courses.json"
+CATALOG = "https://data.finki-hub.com/catalog/courses.json"
 # The daily import runs at 04:30; a day plus two hours of slack.
 TIMETABLE_STALE_SECONDS = 26 * 3600
 # The daily thesis import runs at 05:00; every success sets imported_at.
@@ -101,9 +101,9 @@ def container_health() -> str:
     return result.stdout.strip() or "missing"
 
 
-def legacy_status() -> int:
+def catalog_status() -> int:
     try:
-        request = urllib.request.Request(LEGACY, headers={"User-Agent": "finki-hub-alerts"})
+        request = urllib.request.Request(CATALOG, headers={"User-Agent": "finki-hub-alerts"})
         with urllib.request.urlopen(request, timeout=30) as response:
             return response.status
     except urllib.error.HTTPError as error:
@@ -149,14 +149,14 @@ def check_health(state: dict) -> list[str]:
         )
     state["health"] = health
 
-    status = legacy_status()
-    was_ok = state.get("legacy", 200) == 200
+    status = catalog_status()
+    was_ok = state.get("catalog", 200) == 200
     if (status == 200) != was_ok:
         messages.append(
-            "✅ /legacy answers again" if status == 200
-            else f"🔴 **{LEGACY} answers {status or 'nothing'}**"
+            "✅ /catalog answers again" if status == 200
+            else f"🔴 **{CATALOG} answers {status or 'nothing'}**"
         )
-    state["legacy"] = status
+    state["catalog"] = status
     return messages
 
 

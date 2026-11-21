@@ -8,11 +8,11 @@ import {
   docsPage,
   fieldDescription,
   inferSchema,
-  legacyFileDescriptions,
-  legacyTag,
+  catalogFileDescriptions,
+  catalogTag,
   scalarScript,
 } from '../directus/extensions/directus-extension-data-operations/src/api-docs.js';
-import { legacyFiles } from '../directus/extensions/directus-extension-data-operations/src/legacy-endpoint.js';
+import { catalogFiles } from '../directus/extensions/directus-extension-data-operations/src/catalog-endpoint.js';
 import {
   apiDocsModelPath,
   buildApiDocsModel,
@@ -63,19 +63,19 @@ describe('the public API reference', () => {
     }
   });
 
-  test('describes every /legacy file', () => {
+  test('describes every /catalog file', () => {
     expect(
-      Object.keys(legacyFileDescriptions).toSorted((left, right) =>
+      Object.keys(catalogFileDescriptions).toSorted((left, right) =>
         collator.compare(left, right),
       ),
     ).toEqual(
-      legacyFiles
+      catalogFiles
         .map(({ filename }) => filename)
         .toSorted((left, right) => collator.compare(left, right)),
     );
   });
 
-  test('keeps only reading the public collections, named as in Studio, and adds the /legacy files', () => {
+  test('keeps only reading the public collections, named as in Studio, and adds the /catalog files', () => {
     const raw = {
       components: {
         schemas: {
@@ -111,11 +111,11 @@ describe('the public API reference', () => {
         '/server/ping': { get: {} },
       },
     };
-    const legacySchemas = { 'courses.json': { items: {}, type: 'array' } };
+    const catalogSchemas = { 'courses.json': { items: {}, type: 'array' } };
 
     const spec = curateSpec(raw, {
-      legacyFilenames: ['courses.json'],
-      legacySchemas,
+      catalogFilenames: ['courses.json'],
+      catalogSchemas,
       model: buildApiDocsModel(),
       publicUrl: 'https://data.finki-hub.com',
     });
@@ -126,8 +126,7 @@ describe('the public API reference', () => {
     expect(Object.keys(spec.paths ?? {})).toEqual([
       '/items/courses',
       '/items/courses/{id}',
-      '/legacy/courses.json',
-      '/legacy/sessions/{file}',
+      '/catalog/courses.json',
     ]);
     expect(spec.paths?.['/items/courses']).toEqual({
       get: {
@@ -139,15 +138,15 @@ describe('the public API reference', () => {
     expect(spec.paths?.['/items/courses/{id}']?.['get']).toMatchObject({
       summary: 'Get one Course',
     });
-    expect(spec.paths?.['/legacy/courses.json']?.['get']).toMatchObject({
+    expect(spec.paths?.['/catalog/courses.json']?.['get']).toMatchObject({
       responses: {
         '200': {
           content: {
-            'application/json': { schema: legacySchemas['courses.json'] },
+            'application/json': { schema: catalogSchemas['courses.json'] },
           },
         },
       },
-      tags: [legacyTag],
+      tags: [catalogTag],
     });
 
     const schemas = (
@@ -210,7 +209,7 @@ describe('the public API reference fields, files and page', () => {
     ).toBe('FINKI Staff. Off for other faculties.');
   });
 
-  test("reads a /legacy file's shape from the file", () => {
+  test("reads a /catalog file's shape from the file", () => {
     expect(
       inferSchema([
         { name: 'A', semester: 1 },

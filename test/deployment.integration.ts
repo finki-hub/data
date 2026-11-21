@@ -10,10 +10,12 @@ type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
 // End to end against a disposable Directus that `npm run setup` has just
 // installed (CI: the development compose project): the public API reads
-// what src/data-model/access.ts declares and nothing else, and /legacy
-// serves the old bucket's files from the live rows. The target must be on
+// what src/data-model/access.ts declares and nothing else, and /catalog
+// serves the courses from the live rows. The target must be on
 // loopback and is written to, so it is named explicitly and never a
 // project holding data.
+
+let scheduleFileId = '';
 
 const loopbackHosts = new Set(['127.0.0.1', '[::1]', 'localhost']);
 
@@ -94,8 +96,12 @@ before(async () => {
     { quote: 'Synthetic quote one' },
     { quote: 'Synthetic quote two' },
   ]);
+  const folder = created.parse(
+    await post('/folders', { name: 'Exam sessions' }),
+  );
   const form = new FormData();
   form.append('title', 'Synthetic session');
+  form.append('folder', String(folder.id));
   form.append(
     'file',
     new Blob([schedule], { type: 'application/pdf' }),
@@ -104,6 +110,7 @@ before(async () => {
   const file = created.parse(
     await data('/files', { body: form, method: 'POST' }),
   );
+  scheduleFileId = String(file.id);
   await post('/items/exam_sessions', [
     { file: file.id, name: '2099/2100 Јуни' },
     { file: file.id, name: '2099/2100 Септември' },
@@ -180,70 +187,42 @@ test('students are public only as council members, by name only', async () => {
   assert.ok(!council.body.includes('990001'));
 });
 
-const legacy = async (file: string) => {
-  // As a browser frontend asks for it.
+const catalogCourses = '/catalog/courses.json';
+
+test('/catalog serves the courses to a browser frontend', async () => {
   const response = await call(
-    `/legacy/${file}`,
-    { headers: { Origin: 'https://courses.finki-hub.com' } },
+    catalogCourses,
+    { headers: { Origin: 'https://predmeti.finki-hub.com' } },
     false,
   );
-  assert.equal(response.status, 200, `/legacy/${file}`);
+  assert.equal(response.status, 200);
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
-  return response;
-};
-
-const legacyJson = async (file: string): Promise<unknown> => {
-  const response = await legacy(file);
-  return response.json();
-};
-
-const staffRows = z.array(z.looseObject({ name: z.string() }));
-
-test('/legacy serves the old bucket files from the live rows', async () => {
-  assert.deepEqual(await legacyJson('rooms.json'), [
-    {
-      capacity: '0',
-      location: 'Synthetic building',
-      name: 'Synthetic room',
-      type: 'lab',
-    },
-  ]);
-  const staff = staffRows.parse(await legacyJson('staff.json'));
-  assert.deepEqual(
-    staff.map(({ name }) => name),
-    ['Synthetic Staff'],
-  );
-  assert.deepEqual(await legacyJson('anto.json'), [
-    'Synthetic quote one',
-    'Synthetic quote two',
-  ]);
-  assert.deepEqual(await legacyJson('sessions.json'), {
-    '2099/2100 Јуни': 'synthetic_session.pdf',
-    '2099/2100 Септември': 'synthetic_session.pdf',
-  });
-  assert.ok(Array.isArray(await legacyJson('courses.json')));
-});
-
-test('/legacy serves a session schedule byte for byte, and 404 for others', async () => {
-  const response = await legacy('sessions/synthetic_session.pdf');
-  assert.equal(response.headers.get('content-type'), 'application/pdf');
-  assert.deepEqual(Buffer.from(await response.arrayBuffer()), schedule);
-  const missing = await call('/legacy/sessions/missing.pdf', {}, false);
-  assert.equal(missing.status, 404);
-  const unknown = await call('/legacy/unknown.json', {}, false);
+  assert.ok(Array.isArray(await response.json()));
+  const unknown = await call('/catalog/unknown.json', {}, false);
   assert.equal(unknown.status, 404);
 });
 
-test('/legacy answers an unchanged file with 304', async () => {
-  const first = await legacy('anto.json');
+test('/catalog answers an unchanged file with 304', async () => {
+  const first = await call(catalogCourses, {}, false);
   const etag = first.headers.get('etag');
   assert.ok(etag);
   const again = await call(
-    '/legacy/anto.json',
+    catalogCourses,
     { headers: { 'If-None-Match': etag } },
     false,
   );
   assert.equal(again.status, 304);
+});
+
+test('an exam schedule is public byte for byte', async () => {
+  const response = await call(
+    `/assets/${scheduleFileId}/synthetic_session.pdf`,
+    {},
+    false,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/pdf');
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), schedule);
 });
 
 const settingsPrompt = z.object({

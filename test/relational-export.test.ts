@@ -6,7 +6,7 @@ import type { FakeItem, FakeStore } from './store-test-helpers.js';
 import { readFileSources } from '../directus/extensions/directus-extension-data-operations/src/exports/engine.js';
 import { resolveFields } from '../directus/extensions/directus-extension-data-operations/src/exports/field-map.js';
 import { fileKeys } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
-import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { engineDefinitions as exportDefinitions } from './fixtures/sample-exports.js';
 import {
   expectedData,
   expectedKeys,

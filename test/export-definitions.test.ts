@@ -23,9 +23,11 @@ import {
   fileShape,
   validateFile,
 } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
-import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
-import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
-import { staff } from '../directus/extensions/directus-extension-data-operations/src/exports/staff.js';
+import {
+  engineDefinitions as exportDefinitions,
+  rooms,
+  staff,
+} from './fixtures/sample-exports.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';

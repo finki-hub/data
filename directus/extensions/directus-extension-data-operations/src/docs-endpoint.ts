@@ -9,7 +9,7 @@ import {
   type JsonSchema,
 } from './api-docs.js';
 import { forwardError } from './endpoint-errors.js';
-import { legacyFiles } from './legacy-endpoint.js';
+import { catalogFiles } from './catalog-endpoint.js';
 
 // GET /docs: the public API reference page; GET /docs/openapi.json: the
 // OpenAPI document it shows (api-docs.ts). The document is built from what
@@ -40,15 +40,15 @@ export default defineEndpoint({
       return response.json();
     };
 
-    // Each /legacy file's shape, from the file itself; a file that does not
+    // Each /catalog file's shape, from the file itself; a file that does not
     // answer is shown without one.
-    const readLegacySchemas = async (filenames: readonly string[]) => {
+    const readCatalogSchemas = async (filenames: readonly string[]) => {
       const entries = await Promise.all(
         filenames.map(async (filename) => {
           try {
             return [
               filename,
-              inferSchema(await readJson(`/legacy/${filename}`)),
+              inferSchema(await readJson(`/catalog/${filename}`)),
             ] as const;
           } catch {
             return [filename, {}] as const;
@@ -59,14 +59,14 @@ export default defineEndpoint({
     };
 
     const buildSpec = async () => {
-      const legacyFilenames = legacyFiles.map((file) => file.filename);
-      const [raw, legacySchemas] = await Promise.all([
+      const catalogFilenames = catalogFiles.map((file) => file.filename);
+      const [raw, catalogSchemas] = await Promise.all([
         readJson('/server/specs/oas'),
-        readLegacySchemas(legacyFilenames),
+        readCatalogSchemas(catalogFilenames),
       ]);
       return curateSpec(raw as Record<string, never>, {
-        legacyFilenames,
-        legacySchemas,
+        catalogFilenames,
+        catalogSchemas,
         model: apiDocsModel,
         publicUrl,
       });

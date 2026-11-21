@@ -9,7 +9,7 @@ try {
   const config = loadTargetConfig(process.env);
   const builds = await runExportCheck({
     liveFile: async (filename) => {
-      const response = await fetch(new URL(`legacy/${filename}`, config.url));
+      const response = await fetch(new URL(`catalog/${filename}`, config.url));
       return response.ok ? response.text() : null;
     },
     request: createDirectusRequest(config),

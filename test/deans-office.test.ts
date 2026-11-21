@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { engineDefinitions as exportDefinitions } from './fixtures/sample-exports.js';
 import { schemaConstraints } from '../directus/extensions/directus-extension-data-operations/src/migrations.js';
 import { deanPositions } from '../src/data-model/choice-lists.js';
 import {

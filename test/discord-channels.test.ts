@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { engineDefinitions as exportDefinitions } from './fixtures/sample-exports.js';
 import { dataModelCollectionKeys } from '../src/data-model/collections.js';
 import { contentCollections } from '../src/data-model/content-collections.js';
 import {
