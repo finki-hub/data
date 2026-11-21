@@ -93,7 +93,9 @@ const readState = async (
 // creates the incomplete-data bookmarks). Each element is written only
 // while it still carries the schema installer's defaults, so a rerun never
 // overwrites Studio edits and a project that already has the presentation
-// sees no mutating call.
+// sees no mutating call. A field it leaves alone that differs from the
+// declared form is named in `outdated`, so a change that did not reach
+// Studio is visible.
 export const installPresentation = async (request: DirectusRequest) => {
   const plan = planPresentation(await readState(request));
   for (const folder of plan.folders) {
@@ -120,5 +122,5 @@ export const installPresentation = async (request: DirectusRequest) => {
   for (const preset of plan.presets) {
     await request('/presets', json(preset, 'POST'));
   }
-  return plan.summary;
+  return { ...plan.summary, outdated: plan.outdated };
 };

@@ -56,6 +56,8 @@ type PresentationPlan = {
   readonly fields: readonly FieldPresentation[];
   readonly folders: readonly Folder[];
   readonly groups: readonly FieldGroup[];
+  // Fields setup left alone whose live form differs from the declared one.
+  readonly outdated: readonly string[];
   readonly placements: readonly CollectionPlacement[];
   readonly presets: readonly PresetDefinition[];
   readonly summary: PresentationSummary;
@@ -91,6 +93,21 @@ const untouchedSinceInstall = (
   );
 };
 
+// Whether a live value holds everything the declared one sets: Directus may
+// add its own keys to an object, such as an interface's options.
+const holds = (live: unknown, declared: unknown): boolean =>
+  typeof declared !== 'object' || declared === null || Array.isArray(declared)
+    ? isDeepStrictEqual(live ?? null, declared ?? null)
+    : typeof live === 'object' &&
+      live !== null &&
+      Object.entries(declared).every(([key, value]) =>
+        holds((live as Record<string, unknown>)[key], value),
+      );
+
+// A field's place in its form is the Studio user's to rearrange.
+const withoutSort = (meta: FieldPresentation['meta']) =>
+  Object.fromEntries(Object.entries(meta).filter(([key]) => key !== 'sort'));
+
 const groupStatuses = (
   state: PresentationState,
 ): ReadonlyMap<string, GroupStatus> =>
@@ -109,6 +126,7 @@ const planFields = (
   state: PresentationState,
   statuses: ReadonlyMap<string, GroupStatus>,
   tally: PresentationTally,
+  outdated: string[],
 ): readonly FieldPresentation[] =>
   presentationFieldPatches.filter((patch) => {
     const live = state.fields
@@ -124,6 +142,14 @@ const planFields = (
       groupStatus !== 'blocked' &&
       untouchedSinceInstall(live.meta, patch);
     tally.add('fields', applies ? 'adopted' : 'skipped');
+    if (
+      !applies &&
+      live?.meta !== null &&
+      live?.meta !== undefined &&
+      !holds(live.meta, withoutSort(patch.meta))
+    ) {
+      outdated.push(`${patch.collection}.${patch.field}`);
+    }
     return applies;
   });
 
@@ -193,11 +219,13 @@ export const planPresentation = (
     return place;
   });
   const statuses = groupStatuses(state);
-  const fields = planFields(state, statuses, tally);
+  const outdated: string[] = [];
+  const fields = planFields(state, statuses, tally, outdated);
   return {
     fields,
     folders: newFolders,
     groups: planGroups(statuses, fields, tally),
+    outdated,
     placements,
     presets: planPresets(state, tally),
     summary: tally.summary(),

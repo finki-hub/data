@@ -242,8 +242,8 @@ export const botContentCollections: readonly ModelCollection[] = [
     collection: 'exam_sessions',
     displayTemplate: '{{name}}',
     fields: [
-      // Published as the key of sessions.json, for example
-      // "2025/2026 Јуни"; the file is published by its file name.
+      // The name consumers list, for example "2025/2026 Јуни"; the file
+      // is public at /assets/<file id>/<file name>.
       required('name', 'string', { label: 'Name', unique: true }),
       m2o('file', 'directus_files', {
         label: 'Schedule file',

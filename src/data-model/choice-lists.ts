@@ -4,10 +4,10 @@ import { labelledChoices } from './fields.js';
 
 // The short vocabularies of published text fields, as the workbook writes
 // them today. Each choice is labelled with its own value, so Studio shows
-// it exactly as staff.json, rooms.json and courses.json publish it. The
-// fields allow other values: a list offers today's values and refuses
-// none, so a new value is typed once and published as typed. The dean's
-// office positions, which no file publishes, are a closed list instead.
+// it exactly as the public API returns it. The fields allow other values: a
+// list offers today's values and refuses none, so a new value is typed once
+// and published as typed. The dean's office positions are a closed list
+// instead.
 
 // Choices whose label is the stored value.
 export const verbatimChoices = (

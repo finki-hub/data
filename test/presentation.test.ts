@@ -553,6 +553,7 @@ describe('installPresentation on a fresh schema', () => {
         skipped: 0,
       },
       groups: { adopted: 0, created: fieldGroups.length, skipped: 0 },
+      outdated: [],
       presets: { adopted: 0, created: presetDefinitions.length, skipped: 0 },
     });
 
@@ -656,6 +657,7 @@ describe('installPresentation on a fresh schema', () => {
     expect(paths).not.toContain('/fields/course_curricula/entry');
     expect(paths).not.toContain('/fields/courses/curricula');
     expect(paths).toContain('/fields/course_curricula/available');
+    expect(summary.outdated).toContain('course_curricula.entry');
     expect(summary.fields).toEqual({
       adopted: presentationFieldPatches.length - 2,
       created: 0,
@@ -812,6 +814,7 @@ describe('installPresentation once applied', () => {
         skipped: presentationFieldPatches.length,
       },
       groups: { adopted: 0, created: 0, skipped: fieldGroups.length },
+      outdated: [],
       presets: { adopted: 0, created: 0, skipped: presetDefinitions.length },
     });
   });
