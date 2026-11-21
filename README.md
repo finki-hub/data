@@ -27,6 +27,8 @@ output and not committed.
 ## Reading the data
 
 The data is public and read-only for anonymous callers, with CORS open.
+Of the uploaded files, only the exam schedules (the `Exam sessions` folder)
+are public, at `/assets/<file id>/<file name>`.
 **[data.finki-hub.com/docs](https://data.finki-hub.com/docs)** is the
 interactive API reference: every public collection described and grouped by
 subject, the query parameters, and the `/legacy` files, built from the
