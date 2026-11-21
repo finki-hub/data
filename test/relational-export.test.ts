@@ -190,8 +190,6 @@ describe('parity with the committed public files', () => {
       'courses.json',
       'rooms.json',
       'staff.json',
-      'bachelor_theses.json',
-      'master_theses.json',
     ]);
 
     for (const file of publicFileNames) {

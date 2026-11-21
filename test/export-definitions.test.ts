@@ -26,10 +26,6 @@ import {
 import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
 import { rooms } from '../directus/extensions/directus-extension-data-operations/src/exports/rooms.js';
 import { staff } from '../directus/extensions/directus-extension-data-operations/src/exports/staff.js';
-import {
-  bachelorTheses,
-  masterTheses,
-} from '../directus/extensions/directus-extension-data-operations/src/exports/theses.js';
 import { publicForm } from '../directus/extensions/directus-extension-data-operations/src/exports/values.js';
 import { snapshotFields } from '../directus/extensions/directus-extension-data-operations/src/snapshot/contract.js';
 import { findModelCollection } from '../src/data-model/collections.js';
@@ -473,9 +469,7 @@ describe('the keys a consumer requires', () => {
     ]);
     expect(requiredOf(staff)).toEqual(['name', 'title', 'position', 'email']);
     expect(requiredOf(rooms)).toEqual(['name', 'type', 'location']);
-    expect(requiredOf(bachelorTheses)).toEqual(['title']);
-    expect(requiredOf(masterTheses)).toEqual(['title']);
-    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(11);
+    expect(exportDefinitions.flatMap(requiredOf)).toHaveLength(9);
   });
 
   test("refuses a courses.json row without a published generation's availability", () => {

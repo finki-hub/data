@@ -61,8 +61,6 @@ describe('the plain legacy files', () => {
       'courses.json',
       'rooms.json',
       'staff.json',
-      'bachelor_theses.json',
-      'master_theses.json',
       'anto.json',
       'sessions.json',
       'degree_programs.json',
