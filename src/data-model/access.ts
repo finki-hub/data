@@ -129,6 +129,26 @@ export const publicReads: readonly PublicRead[] = [
   { collection: 'timetables', fields: '*' },
 ];
 
+// The exam schedules are public files: only those in their folder are
+// readable, so no other upload (the Moodle snapshots) ever is.
+export const examScheduleFiles = {
+  collection: 'directus_files',
+  fields: ['id', 'filename_download', 'type', 'filesize'],
+  filter: { folder: { name: { _eq: 'Exam sessions' } } },
+} as const;
+
+type InstalledRead =
+  | (Omit<PublicRead, 'collection'> & {
+      readonly collection: 'directus_files';
+    })
+  | PublicRead;
+
+// Every read setup installs: the collections, then the schedule files.
+export const installedReads: readonly InstalledRead[] = [
+  ...publicReads,
+  examScheduleFiles,
+];
+
 // The policy and role of the MCP server's token.
 export const mcpAccess = {
   icon: 'smart_toy',
@@ -155,7 +175,7 @@ const permissionRows = z.array(
 // Whether a permission's fields are those a read declares, in any order.
 const sameFields = (
   fields: null | readonly string[] | undefined,
-  read: PublicRead,
+  read: InstalledRead,
 ): boolean => {
   const wanted = read.fields === '*' ? ['*'] : read.fields;
   const have = new Set(fields);
@@ -224,7 +244,7 @@ const mcpPolicy = async (
   return policy;
 };
 
-const permissionOf = (policy: string, read: PublicRead) => ({
+const permissionOf = (policy: string, read: InstalledRead) => ({
   action: 'read',
   collection: read.collection,
   fields: read.fields === '*' ? ['*'] : [...read.fields],
@@ -256,10 +276,10 @@ export const installPublicAccess = async (
         )
         .map((row) => [row.collection, row]),
     );
-    const missing = publicReads.filter(
+    const missing = installedReads.filter(
       ({ collection }) => !existing.has(collection),
     );
-    for (const read of publicReads) {
+    for (const read of installedReads) {
       const row = existing.get(read.collection);
       if (row === undefined) {
         created.push(`${label} ${read.collection}`);

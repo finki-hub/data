@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import type { DirectusRequest } from '../src/directus-request.js';
 
 import {
+  examScheduleFiles,
+  installedReads,
   installPublicAccess,
   mcpAccess,
   publicReads,
@@ -21,7 +23,7 @@ type Call = {
 // write.
 // The fields a collection's read declares.
 const fieldsOf = (collection: string): readonly string[] => {
-  const read = publicReads.find((r) => r.collection === collection);
+  const read = installedReads.find((r) => r.collection === collection);
   return read === undefined || read.fields === '*' ? ['*'] : read.fields;
 };
 
@@ -98,6 +100,15 @@ describe('the public and MCP read permissions', () => {
     });
   });
 
+  test('open only the exam schedule folder of the uploaded files', () => {
+    expect(examScheduleFiles).toEqual({
+      collection: 'directus_files',
+      fields: ['id', 'filename_download', 'type', 'filesize'],
+      filter: { folder: { name: { _eq: 'Exam sessions' } } },
+    });
+    expect(installedReads).toContain(examScheduleFiles);
+  });
+
   test('creates every read on a fresh project, with the MCP role and policy', async () => {
     const { calls, request } = fakeDirectus({ mcpPolicy: null, readable: {} });
 
@@ -114,13 +125,13 @@ describe('the public and MCP read permissions', () => {
       policy: 'new-policies',
       role: 'new-roles',
     });
-    expect(writes(calls)[3]?.body).toHaveLength(publicReads.length);
+    expect(writes(calls)[3]?.body).toHaveLength(installedReads.length);
     expect(summary.created).toContain(`policy ${mcpAccess.policy}`);
     expect(summary.skipped).toEqual([]);
   });
 
   test('adds only the missing reads and keeps the existing ones', async () => {
-    const all = publicReads.map(({ collection }) => collection);
+    const all = installedReads.map(({ collection }) => collection);
     const { calls, request } = fakeDirectus({
       mcpPolicy: 'mcp-policy',
       readable: {
@@ -148,11 +159,11 @@ describe('the public and MCP read permissions', () => {
       },
     ]);
     expect(summary.created).toEqual(['public anto_quotes']);
-    expect(summary.skipped).toHaveLength(2 * publicReads.length - 1);
+    expect(summary.skipped).toHaveLength(2 * installedReads.length - 1);
   });
 
   test('brings an existing read up to its declared fields', async () => {
-    const all = publicReads.map(({ collection }) => collection);
+    const all = installedReads.map(({ collection }) => collection);
     const courses = fieldsOf('courses');
     const { calls, request } = fakeDirectus({
       fields: { courses: courses.slice(0, -1) },
