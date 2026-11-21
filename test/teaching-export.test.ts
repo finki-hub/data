@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import type { FakeStore } from './store-test-helpers.js';
 
-import { exportDefinitions } from '../directus/extensions/directus-extension-data-operations/src/exports/index.js';
+import { engineDefinitions as exportDefinitions } from './fixtures/sample-exports.js';
 import { courseNames, staffNames } from './fixtures/synthetic-data.js';
 import { storeReader } from './memory-reader.js';
 import {

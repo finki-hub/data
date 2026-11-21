@@ -1,7 +1,7 @@
 <project_context>
 ## FINKI Hub data
 
-This instance is the source of truth for FINKI Hub: courses and the 2013/2018/2023 curricula, staff, rooms, the dean's office, Discord channels, exam sessions, Anto quotes, students and the Moodle course-history snapshot. The public API and the `/legacy/*.json` files are built from it live, so an edit is public within a minute.
+This instance is the source of truth for FINKI Hub: courses and the 2013/2018/2023 curricula, staff, rooms, the dean's office, Discord channels, exam sessions, Anto quotes, students and the Moodle course-history snapshot. The public API and `/catalog/courses.json` are built from it live, so an edit is public within a minute.
 
 - Names are Macedonian (Cyrillic). Keep them exactly as stored; don't transliterate or translate them unless asked.
 - **Private data**: `students` (only student council members are public), `moodle_users`, `moodle_import_rows` and the files in "Moodle snapshots (private)". Read them only when the request needs them, show only the fields asked for, and never export them.

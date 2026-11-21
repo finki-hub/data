@@ -29,7 +29,7 @@ export type BlockPart = BlockField | NestedKeys;
 export type ExportDefinition = {
   // The ordered field map: output key order and the file's allowlist.
   readonly fields: readonly FieldEntry[];
-  // The file's name under the legacy endpoint, such as courses.json.
+  // The file's name under the catalog endpoint, such as courses.json.
   readonly filename: string;
   // The largest compact JSON body the file may reach, in UTF-8 bytes.
   readonly maxBytes: number;

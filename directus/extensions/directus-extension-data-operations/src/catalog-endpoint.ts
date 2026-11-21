@@ -1,11 +1,21 @@
 import { defineEndpoint } from '@directus/extensions-sdk';
 
-import type { PreparedFile } from './exports/file-check.js';
+import type { ExportDefinition } from './exports/types.js';
 
 import { forwardError } from './endpoint-errors.js';
 import { courses } from './exports/courses.js';
 import { itemsReader } from './exports/directus.js';
-import { buildFile, cacheMs } from './legacy-endpoint.js';
+import {
+  readFileSources,
+  serializeFile,
+  type SourceReader,
+} from './exports/engine.js';
+import {
+  fileShape,
+  type PreparedFile,
+  validateFile,
+} from './exports/file-check.js';
+import { exportDefinitions } from './exports/index.js';
 
 // GET /catalog/courses.json: every course with its accreditations, staff
 // and enrollment counts, built from the live data by the rules the
@@ -14,6 +24,26 @@ import { buildFile, cacheMs } from './legacy-endpoint.js';
 // with its digest as the ETag.
 
 export const catalogEndpointId = 'catalog';
+
+export const cacheMs = 60_000;
+
+// One file from the live data, validated against its definition.
+export const buildFile = async (
+  definition: ExportDefinition,
+  reader: SourceReader,
+): Promise<PreparedFile> => {
+  const sources = await readFileSources(definition, reader);
+  return validateFile(
+    definition,
+    serializeFile(definition, sources),
+    fileShape(definition, sources),
+  );
+};
+
+export const catalogFiles = exportDefinitions.map((definition) => ({
+  build: (reader: SourceReader) => buildFile(definition, reader),
+  filename: definition.filename,
+}));
 
 const cacheHeader = `public, max-age=${String(cacheMs / 1_000)}`;
 

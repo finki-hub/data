@@ -30,7 +30,6 @@
       { "type": "hook", "name": "finki-hub-thesis-rebuild", "source": "src/thesis-rebuild.ts" },
       { "type": "operation", "name": "finki-hub-faculty-import", "source": { "app": "src/faculty-import-app.ts", "api": "src/faculty-import.ts" } },
       { "type": "endpoint", "name": "finki-hub-data-status", "source": "src/status-endpoint.ts" },
-      { "type": "endpoint", "name": "legacy", "source": "src/legacy-endpoint.ts" },
       { "type": "endpoint", "name": "catalog", "source": "src/catalog-endpoint.ts" },
       { "type": "endpoint", "name": "docs", "source": "src/docs-endpoint.ts" },
       { "type": "panel", "name": "finki-hub-run-operation", "source": "src/panel.ts" },

@@ -2,10 +2,10 @@ import type { SourceReader } from '../directus/extensions/directus-extension-dat
 import type { PreparedFile } from '../directus/extensions/directus-extension-data-operations/src/exports/file-check.js';
 import type { DirectusRequest } from './directus-request.js';
 
+import { catalogFiles } from '../directus/extensions/directus-extension-data-operations/src/catalog-endpoint.js';
 import { readQuery } from '../directus/extensions/directus-extension-data-operations/src/exports/directus.js';
-import { legacyFiles } from '../directus/extensions/directus-extension-data-operations/src/legacy-endpoint.js';
 
-// The export check: builds every /legacy file with this checkout's export
+// The export check: builds every /catalog file with this checkout's export
 // code from a running Directus's data, read through its REST API, so a
 // change can be tried on the live data before it is deployed. It only
 // reads. Each file is compared with the one the project serves now.
@@ -16,7 +16,7 @@ type CheckedFile = {
 };
 
 export type ExportCheckIo = {
-  // The body the project serves now for a /legacy file, or null without one.
+  // The body the project serves now for a /catalog file, or null without one.
   readonly liveFile: (filename: string) => Promise<null | string>;
   readonly request: DirectusRequest;
   readonly stdout: (line: string) => void;
@@ -53,8 +53,8 @@ export const restReader =
     return items as readonly unknown[];
   };
 
-// The rows of a file as texts: the items of a list, the entries of a map
-// (sessions.json), else the whole body.
+// The rows of a file as texts: the items of a list, the entries of a map,
+// else the whole body.
 const rowTexts = (body: string): string[] => {
   const parsed: unknown = JSON.parse(body);
   if (Array.isArray(parsed)) {
@@ -108,7 +108,7 @@ const reasonOf = (error: unknown): string =>
 // `<file>: refused: <reason>`; true when every file builds.
 export const runExportCheck = async (
   io: ExportCheckIo,
-  files: readonly CheckedFile[] = legacyFiles,
+  files: readonly CheckedFile[] = catalogFiles,
 ): Promise<boolean> => {
   const reader = restReader(io.request);
   let builds = true;
