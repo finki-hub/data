@@ -155,12 +155,10 @@ export const legacyTag = 'Legacy Files';
 // The /legacy files and what each holds.
 export const legacyFileDescriptions: Readonly<Record<string, string>> = {
   'anto.json': 'Anto quotes, as an array of strings.',
-  'bachelor_theses.json': "Bachelor's theses with their committees.",
   'courses.json':
     'Every course with its accreditations, staff and enrollment counts, in the format the FINKI Hub site and bot read.',
   'degree_program_courses.json': 'The courses of every study program.',
   'degree_programs.json': 'Every study program.',
-  'master_theses.json': "Master's theses with their committees.",
   'rooms.json': 'Every room.',
   'sessions.json': 'Exam session names mapped to their schedule files.',
   'staff.json': 'Every staff member.',
