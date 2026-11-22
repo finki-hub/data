@@ -38,6 +38,8 @@ const roleChoices = labelledChoices(assignmentRoles, {
 // What a derived field says about where it comes from.
 const imported = { readOnly: true } as const;
 
+const staffMemberLabel = 'Staff member';
+
 type ImportedLink = {
   readonly alias: string;
   readonly fields: readonly string[];
@@ -188,7 +190,7 @@ export const teachingCollections: readonly ModelCollection[] = [
       importedLink('staff', 'staff', {
         alias: 'teaching',
         fields: ['timetable', 'course', 'role', 'periods'],
-        label: 'Staff member',
+        label: staffMemberLabel,
         listLabel: 'Teaches (timetables)',
         listTemplate: '{{timetable.title}}: {{course.name}} ({{role}})',
         template: staffTemplate,
@@ -309,7 +311,7 @@ export const teachingCollections: readonly ModelCollection[] = [
       importedLink('staff', 'staff', {
         alias: 'slots',
         fields: ['slot'],
-        label: 'Staff member',
+        label: staffMemberLabel,
         listLabel: 'Timetable slots',
         listTemplate:
           '{{slot.timetable.title}}: {{slot.day}} {{slot.starts}} {{slot.subject}}',
@@ -394,7 +396,7 @@ export const teachingCollections: readonly ModelCollection[] = [
         unique: true,
       }),
       m2o('staff', 'staff', {
-        label: 'Staff member',
+        label: staffMemberLabel,
         note: 'Empty: the name is ignored, such as a demonstrator slot.',
         template: staffTemplate,
       }),
@@ -404,6 +406,34 @@ export const teachingCollections: readonly ModelCollection[] = [
     label: {
       plural: 'Staff names',
       singular: 'Staff name',
+    },
+    singleton: false,
+    sort: 36,
+  },
+  {
+    collection: 'staff_openalex_profiles',
+    displayTemplate: '{{openalex_id}} - {{staff.name}}',
+    fields: [
+      required('openalex_id', 'string', {
+        label: 'OpenAlex author',
+        note: 'The author id, such as A5026548328. A staff member can have several.',
+        unique: true,
+      }),
+      m2o('staff', 'staff', {
+        label: staffMemberLabel,
+        nullable: false,
+        template: staffTemplate,
+      }),
+      scalar('written_name', 'string', {
+        label: 'Written name',
+        note: 'Empty: every FINKI paper of the profile counts. Set for a profile that mixes people: only papers written this way count.',
+      }),
+    ],
+    hidden: false,
+    icon: 'school',
+    label: {
+      plural: 'Staff OpenAlex profiles',
+      singular: 'Staff OpenAlex profile',
     },
     singleton: false,
     sort: 36,
@@ -454,7 +484,7 @@ export const teachingCollections: readonly ModelCollection[] = [
           label: 'Accreditation courses',
           template: '{{generation.code}}: {{course.name}}',
         },
-        label: 'Staff member',
+        label: staffMemberLabel,
         nullable: false,
         template: staffTemplate,
       }),

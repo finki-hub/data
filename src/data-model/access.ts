@@ -107,6 +107,7 @@ export const publicReads: readonly PublicRead[] = [
   { collection: 'room_aliases', fields: '*' },
   { collection: 'rooms', fields: '*' },
   { collection: 'staff', fields: '*' },
+  { collection: 'staff_openalex_profiles', fields: '*' },
   // The student assembly by year, position and member, without index
   // numbers: an assembly listing names its members, nothing reads the
   // number, and it identifies a student in the faculty's systems.

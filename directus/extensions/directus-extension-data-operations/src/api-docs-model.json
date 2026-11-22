@@ -1146,6 +1146,28 @@
       "plural": "Staff",
       "singular": "Staff Member"
     },
+    "staff_openalex_profiles": {
+      "fields": {
+        "openalex_id": {
+          "label": "OpenAlex Author",
+          "note": "The author id, such as A5026548328. A staff member can have several."
+        },
+        "staff": {
+          "label": "Staff Member",
+          "related": {
+            "collection": "staff",
+            "label": "Staff Member",
+            "many": false
+          }
+        },
+        "written_name": {
+          "label": "Written Name",
+          "note": "Empty: every FINKI paper of the profile counts. Set for a profile that mixes people: only papers written this way count."
+        }
+      },
+      "plural": "Staff OpenAlex Profiles",
+      "singular": "Staff OpenAlex Profile"
+    },
     "student_council": {
       "fields": {
         "year": {

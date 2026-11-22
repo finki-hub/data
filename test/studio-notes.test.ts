@@ -104,6 +104,8 @@ const remainingNotes = [
   'course_aliases.name: As the timetables name the subject, without the class type. A combined slot takes one row per course.',
   'course_aliases.course: Empty: the name is ignored.',
   'staff_aliases.staff: Empty: the name is ignored, such as a demonstrator slot.',
+  'staff_openalex_profiles.openalex_id: The author id, such as A5026548328. A staff member can have several.',
+  'staff_openalex_profiles.written_name: Empty: every FINKI paper of the profile counts. Set for a profile that mixes people: only papers written this way count.',
   'room_aliases.room: Empty: the name is ignored, such as online.',
   'bachelor_theses.status: The step the thesis is at, as the faculty system names it.',
   'bachelor_theses.submitted: YYYY-MM-DD.',

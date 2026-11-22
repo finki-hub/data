@@ -134,6 +134,7 @@ export const folders: readonly Folder[] = [
     members: [
       'course_aliases',
       'staff_aliases',
+      'staff_openalex_profiles',
       'room_aliases',
       'course_curricula',
       'curriculum_entry_program_states',
