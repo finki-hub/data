@@ -93,8 +93,8 @@ const derivedCollection = (collection: string): boolean =>
 
 describe('target collections', () => {
   test('declares every collection exactly once, the imported content first', () => {
-    expect(dataModelCollectionKeys).toHaveLength(52);
-    expect(new Set(dataModelCollectionKeys).size).toBe(52);
+    expect(dataModelCollectionKeys).toHaveLength(53);
+    expect(new Set(dataModelCollectionKeys).size).toBe(53);
     expect(dataModelCollectionKeys.slice(0, 10)).toEqual([
       'courses',
       'staff',

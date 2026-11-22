@@ -101,6 +101,7 @@ describe('navigation', () => {
       folder_internals: [
         'course_aliases',
         'staff_aliases',
+        'staff_openalex_profiles',
         'room_aliases',
         'course_curricula',
         'curriculum_entry_program_states',
@@ -173,7 +174,13 @@ describe('navigation', () => {
     );
 
     expect(sorted(internals?.members ?? [])).toEqual(
-      sorted([...hidden, 'course_aliases', 'staff_aliases', 'room_aliases']),
+      sorted([
+        ...hidden,
+        'course_aliases',
+        'staff_aliases',
+        'staff_openalex_profiles',
+        'room_aliases',
+      ]),
     );
     expect(
       collectionPlacements

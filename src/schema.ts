@@ -169,6 +169,7 @@ export type ModelCollectionKey =
   | 'rooms'
   | 'staff'
   | 'staff_aliases'
+  | 'staff_openalex_profiles'
   | 'student_council'
   | 'students'
   | 'study_programs'

@@ -82,6 +82,8 @@ export const docsGroups: readonly DocsGroup[] = [
       institutes: 'The institutes of the faculty and their heads.',
       staff:
         'Staff members, visiting professors and external collaborators: title, position, office, email, profile links, photo, biography, and whether they are active and FINKI staff.',
+      staff_openalex_profiles:
+        'The reviewed OpenAlex author profiles of each staff member.',
       student_council:
         'The members of the faculty student council (ФСС) of each year, by position.',
       students:

@@ -9,15 +9,16 @@
 -- teaching_assignments, student_council, course_equivalencies,
 -- course_equivalency_members, discord_channels, discord_channel_courses,
 -- deans_office, exam_sessions, anto_quotes, course_aliases, staff_aliases,
--- room_aliases, moodle_left_uncounted, degree_programs,
--- degree_program_courses, degree_program_slots, course_accreditation_staff,
--- moodle_history_memberships, course_enrollments, moodle_counted_lines,
--- timetables, timetable_lessons, course_teaching, timetable_slots,
--- timetable_slot_staff, timetable_slot_courses, bachelor_theses,
--- bachelor_thesis_staff, master_theses, master_thesis_staff, institutes,
--- faculty_body_members, institute_members, faculty_centers,
--- faculty_import_issues, moodle_import_rows, data_operations,
--- data_operation_matches, directus_*) carry no trigger.
+-- staff_openalex_profiles, room_aliases, moodle_left_uncounted,
+-- degree_programs, degree_program_courses, degree_program_slots,
+-- course_accreditation_staff, moodle_history_memberships,
+-- course_enrollments, moodle_counted_lines, timetables, timetable_lessons,
+-- course_teaching, timetable_slots, timetable_slot_staff,
+-- timetable_slot_courses, bachelor_theses, bachelor_thesis_staff,
+-- master_theses, master_thesis_staff, institutes, faculty_body_members,
+-- institute_members, faculty_centers, faculty_import_issues,
+-- moodle_import_rows, data_operations, data_operation_matches, directus_*)
+-- carry no trigger.
 --
 -- Invalidation is per table and marks whole domains: an UPDATE that moves
 -- a mapping to another course or year, and any DELETE, marks the domain,

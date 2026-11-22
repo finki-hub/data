@@ -153,6 +153,7 @@ const collectionRoles = [
   content('anto_quotes'),
   content('course_aliases'),
   content('staff_aliases'),
+  content('staff_openalex_profiles'),
   content('room_aliases'),
   content('moodle_left_uncounted'),
   content('degree_programs'),
