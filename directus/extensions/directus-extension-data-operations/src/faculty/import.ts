@@ -2,6 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { z } from 'zod';
 
 import type { SqlClient, SqlDatabase } from '../coordination/sql-port.js';
+import type { Log } from '../teaching-rebuild.js';
 import type { StaffRef } from './match.js';
 
 import { json, openGuard, run } from '../coordination/sql-run.js';
@@ -255,6 +256,41 @@ export const runFacultyImport = async (
   });
 };
 
+// An error with the causes under it: what a failed request names is in the
+// cause (a timeout, a reset connection).
+const failureText = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  const code =
+    'code' in error && typeof error.code === 'string' ? ` [${error.code}]` : '';
+  const text = `${error.message}${code}`;
+  return error.cause === undefined
+    ? text
+    : `${text}: ${failureText(error.cause)}`;
+};
+
+// The import with its failure written to the log, because a Flow keeps no
+// record of why a scheduled run failed. The failure still fails the run.
+export const runLoggedFacultyImport = async (
+  database: SqlDatabase,
+  feed: FacultyFeed,
+  log: Log,
+): Promise<FacultyImportSummary> => {
+  try {
+    return await runFacultyImport(database, feed);
+  } catch (error) {
+    log.error(`Faculty structure import failed: ${failureText(error)}`);
+    throw error;
+  }
+};
+
+const unreachable = (url: string, cause: unknown): FacultyImportError =>
+  new FacultyImportError(`${url}: unreachable or too slow`, {
+    cause,
+    code: 'FACULTY_SITE_FAILED',
+  });
+
 const fetchOrRefuse = async (
   fetcher: typeof fetch,
   url: string,
@@ -269,10 +305,19 @@ const fetchOrRefuse = async (
       signal: AbortSignal.timeout(30_000),
     });
   } catch (error) {
-    throw new FacultyImportError(`${url}: unreachable or too slow`, {
-      cause: error,
-      code: 'FACULTY_SITE_FAILED',
-    });
+    throw unreachable(url, error);
+  }
+};
+
+// The body of an answer: the connection can still drop or time out here.
+const bodyOrRefuse = async (
+  response: Response,
+  url: string,
+): Promise<string> => {
+  try {
+    return await response.text();
+  } catch (error) {
+    throw unreachable(url, error);
   }
 };
 
@@ -292,7 +337,7 @@ export const httpFacultySource = (
 ): FacultySource => ({
   json: async (url) => {
     const response = await fetchOrRefuse(fetcher, url, 'application/json');
-    const body = await response.text();
+    const body = await bodyOrRefuse(response, url);
     if (response.status === 400 && body.includes(pastTheEnd)) {
       return [];
     }
@@ -313,7 +358,7 @@ export const httpFacultySource = (
     if (!response.ok) {
       throw failed(url, response.status);
     }
-    return response.text();
+    return bodyOrRefuse(response, url);
   },
 });
 
