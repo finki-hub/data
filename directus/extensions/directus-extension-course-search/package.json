@@ -7,7 +7,7 @@
     "build": "directus-extension build"
   },
   "dependencies": {
-    "@directus/extensions-sdk": "^18.1.1",
+    "@directus/extensions-sdk": "^18.1.2",
     "@directus/types": "18.1.0",
     "@tanstack/vue-virtual": "^3.13.52",
     "vue": "3.5.43",
