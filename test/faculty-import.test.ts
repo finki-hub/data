@@ -18,6 +18,7 @@ import {
   httpFacultySource,
   readPages,
   runFacultyImport,
+  runLoggedFacultyImport,
 } from '../directus/extensions/directus-extension-data-operations/src/faculty/import.js';
 import {
   matcherOf,
@@ -714,6 +715,49 @@ describe('the faculty structure import', () => {
       name: 'FacultyImportError',
     });
     expect(transactions).toEqual([]);
+  });
+
+  test('logs why a run failed, with the cause, and still fails it', async () => {
+    const { database, transactions } = fakeDatabase();
+    const { feed } = answers();
+    const reset = Object.assign(new Error('read ECONNRESET'), {
+      code: 'ECONNRESET',
+    });
+    const fetcher = (() =>
+      Promise.reject(
+        new TypeError('fetch failed', { cause: reset }),
+      )) as typeof fetch;
+    const logged: string[] = [];
+
+    await expect(
+      runLoggedFacultyImport(
+        database,
+        { ...feed, source: httpFacultySource(fetcher) },
+        {
+          error: (message) => {
+            logged.push(message);
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'FACULTY_SITE_FAILED' });
+    expect(logged).toEqual([
+      `Faculty structure import failed: ${site}${deanPagePath}: unreachable or too slow [FACULTY_SITE_FAILED]: fetch failed: read ECONNRESET [ECONNRESET]`,
+    ]);
+    expect(transactions).toEqual([]);
+  });
+
+  test('logs nothing for a run that succeeds', async () => {
+    const { database } = fakeDatabase();
+    const { feed } = answers();
+    const logged: string[] = [];
+
+    await runLoggedFacultyImport(database, feed, {
+      error: (message) => {
+        logged.push(message);
+      },
+    });
+
+    expect(logged).toEqual([]);
   });
 
   test('fetches no page off the site', async () => {

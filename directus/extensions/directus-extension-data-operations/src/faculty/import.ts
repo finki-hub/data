@@ -2,6 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { z } from 'zod';
 
 import type { SqlClient, SqlDatabase } from '../coordination/sql-port.js';
+import type { Log } from '../teaching-rebuild.js';
 import type { StaffRef } from './match.js';
 
 import { json, openGuard, run } from '../coordination/sql-run.js';
@@ -253,6 +254,35 @@ export const runFacultyImport = async (
         .map(({ body, name }) => ({ body, name })),
     };
   });
+};
+
+// An error with the causes under it: what a failed request names is in the
+// cause (a timeout, a reset connection).
+const failureText = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  const code =
+    'code' in error && typeof error.code === 'string' ? ` [${error.code}]` : '';
+  const text = `${error.message}${code}`;
+  return error.cause === undefined
+    ? text
+    : `${text}: ${failureText(error.cause)}`;
+};
+
+// The import with its failure written to the log, because a Flow keeps no
+// record of why a scheduled run failed. The failure still fails the run.
+export const runLoggedFacultyImport = async (
+  database: SqlDatabase,
+  feed: FacultyFeed,
+  log: Log,
+): Promise<FacultyImportSummary> => {
+  try {
+    return await runFacultyImport(database, feed);
+  } catch (error) {
+    log.error(`Faculty structure import failed: ${failureText(error)}`);
+    throw error;
+  }
 };
 
 const fetchOrRefuse = async (
