@@ -3,7 +3,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@directus/extensions-sdk": "^18.1.1",
+    "@directus/extensions-sdk": "^18.1.2",
     "@directus/types": "18.1.0",
     "@playwright/test": "^1.65.1",
     "@tanstack/vue-virtual": "^3.13.52",
