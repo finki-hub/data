@@ -824,6 +824,30 @@ describe('the HTTP source', () => {
     ).resolves.toEqual([]);
   });
 
+  test('names the page when the connection drops during the answer', async () => {
+    const cutOff = (() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream({
+            start: (controller) => {
+              controller.error(new Error('terminated'));
+            },
+          }),
+        ),
+      )) as typeof fetch;
+    const refusal = {
+      code: 'FACULTY_SITE_FAILED',
+      message: 'https://x.test/a: unreachable or too slow',
+    };
+
+    await expect(
+      httpFacultySource(cutOff).text('https://x.test/a'),
+    ).rejects.toMatchObject(refusal);
+    await expect(
+      httpFacultySource(cutOff).json('https://x.test/a'),
+    ).rejects.toMatchObject(refusal);
+  });
+
   test('answers FACULTY_SITE_FAILED for an error status, bad JSON or no answer', async () => {
     const unreachable = (() =>
       Promise.reject(new Error('down'))) as typeof fetch;

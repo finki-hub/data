@@ -285,6 +285,12 @@ export const runLoggedFacultyImport = async (
   }
 };
 
+const unreachable = (url: string, cause: unknown): FacultyImportError =>
+  new FacultyImportError(`${url}: unreachable or too slow`, {
+    cause,
+    code: 'FACULTY_SITE_FAILED',
+  });
+
 const fetchOrRefuse = async (
   fetcher: typeof fetch,
   url: string,
@@ -299,10 +305,19 @@ const fetchOrRefuse = async (
       signal: AbortSignal.timeout(30_000),
     });
   } catch (error) {
-    throw new FacultyImportError(`${url}: unreachable or too slow`, {
-      cause: error,
-      code: 'FACULTY_SITE_FAILED',
-    });
+    throw unreachable(url, error);
+  }
+};
+
+// The body of an answer: the connection can still drop or time out here.
+const bodyOrRefuse = async (
+  response: Response,
+  url: string,
+): Promise<string> => {
+  try {
+    return await response.text();
+  } catch (error) {
+    throw unreachable(url, error);
   }
 };
 
@@ -322,7 +337,7 @@ export const httpFacultySource = (
 ): FacultySource => ({
   json: async (url) => {
     const response = await fetchOrRefuse(fetcher, url, 'application/json');
-    const body = await response.text();
+    const body = await bodyOrRefuse(response, url);
     if (response.status === 400 && body.includes(pastTheEnd)) {
       return [];
     }
@@ -343,7 +358,7 @@ export const httpFacultySource = (
     if (!response.ok) {
       throw failed(url, response.status);
     }
-    return response.text();
+    return bodyOrRefuse(response, url);
   },
 });
 
