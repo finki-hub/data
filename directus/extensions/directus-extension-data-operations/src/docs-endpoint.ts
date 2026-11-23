@@ -24,11 +24,16 @@ const fetchTimeoutMs = 15_000;
 
 export default defineEndpoint({
   handler: (router, { env }) => {
-    const port = String(env['PORT'] ?? 8_055);
-    const publicUrl = String(env['PUBLIC_URL'] ?? '').replace(
-      trailingSlash,
-      '',
-    );
+    const configuredPort = env['PORT'];
+    const port =
+      typeof configuredPort === 'string' || typeof configuredPort === 'number'
+        ? String(configuredPort)
+        : '8055';
+    const configuredUrl = env['PUBLIC_URL'];
+    const publicUrl =
+      typeof configuredUrl === 'string'
+        ? configuredUrl.replace(trailingSlash, '')
+        : '';
     // A JSON document of this server, read as an anonymous caller.
     const readJson = async (path: string): Promise<unknown> => {
       const response = await fetch(`http://127.0.0.1:${port}${path}`, {
