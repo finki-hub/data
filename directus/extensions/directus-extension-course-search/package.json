@@ -9,7 +9,7 @@
   "dependencies": {
     "@directus/extensions-sdk": "^18.1.2",
     "@directus/types": "19.0.0",
-    "@tanstack/vue-virtual": "^3.13.52",
+    "@tanstack/vue-virtual": "^3.13.53",
     "vue": "3.5.43",
     "zod": "^4.6.7"
   },
