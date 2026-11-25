@@ -6,7 +6,7 @@
     "@directus/extensions-sdk": "^18.1.2",
     "@directus/types": "19.0.0",
     "@playwright/test": "^1.65.1",
-    "@tanstack/vue-virtual": "^3.13.52",
+    "@tanstack/vue-virtual": "^3.13.53",
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",
     "eslint-config-imperium": "^5.0.0",
