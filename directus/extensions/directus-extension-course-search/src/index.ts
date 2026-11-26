@@ -13,6 +13,7 @@ import type { MatchMode } from './criteria.js';
 
 import { failureText } from './failure-text.js';
 import { pageSize } from './limits.js';
+import { nameWords } from './name-match.js';
 import CourseSearch from './search-layout.vue';
 
 const personSchema = z.object({
@@ -84,6 +85,11 @@ const layout = defineLayout({
     const name = ref('');
     const nameQuery = ref('');
     let nameTimer: ReturnType<typeof setTimeout> | undefined;
+    // Applies the typed name now; a changed name starts again at page 1.
+    const applyName = (): void => {
+      clearTimeout(nameTimer);
+      nameQuery.value = name.value.trim();
+    };
     const exclude = ref<string[]>([]);
     const courses = ref<string[]>([]);
     const people = ref<Person[]>([]);
@@ -157,9 +163,8 @@ const layout = defineLayout({
     };
 
     const reset = (): void => {
-      clearTimeout(nameTimer);
       name.value = '';
-      nameQuery.value = '';
+      applyName();
       include.value = [];
       exclude.value = [];
       page.value = 1;
@@ -239,9 +244,7 @@ const layout = defineLayout({
         setName: (value: string) => {
           name.value = value;
           clearTimeout(nameTimer);
-          nameTimer = setTimeout(() => {
-            nameQuery.value = value.trim();
-          }, nameDelay);
+          nameTimer = setTimeout(applyName, nameDelay);
         },
         setInclude: (value: string[]) => {
           include.value = value;
@@ -250,15 +253,17 @@ const layout = defineLayout({
           exclude.value = value;
         },
         setPage: (value: number) => {
+          applyName();
           page.value = value;
         },
         setSort: (value: SearchController['sort']) => {
+          applyName();
           sort.value = value;
         },
         pages: computed(() => Math.max(1, Math.ceil(total.value / pageSize))),
         hasCriteria: computed(
           () =>
-            name.value.trim().length +
+            nameWords(name.value).length +
               include.value.length +
               exclude.value.length >
             0,
