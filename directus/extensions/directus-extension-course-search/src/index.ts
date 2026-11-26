@@ -14,6 +14,7 @@ import type { MatchMode } from './criteria.js';
 import { failureText } from './failure-text.js';
 import { pageSize } from './limits.js';
 import { nameWords } from './name-match.js';
+import { useNameQuery } from './name-query.js';
 import CourseSearch from './search-layout.vue';
 
 const personSchema = z.object({
@@ -31,9 +32,6 @@ const resultsSchema = z.object({
   total: z.number().int().min(0),
 });
 const optionsSchema = z.object({ data: z.array(z.string()) });
-
-// How long typing in the name field rests before it searches.
-const nameDelay = 300;
 
 export type Person = z.infer<typeof personSchema>;
 
@@ -58,6 +56,8 @@ export type SearchController = {
   readonly supported: boolean;
   readonly hasCriteria: boolean;
   readonly nativeCriteria: readonly string[];
+  // The criteria of the search, but the page.
+  readonly criteria: Record<string, unknown>;
   readonly reset: () => void;
   readonly loadCourses: () => Promise<void>;
   readonly search: () => Promise<void>;
@@ -81,15 +81,8 @@ const layout = defineLayout({
     // By course unless the user picks Moodle course names.
     const match = ref<MatchMode>('course');
     const include = ref<string[]>([]);
-    // The name field as typed, and the name the search last used.
-    const name = ref('');
-    const nameQuery = ref('');
-    let nameTimer: ReturnType<typeof setTimeout> | undefined;
-    // Applies the typed name now; a changed name starts again at page 1.
-    const applyName = (): void => {
-      clearTimeout(nameTimer);
-      nameQuery.value = name.value.trim();
-    };
+    // A changed name starts again at page 1.
+    const { apply: applyName, name, query: nameQuery, set } = useNameQuery();
     const exclude = ref<string[]>([]);
     const courses = ref<string[]>([]);
     const people = ref<Person[]>([]);
@@ -103,6 +96,15 @@ const layout = defineLayout({
     const supported = computed(() => props.collection === 'moodle_users');
     let resultsRequest: AbortController | undefined;
     let optionsRequest: AbortController | undefined;
+    const criteria = computed(() => ({
+      match: match.value,
+      name: nameQuery.value,
+      include: include.value,
+      exclude: exclude.value,
+      sort: sort.value,
+      search: props.search,
+      filter: props.filter,
+    }));
 
     const loadCourses = async (): Promise<void> => {
       if (!supported.value) return;
@@ -136,16 +138,7 @@ const layout = defineLayout({
       try {
         const response = await api.post<unknown>(
           '/finki-hub-course-history/search',
-          {
-            match: match.value,
-            name: nameQuery.value,
-            include: include.value,
-            exclude: exclude.value,
-            page: page.value,
-            sort: sort.value,
-            search: props.search,
-            filter: props.filter,
-          },
+          { ...criteria.value, page: page.value },
           { signal: request.signal },
         );
         if (request.signal.aborted) return;
@@ -205,7 +198,6 @@ const layout = defineLayout({
     );
     onMounted(loadCourses);
     onBeforeUnmount(() => {
-      clearTimeout(nameTimer);
       resultsRequest?.abort();
       optionsRequest?.abort();
     });
@@ -213,6 +205,7 @@ const layout = defineLayout({
     return {
       refresh,
       controller: reactive({
+        criteria,
         match,
         name,
         include,
@@ -241,11 +234,7 @@ const layout = defineLayout({
           match.value = value;
           void loadCourses();
         },
-        setName: (value: string) => {
-          name.value = value;
-          clearTimeout(nameTimer);
-          nameTimer = setTimeout(applyName, nameDelay);
-        },
+        setName: set,
         setInclude: (value: string[]) => {
           include.value = value;
         },

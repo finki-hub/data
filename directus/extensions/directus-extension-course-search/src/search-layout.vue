@@ -3,6 +3,7 @@ import type { SearchController } from './index.js';
 
 import { countText, rangeText } from './count-text.js';
 import CoursePicker from './course-picker.vue';
+import CsvDownload from './csv-download.vue';
 import { nameLength } from './limits.js';
 import SearchResults from './search-results.vue';
 
@@ -42,7 +43,7 @@ function changeMatch(event: Event) {
           :model-value="controller.name"
           :nullable="false"
           :maxlength="nameLength"
-          placeholder="First name, last name or both, in Cyrillic or Latin"
+          placeholder="First name, last name or both, in Cyrillic or Latin, or a mail address"
           aria-labelledby="name-label"
           @update:model-value="controller.setName"
           ><template #append><v-icon name="search" /></template
@@ -129,13 +130,19 @@ function changeMatch(event: Event) {
               }}
             </h3>
           </div>
-          <v-button
-            v-if="controller.hasCriteria"
-            secondary
-            small
-            @click="controller.reset"
-            >Clear criteria</v-button
-          >
+          <div class="results-actions">
+            <v-button
+              v-if="controller.hasCriteria"
+              secondary
+              small
+              @click="controller.reset"
+              >Clear criteria</v-button
+            >
+            <CsvDownload
+              v-if="controller.total && !controller.error"
+              :criteria="controller.criteria"
+            />
+          </div>
         </div>
         <p
           v-if="controller.nativeCriteria.length"
@@ -145,6 +152,7 @@ function changeMatch(event: Event) {
         </p>
         <v-notice
           v-if="controller.error"
+          key="v-notice-3"
           type="danger"
           >{{ controller.error }}
           <button
@@ -284,6 +292,11 @@ p {
 .matching-note {
   font-size: 13px;
   margin-block: 16px;
+}
+.results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .results-section {
   margin-block-start: 32px;
