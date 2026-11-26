@@ -11,5 +11,8 @@ export const courseLimit = 20;
 // Characters of one course name.
 export const courseNameLength = 2_000;
 
+// Characters of a name query.
+export const nameLength = 200;
+
 // Characters of the page header search.
 export const searchLength = 1_000;

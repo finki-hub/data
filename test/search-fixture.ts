@@ -1,6 +1,7 @@
 // The synthetic Moodle users the search suite searches: boundary cases of
 // the exact-line match (LF, CRLF, LIKE wildcards), 52 users across two
-// pages and 52 users for the count orders.
+// pages, 52 users for the count orders and Cyrillic names for the name
+// search.
 
 export const collectionDefinition = {
   collection: 'moodle_users',
@@ -67,4 +68,7 @@ export const moodleUsers = [
     'Courses Count': null,
     Name: `Unscored Blank ${letter}`,
   })),
+  { Courses: 'Named Entry', 'Courses Count': 1, Name: 'Стефан Шапкаров' },
+  { Courses: 'Named Entry', 'Courses Count': 1, Name: 'Стефанија Ѓорѓиева' },
+  { Courses: 'Other Entry', 'Courses Count': 1, Name: 'Ана Шапкарова' },
 ];

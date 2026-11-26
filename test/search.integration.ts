@@ -246,3 +246,46 @@ test('paginates and sorts by history size', async () => {
     assert.equal(fewestFirst.data[0]?.Name, 'Page 001');
   });
 });
+
+test('searches names in Cyrillic or Latin, alone or with courses', async () => {
+  const target = await isolatedTarget(process.env);
+  await withSearchFixture(target, async () => {
+    const byName = async (criteria: object) =>
+      names(
+        (
+          await search(target, target.token, {
+            exclude: [],
+            include: [],
+            page: 1,
+            sort: 'Name',
+            ...criteria,
+          })
+        ).data,
+      );
+    assert.deepEqual(await byName({ name: 'sapkarov' }), [
+      'Ана Шапкарова',
+      'Стефан Шапкаров',
+    ]);
+    assert.deepEqual(await byName({ name: 'Šapkarov stef' }), [
+      'Стефан Шапкаров',
+    ]);
+    assert.deepEqual(await byName({ name: 'gjorgjieva' }), [
+      'Стефанија Ѓорѓиева',
+    ]);
+    assert.deepEqual(
+      await byName({ include: ['Named Entry'], name: 'стеф' }),
+      ['Стефан Шапкаров', 'Стефанија Ѓорѓиева'],
+    );
+    assert.deepEqual(
+      await byName({ exclude: ['Named Entry'], name: 'shapkarov' }),
+      ['Ана Шапкарова'],
+    );
+    const none = await search(target, target.token, {
+      exclude: [],
+      include: [],
+      name: 'nobody',
+      page: 1,
+    });
+    assert.deepEqual(none, { data: [], total: 0 });
+  });
+});
