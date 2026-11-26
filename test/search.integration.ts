@@ -250,18 +250,16 @@ test('paginates and sorts by history size', async () => {
 test('searches names in Cyrillic or Latin, alone or with courses', async () => {
   const target = await isolatedTarget(process.env);
   await withSearchFixture(target, async () => {
-    const byName = async (criteria: object) =>
-      names(
-        (
-          await search(target, target.token, {
-            exclude: [],
-            include: [],
-            page: 1,
-            sort: 'Name',
-            ...criteria,
-          })
-        ).data,
-      );
+    const byName = async (criteria: object) => {
+      const result = await search(target, target.token, {
+        exclude: [],
+        include: [],
+        page: 1,
+        sort: 'Name',
+        ...criteria,
+      });
+      return names(result.data);
+    };
     assert.deepEqual(await byName({ name: 'sapkarov' }), [
       'Ана Шапкарова',
       'Стефан Шапкаров',
@@ -272,10 +270,10 @@ test('searches names in Cyrillic or Latin, alone or with courses', async () => {
     assert.deepEqual(await byName({ name: 'gjorgjieva' }), [
       'Стефанија Ѓорѓиева',
     ]);
-    assert.deepEqual(
-      await byName({ include: ['Named Entry'], name: 'стеф' }),
-      ['Стефан Шапкаров', 'Стефанија Ѓорѓиева'],
-    );
+    assert.deepEqual(await byName({ include: ['Named Entry'], name: 'стеф' }), [
+      'Стефан Шапкаров',
+      'Стефанија Ѓорѓиева',
+    ]);
     assert.deepEqual(
       await byName({ exclude: ['Named Entry'], name: 'shapkarov' }),
       ['Ана Шапкарова'],
