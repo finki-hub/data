@@ -18,7 +18,10 @@ import {
   criteriaSchema,
   invalidCriteria,
 } from '../directus/extensions/directus-extension-course-search/src/criteria.js';
-import { buildSearchQuery } from '../directus/extensions/directus-extension-course-search/src/endpoint.js';
+import {
+  buildSearchQuery,
+  nameMatchIds,
+} from '../directus/extensions/directus-extension-course-search/src/endpoint.js';
 import { failureText } from '../directus/extensions/directus-extension-course-search/src/failure-text.js';
 import {
   filterPathProblem,
@@ -33,6 +36,10 @@ import {
   courseLimit,
   pageSize,
 } from '../directus/extensions/directus-extension-course-search/src/limits.js';
+import {
+  nameMatcher,
+  nameWords,
+} from '../directus/extensions/directus-extension-course-search/src/name-match.js';
 import { nativeFilter } from '../directus/extensions/directus-extension-course-search/src/native-filter.js';
 
 describe('Course history boundaries', () => {
@@ -320,6 +327,78 @@ describe('Course history search query', () => {
   });
 });
 
+describe('Name search', () => {
+  test.each([
+    ['Стојчевски', 'stojcevski'],
+    ['Stojčevski', 'stojcevski'],
+    ['Stojchevski', 'stojcevski'],
+    ['Ѓорѓиева', 'gorgieva'],
+    ['Đorđieva', 'gorgieva'],
+    ['Gjorgjieva', 'gorgieva'],
+    ['Ќосе', 'kose'],
+    ['Ćose', 'kose'],
+    ['Kjose', 'kose'],
+    ['Љубица Њагул', 'lubica nagul'],
+    ['Џафер Ѕвезда', 'dzafer dzvezda'],
+    ['Dž Dzh', 'dz dz'],
+    ['Жаклина Шапкарова', 'zaklina sapkarova'],
+    ['Zhaklina Shapkarova', 'zaklina sapkarova'],
+    ['  Ана-Марија  ', 'ana marija'],
+  ])('folds %s to %s', (text, folded) => {
+    expect(nameWords(text).join(' ')).toBe(folded);
+  });
+
+  test('matches every query word as the start of a name word, in any order', () => {
+    const matches = nameMatcher('petrov ste');
+
+    expect(matches('Стефан Петровски')).toBeTruthy();
+    expect(matches('Stefan Petrovski')).toBeTruthy();
+    expect(matches('Стефан Ристов')).toBe(false);
+    expect(matches('Ивана Петровска')).toBe(false);
+    expect(matches(null)).toBe(false);
+  });
+
+  test('does not match inside a name word', () => {
+    expect(nameMatcher('ovski')('Петровски')).toBe(false);
+  });
+
+  test('picks the matching ids, and none without a query word', async () => {
+    const users = [
+      { id: 1, Name: 'Стефан Петровски' },
+      { id: 2, Name: 'Ана Петрова' },
+      { id: 3, Name: null },
+    ];
+    const queries: Array<Record<string, unknown>> = [];
+    // Capped at two rows a read, like a low QUERY_LIMIT_MAX.
+    const read = async (query: Record<string, unknown>) => {
+      queries.push(query);
+      const offset = Number(query['offset']);
+      return users.slice(offset, offset + 2);
+    };
+
+    await expect(nameMatchIds(read, 'petrov')).resolves.toEqual([1, 2]);
+    await expect(nameMatchIds(read, 'Петровс')).resolves.toEqual([1]);
+    await expect(nameMatchIds(read, 'Marko')).resolves.toEqual([]);
+    await expect(nameMatchIds(read, ' - ')).resolves.toBeUndefined();
+    await expect(nameMatchIds(read, null)).resolves.toBeUndefined();
+    // Three name queries of two capped pages and an empty one each.
+    expect(queries).toHaveLength(9);
+    expect(queries.slice(0, 3).map((query) => query['offset'])).toEqual([
+      0, 2, 3,
+    ]);
+  });
+
+  test('narrows the search to the picked ids', () => {
+    expect(
+      buildSearchQuery({ exclude: [], include: ['Algorithms'] }, [4, 9]),
+    ).toStrictEqual({
+      filter: {
+        _and: [{ id: { _in: [4, 9] } }, courseCondition('Algorithms')],
+      },
+    });
+  });
+});
+
 type SyntheticUser = {
   readonly 'Courses Count': null | number;
   readonly id: number;
@@ -587,6 +666,16 @@ describe('Search refusals', () => {
       'an unknown sort',
       { ...base, sort: 'Mail' },
       'Invalid criteria: sort: expected Name, Courses Count or -Courses Count',
+    ],
+    [
+      'a long name',
+      { ...base, name: 'x'.repeat(201) },
+      'Invalid criteria: name: max 200 characters',
+    ],
+    [
+      'a name that is no text',
+      { ...base, name: 5 },
+      'Invalid criteria: name: expected text',
     ],
     [
       'a long search',

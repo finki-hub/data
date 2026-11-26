@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { courseLimit, courseNameLength, searchLength } from './limits.js';
+import {
+  courseLimit,
+  courseNameLength,
+  nameLength,
+  searchLength,
+} from './limits.js';
 import { nativeFilter } from './native-filter.js';
 
 // The criteria of a Search request, and the one line that refuses them:
@@ -25,6 +30,7 @@ export const criteriaSchema = z.object({
   filter: nativeFilter.nullish(),
   include: courseNames,
   match: z.enum(matchModes).default('line'),
+  name: z.string().max(nameLength).nullish(),
   page: z.number().int().min(1),
   search: z.string().max(searchLength).nullish(),
   sort: z.enum(sorts).default('Name'),
@@ -84,6 +90,10 @@ const reasons: Readonly<Record<Field, (issue: Issue) => string>> = {
   filter: filterReason,
   include: namesReason,
   match: () => 'expected course or line',
+  name: (issue) =>
+    issue.code === 'too_big'
+      ? `max ${String(nameLength)} characters`
+      : 'expected text',
   page: () => 'expected an integer >= 1',
   search: (issue) =>
     issue.code === 'too_big'

@@ -3,6 +3,7 @@ import type { SearchController } from './index.js';
 
 import { countText, rangeText } from './count-text.js';
 import CoursePicker from './course-picker.vue';
+import { nameLength } from './limits.js';
 import SearchResults from './search-results.vue';
 
 defineOptions({ inheritAttrs: false });
@@ -31,6 +32,22 @@ function changeMatch(event: Event) {
           />Refresh data</v-button
         >
       </header>
+
+      <section
+        class="name-search"
+        aria-labelledby="name-label"
+      >
+        <h3 id="name-label">Name</h3>
+        <v-input
+          :model-value="controller.name"
+          :nullable="false"
+          :maxlength="nameLength"
+          placeholder="First name, last name or both, in Cyrillic or Latin"
+          aria-labelledby="name-label"
+          @update:model-value="controller.setName"
+          ><template #append><v-icon name="search" /></template
+        ></v-input>
+      </section>
 
       <fieldset class="match-mode">
         <legend>Match by</legend>
@@ -117,7 +134,7 @@ function changeMatch(event: Event) {
             secondary
             small
             @click="controller.reset"
-            >Clear course selections</v-button
+            >Clear criteria</v-button
           >
         </div>
         <p
@@ -223,6 +240,13 @@ p {
   color: var(--theme--foreground-subdued);
   line-height: 1.5;
   margin-block-start: 6px;
+}
+.name-search {
+  max-width: 640px;
+  margin-block-end: 28px;
+}
+.name-search h3 {
+  margin-block-end: 8px;
 }
 .match-mode {
   display: flex;

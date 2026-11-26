@@ -18,6 +18,7 @@ import {
   courseCondition,
   splitHistory,
 } from './history.js';
+import { nameMatcher, nameWords } from './name-match.js';
 
 const macedonianCollator = new Intl.Collator('mk');
 
@@ -31,6 +32,12 @@ declare global {
 
 const historyRows = z.array(z.object({ Courses: z.string().nullish() }));
 const courseRows = z.array(z.object({ name: z.string().nullish() }));
+const nameRows = z.array(
+  z.object({
+    id: z.union([z.string(), z.number()]),
+    Name: z.string().nullish(),
+  }),
+);
 const matchedRows = z.array(
   z
     .object({
@@ -69,8 +76,32 @@ const errorBody = (code: string, message: string) => ({
   errors: [{ extensions: { code }, message }],
 });
 
+// The users a name query picks, or undefined when it names no word. The
+// names are matched here, not by a filter, because a Latin query reads a
+// Cyrillic name in more spellings than a filter can list.
+export const nameMatchIds = async (
+  read: Reader,
+  name: null | string | undefined,
+): Promise<Array<number | string> | undefined> => {
+  if (nameWords(name).length === 0) return undefined;
+  const matches = nameMatcher(name ?? '');
+  const ids: Array<number | string> = [];
+  // Read on until a page comes back empty: QUERY_LIMIT_MAX may cut a page
+  // of limit -1 short.
+  for (let offset = 0; ;) {
+    const rows = nameRows.parse(
+      await read({ fields: ['id', 'Name'], limit: -1, offset, sort: ['id'] }),
+    );
+    if (rows.length === 0) return ids;
+    for (const row of rows) if (matches(row.Name)) ids.push(row.id);
+    offset += rows.length;
+  }
+};
+
+// The search query, narrowed to `ids` when a name query picked them.
 export const buildSearchQuery = (
   criteria: SearchCriteria,
+  ids?: ReadonlyArray<number | string>,
 ): CourseSearchQuery => {
   const condition =
     criteria.match === 'course' ? countedCourseCondition : courseCondition;
@@ -78,6 +109,7 @@ export const buildSearchQuery = (
     filter: {
       _and: [
         ...(criteria.filter ? [criteria.filter] : []),
+        ...(ids ? [{ id: { _in: [...ids] } }] : []),
         ...criteria.include.map((course) => condition(course)),
         ...criteria.exclude.map((course) => condition(course, true)),
       ],
@@ -220,7 +252,15 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
         accountability: request.accountability,
         schema: await getSchema(),
       });
-      const query = buildSearchQuery(criteria);
+      const ids = await nameMatchIds(
+        (nameQuery) => items.readByQuery(nameQuery),
+        criteria.name,
+      );
+      if (ids?.length === 0) {
+        response.json({ data: [], total: 0 });
+        return;
+      }
+      const query = buildSearchQuery(criteria, ids);
       const [rows, counts] = await Promise.all([
         readPage(items, {
           ...matchedLinesQuery(criteria),

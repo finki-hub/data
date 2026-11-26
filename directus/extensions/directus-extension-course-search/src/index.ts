@@ -13,6 +13,7 @@ import type { MatchMode } from './criteria.js';
 
 import { failureText } from './failure-text.js';
 import { pageSize } from './limits.js';
+import { nameWords } from './name-match.js';
 import CourseSearch from './search-layout.vue';
 
 const personSchema = z.object({
@@ -31,6 +32,9 @@ const resultsSchema = z.object({
 });
 const optionsSchema = z.object({ data: z.array(z.string()) });
 
+// How long typing in the name field rests before it searches.
+const nameDelay = 300;
+
 export type Person = z.infer<typeof personSchema>;
 
 // The layout's state as its component reads it. The component changes
@@ -38,6 +42,7 @@ export type Person = z.infer<typeof personSchema>;
 // to the prop.
 export type SearchController = {
   readonly match: MatchMode;
+  readonly name: string;
   readonly include: string[];
   readonly exclude: string[];
   readonly page: number;
@@ -58,6 +63,7 @@ export type SearchController = {
   readonly search: () => Promise<void>;
   readonly refresh: () => Promise<void>;
   readonly setMatch: (match: MatchMode) => void;
+  readonly setName: (name: string) => void;
   readonly setInclude: (courses: string[]) => void;
   readonly setExclude: (courses: string[]) => void;
   readonly setPage: (page: number) => void;
@@ -75,6 +81,15 @@ const layout = defineLayout({
     // By course unless the user picks Moodle course names.
     const match = ref<MatchMode>('course');
     const include = ref<string[]>([]);
+    // The name field as typed, and the name the search last used.
+    const name = ref('');
+    const nameQuery = ref('');
+    let nameTimer: ReturnType<typeof setTimeout> | undefined;
+    // Applies the typed name now; a changed name starts again at page 1.
+    const applyName = (): void => {
+      clearTimeout(nameTimer);
+      nameQuery.value = name.value.trim();
+    };
     const exclude = ref<string[]>([]);
     const courses = ref<string[]>([]);
     const people = ref<Person[]>([]);
@@ -123,6 +138,7 @@ const layout = defineLayout({
           '/finki-hub-course-history/search',
           {
             match: match.value,
+            name: nameQuery.value,
             include: include.value,
             exclude: exclude.value,
             page: page.value,
@@ -147,6 +163,8 @@ const layout = defineLayout({
     };
 
     const reset = (): void => {
+      name.value = '';
+      applyName();
       include.value = [];
       exclude.value = [];
       page.value = 1;
@@ -157,7 +175,15 @@ const layout = defineLayout({
     };
 
     watch(
-      [match, include, exclude, sort, () => props.filter, () => props.search],
+      [
+        match,
+        nameQuery,
+        include,
+        exclude,
+        sort,
+        () => props.filter,
+        () => props.search,
+      ],
       () => {
         page.value = 1;
       },
@@ -166,6 +192,7 @@ const layout = defineLayout({
     watch(
       [
         match,
+        nameQuery,
         include,
         exclude,
         page,
@@ -178,6 +205,7 @@ const layout = defineLayout({
     );
     onMounted(loadCourses);
     onBeforeUnmount(() => {
+      clearTimeout(nameTimer);
       resultsRequest?.abort();
       optionsRequest?.abort();
     });
@@ -186,6 +214,7 @@ const layout = defineLayout({
       refresh,
       controller: reactive({
         match,
+        name,
         include,
         exclude,
         courses,
@@ -212,6 +241,11 @@ const layout = defineLayout({
           match.value = value;
           void loadCourses();
         },
+        setName: (value: string) => {
+          name.value = value;
+          clearTimeout(nameTimer);
+          nameTimer = setTimeout(applyName, nameDelay);
+        },
         setInclude: (value: string[]) => {
           include.value = value;
         },
@@ -219,14 +253,20 @@ const layout = defineLayout({
           exclude.value = value;
         },
         setPage: (value: number) => {
+          applyName();
           page.value = value;
         },
         setSort: (value: SearchController['sort']) => {
+          applyName();
           sort.value = value;
         },
         pages: computed(() => Math.max(1, Math.ceil(total.value / pageSize))),
         hasCriteria: computed(
-          () => include.value.length + exclude.value.length > 0,
+          () =>
+            nameWords(name.value).length +
+              include.value.length +
+              exclude.value.length >
+            0,
         ),
         // The page header's own criteria that narrow the search too.
         nativeCriteria: computed(() => [
