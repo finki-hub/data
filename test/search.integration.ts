@@ -9,6 +9,7 @@ import {
 } from './isolated-target.js';
 import {
   anonymousSearch,
+  exportResponse,
   options,
   response,
   search,
@@ -33,6 +34,7 @@ const validTarget = {
 };
 const names = (rows: readonly SearchRow[]) => rows.map(({ Name }) => Name);
 const collator = new Intl.Collator('en');
+const csvType = /^text\/csv/u;
 const errorBody = z.object({ errors: z.array(z.unknown()) });
 
 test('requires an explicit loopback URL, token, and synthetic marker', () => {
@@ -285,5 +287,60 @@ test('searches names in Cyrillic or Latin, alone or with courses', async () => {
       page: 1,
     });
     assert.deepEqual(none, { data: [], total: 0 });
+  });
+});
+
+test('finds a user by the name in their mail address', async () => {
+  const target = await isolatedTarget(process.env);
+  await withSearchFixture(target, async () => {
+    const result = await search(target, target.token, {
+      exclude: [],
+      include: [],
+      name: 'kostova ivan',
+      page: 1,
+    });
+    assert.deepEqual(names(result.data), ['И. К.']);
+    const domain = await search(target, target.token, {
+      exclude: [],
+      include: [],
+      name: 'students',
+      page: 1,
+    });
+    assert.equal(domain.total, 0);
+  });
+});
+
+test('exports every matching user as CSV, in the search order', async () => {
+  const target = await isolatedTarget(process.env);
+  await withSearchFixture(target, async () => {
+    const exported = await exportResponse(target, target.token, {
+      exclude: [],
+      include: ['Page Entry'],
+      sort: 'Name',
+    });
+    assert.equal(exported.status, 200);
+    assert.match(exported.headers.get('content-type') ?? '', csvType);
+    const bytes = new Uint8Array(await exported.arrayBuffer());
+    // The UTF-8 byte order mark, which decoding the text drops.
+    assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+    const lines = new TextDecoder().decode(bytes).split('\r\n');
+    // A header, 52 users past the 50 of one search page, and the final CRLF.
+    assert.equal(lines.length, 54);
+    assert.ok(lines[0]?.startsWith('"Name","Mail"'));
+    assert.ok(lines[1]?.startsWith('"Page 001","page-1@example"'));
+    assert.ok(lines[52]?.startsWith('"Page 052"'));
+    assert.ok(lines[1]?.includes('"Page Entry","Page Entry"'));
+
+    const refused = await exportResponse(target, target.token, {
+      exclude: [],
+      include: [],
+      sort: 'Mail',
+    });
+    assert.equal(refused.status, 400);
+    const anonymous = await exportResponse(target, null, {
+      exclude: [],
+      include: [],
+    });
+    assert.equal(anonymous.status, 403);
   });
 });

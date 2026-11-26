@@ -93,3 +93,11 @@ export const nameMatcher = (
     );
   };
 };
+
+// The part of a mail address before the @, where a student's address
+// spells their name in Latin (name.surname@students...). The domain is
+// left out: every student would match a query for it.
+export const mailName = (mail: null | string | undefined): string => {
+  const at = (mail ?? '').indexOf('@');
+  return at > 0 ? (mail ?? '').slice(0, at) : '';
+};

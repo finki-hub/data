@@ -111,3 +111,54 @@ export const readPage = async (
   ]);
   return [...head, ...tail];
 };
+
+type AllRequest = Omit<PageRequest, 'page'>;
+
+// Every row of one query, read on until a page comes back empty, because
+// QUERY_LIMIT_MAX may cut a read of limit -1 short.
+const readEvery = async (
+  items: ItemsReader,
+  query: Query,
+): Promise<unknown[]> => {
+  const rows: unknown[] = [];
+  for (;;) {
+    const page = await items.readByQuery({
+      ...query,
+      limit: -1,
+      offset: rows.length,
+    });
+    if (page.length === 0) return rows;
+    rows.push(...page);
+  }
+};
+
+// Every matching user in the order of `readPage`: by name, or the users
+// with a stored Courses Count in the chosen direction, then those without.
+export const readAll = async (
+  items: ItemsReader,
+  request: AllRequest,
+): Promise<unknown[]> => {
+  const fields = [...request.fields];
+  const deep = request.deep === undefined ? {} : { deep: request.deep };
+  if (request.sort === 'Name') {
+    return readEvery(items, {
+      ...request.query,
+      ...deep,
+      fields,
+      sort: ['Name', 'id'],
+    });
+  }
+  const counted = await readEvery(items, {
+    ...narrowed(request.query, { 'Courses Count': { _nnull: true } }),
+    ...deep,
+    fields,
+    sort: [request.sort, 'Name', 'id'],
+  });
+  const uncounted = await readEvery(items, {
+    ...narrowed(request.query, { 'Courses Count': { _null: true } }),
+    ...deep,
+    fields,
+    sort: ['Name', 'id'],
+  });
+  return [...counted, ...uncounted];
+};

@@ -81,6 +81,14 @@ export const search = async (
     await response(await searchResponse(target, token, criteria), 200),
   );
 
+// The CSV export of the criteria, or the response that refused them.
+export const exportResponse = (
+  target: IsolatedTarget,
+  token: null | string,
+  criteria: unknown,
+): Promise<Response> =>
+  request(target, `${endpoint}/export`, json(criteria, token));
+
 export const anonymousSearch = (
   target: IsolatedTarget,
   body: unknown,

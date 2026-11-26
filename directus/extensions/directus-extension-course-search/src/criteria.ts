@@ -36,6 +36,9 @@ export const criteriaSchema = z.object({
   sort: z.enum(sorts).default('Name'),
 });
 
+// An export takes every matching user, so its criteria have no page.
+export const exportCriteriaSchema = criteriaSchema.omit({ page: true });
+
 type Field = keyof typeof criteriaSchema.shape;
 
 type Issue = z.core.$ZodIssue;

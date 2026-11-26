@@ -3,14 +3,16 @@ import type { Accountability, Filter, Query } from '@directus/types';
 import { defineEndpoint } from '@directus/extensions-sdk';
 import { z } from 'zod';
 
-import { countOf, readPage } from './count-order.js';
+import { countOf, readAll, readPage } from './count-order.js';
 import {
   criteriaProblem,
   criteriaSchema,
+  exportCriteriaSchema,
   invalidCriteria,
   type MatchMode,
   matchModes,
 } from './criteria.js';
+import { toCsv } from './csv.js';
 import { filterPathProblem, relationalDepthLimit } from './filter-paths.js';
 import {
   countedCourseCondition,
@@ -18,7 +20,7 @@ import {
   courseCondition,
   splitHistory,
 } from './history.js';
-import { nameMatcher, nameWords } from './name-match.js';
+import { mailName, nameMatcher, nameWords } from './name-match.js';
 
 const macedonianCollator = new Intl.Collator('mk');
 
@@ -35,6 +37,7 @@ const courseRows = z.array(z.object({ name: z.string().nullish() }));
 const nameRows = z.array(
   z.object({
     id: z.union([z.string(), z.number()]),
+    Mail: z.string().nullish(),
     Name: z.string().nullish(),
   }),
 );
@@ -76,7 +79,9 @@ const errorBody = (code: string, message: string) => ({
   errors: [{ extensions: { code }, message }],
 });
 
-// The users a name query picks, or undefined when it names no word. The
+// The users a name query picks, or undefined when it names no word. A
+// query word may start a word of the name or of the mail address before
+// its @. The
 // names are matched here, not by a filter, because a Latin query reads a
 // Cyrillic name in more spellings than a filter can list.
 export const nameMatchIds = async (
@@ -90,10 +95,16 @@ export const nameMatchIds = async (
   // of limit -1 short.
   for (let offset = 0; ;) {
     const rows = nameRows.parse(
-      await read({ fields: ['id', 'Name'], limit: -1, offset, sort: ['id'] }),
+      await read({
+        fields: ['id', 'Name', 'Mail'],
+        limit: -1,
+        offset,
+        sort: ['id'],
+      }),
     );
     if (rows.length === 0) return ids;
-    for (const row of rows) if (matches(row.Name)) ids.push(row.id);
+    for (const row of rows)
+      if (matches(`${row.Name ?? ''} ${mailName(row.Mail)}`)) ids.push(row.id);
     offset += rows.length;
   }
 };
@@ -190,6 +201,38 @@ export const optionNames = async (
 
 const optionsMatch = z.enum(matchModes).catch('line');
 
+type Criteria = z.infer<typeof exportCriteriaSchema>;
+
+const exportRows = z.array(
+  z
+    .object({
+      Courses: z.string().nullish(),
+      'Courses Count': z.number().nullish(),
+      Mail: z.string().nullish(),
+      matched: z.array(z.string()),
+      Name: z.string(),
+      Profile_new: z.string().nullish(),
+      Profile_old: z.string().nullish(),
+    })
+    .loose(),
+);
+
+// The criteria of a request, or the line that refuses them. A filter path
+// that names more fields than REST allows is refused like an unsupported
+// filter, with its own reason.
+export const acceptCriteria = <T extends Criteria>(
+  schema: z.ZodType<T>,
+  body: unknown,
+  maxDepth: number,
+): { readonly criteria: T } | { readonly problem: string } => {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return { problem: criteriaProblem(parsed.error) };
+  const pathProblem = filterPathProblem(parsed.data.filter, maxDepth);
+  return pathProblem === undefined
+    ? { criteria: parsed.data }
+    : { problem: invalidCriteria('filter', pathProblem) };
+};
+
 export default defineEndpoint((router, { env, getSchema, services }) => {
   const maxDepth = relationalDepthLimit(env);
   router.use((request, response, next) => {
@@ -224,43 +267,41 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
     }
   });
 
+  // The caller's Moodle users and the query of the criteria, or undefined
+  // when a name query picks no one.
+  const searchQuery = async (
+    accountability: Accountability | undefined,
+    criteria: Criteria,
+  ) => {
+    const items = new services.ItemsService('moodle_users', {
+      accountability,
+      schema: await getSchema(),
+    });
+    const ids = await nameMatchIds(
+      (nameQuery) => items.readByQuery(nameQuery),
+      criteria.name,
+    );
+    return ids?.length === 0
+      ? undefined
+      : { items, query: buildSearchQuery(criteria, ids) };
+  };
+
   router.post('/search', async (request, response, next) => {
     try {
-      const parsed = criteriaSchema.safeParse(request.body);
-      if (!parsed.success) {
+      const accepted = acceptCriteria(criteriaSchema, request.body, maxDepth);
+      if ('problem' in accepted) {
         response
           .status(400)
-          .json(errorBody('INVALID_PAYLOAD', criteriaProblem(parsed.error)));
+          .json(errorBody('INVALID_PAYLOAD', accepted.problem));
         return;
       }
-      // A filter path that names more fields than REST allows is refused
-      // like an unsupported filter, with its own reason.
-      const pathProblem = filterPathProblem(parsed.data.filter, maxDepth);
-      if (pathProblem !== undefined) {
-        response
-          .status(400)
-          .json(
-            errorBody(
-              'INVALID_PAYLOAD',
-              invalidCriteria('filter', pathProblem),
-            ),
-          );
-        return;
-      }
-      const criteria = parsed.data;
-      const items = new services.ItemsService('moodle_users', {
-        accountability: request.accountability,
-        schema: await getSchema(),
-      });
-      const ids = await nameMatchIds(
-        (nameQuery) => items.readByQuery(nameQuery),
-        criteria.name,
-      );
-      if (ids?.length === 0) {
+      const { criteria } = accepted;
+      const search = await searchQuery(request.accountability, criteria);
+      if (search === undefined) {
         response.json({ data: [], total: 0 });
         return;
       }
-      const query = buildSearchQuery(criteria, ids);
+      const { items, query } = search;
       const [rows, counts] = await Promise.all([
         readPage(items, {
           ...matchedLinesQuery(criteria),
@@ -274,6 +315,39 @@ export default defineEndpoint((router, { env, getSchema, services }) => {
         data: withMatchedLines(rows, criteria),
         total: countOf(counts),
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Every matching user as CSV, in the order of the search.
+  router.post('/export', async (request, response, next) => {
+    try {
+      const accepted = acceptCriteria(
+        exportCriteriaSchema,
+        request.body,
+        maxDepth,
+      );
+      if ('problem' in accepted) {
+        response
+          .status(400)
+          .json(errorBody('INVALID_PAYLOAD', accepted.problem));
+        return;
+      }
+      const { criteria } = accepted;
+      const search = await searchQuery(request.accountability, criteria);
+      const rows =
+        search === undefined
+          ? []
+          : await readAll(search.items, {
+              ...matchedLinesQuery(criteria),
+              query: search.query,
+              sort: criteria.sort,
+            });
+      response
+        .type('text/csv; charset=utf-8')
+        .attachment('moodle-users.csv')
+        .send(toCsv(exportRows.parse(withMatchedLines(rows, criteria))));
     } catch (error) {
       next(error);
     }

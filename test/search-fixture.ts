@@ -71,4 +71,10 @@ export const moodleUsers = [
   { Courses: 'Named Entry', 'Courses Count': 1, Name: 'Стефан Шапкаров' },
   { Courses: 'Named Entry', 'Courses Count': 1, Name: 'Стефанија Ѓорѓиева' },
   { Courses: 'Other Entry', 'Courses Count': 1, Name: 'Ана Шапкарова' },
+  {
+    Courses: 'Other Entry',
+    'Courses Count': 1,
+    Mail: 'ivana.kostova@students.example',
+    Name: 'И. К.',
+  },
 ];

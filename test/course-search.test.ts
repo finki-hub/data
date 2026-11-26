@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   type ItemsReader,
   pageSegments,
+  readAll,
   readPage,
   type SearchSort,
 } from '../directus/extensions/directus-extension-course-search/src/count-order.js';
@@ -16,8 +17,10 @@ import {
 import {
   criteriaProblem,
   criteriaSchema,
+  exportCriteriaSchema,
   invalidCriteria,
 } from '../directus/extensions/directus-extension-course-search/src/criteria.js';
+import { toCsv } from '../directus/extensions/directus-extension-course-search/src/csv.js';
 import {
   buildSearchQuery,
   nameMatchIds,
@@ -37,6 +40,7 @@ import {
   pageSize,
 } from '../directus/extensions/directus-extension-course-search/src/limits.js';
 import {
+  mailName,
   nameMatcher,
   nameWords,
 } from '../directus/extensions/directus-extension-course-search/src/name-match.js';
@@ -362,6 +366,29 @@ describe('Name search', () => {
     expect(nameMatcher('ovski')('Петровски')).toBe(false);
   });
 
+  test('reads the name part of a mail address, without the domain', () => {
+    expect(mailName('ana.petrova.1@students.finki.ukim.mk')).toBe(
+      'ana.petrova.1',
+    );
+    expect(mailName('no-domain')).toBe('');
+    expect(mailName('@students.finki.ukim.mk')).toBe('');
+    expect(mailName(null)).toBe('');
+  });
+
+  test('finds a user by the name in the mail address', async () => {
+    const users = [
+      { id: 1, Mail: 'ana.petrova@students.finki.ukim.mk', Name: 'А. П.' },
+      { id: 2, Mail: 'marko@students.finki.ukim.mk', Name: 'Ана Ристова' },
+      { id: 3, Mail: null, Name: 'Ана Петрова' },
+    ];
+    const read = async (query: Record<string, unknown>) =>
+      Number(query['offset']) > 0 ? [] : users;
+
+    await expect(nameMatchIds(read, 'ana petrova')).resolves.toEqual([1, 3]);
+    await expect(nameMatchIds(read, 'Ана marko')).resolves.toEqual([2]);
+    await expect(nameMatchIds(read, 'students')).resolves.toEqual([]);
+  });
+
   test('picks the matching ids, and none without a query word', async () => {
     const users = [
       { id: 1, Name: 'Стефан Петровски' },
@@ -409,7 +436,11 @@ type SyntheticUser = {
 // the count segment the page adds to the search filter, sorts like
 // PostgreSQL (NULL last ascending, first descending) and records every
 // query it was given.
-const syntheticItems = (users: readonly SyntheticUser[]) => {
+const syntheticItems = (
+  users: readonly SyntheticUser[],
+  // The rows a read of limit -1 returns, like QUERY_LIMIT_MAX.
+  limitMax = Infinity,
+) => {
   const queries: Query[] = [];
   // The count segment readPage adds to the caller's filter, if any.
   const segment = (filter: Filter | null | undefined) => {
@@ -450,9 +481,10 @@ const syntheticItems = (users: readonly SyntheticUser[]) => {
         return [{ count: { id: String(matching.length) } }];
       }
       const offset = query.offset ?? 0;
+      const limit = query.limit === -1 ? limitMax : (query.limit ?? 0);
       return matching
         .toSorted(compare(query.sort ?? []))
-        .slice(offset, offset + (query.limit ?? 0));
+        .slice(offset, offset + limit);
     },
   };
   return { queries, reader };
@@ -632,6 +664,43 @@ const answered = (status: number, errors?: unknown) => ({
   response: { data: errors === undefined ? undefined : { errors }, status },
 });
 
+describe('CSV export', () => {
+  test('quotes every cell, keeps the history lines and starts with a BOM', () => {
+    const csv = toCsv([
+      {
+        Courses: 'Алгоритми\r\nБази "1"',
+        'Courses Count': 2,
+        Mail: null,
+        matched: ['Алгоритми'],
+        Name: 'Ана Петрова',
+        Profile_new: 'https://profiles.example/new',
+      },
+    ]);
+
+    expect(csv).toBe(
+      [
+        '\u{FEFF}"Name","Mail","Moodle profile (new)","Moodle profile (old)","Courses count","Matched courses","Course history"',
+        '"Ана Петрова","","https://profiles.example/new","","2","Алгоритми","Алгоритми\nБази ""1"""',
+        '',
+      ].join('\r\n'),
+    );
+  });
+
+  test('keeps a spreadsheet from reading a cell as a formula', () => {
+    const [, row] = toCsv([
+      { Courses: '-A\n@B', Mail: '+1', matched: [], Name: '=HYPERLINK("x")' },
+    ]).split('\r\n', 2);
+
+    expect(row).toBe(`"'=HYPERLINK(""x"")","'+1","","","","","'-A\n@B"`);
+  });
+
+  test('takes the search criteria without a page', () => {
+    expect(
+      exportCriteriaSchema.parse({ exclude: [], include: [], page: 3 }),
+    ).toStrictEqual({ exclude: [], include: [], match: 'line', sort: 'Name' });
+  });
+});
+
 describe('Search refusals', () => {
   const base = { exclude: [], include: [], page: 1 };
 
@@ -769,4 +838,21 @@ describe('Search failure lines', () => {
       'Search failed: invalid response',
     );
   });
+});
+
+describe('Every matching user', () => {
+  test.each(['Name', 'Courses Count', '-Courses Count'] as const)(
+    'reads every page of the %s order, under a read cap',
+    async (sort) => {
+      const { reader } = syntheticItems(syntheticUsers, 40);
+      // The synthetic reader returns whole users whatever the fields.
+      const rows = await readAll(reader, {
+        fields: ['id'],
+        query: { filter: { _and: [] } },
+        sort,
+      });
+
+      expect(rows).toEqual(await everyPage(syntheticUsers, sort));
+    },
+  );
 });
